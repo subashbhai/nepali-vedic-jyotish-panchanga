@@ -5,4 +5,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   printPage: () => ipcRenderer.invoke('print-page'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  restartAndInstall: () => ipcRenderer.invoke('restart-and-install'),
+  onUpdaterStatus: (callback) => {
+    const subscription = (_event, value) => callback(value);
+    ipcRenderer.on('updater-status', subscription);
+    return () => ipcRenderer.removeListener('updater-status', subscription);
+  },
 });

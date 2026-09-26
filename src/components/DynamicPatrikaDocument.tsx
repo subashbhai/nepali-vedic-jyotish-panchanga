@@ -300,7 +300,29 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
   const d10Chart = generateDivisionalChart('D10', safeLagna, safePlanets);
   const d12Chart = generateDivisionalChart('D12', safeLagna, safePlanets);
 
-  const moonPlanet = safePlanets.find((p) => p.name === 'चन्द्र') || safePlanets[0];
+  const foundMoon = safePlanets.find((p) => p.name === 'चन्द्र');
+  const moonPlanet: PlanetPosition = foundMoon || {
+    id: '2',
+    name: 'चन्द्र' as const,
+    englishName: 'Moon',
+    symbol: '☽',
+    longitude: 281.8233,
+    degree: 11,
+    minutes: 49,
+    seconds: 24,
+    formattedDegree: "११° ४९' २४\"",
+    rashiId: 10,
+    rashiName: 'मकर' as const,
+    nakshatraId: 22,
+    nakshatraName: 'श्रवण',
+    nakshatraLord: 'चन्द्र' as const,
+    pada: 1,
+    bhava: 1,
+    speed: 13.2,
+    isRetrograde: false,
+    isCombust: false,
+    dignity: 'समराशि',
+  };
   const moonRashiId = moonPlanet?.rashiId || 1;
   const moonRashiName = moonPlanet?.rashiName || 'मेष';
 
@@ -322,6 +344,34 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
   const yogaDoshaEval = evaluateAllYogasAndDoshas(safeLagna, safePlanets, dashaResult);
   const gochar = calculateGocharAndSadeSati(moonPlanet, safePlanets, new Date().toISOString());
   const masterFaladesh = generateMasterFaladeshReport(safeProfile, safeLagna, safePlanets, panchanga, dashaResult, gochar);
+
+  // Safe Dasha extraction with multi-layer fallback
+  const birthDashaPlanet = 
+    (dashaResult as any)?.birthDashaPlanet || 
+    dashaResult?.balanceAtBirth?.planet || 
+    moonPlanet?.nakshatraLord || 
+    'चन्द्र';
+
+  const balanceYears = 
+    typeof (dashaResult as any)?.balanceYears === 'number' && !isNaN((dashaResult as any).balanceYears)
+      ? (dashaResult as any).balanceYears
+      : typeof dashaResult?.balanceAtBirth?.yearsLeft === 'number' && !isNaN(dashaResult.balanceAtBirth.yearsLeft)
+        ? dashaResult.balanceAtBirth.yearsLeft
+        : 0;
+
+  const balanceMonths = 
+    typeof (dashaResult as any)?.balanceMonths === 'number' && !isNaN((dashaResult as any).balanceMonths)
+      ? (dashaResult as any).balanceMonths
+      : typeof dashaResult?.balanceAtBirth?.monthsLeft === 'number' && !isNaN(dashaResult.balanceAtBirth.monthsLeft)
+        ? dashaResult.balanceAtBirth.monthsLeft
+        : 0;
+
+  const balanceDays = 
+    typeof (dashaResult as any)?.balanceDays === 'number' && !isNaN((dashaResult as any).balanceDays)
+      ? (dashaResult as any).balanceDays
+      : typeof dashaResult?.balanceAtBirth?.daysLeft === 'number' && !isNaN(dashaResult.balanceAtBirth.daysLeft)
+        ? dashaResult.balanceAtBirth.daysLeft
+        : 0;
 
   const avakahadaInfo = NAKSHATRA_AVAKAHADA[panchanga?.nakshatra?.name || 'रोहिणी'] || {
     namakshara: ['ओ', 'वा', 'वी', 'वू'],
@@ -470,8 +520,8 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
             <div className="md:col-span-5 space-y-1">
               <div className="border border-amber-800 p-1.5 rounded bg-amber-50">
                 <p className="font-bold text-red-900 border-b border-amber-300 pb-0.5">जन्मकालीन महादशा भोग्य शेष:</p>
-                <p className="mt-0.5">महादशा स्वामी: <strong>{(dashaResult as any).birthDashaPlanet || dashaResult.balanceAtBirth?.planet}</strong></p>
-                <p>भोग्य काल: {toDevanagariNumerals((dashaResult as any).balanceYears ?? dashaResult.balanceAtBirth?.yearsLeft ?? 0)} वर्ष, {toDevanagariNumerals((dashaResult as any).balanceMonths ?? dashaResult.balanceAtBirth?.monthsLeft ?? 0)} महिना, {toDevanagariNumerals((dashaResult as any).balanceDays ?? dashaResult.balanceAtBirth?.daysLeft ?? 0)} दिन</p>
+                <p className="mt-0.5">महादशा स्वामी: <strong className="text-red-900 font-bold">{birthDashaPlanet}</strong></p>
+                <p>भोग्य काल: <strong className="text-amber-950 font-bold">{toDevanagariNumerals(balanceYears)}</strong> वर्ष, <strong className="text-amber-950 font-bold">{toDevanagariNumerals(balanceMonths)}</strong> महिना, <strong className="text-amber-950 font-bold">{toDevanagariNumerals(balanceDays)}</strong> दिन</p>
               </div>
               <div className="border border-red-800 p-1.5 rounded bg-red-50/60">
                 <p className="font-bold text-red-900 border-b border-red-300 pb-0.5">घातचक्र (सावधानी तत्व):</p>
@@ -1361,7 +1411,7 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
             orgName={orgProfile.name}
             orgPhone={toDevanagariNumerals(orgProfile.phone || '+९७७-९७६४४००५३३')}
             title="॥ विंशोत्तरी, त्रिभागी तथा योगिनी महादशा प्रतिवेदन ॥"
-            subtitle={`जन्मकालीन दशा भोग्य शेष: ${(dashaResult as any).birthDashaPlanet || dashaResult.balanceAtBirth?.planet || 'सूर्य'} महादशा`}
+            subtitle={`जन्मकालीन दशा भोग्य शेष: ${birthDashaPlanet} महादशा`}
             primaryShloka="ॐ वक्रतुण्ड महाकाय सूर्यकोटि समप्रभ। निर्विघ्नं कुरु मे देव सर्वकार्येषु सर्वदा॥"
             secondaryShloka="दशाफलानि जानीयात् ग्रहभावबलैः सह। शुभाशुभविपाकेन शुभानां वृद्धिरुत्तमा॥"
           />
@@ -1385,8 +1435,8 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
                 <p><strong>जन्म लग्न / राशि:</strong> {safeLagna?.rashiName} / {panchanga?.moonRashi} ({panchanga?.nakshatra?.name})</p>
               </div>
               <div className="space-y-0.5">
-                <p><strong>जन्मकालीन महादशा स्वामी:</strong> <span className="text-red-900 font-bold">{(dashaResult as any).birthDashaPlanet || dashaResult.balanceAtBirth?.planet}</span></p>
-                <p><strong>दशा भोग्य शेष:</strong> {toDevanagariNumerals((dashaResult as any).balanceYears ?? dashaResult.balanceAtBirth?.yearsLeft ?? 0)} वर्ष, {toDevanagariNumerals((dashaResult as any).balanceMonths ?? dashaResult.balanceAtBirth?.monthsLeft ?? 0)} महिना, {toDevanagariNumerals((dashaResult as any).balanceDays ?? dashaResult.balanceAtBirth?.daysLeft ?? 0)} दिन</p>
+                <p><strong>जन्मकालीन महादशा स्वामी:</strong> <span className="text-red-900 font-bold">{birthDashaPlanet}</span></p>
+                <p><strong>दशा भोग्य शेष:</strong> <strong className="text-amber-950">{toDevanagariNumerals(balanceYears)}</strong> वर्ष, <strong className="text-amber-950">{toDevanagariNumerals(balanceMonths)}</strong> महिना, <strong className="text-amber-950">{toDevanagariNumerals(balanceDays)}</strong> दिन</p>
                 <p><strong>वर्तमान दशा प्रभाव:</strong> वय अनुसार जीवनमा दशा परिवर्तनको फल विचारणीय</p>
               </div>
             </div>

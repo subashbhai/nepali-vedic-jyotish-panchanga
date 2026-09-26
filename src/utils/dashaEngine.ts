@@ -191,28 +191,34 @@ export function formatMsToBSAndNepaliTime(ms: number): { dateBS: string; dateAD:
  * Service 1: Calculate Birth Moon Nakshatra & Dasha Balance at Birth
  */
 export function calculateNakshatraDashaBalance(moonPosition: PlanetPosition): NakshatraDashaBalance {
-  const moonLong = ((moonPosition.longitude % 360) + 360) % 360;
+  let rawLong = moonPosition?.longitude;
+  if (rawLong === undefined || isNaN(rawLong)) {
+    const rashiBase = (((moonPosition?.rashiId || 1) - 1) * 30);
+    rawLong = rashiBase + (moonPosition?.degree || 0) + (moonPosition?.minutes || 0) / 60 + (moonPosition?.seconds || 0) / 3600;
+  }
+  if (isNaN(rawLong)) rawLong = 0;
+  const moonLong = ((rawLong % 360) + 360) % 360;
   const nakshatraSpan = 360 / 27; // 13.3333333 degrees (13° 20')
-  const nakshatraIndex = Math.floor(moonLong / nakshatraSpan); // 0 to 26
+  const nakshatraIndex = Math.max(0, Math.min(26, Math.floor(moonLong / nakshatraSpan) || 0));
   const degreeInNakshatra = moonLong % nakshatraSpan;
 
   const elapsedFraction = degreeInNakshatra / nakshatraSpan;
-  const remainingFraction = 1.0 - elapsedFraction;
+  const remainingFraction = Math.max(0, Math.min(1, 1.0 - elapsedFraction));
 
   // Lord of the nakshatra (0=Ketu, 1=Venus, 2=Sun, 3=Moon, 4=Mars, 5=Rahu, 6=Jupiter, 7=Saturn, 8=Mercury)
-  const lordIndex = nakshatraIndex % 9;
-  const lordItem = VIMSHOTTARI_PERIODS[lordIndex];
+  const lordIndex = ((nakshatraIndex % 9) + 9) % 9;
+  const lordItem = VIMSHOTTARI_PERIODS[lordIndex] || VIMSHOTTARI_PERIODS[0];
 
-  const totalYearsLeft = lordItem.years * remainingFraction;
+  const totalYearsLeft = (lordItem?.years || 10) * remainingFraction;
 
-  const yearsLeft = Math.floor(totalYearsLeft);
+  const yearsLeft = Math.max(0, Math.floor(totalYearsLeft) || 0);
   const remMonths = (totalYearsLeft - yearsLeft) * 12;
-  const monthsLeft = Math.floor(remMonths);
+  const monthsLeft = Math.max(0, Math.floor(remMonths) || 0);
   const remDays = (remMonths - monthsLeft) * 30;
-  const daysLeft = Math.floor(remDays);
+  const daysLeft = Math.max(0, Math.floor(remDays) || 0);
   const remHours = (remDays - daysLeft) * 24;
-  const hoursLeft = Math.floor(remHours);
-  const remMinutes = Math.floor((remHours - hoursLeft) * 60);
+  const hoursLeft = Math.max(0, Math.floor(remHours) || 0);
+  const remMinutes = Math.max(0, Math.floor((remHours - hoursLeft) * 60) || 0);
 
   const yStr = toDevanagariNumerals(yearsLeft);
   const mStr = toDevanagariNumerals(monthsLeft);
@@ -224,9 +230,9 @@ export function calculateNakshatraDashaBalance(moonPosition: PlanetPosition): Na
   return {
     moonLongitude: moonLong,
     nakshatraIndex: nakshatraIndex + 1,
-    nakshatraName: moonPosition.nakshatraName,
+    nakshatraName: moonPosition?.nakshatraName || '',
     nakshatraLord: lordItem.planet,
-    pada: moonPosition.pada,
+    pada: moonPosition?.pada || 1,
     degreeInNakshatra,
     elapsedFraction,
     remainingFraction,
@@ -357,20 +363,42 @@ export function generateFull5LevelVimshottariDasha(
   birthTimeStr: string = '12:00',
   targetDateAD?: string
 ): VimshottariDashaFullResult {
+  const safeMoon: PlanetPosition = moonPosition || {
+    id: '2',
+    name: 'चन्द्र',
+    englishName: 'Moon',
+    symbol: '☽',
+    longitude: 0,
+    degree: 0,
+    minutes: 0,
+    seconds: 0,
+    formattedDegree: "००° ००' ००\"",
+    rashiId: 1,
+    rashiName: 'मेष',
+    nakshatraId: 1,
+    nakshatraName: 'अश्विनी',
+    nakshatraLord: 'केतु',
+    pada: 1,
+    bhava: 1,
+    speed: 13.2,
+    isRetrograde: false,
+    isCombust: false,
+    dignity: 'समराशि',
+  };
   const cleanBirthDate = sanitizeDateAD(birthDateAD);
   const { hours: bh, minutes: bm } = parseHoursMinutes(birthTimeStr);
   const cleanBirthTime = `${String(bh).padStart(2, '0')}:${String(bm).padStart(2, '0')}`;
 
   const cleanTargetDate = targetDateAD ? sanitizeDateAD(targetDateAD) : undefined;
-  const cacheKey = `${moonPosition.longitude.toFixed(4)}_${cleanBirthDate}_${cleanBirthTime}_${cleanTargetDate || 'current'}`;
+  const balance = calculateNakshatraDashaBalance(safeMoon);
+  const cacheKey = `${balance.moonLongitude.toFixed(4)}_${cleanBirthDate}_${cleanBirthTime}_${cleanTargetDate || 'current'}`;
   if (dashaCache.has(cacheKey)) {
     return dashaCache.get(cacheKey)!;
   }
-  const balance = calculateNakshatraDashaBalance(moonPosition);
 
   // Determine starting planet lord index (0 to 8)
   const nakshatraSpan = 360 / 27;
-  const lordIndex = Math.floor(moonPosition.longitude / nakshatraSpan) % 9;
+  const lordIndex = Math.floor(balance.moonLongitude / nakshatraSpan) % 9;
 
   // Birth Timestamp in MS
   let birthMs = new Date(`${cleanBirthDate}T${cleanBirthTime}:00.000Z`).getTime();
@@ -540,7 +568,7 @@ export function generateFull5LevelVimshottariDasha(
   const targetFormats = formatMsToBSAndNepaliTime(targetMs);
 
   const result: VimshottariDashaFullResult = {
-    birthMoonPosition: moonPosition,
+    birthMoonPosition: safeMoon,
     balanceAtBirth: balance,
     mahadashas,
     activeHierarchyAtTargetDate: {
@@ -655,12 +683,20 @@ export function calculateVimshottariDasha(
   const activeChain = fullResult.activeHierarchyAtTargetDate;
 
   return {
-    birthMoonDegree: moonPosition.degree,
+    birthMoonDegree: moonPosition?.degree ?? 0,
+    birthDashaPlanet: fullResult.balanceAtBirth.nakshatraLord,
+    balanceYears: fullResult.balanceAtBirth.yearsLeft,
+    balanceMonths: fullResult.balanceAtBirth.monthsLeft,
+    balanceDays: fullResult.balanceAtBirth.daysLeft,
     balanceAtBirth: {
       planet: fullResult.balanceAtBirth.nakshatraLord,
+      nakshatraName: fullResult.balanceAtBirth.nakshatraName,
+      pada: fullResult.balanceAtBirth.pada,
       yearsLeft: fullResult.balanceAtBirth.yearsLeft,
       monthsLeft: fullResult.balanceAtBirth.monthsLeft,
       daysLeft: fullResult.balanceAtBirth.daysLeft,
+      hoursLeft: fullResult.balanceAtBirth.hoursLeft,
+      formattedBalanceNepali: fullResult.balanceAtBirth.formattedBalanceNepali,
     },
     mahadashas: fullResult.mahadashas.map((m) => ({
       planet: m.planet,

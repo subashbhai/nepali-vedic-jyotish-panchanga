@@ -16,7 +16,8 @@ import {
   User,
   ShieldAlert,
   ArrowRightLeft,
-  Crown
+  Crown,
+  Zap
 } from 'lucide-react';
 import { BirthDetails, ApplicationSettings, OrganizationProfile } from '../types/astrology';
 import { getStoredRBACUsers, type RBACSession } from '../db/rbacStore';
@@ -48,6 +49,9 @@ interface HeaderProps {
   hasHighPriorityTransitAlert?: boolean;
   onOpenTransitNotifications?: () => void;
   onOpenPurchaseModal?: (featureName?: string) => void;
+  hasUpdate?: boolean;
+  updateVersion?: string;
+  onOpenAppUpdates?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = memo(({
@@ -71,6 +75,9 @@ export const Header: React.FC<HeaderProps> = memo(({
   hasHighPriorityTransitAlert = false,
   onOpenTransitNotifications,
   onOpenPurchaseModal,
+  hasUpdate = false,
+  updateVersion,
+  onOpenAppUpdates,
 }) => {
   const orgName = orgProfile?.name || 'बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा';
   const orgPhone = orgProfile?.phone || '+९७त्-९७६४४००५३३';
@@ -218,6 +225,22 @@ export const Header: React.FC<HeaderProps> = memo(({
                 </button>
               )}
             </div>
+          )}
+
+          {/* Live App Update Notification Button */}
+          {hasUpdate && onOpenAppUpdates && (
+            <button
+              type="button"
+              onClick={onOpenAppUpdates}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black text-xs shadow-md cursor-pointer transition-all hover:scale-105 active:scale-95 animate-pulse shrink-0 border border-amber-300"
+              title="नयाँ अपडेट उपलब्ध छ, हेर्न क्लिक गर्नुहोस्"
+            >
+              <Zap className="w-3.5 h-3.5 fill-current text-amber-950" />
+              <span className="hidden sm:inline">नयाँ अपडेट</span>
+              <span className="bg-stone-950 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
+                {updateVersion ? `v${updateVersion.replace(/^v/i, '')}` : 'उपलब्ध'}
+              </span>
+            </button>
           )}
 
           {/* PWA Install Button (Chromium / Android / iOS) */}

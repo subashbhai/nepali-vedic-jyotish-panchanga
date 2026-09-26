@@ -1050,7 +1050,7 @@ export const BrihatCheenaDocument: React.FC<BrihatCheenaDocumentProps> = ({
                   जातकको जन्म {panchanga.nakshatra.name} नक्षत्रको {toDevanagariNumerals(panchanga.nakshatra.pada)} पादमा भएको हुँदा जन्मकालीन नक्षत्रेश दशा प्रारम्भ हुन्छ।
                 </p>
                 <p className="text-stone-900 font-semibold mt-0.5">
-                  जन्मकालीन दशा: <span className="text-red-700 font-bold">{vimshottariDasha.balanceAtBirth.planet}</span> महादशा
+                  जन्मकालीन दशा: <span className="text-red-700 font-bold">{vimshottariDasha.balanceAtBirth.planet}</span> महादशा (भोग्य शेष: <strong className="text-amber-950 font-bold">{toDevanagariNumerals(vimshottariDasha.balanceAtBirth.yearsLeft)}</strong> वर्ष, <strong className="text-amber-950 font-bold">{toDevanagariNumerals(vimshottariDasha.balanceAtBirth.monthsLeft)}</strong> महिना, <strong className="text-amber-950 font-bold">{toDevanagariNumerals(vimshottariDasha.balanceAtBirth.daysLeft)}</strong> दिन)
                 </p>
               </div>
               <div className="p-1.5 bg-white rounded border border-stone-200">

@@ -19,7 +19,19 @@ export interface RemoteReleaseInfo {
   }[];
 }
 
-export const CURRENT_APP_VERSION = '1.0.0';
+export interface ElectronUpdaterStatus {
+  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  version?: string;
+  percent?: number;
+  message?: string;
+  releaseDate?: string;
+  releaseNotes?: string;
+  bytesPerSecond?: number;
+  transferred?: number;
+  total?: number;
+}
+
+export const CURRENT_APP_VERSION = '1.0.1';
 export const GITHUB_REPO_OWNER = 'subashbhai';
 export const GITHUB_REPO_NAME = 'nepali-vedic-jyotish-panchanga';
 export const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/latest`;
@@ -117,4 +129,40 @@ export function isDesktopApp(): boolean {
 export function formatFileSize(bytes: number): string {
   if (!bytes) return '';
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const DISMISSED_UPDATE_KEY = 'balananda_dismissed_update_version';
+
+export function getDismissedUpdateVersion(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(DISMISSED_UPDATE_KEY);
+}
+
+export function setDismissedUpdateVersion(version: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(DISMISSED_UPDATE_KEY, version);
+}
+
+export function clearDismissedUpdateVersion(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(DISMISSED_UPDATE_KEY);
+}
+
+/**
+ * Triggers an update check in Electron Desktop app
+ */
+export async function triggerDesktopUpdateCheck(): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined' && (window as any).electronAPI?.checkForUpdates) {
+    return (window as any).electronAPI.checkForUpdates();
+  }
+  return { success: false, error: 'Not running in desktop app' };
+}
+
+/**
+ * Triggers restart and install in Electron Desktop app
+ */
+export function triggerDesktopRestartAndInstall(): void {
+  if (typeof window !== 'undefined' && (window as any).electronAPI?.restartAndInstall) {
+    (window as any).electronAPI.restartAndInstall();
+  }
 }
