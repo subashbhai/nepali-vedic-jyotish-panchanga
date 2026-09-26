@@ -650,7 +650,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       setIsDownloadDropdownOpen(false);
                       setDownloadModalPlatform('WINDOWS');
                       setIsDownloadModalOpen(true);
-                      window.open('https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest', '_blank');
                     }}
                     className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-blue-50/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-blue-200 dark:hover:border-stone-700"
                   >
@@ -679,7 +678,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       setIsDownloadDropdownOpen(false);
                       setDownloadModalPlatform('ANDROID');
                       setIsDownloadModalOpen(true);
-                      window.open('https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest', '_blank');
                     }}
                     className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-emerald-50/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-emerald-200 dark:hover:border-stone-700"
                   >
@@ -708,7 +706,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       setIsDownloadDropdownOpen(false);
                       setDownloadModalPlatform('MAC');
                       setIsDownloadModalOpen(true);
-                      window.open('https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest', '_blank');
                     }}
                     className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-stone-300 dark:hover:border-stone-700"
                   >
