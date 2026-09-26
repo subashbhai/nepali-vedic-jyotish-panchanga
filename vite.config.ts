@@ -12,7 +12,15 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['apple-touch-icon.png', 'icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+        includeAssets: [
+          'apple-touch-icon.png',
+          'favicon.ico',
+          'icon.svg',
+          'logo.png',
+          'pwa-192x192.png',
+          'pwa-512x512.png',
+          'assets/**/*',
+        ],
         manifest: {
           id: '/',
           name: 'बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा',
@@ -45,7 +53,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}'],
           navigateFallback: '/index.html',
           runtimeCaching: [
             {

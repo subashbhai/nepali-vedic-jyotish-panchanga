@@ -2,6 +2,7 @@ import React from 'react';
 import { PaymentRecord, UserSubscriptionAccount, toNepaliDigits } from '../db/subscriptionStore';
 import { OrganizationProfile } from '../types/astrology';
 import { Printer, Download, CheckCircle2, ShieldCheck, X } from 'lucide-react';
+import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 
 interface ReceiptPrintModalProps {
   isOpen: boolean;
@@ -97,11 +98,15 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({
           <div className="text-center border-b border-stone-300 dark:border-stone-800 pb-4">
             <div className="flex items-center justify-center gap-2.5 mb-1">
               <img 
-                src={orgProfile?.logoUrl || '/logo.png'} 
+                src={getAssetUrl(orgProfile?.logoUrl || '/logo.png')} 
                 alt="Logo" 
                 className="w-11 h-11 object-cover rounded-full border border-amber-400/60 shadow-xs" 
                 onError={(e) => {
-                  e.currentTarget.src = '/logo.png';
+                  handleImageFallback(e, [
+                    getAssetUrl('/logo.png'),
+                    getAssetUrl('/assets/logo.png'),
+                    getAssetUrl('/balananda-logo.png'),
+                  ]);
                 }}
               />
               <h1 className="text-xl font-extrabold font-serif text-[#D97706] tracking-wide">

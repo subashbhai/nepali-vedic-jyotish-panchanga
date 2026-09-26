@@ -1,6 +1,7 @@
 import React from 'react';
 import { OrganizationProfile } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 export interface PrintableLetterheadBannerProps {
   orgProfile?: OrganizationProfile;
@@ -48,11 +49,15 @@ export const PrintableLetterheadBanner: React.FC<PrintableLetterheadBannerProps>
         {showEmblems && (
           <div className={`${compact ? 'w-11 h-11' : 'w-14 h-14'} rounded-full border-2 border-amber-500/70 p-0.5 shadow-xs shrink-0 flex items-center justify-center bg-white overflow-hidden ring-2 ring-amber-400/20`}>
             <img
-              src={orgProfile?.logoUrl || '/logo.png'}
+              src={getAssetUrl(orgProfile?.logoUrl || '/logo.png')}
               alt="बालानन्द लोगो"
               className="w-full h-full object-cover rounded-full select-none"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                handleImageFallback(e, [
+                  getAssetUrl('/logo.png'),
+                  getAssetUrl('/assets/logo.png'),
+                  getAssetUrl('/balananda-logo.png'),
+                ]);
               }}
             />
           </div>

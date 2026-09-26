@@ -54,6 +54,7 @@ import {
   PurohitProfile,
   VastuExpertProfile
 } from '../types/astrology';
+import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 import { NavTab } from './Navigation';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
 import { VedicInsightWidget } from './dashboard/VedicInsightWidget';
@@ -519,7 +520,7 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
             {orgProfile.mainPhotoUrl ? (
               <>
                 <img
-                  src={orgProfile.mainPhotoUrl}
+                  src={getAssetUrl(orgProfile.mainPhotoUrl)}
                   alt="विज्ञापन ब्यानर"
                   className="w-full h-full object-cover"
                 />
@@ -888,11 +889,15 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
           <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4">
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-stone-900/90 border-2 border-amber-400/60 p-1.5 shadow-lg flex items-center justify-center shrink-0 group hover:border-amber-400 transition-all duration-300">
               <img 
-                src="/logo.png" 
+                src={getAssetUrl('/logo.png')} 
                 alt="बालानन्द वैदिक सेवा" 
                 className="w-full h-full object-contain drop-shadow"
                 onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
+                  handleImageFallback(e, [
+                    getAssetUrl('/logo.png'),
+                    getAssetUrl('/assets/logo.png'),
+                    getAssetUrl('/balananda-logo.png'),
+                  ]);
                 }}
               />
             </div>

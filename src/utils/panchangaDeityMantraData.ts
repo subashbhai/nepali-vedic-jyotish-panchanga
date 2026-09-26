@@ -1,5 +1,6 @@
 // Comprehensive Vedic Deity, Mantra and Classical Shloka Knowledge Base
 // For Panchanga's 5 Limbs: Tithi, Vara, Nakshatra, Yoga, Karana
+import { getAssetUrl } from './assetHelper';
 
 export interface DeityMantraInfo {
   deity: string;
@@ -629,81 +630,107 @@ export function getTithiDeityInfo(tithiNumber?: number, tithiNameOrIsAunsi?: str
       ? tithiNameOrIsAunsi
       : (typeof tithiNameOrIsAunsi === 'string' && (tithiNameOrIsAunsi.includes('औंसी') || tithiNameOrIsAunsi.includes('अमावस्या'))) || tithiNumber === 30;
 
+    let res: DeityMantraInfo;
     if (isAunsi) {
-      return TITHI_DEITY_MANTRA_MAP[30];
+      res = TITHI_DEITY_MANTRA_MAP[30];
+    } else {
+      const cleanNum = (typeof tithiNumber === 'number' && !isNaN(tithiNumber)) ? (((tithiNumber - 1) % 15) + 1) : 1;
+      res = TITHI_DEITY_MANTRA_MAP[cleanNum] || TITHI_DEITY_MANTRA_MAP[1];
     }
-    const cleanNum = (typeof tithiNumber === 'number' && !isNaN(tithiNumber)) ? (((tithiNumber - 1) % 15) + 1) : 1;
-    return TITHI_DEITY_MANTRA_MAP[cleanNum] || TITHI_DEITY_MANTRA_MAP[1];
+    return { ...res, image: getAssetUrl(res.image) };
   } catch {
-    return TITHI_DEITY_MANTRA_MAP[1];
+    const fallback = TITHI_DEITY_MANTRA_MAP[1];
+    return { ...fallback, image: getAssetUrl(fallback.image) };
   }
 }
 
 export function getVaarDeityInfo(vaarName?: string): DeityMantraInfo {
   try {
-    if (!vaarName || typeof vaarName !== 'string') return VAAR_DEITY_MANTRA_MAP['आइतबार'];
+    if (!vaarName || typeof vaarName !== 'string') {
+      const res = VAAR_DEITY_MANTRA_MAP['आइतबार'];
+      return { ...res, image: getAssetUrl(res.image) };
+    }
     for (const k of Object.keys(VAAR_DEITY_MANTRA_MAP)) {
       if (vaarName.includes(k)) {
-        return VAAR_DEITY_MANTRA_MAP[k];
+        const res = VAAR_DEITY_MANTRA_MAP[k];
+        return { ...res, image: getAssetUrl(res.image) };
       }
     }
-    return VAAR_DEITY_MANTRA_MAP['सोमबार'];
+    const res = VAAR_DEITY_MANTRA_MAP['सोमबार'];
+    return { ...res, image: getAssetUrl(res.image) };
   } catch {
-    return VAAR_DEITY_MANTRA_MAP['आइतबार'];
+    const res = VAAR_DEITY_MANTRA_MAP['आइतबार'];
+    return { ...res, image: getAssetUrl(res.image) };
   }
 }
 
 export function getNakshatraDeityInfo(nakshatraName?: string): DeityMantraInfo {
   try {
-    if (!nakshatraName || typeof nakshatraName !== 'string') return NAKSHATRA_DEITY_MANTRA_MAP['उत्तराषाढा'];
+    if (!nakshatraName || typeof nakshatraName !== 'string') {
+      const res = NAKSHATRA_DEITY_MANTRA_MAP['उत्तराषाढा'];
+      return { ...res, image: getAssetUrl(res.image) };
+    }
     for (const k of Object.keys(NAKSHATRA_DEITY_MANTRA_MAP)) {
       if (nakshatraName.includes(k)) {
-        return NAKSHATRA_DEITY_MANTRA_MAP[k];
+        const res = NAKSHATRA_DEITY_MANTRA_MAP[k];
+        return { ...res, image: getAssetUrl(res.image) };
       }
     }
     return {
       deity: 'सर्वदेवता',
-      image: '/assets/deities/sunday_surya.jpg',
+      image: getAssetUrl('/assets/deities/sunday_surya.jpg'),
       mantra: 'ॐ सर्वदेवेभ्यो नमः',
       shloka: 'नक्षत्राणां पतिः सोमो रक्षां करोतु सर्वदा।',
       blessingMeaning: 'नक्षत्र अनुकूलता र शुभ फल'
     };
   } catch {
-    return NAKSHATRA_DEITY_MANTRA_MAP['उत्तराषाढा'];
+    const res = NAKSHATRA_DEITY_MANTRA_MAP['उत्तराषाढा'];
+    return { ...res, image: getAssetUrl(res.image) };
   }
 }
 
 export function getYogaDeityInfo(yogaName?: string): DeityMantraInfo {
   try {
-    if (!yogaName || typeof yogaName !== 'string') return YOGA_DEITY_MANTRA_MAP['शोभन'];
+    if (!yogaName || typeof yogaName !== 'string') {
+      const res = YOGA_DEITY_MANTRA_MAP['शोभन'];
+      return { ...res, image: getAssetUrl(res.image) };
+    }
     for (const k of Object.keys(YOGA_DEITY_MANTRA_MAP)) {
       if (yogaName.includes(k)) {
-        return YOGA_DEITY_MANTRA_MAP[k];
+        const res = YOGA_DEITY_MANTRA_MAP[k];
+        return { ...res, image: getAssetUrl(res.image) };
       }
     }
     return {
       deity: 'देवगुरु बृहस्पति',
-      image: '/assets/deities/thursday_vishnu.jpg',
+      image: getAssetUrl('/assets/deities/thursday_vishnu.jpg'),
       mantra: 'ॐ बृहस्पतये नमः',
       shloka: 'योगे शुभे समारम्भाः सर्वकामफलप्रदाः।',
       blessingMeaning: 'शुभ कार्य सिद्धि र मङ्गल'
     };
   } catch {
-    return YOGA_DEITY_MANTRA_MAP['शोभन'];
+    const res = YOGA_DEITY_MANTRA_MAP['शोभन'];
+    return { ...res, image: getAssetUrl(res.image) };
   }
 }
 
 export function getKaranaDeityInfo(karanaName?: string): DeityMantraInfo {
   try {
-    if (!karanaName || typeof karanaName !== 'string') return KARANA_DEITY_MANTRA_MAP['तैतिल'];
+    if (!karanaName || typeof karanaName !== 'string') {
+      const res = KARANA_DEITY_MANTRA_MAP['तैतिल'];
+      return { ...res, image: getAssetUrl(res.image) };
+    }
     for (const k of Object.keys(KARANA_DEITY_MANTRA_MAP)) {
       if (karanaName.includes(k)) {
-        return KARANA_DEITY_MANTRA_MAP[k];
+        const res = KARANA_DEITY_MANTRA_MAP[k];
+        return { ...res, image: getAssetUrl(res.image) };
       }
     }
-    return KARANA_DEITY_MANTRA_MAP['तैतिल'];
+    const res = KARANA_DEITY_MANTRA_MAP['तैतिल'];
+    return { ...res, image: getAssetUrl(res.image) };
   } catch {
-    return KARANA_DEITY_MANTRA_MAP['तैतिल'];
+    const res = KARANA_DEITY_MANTRA_MAP['तैतिल'];
+    return { ...res, image: getAssetUrl(res.image) };
   }
 }
 

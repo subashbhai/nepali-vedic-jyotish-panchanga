@@ -33,6 +33,7 @@ import {
   getYogaDetailedExplanation,
   getKaranaDetailedExplanation
 } from '../../utils/panchangaDeityMantraData';
+import { handleImageFallback } from '../../utils/assetHelper';
 
 export interface DashboardWidgetProps {
   panchanga: PanchangaData;
@@ -373,7 +374,7 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                       className="w-full h-full object-cover object-center"
                       loading="lazy"
                       onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        handleImageFallback(e, ['/assets/deities/ganesha.jpg', '/logo.png']);
                       }}
                     />
                   </div>
@@ -461,7 +462,7 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                       className="w-full h-full object-cover object-center"
                       loading="lazy"
                       onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        handleImageFallback(e, ['/assets/deities/ganesha.jpg', '/logo.png']);
                       }}
                     />
                   </div>
@@ -549,7 +550,7 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                       className="w-full h-full object-cover object-center"
                       loading="lazy"
                       onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        handleImageFallback(e, ['/assets/deities/ganesha.jpg', '/logo.png']);
                       }}
                     />
                   </div>
@@ -649,7 +650,7 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                       className="w-full h-full object-cover object-center"
                       loading="lazy"
                       onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        handleImageFallback(e, ['/assets/deities/ganesha.jpg', '/logo.png']);
                       }}
                     />
                   </div>
@@ -779,7 +780,7 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                       className="w-full h-full object-cover object-center"
                       loading="lazy"
                       onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        handleImageFallback(e, ['/assets/deities/ganesha.jpg', '/logo.png']);
                       }}
                     />
                   </div>

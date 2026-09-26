@@ -23,6 +23,7 @@ import { getStoredRBACUsers, type RBACSession } from '../db/rbacStore';
 import { getStoredOfficialMembers } from '../db/officialMemberStore';
 import { getSubscriptionBadgeInfo, type SubscriptionBadgeInfo } from '../db/subscriptionStore';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
+import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 import { PWAInstallButton } from './PWAInstallButton';
 import { TransitNotificationBell } from './TransitNotificationBell';
 
@@ -143,11 +144,11 @@ export const Header: React.FC<HeaderProps> = memo(({
             title="बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा"
           >
             <img 
-              src={orgProfile?.logoUrl || '/logo.png'} 
+              src={getAssetUrl(orgProfile?.logoUrl || '/logo.png')} 
               alt={orgName} 
               className="w-full h-full object-cover rounded-full select-none" 
               onError={(e) => {
-                e.currentTarget.src = '/logo.png';
+                handleImageFallback(e, [getAssetUrl('/logo.png'), getAssetUrl('/assets/logo.png'), getAssetUrl('/balananda-logo.png')]);
               }}
             />
           </div>

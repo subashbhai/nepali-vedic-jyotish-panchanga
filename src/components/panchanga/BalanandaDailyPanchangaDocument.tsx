@@ -2,6 +2,7 @@ import React from 'react';
 import { PanchangaData, OrganizationProfile } from '../../types/astrology';
 import { getDayDeityInfo } from '../../utils/deitySchedule';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 export interface BalanandaDailyPanchangaDocumentProps {
   panchanga: PanchangaData;
@@ -90,7 +91,7 @@ export const BalanandaDailyPanchangaDocument: React.FC<BalanandaDailyPanchangaDo
                 {/* Left: Organization Logo (LHS) */}
                 <div className="w-16 h-16 rounded-xl border border-stone-200 dark:border-stone-700 p-1 flex items-center justify-center bg-white shadow-xs shrink-0 overflow-hidden">
                   <img
-                    src={orgProfile?.logoUrl || '/logo.png'}
+                    src={getAssetUrl(orgProfile?.logoUrl || '/logo.png')}
                     alt={orgName}
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -165,12 +166,14 @@ export const BalanandaDailyPanchangaDocument: React.FC<BalanandaDailyPanchangaDo
           <div className="relative shrink-0">
             <div className="w-[84px] h-[84px] rounded-xl overflow-hidden border-2 border-[#D97706] shadow-sm bg-stone-100 flex items-center justify-center">
               <img
-                src={dayDeity.imagePath}
+                src={getAssetUrl(dayDeity.imagePath)}
                 alt={dayDeity.deityName}
                 className="w-full h-full object-cover object-center"
                 onError={(e) => {
-                  // Graceful fallback if image file fails to load
-                  (e.target as HTMLElement).style.display = 'none';
+                  handleImageFallback(e, [
+                    getAssetUrl('/assets/deities/ganesha.jpg'),
+                    getAssetUrl('/logo.png'),
+                  ]);
                 }}
               />
             </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { VedicKalash } from './common/VedicKalash';
 import { VedicCornerFlourish } from './common/VedicCornerFlourish';
 import { convertADToBSFull } from '../utils/bsCalendarData';
+import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 
 export interface GaneshaHeaderCenterProps {
   title?: string;
@@ -87,11 +88,14 @@ export const GaneshaHeaderCenter: React.FC<GaneshaHeaderCenterProps> = ({
               {/* Lord Ganesha seated on Lotus Image */}
               <div className="relative mb-0.5">
                 <img
-                  src="/assets/deities/ganesha_lotus.jpg"
+                  src={getAssetUrl('/assets/deities/ganesha_lotus.jpg')}
                   alt="भगवान् श्री गणेश"
                   className="w-24 h-24 sm:w-28 sm:h-28 object-contain select-none"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/assets/deities/ganesha.jpg';
+                    handleImageFallback(e, [
+                      getAssetUrl('/assets/deities/ganesha.jpg'),
+                      getAssetUrl('/logo.png'),
+                    ]);
                   }}
                 />
               </div>

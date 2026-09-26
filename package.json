@@ -75,7 +75,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "public/logo.png"
+      "icon": "public/favicon.ico"
     },
     "mac": {
       "target": [

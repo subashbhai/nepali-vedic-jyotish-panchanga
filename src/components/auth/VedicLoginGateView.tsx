@@ -18,6 +18,7 @@ import {
   Flame,
   Star
 } from 'lucide-react';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import { RBACSession, authenticateRBACUser } from '../../db/rbacStore';
 
 interface VedicLoginGateViewProps {
@@ -62,7 +63,18 @@ export const VedicLoginGateView: React.FC<VedicLoginGateViewProps> = ({
 
           <div className="relative z-10 max-w-2xl mx-auto space-y-3">
             <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto rounded-full bg-white dark:bg-stone-800 p-1 shadow-2xl ring-4 ring-amber-400/80 overflow-hidden">
-              <img src="/logo.png" alt="बालानन्द लोगो" className="w-full h-full object-cover rounded-full select-none" />
+              <img
+                src={getAssetUrl('/logo.png')}
+                alt="बालानन्द लोगो"
+                className="w-full h-full object-cover rounded-full select-none"
+                onError={(e) => {
+                  handleImageFallback(e, [
+                    getAssetUrl('/logo.png'),
+                    getAssetUrl('/assets/logo.png'),
+                    getAssetUrl('/balananda-logo.png'),
+                  ]);
+                }}
+              />
             </div>
 
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-stone-900 font-bold text-xs shadow-md">

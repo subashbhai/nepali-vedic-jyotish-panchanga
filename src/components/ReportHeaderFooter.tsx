@@ -1,6 +1,7 @@
 import React from 'react';
 import { Phone, Mail, MapPin, Sparkles } from 'lucide-react';
 import { OrganizationProfile } from '../types/astrology';
+import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 
 interface ReportHeaderProps {
   orgProfile: OrganizationProfile;
@@ -28,11 +29,15 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
         <div className="flex items-center gap-3.5 text-center sm:text-left">
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white dark:bg-stone-800 rounded-full p-0.5 border-2 border-amber-500/50 dark:border-amber-600/50 shadow-md flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-amber-400/20">
             <img
-              src={orgProfile?.logoUrl || '/logo.png'}
+              src={getAssetUrl(orgProfile?.logoUrl || '/logo.png')}
               alt={orgProfile?.name || 'बालानन्द लोगो'}
               className="w-full h-full object-cover rounded-full"
               onError={(e) => {
-                e.currentTarget.src = '/logo.png';
+                handleImageFallback(e, [
+                  getAssetUrl('/logo.png'),
+                  getAssetUrl('/assets/logo.png'),
+                  getAssetUrl('/balananda-logo.png'),
+                ]);
               }}
             />
           </div>
