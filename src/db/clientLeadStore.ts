@@ -358,6 +358,76 @@ export function superAdminApprovePurchase(leadId: string, adminName: string = 'S
 }
 
 /**
+ * SuperAdmin: Approve directly by Transaction ID (e.g. ESE454576474)
+ */
+export function superAdminApproveByTransactionId(
+  transactionId: string,
+  adminName: string = 'SuperAdmin',
+  clientInfo?: { fullName?: string; mobile?: string; planName?: string; planAmount?: number }
+): { success: boolean; messageNepali: string; lead?: ClientLead } {
+  const leads = getStoredClientLeads();
+  const cleanTx = transactionId.trim().toUpperCase();
+
+  // 1. Search existing lead
+  let lead = leads.find((l) => l.transactionId && l.transactionId.trim().toUpperCase() === cleanTx);
+  if (lead) {
+    const res = superAdminApprovePurchase(lead.id, adminName);
+    return { ...res, lead };
+  }
+
+  // 2. If not found in leads, create instant approved client lead
+  const now = new Date();
+  const todayBS = convertADToBS(now.toISOString().split('T')[0]).formattedBS;
+  const leadId = `LEAD-${Date.now()}`;
+  const oneYearLater = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+  const newLead: ClientLead = {
+    id: leadId,
+    fullName: clientInfo?.fullName?.trim() || 'प्रमाणित ग्राहक (Verified Client)',
+    address: 'नेपाल',
+    mobile: clientInfo?.mobile?.trim() || '9841000000',
+    email: 'client@balananda.com',
+    whatsapp: clientInfo?.mobile?.trim() || '9841000000',
+    deviceFingerprint: getDeviceFingerprint(),
+    status: 'PURCHASE_APPROVED',
+    planId: 'yearly_both',
+    planNameNepali: clientInfo?.planName || '१ वर्षको सदस्यता (मोबाइल + कम्प्युटर)',
+    planAmountNPR: clientInfo?.planAmount || 5000,
+    paymentMethod: cleanTx.startsWith('ESE') ? 'esewa' : cleanTx.startsWith('KHL') ? 'khalti' : 'bank',
+    transactionId: cleanTx,
+    submittedAtISO: now.toISOString(),
+    submittedAtBS: todayBS,
+    approvedAtISO: now.toISOString(),
+    approvedAtBS: todayBS,
+    approvedBy: adminName,
+  };
+
+  saveClientLeads([newLead, ...leads]);
+
+  const licenseRecord = {
+    isApproved: true,
+    leadId: newLead.id,
+    planId: newLead.planId,
+    planName: newLead.planNameNepali,
+    clientName: newLead.fullName,
+    approvedAtBS: todayBS,
+    expiresAtISO: oneYearLater,
+  };
+
+  localStorage.setItem(STORAGE_KEY_APPROVED_LICENSE, JSON.stringify(licenseRecord));
+  localStorage.setItem('software_full_access_unlocked_v1', 'true');
+
+  window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: true } }));
+  window.dispatchEvent(new CustomEvent('subscription-status-updated'));
+
+  return {
+    success: true,
+    messageNepali: `कारोबार कोड #${cleanTx} सफलतापूर्वक प्रमाणित गरी सफ्टवेयर पूर्ण सक्रिय (Approved) गरियो!`,
+    lead: newLead
+  };
+}
+
+/**
  * SuperAdmin: Reject a Client Purchase Application
  */
 export function superAdminRejectPurchase(leadId: string, reason: string): { success: boolean; messageNepali: string } {

@@ -1091,6 +1091,10 @@ export default function App() {
           onOpenDateConverter={() => setActiveTab('date_converter')}
           onOpenOrgProfile={() => setActiveTab('org_profile')}
           onOpenThemeModal={() => setIsClientThemeModalOpen(true)}
+          onNavigateToAdmin={(tab) => {
+            setAdminInitialTab(tab || 'client_approvals');
+            setActiveTab('admin_control');
+          }}
           profiles={profiles}
           onOpenVastuModal={(subTab) => {
             if (!isFullyUnlocked) {
@@ -1739,6 +1743,11 @@ export default function App() {
             setIsClientPurchaseLeadModalOpen(false);
           }}
           targetFeatureName={lockedFeatureName}
+          onNavigateToAdmin={(tab) => {
+            setIsClientPurchaseLeadModalOpen(false);
+            setAdminInitialTab(tab || 'client_approvals');
+            setActiveTab('admin_control');
+          }}
         />
 
         {/* Client Theme & Yajaman Broadcast Modal */}

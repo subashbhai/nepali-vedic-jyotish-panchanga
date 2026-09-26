@@ -210,6 +210,7 @@ export interface NavigationProps {
   onOpenDateConverter?: () => void;
   onOpenOrgProfile?: () => void;
   onOpenThemeModal?: () => void;
+  onNavigateToAdmin?: (tab?: string) => void;
   profiles?: BirthDetails[];
 }
 
@@ -340,6 +341,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   onOpenDateConverter,
   onOpenOrgProfile,
   onOpenThemeModal,
+  onNavigateToAdmin,
   profiles = [],
 }) => {
   const [isSewaMenuOpen, setIsSewaMenuOpen] = useState(false);
@@ -775,9 +777,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             )}
           </div>
 
-          {/* एकीकृत सेटिङ, मद्दत र क्लाउड सिंक Dropdown Menu - केवल अधिकृत ग्राहक, २४-घण्टे ट्रयाल वा सुपरएडमिनलाई मात्र देखिने */}
-          {isFullyUnlocked && (
-            <div className="relative shrink-0 z-50" ref={unifiedSettingsRef}>
+          {/* एकीकृत सेटिङ, मद्दत, क्लाउड सिंक तथा सुपरएडमिन Dropdown Menu */}
+          <div className="relative shrink-0 z-50" ref={unifiedSettingsRef}>
             <motion.button
               type="button"
               whileHover={{ scale: 1.02 }}
@@ -944,6 +945,34 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       </p>
                     </div>
                   </button>
+                  {/* 6. Super Admin Control & Purchase Approvals */}
+                  {onNavigateToAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUnifiedSettingsOpen(false);
+                        onNavigateToAdmin('client_approvals');
+                      }}
+                      className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/30"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <Crown className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300">
+                            ६. सुपरएडमिन कक्ष तथा खरिद स्वीकृति
+                          </span>
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-stone-950">
+                            Superadmin
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                          eSewa/Khalti खरिद आवेदन रुजु, प्रयोगकर्ता तथा प्रणाली नियन्त्रण
+                        </p>
+                      </div>
+                    </button>
+                  )}
                 </div>
 
                 {/* Footer with support info */}
@@ -961,7 +990,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               </div>
             )}
           </div>
-          )}
 
           {/* Controlled Cloud Sync & Backup Modal */}
           <SyncStatusIndicator 

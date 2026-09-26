@@ -231,6 +231,22 @@ export const Header: React.FC<HeaderProps> = memo(({
             />
           )}
 
+          {/* Superadmin Quick Portal Button */}
+          {onNavigateToAdmin && (
+            <button
+              type="button"
+              onClick={() => onNavigateToAdmin('client_approvals')}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500/15 via-red-500/10 to-amber-500/15 hover:from-amber-500/25 hover:to-red-500/25 text-[#7A1C1C] dark:text-amber-300 font-bold text-xs rounded-xl border border-amber-400/50 dark:border-amber-600/50 shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
+              title="सुपरएडमिन नियन्त्रण कक्ष तथा खरिद आवेदन स्वीकृति (Superadmin Approval Portal)"
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/30 shrink-0" />
+              <span className="hidden sm:inline">सुपरएडमिन</span>
+              <span className="px-1.5 py-0.2 bg-amber-500 text-stone-950 text-[10px] font-black rounded-md">
+                स्वीकृति
+              </span>
+            </button>
+          )}
+
           {/* Settings Button */}
           <button
             onClick={onOpenSettings}
