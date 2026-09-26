@@ -725,19 +725,17 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     </button>
                     <button
                       type="button"
-                      title="सिधै Android APK (.apk) डाउनलोड गर्नुहोस्"
+                      title="Android मोबाइल एप स्थापना विकल्प हेर्नुहोस्"
                       onClick={(e) => {
                         e.stopPropagation();
                         setIsDownloadDropdownOpen(false);
-                        triggerDirectBrowserDownload(
-                          DEFAULT_DIRECT_DOWNLOADS.androidApk,
-                          'nepali-vedic-jyotish-panchanga.apk'
-                        );
+                        setDownloadModalPlatform('ANDROID');
+                        setIsDownloadModalOpen(true);
                       }}
                       className="ml-2 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer shrink-0 transition-transform active:scale-95"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>.apk</span>
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>इन्स्टल</span>
                     </button>
                   </div>
 

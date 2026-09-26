@@ -28,13 +28,15 @@ import {
   FileText,
   ChevronRight,
   ExternalLink,
-  Lock
+  Lock,
+  Camera
 } from 'lucide-react';
 import { OrganizationProfile } from '../../types/astrology';
 import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import { NavTab } from '../Navigation';
 import { DEFAULT_ORG_PROFILE } from '../../db/profileStore';
 import { ServiceLoginRequiredModal, ServiceItemInfo } from '../common/ServiceLoginRequiredModal';
+import { LogoUploadModal } from '../common/LogoUploadModal';
 
 interface OrgProfileViewProps {
   orgProfile: OrganizationProfile;
@@ -60,6 +62,7 @@ export const OrgProfileView: React.FC<OrgProfileViewProps> = ({
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [selectedServiceForAuth, setSelectedServiceForAuth] = useState<ServiceItemInfo | null>(null);
   const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false);
+  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
 
   useEffect(() => {
     if (!isSuperAdmin && viewMode === 'edit') {
@@ -184,19 +187,26 @@ export const OrgProfileView: React.FC<OrgProfileViewProps> = ({
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-stone-800 rounded-full flex items-center justify-center shadow-lg border-2 border-amber-400/60 shrink-0 overflow-hidden p-0.5 ring-2 ring-amber-400/20">
-                <img 
-                  src={getAssetUrl(formData.logoUrl || '/logo.png')} 
-                  alt="Logo" 
-                  className="w-full h-full object-cover rounded-full" 
-                  onError={(e) => {
-                    handleImageFallback(e, [
-                      getAssetUrl('/logo.png'),
-                      getAssetUrl('/assets/logo.png'),
-                      getAssetUrl('/balananda-logo.png'),
-                    ]);
-                  }}
-                />
+              <div className="relative group shrink-0">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-stone-800 rounded-full flex items-center justify-center shadow-lg border-2 border-amber-400/60 shrink-0 overflow-hidden p-0.5 ring-2 ring-amber-400/20">
+                  <img 
+                    src={getAssetUrl(formData.logoUrl || '/logo.png')} 
+                    alt="Logo" 
+                    className="w-full h-full object-cover rounded-full" 
+                    onError={(e) => {
+                      handleImageFallback(e);
+                    }}
+                  />
+                </div>
+                {/* Camera upload badge */}
+                <button
+                  type="button"
+                  onClick={() => setIsLogoModalOpen(true)}
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-500 hover:bg-amber-600 text-stone-950 flex items-center justify-center shadow-md border-2 border-white dark:border-stone-900 cursor-pointer hover:scale-115 transition-transform"
+                  title="संस्थाको लोगो फेर्नुहोस् / अपलोड गर्नुहोस्"
+                >
+                  <Camera className="w-3 h-3" />
+                </button>
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -536,6 +546,16 @@ export const OrgProfileView: React.FC<OrgProfileViewProps> = ({
           if (selectedServiceForAuth && onNavigateTab) {
             onNavigateTab(selectedServiceForAuth.tabKey as NavTab);
           }
+        }}
+      />
+
+      {/* Custom Logo Upload Modal */}
+      <LogoUploadModal
+        isOpen={isLogoModalOpen}
+        onClose={() => setIsLogoModalOpen(false)}
+        onLogoUpdated={(newLogoUrl) => {
+          setFormData((prev) => ({ ...prev, logoUrl: newLogoUrl || '/logo.png' }));
+          onSaveOrgProfile({ ...formData, logoUrl: newLogoUrl || '/logo.png' });
         }}
       />
     </div>

@@ -17,16 +17,19 @@ import {
   ShieldAlert,
   ArrowRightLeft,
   Crown,
-  Zap
+  Zap,
+  Camera
 } from 'lucide-react';
 import { BirthDetails, ApplicationSettings, OrganizationProfile } from '../types/astrology';
 import { getStoredRBACUsers, type RBACSession } from '../db/rbacStore';
 import { getStoredOfficialMembers } from '../db/officialMemberStore';
 import { getSubscriptionBadgeInfo, type SubscriptionBadgeInfo } from '../db/subscriptionStore';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
-import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
+import { getAssetUrl, handleImageFallback, BALANANDA_DEFAULT_EMBLEM_SVG } from '../utils/assetHelper';
 import { PWAInstallButton } from './PWAInstallButton';
 import { TransitNotificationBell } from './TransitNotificationBell';
+import { LogoUploadModal } from './common/LogoUploadModal';
+import { getStoredCustomLogo, APP_LOGO_CHANGED_EVENT } from '../utils/logoManager';
 
 interface HeaderProps {
   activeProfile?: BirthDetails | null;
@@ -86,6 +89,20 @@ export const Header: React.FC<HeaderProps> = memo(({
   const [pendingCount, setPendingCount] = useState(0);
   const [rbacPendingCount, setRbacPendingCount] = useState(0);
   const [badgeInfo, setBadgeInfo] = useState<SubscriptionBadgeInfo>(() => getSubscriptionBadgeInfo());
+  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
+  const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(() => getStoredCustomLogo());
+
+  useEffect(() => {
+    const handleLogoChange = (e: any) => {
+      setCustomLogoUrl(e.detail?.logoUrl ?? getStoredCustomLogo());
+    };
+    window.addEventListener(APP_LOGO_CHANGED_EVENT as any, handleLogoChange);
+    window.addEventListener('storage', handleLogoChange);
+    return () => {
+      window.removeEventListener(APP_LOGO_CHANGED_EVENT as any, handleLogoChange);
+      window.removeEventListener('storage', handleLogoChange);
+    };
+  }, []);
 
   useEffect(() => {
     const updateBadge = () => {
@@ -145,19 +162,33 @@ export const Header: React.FC<HeaderProps> = memo(({
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
         {/* Brand Logo & Name */}
         <div className="flex items-center gap-3">
-          <div 
-            onClick={handleLogoClick} 
-            className="w-11 h-11 md:w-12 md:h-12 bg-white dark:bg-stone-800 border-2 border-amber-400/60 dark:border-amber-500/60 rounded-full flex items-center justify-center shadow-md overflow-hidden shrink-0 cursor-pointer hover:opacity-95 hover:scale-105 transition-all p-0.5 ring-2 ring-amber-400/20"
-            title="बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा"
-          >
-            <img 
-              src={getAssetUrl(orgProfile?.logoUrl || '/logo.png')} 
-              alt={orgName} 
-              className="w-full h-full object-cover rounded-full select-none" 
-              onError={(e) => {
-                handleImageFallback(e, [getAssetUrl('/logo.png'), getAssetUrl('/assets/logo.png'), getAssetUrl('/balananda-logo.png')]);
+          <div className="relative group shrink-0">
+            <div 
+              onClick={handleLogoClick} 
+              className="w-11 h-11 md:w-12 md:h-12 bg-white dark:bg-stone-800 border-2 border-amber-400/60 dark:border-amber-500/60 rounded-full flex items-center justify-center shadow-md overflow-hidden shrink-0 cursor-pointer hover:opacity-95 hover:scale-105 transition-all p-0.5 ring-2 ring-amber-400/20"
+              title="बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा (क्लिक गर्नुहोस्)"
+            >
+              <img 
+                src={customLogoUrl || getAssetUrl(orgProfile?.logoUrl || '/logo.png')} 
+                alt={orgName} 
+                className="w-full h-full object-cover rounded-full select-none" 
+                onError={(e) => {
+                  handleImageFallback(e);
+                }}
+              />
+            </div>
+            {/* Quick Camera Badge for 1-Click Logo Upload */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsLogoModalOpen(true);
               }}
-            />
+              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-stone-950 flex items-center justify-center shadow-md border-2 border-white dark:border-stone-900 cursor-pointer hover:scale-115 transition-transform"
+              title="आफ्नो लोगो अपलोड वा परिवर्तन गर्नुहोस् (Upload Custom Logo)"
+            >
+              <Camera className="w-2.5 h-2.5" />
+            </button>
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -297,6 +328,13 @@ export const Header: React.FC<HeaderProps> = memo(({
           </button>
         </div>
       </div>
+
+      {/* Custom Logo Upload Modal */}
+      <LogoUploadModal
+        isOpen={isLogoModalOpen}
+        onClose={() => setIsLogoModalOpen(false)}
+        onLogoUpdated={(newUrl) => setCustomLogoUrl(newUrl)}
+      />
     </header>
   );
 });

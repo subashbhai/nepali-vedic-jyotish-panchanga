@@ -31,7 +31,7 @@ export interface ElectronUpdaterStatus {
   total?: number;
 }
 
-export const CURRENT_APP_VERSION = '1.0.1';
+export const CURRENT_APP_VERSION = '1.0.2';
 export const GITHUB_REPO_OWNER = 'subashbhai';
 export const GITHUB_REPO_NAME = 'nepali-vedic-jyotish-panchanga';
 export const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/latest`;
