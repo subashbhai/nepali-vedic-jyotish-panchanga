@@ -6,7 +6,10 @@ import NepaliDate from 'nepali-date-converter';
 
 const NepaliDateClass: any = (NepaliDate as any)?.default || NepaliDate;
 
-export function toDevanagariNumerals(num: number | string): string {
+export function toDevanagariNumerals(num: number | string | undefined | null): string {
+  if (num === undefined || num === null || num === 'undefined' || num === 'null' || num === '') {
+    return '०';
+  }
   const devanagariDigits: { [key: string]: string } = {
     '0': '०', '1': '१', '2': '२', '3': '३', '4': '४',
     '5': '५', '6': '६', '7': '७', '8': '८', '9': '९'
@@ -14,6 +17,7 @@ export function toDevanagariNumerals(num: number | string): string {
 
   let str: string;
   if (typeof num === 'number') {
+    if (isNaN(num)) return '०';
     if (!Number.isInteger(num)) {
       const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
       str = String(rounded);

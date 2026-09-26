@@ -27,7 +27,8 @@ import { TrialPrintRestrictionModal } from './components/common/TrialPrintRestri
 import { OfflineIndicator } from './components/OfflineIndicator';
 import PatrikaErrorBoundary from './components/PatrikaErrorBoundary';
 import { setAppContextGetter } from './utils/errorLogger';
-import { checkLatestRelease, RemoteReleaseInfo } from './utils/appVersionManager';
+import { useAppUpdateNotifier } from './utils/useAppUpdateNotifier';
+import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
 
 const KundaliView = lazy(() => import('./components/KundaliView').then((m) => ({ default: m.KundaliView })));
 const PatrikaView = lazy(() => import('./components/PatrikaView').then((m) => ({ default: m.PatrikaView })));
@@ -240,22 +241,8 @@ export default function App() {
     return () => window.removeEventListener('client-theme-changed', handleThemeChange);
   }, []);
 
-  // Live App Update Check from GitHub Repository
-  const [updateInfo, setUpdateInfo] = useState<RemoteReleaseInfo | null>(null);
-  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
-
-  useEffect(() => {
-    checkLatestRelease()
-      .then((info) => {
-        if (info && info.hasUpdate) {
-          setUpdateInfo(info);
-          setShowUpdateBanner(true);
-        }
-      })
-      .catch(() => {
-        // Silently handle offline mode
-      });
-  }, []);
+  // Live App Update Check & Electron Auto-Updater System
+  const appUpdate = useAppUpdateNotifier();
 
   // Sync licensing & trial state across tabs/events
   useEffect(() => {
@@ -1010,39 +997,6 @@ export default function App() {
         </Suspense>
       ) : (
         <div className="flex-1 flex flex-col w-full min-h-0">
-          {/* Live App Update Banner if new GitHub release exists */}
-          {showUpdateBanner && updateInfo && (
-            <div className="bg-gradient-to-r from-amber-700 via-[#7A1C1C] to-stone-900 text-white px-4 py-2 text-xs flex items-center justify-between shadow-md z-[60] border-b border-amber-400/40 animate-in fade-in slide-in-from-top duration-300">
-              <div className="flex items-center gap-2">
-                <span className="font-bold bg-amber-400 text-stone-950 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider animate-pulse">
-                  नयाँ अपडेट उपलब्ध
-                </span>
-                <span className="text-amber-100 font-medium">
-                  {updateInfo.releaseName || `संस्करण ${updateInfo.version}`} उपलब्ध छ! सबैभन्दा नयाँ सुविधाहरू प्राप्त गर्न अपडेट गर्नुहोस्।
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <a
-                  href={updateInfo.downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1 bg-amber-400 text-stone-950 hover:bg-amber-300 font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-xs"
-                >
-                  <span>अपडेट डाउनलोड</span>
-                  <span>↗</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setShowUpdateBanner(false)}
-                  className="text-stone-300 hover:text-white p-1 cursor-pointer"
-                  title="बन्द गर्नुहोस्"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Sticky Unified Header & Navigation Container */}
           <div className="sticky top-0 z-50 bg-white/95 dark:bg-[#262320]/95 backdrop-blur-md border-b border-[#E6E0D5] dark:border-stone-800 shadow-xs transition-colors">
             <Header
@@ -1072,6 +1026,9 @@ export default function App() {
                 setLockedFeatureName(featureName || 'पूर्ण सदस्यता');
                 setIsClientPurchaseLeadModalOpen(true);
               }}
+              hasUpdate={appUpdate.hasUpdate}
+              updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
+              onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
             />
 
             {/* Main Navigation Tabs */}
@@ -1774,6 +1731,21 @@ export default function App() {
           onClose={() => setIsTrialPrintRestrictedModalOpen(false)}
           documentType={trialPrintDocType}
           onOpenPurchase={() => setIsClientPurchaseLeadModalOpen(true)}
+        />
+
+        {/* Live In-App Update Modal & Floating Notification Banner */}
+        <AppUpdateNotificationModal
+          isOpen={appUpdate.isUpdateModalOpen}
+          onClose={() => appUpdate.setIsUpdateModalOpen(false)}
+          remoteRelease={appUpdate.remoteRelease}
+          electronStatus={appUpdate.electronStatus}
+          onManualCheck={appUpdate.checkForUpdates}
+          isChecking={appUpdate.isChecking}
+        />
+        <AppUpdateFloatingBanner
+          remoteRelease={appUpdate.remoteRelease}
+          electronStatus={appUpdate.electronStatus}
+          onOpenDetails={() => appUpdate.setIsUpdateModalOpen(true)}
         />
 
         {/* Offline indicator banner when network is disconnected */}

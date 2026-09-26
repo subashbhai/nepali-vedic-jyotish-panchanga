@@ -279,14 +279,101 @@ app.whenReady().then(() => {
     }
   });
 
-  // Optional: Auto-updater initialization if electron-updater is installed
+  // Comprehensive Auto-updater with direct In-App Notification and Progress Events
   try {
     const { autoUpdater } = require('electron-updater');
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-      console.log('[AutoUpdater] Update check silently handled:', err.message);
+
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('checking-for-update', () => {
+      console.log('[AutoUpdater] Checking for updates...');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater-status', { status: 'checking' });
+      }
+    });
+
+    autoUpdater.on('update-available', (info) => {
+      console.log('[AutoUpdater] Update available:', info.version);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater-status', {
+          status: 'available',
+          version: info.version,
+          releaseDate: info.releaseDate,
+          releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : '',
+        });
+      }
+    });
+
+    autoUpdater.on('update-not-available', (info) => {
+      console.log('[AutoUpdater] Update not available. Current version is latest.');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater-status', {
+          status: 'not-available',
+          version: info.version,
+        });
+      }
+    });
+
+    autoUpdater.on('download-progress', (progressObj) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater-status', {
+          status: 'downloading',
+          percent: Math.round(progressObj.percent || 0),
+          bytesPerSecond: progressObj.bytesPerSecond,
+          transferred: progressObj.transferred,
+          total: progressObj.total,
+        });
+      }
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('[AutoUpdater] Update downloaded:', info.version);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater-status', {
+          status: 'downloaded',
+          version: info.version,
+        });
+      }
+    });
+
+    autoUpdater.on('error', (err) => {
+      console.warn('[AutoUpdater] Error during update check:', err ? err.message : err);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater-status', {
+          status: 'error',
+          message: err ? err.message : 'Unknown error',
+        });
+      }
+    });
+
+    // Run update check 3 seconds after window is ready
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+        console.log('[AutoUpdater] Initial check caught:', err.message);
+      });
+    }, 3500);
+
+    // IPC triggers
+    ipcMain.handle('check-for-updates', async () => {
+      try {
+        const result = await autoUpdater.checkForUpdates();
+        return { success: true, result };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    });
+
+    ipcMain.handle('restart-and-install', () => {
+      try {
+        autoUpdater.quitAndInstall(false, true);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     });
   } catch (e) {
-    // electron-updater optional fallback
+    console.log('[AutoUpdater] electron-updater setup error:', e.message);
   }
 });
 
