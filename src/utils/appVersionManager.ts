@@ -159,6 +159,48 @@ export async function triggerDesktopUpdateCheck(): Promise<{ success: boolean; e
 }
 
 /**
+ * Triggers in-app update download in Electron Desktop app
+ */
+export async function triggerDesktopDownloadUpdate(customUrl?: string): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined' && (window as any).electronAPI?.downloadUpdate) {
+    return (window as any).electronAPI.downloadUpdate(customUrl);
+  }
+  return { success: false, error: 'Not running in desktop app' };
+}
+
+/**
+ * Directly downloads a binary asset in the browser without redirecting to GitHub page
+ */
+export function triggerDirectBrowserDownload(fileUrl: string, fileName?: string): void {
+  if (typeof window === 'undefined') return;
+  const a = document.createElement('a');
+  a.href = fileUrl;
+  if (fileName) a.download = fileName;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/**
+ * Unified In-App Downloader
+ * In Desktop: starts downloading inside the app with live percentage progress bar
+ * In Web/PWA: triggers direct file download into Downloads folder without visiting GitHub
+ */
+export async function triggerInAppOrDirectDownload(release: RemoteReleaseInfo | null): Promise<void> {
+  const winAsset = release?.assets?.find(a => a.platform === 'windows')?.downloadUrl;
+  const targetUrl = winAsset || `https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga-setup-1.0.1.exe`;
+  const fileName = release?.assets?.find(a => a.platform === 'windows')?.name || 'nepali-vedic-jyotish-setup.exe';
+
+  if (isDesktopApp()) {
+    await triggerDesktopDownloadUpdate(targetUrl);
+  } else {
+    triggerDirectBrowserDownload(targetUrl, fileName);
+  }
+}
+
+/**
  * Triggers restart and install in Electron Desktop app
  */
 export function triggerDesktopRestartAndInstall(): void {
@@ -166,3 +208,4 @@ export function triggerDesktopRestartAndInstall(): void {
     (window as any).electronAPI.restartAndInstall();
   }
 }
+

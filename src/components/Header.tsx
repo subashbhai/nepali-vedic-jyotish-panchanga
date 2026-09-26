@@ -246,12 +246,15 @@ export const Header: React.FC<HeaderProps> = memo(({
           {/* PWA Install Button (Chromium / Android / iOS) */}
           <PWAInstallButton />
 
-          {/* Planetary Transit Push Notification Bell */}
+          {/* Planetary Transit & Software Update Notification Bell */}
           {onOpenTransitNotifications && (
             <TransitNotificationBell
               alertCount={transitAlertCount}
               hasHighPriority={hasHighPriorityTransitAlert}
+              hasUpdate={hasUpdate}
+              updateVersion={updateVersion}
               onClick={onOpenTransitNotifications}
+              onOpenAppUpdates={onOpenAppUpdates}
             />
           )}
 
