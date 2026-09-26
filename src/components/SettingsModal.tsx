@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Settings as SettingsIcon, Check, ShieldCheck, AlertCircle, Trash2, FileText, RefreshCw, Compass, CheckCircle2, RotateCcw, Building2, Eye } from 'lucide-react';
+import { X, Settings as SettingsIcon, Check, ShieldCheck, AlertCircle, Trash2, FileText, RefreshCw, Compass, CheckCircle2, RotateCcw, Building2, Eye, Camera } from 'lucide-react';
 import { ApplicationSettings, AyanamsaSystem, HouseSystem, OrganizationProfile } from '../types/astrology';
 import { getErrorLogs, clearPersistentErrorStates, subscribeToErrorLogs, ERROR_LOG_STORAGE_KEY } from '../utils/errorLogger';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
@@ -9,6 +9,8 @@ import { clearAstroCache } from '../utils/astroCache';
 import { canonicalJulianDay } from '../utils/canonicalAstroEngine';
 import { PrintableLetterheadBanner } from './common/PrintableLetterheadBanner';
 import { DEFAULT_ORG_PROFILE } from '../db/profileStore';
+import { LogoUploadModal } from './common/LogoUploadModal';
+import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -39,6 +41,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [organizationName, setOrganizationName] = useState(settings?.organizationName || '');
   const [errorLogCount, setErrorLogCount] = useState(0);
   const [isErrorLogModalOpen, setIsErrorLogModalOpen] = useState(false);
+  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
   const [clearedFeedback, setClearedFeedback] = useState<string | null>(null);
   const [orgFormData, setOrgFormData] = useState<OrganizationProfile>(orgProfile || DEFAULT_ORG_PROFILE);
 
@@ -358,6 +361,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* Logo Upload & Customization Section */}
+              <div className="p-3.5 bg-white dark:bg-stone-850 rounded-2xl border border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full border-2 border-amber-400 p-0.5 bg-white overflow-hidden shadow-xs flex items-center justify-center shrink-0 ring-2 ring-amber-400/20">
+                    <img
+                      src={orgFormData.logoUrl || getAssetUrl('/logo.png')}
+                      alt="Logo"
+                      className="w-full h-full object-cover rounded-full"
+                      onError={(e) => {
+                        handleImageFallback(e);
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <span className="font-bold text-xs sm:text-sm text-stone-800 dark:text-stone-100 block">
+                      संस्थाको लोगो व्यवस्थापन (Custom App & Report Logo)
+                    </span>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                      कम्प्युटरबाट आफ्नो लोगो अपलोड गर्नुहोस् (PNG, JPG, WebP)। यो १००% अफलाइन रहन्छ।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsLogoModalOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>लोगो फेर्नुहोस् (Upload Logo)</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Input Form Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 {/* 1. Mangal Shloka (Full Width) */}
@@ -542,6 +580,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           isOpen={isErrorLogModalOpen}
           onClose={() => setIsErrorLogModalOpen(false)}
           onStateCleared={refreshLogCount}
+        />
+
+        {/* Custom Logo Upload Modal */}
+        <LogoUploadModal
+          isOpen={isLogoModalOpen}
+          onClose={() => setIsLogoModalOpen(false)}
+          onLogoUpdated={(newUrl) => setOrgFormData((prev) => ({ ...prev, logoUrl: newUrl || '/logo.png' }))}
         />
       </div>
     </div>

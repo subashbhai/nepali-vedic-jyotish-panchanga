@@ -51,6 +51,8 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
     }
   }, [initialTab, isOpen]);
 
+  const [hasRealApk, setHasRealApk] = useState(false);
+
   // Synchronize latest release asset URLs from GitHub if available
   useEffect(() => {
     let isMounted = true;
@@ -67,6 +69,10 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
         const apkAsset = rel.assets.find((a) => a.name.endsWith('.apk'))?.downloadUrl;
         const dmgAsset = rel.assets.find((a) => a.name.endsWith('.dmg'))?.downloadUrl;
         const zipAsset = rel.assets.find((a) => a.name.endsWith('.zip'))?.downloadUrl;
+
+        if (apkAsset) {
+          setHasRealApk(true);
+        }
 
         setDownloadUrls((prev) => ({
           windowsSetup: setupAsset || prev.windowsSetup,
@@ -341,21 +347,38 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                     <span className="font-bold text-stone-900 dark:text-stone-100 text-xs">
                       १. Android Package (.apk)
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
-                      सिधै डाउनलोड
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                      hasRealApk
+                        ? 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50'
+                        : 'text-amber-800 bg-amber-50 dark:bg-amber-950/50'
+                    }`}>
+                      {hasRealApk ? 'सिधै डाउनलोड' : 'क्लाउड बिल्ड हुँदैछ'}
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-500">
-                    कम्प्युटर वा फोनमा सिधै .apk फाइल डाउनलोड गरी इन्स्टल गर्नुहोस्।
+                    {hasRealApk
+                      ? 'कम्प्युटर वा फोनमा सिधै .apk फाइल डाउनलोड गरी इन्स्टल गर्नुहोस्।'
+                      : 'नयाँ APK फाइल क्लाउडमा तयार भइरहेको छ। तत्काल मोबाइलमा चलाउन २ नम्बरको १-क्लिक इन्स्टल वा QR स्क्यान गर्नुहोस्।'}
                   </p>
                   <button
                     type="button"
-                    onClick={() => {
-                      handleStartDownload(
-                        downloadUrls.androidApk,
-                        'nepali-vedic-jyotish-panchanga.apk',
-                        'Android APK (.apk)'
-                      );
+                    onClick={async () => {
+                      if (hasRealApk) {
+                        handleStartDownload(
+                          downloadUrls.androidApk,
+                          'nepali-vedic-jyotish-panchanga.apk',
+                          'Android APK (.apk)'
+                        );
+                      } else {
+                        if (isInstallable) {
+                          const installed = await install();
+                          if (installed) {
+                            setDownloadNotice('एप सफलतापूर्वक तपाईंको मोबाइलमा स्थापना भयो!');
+                            return;
+                          }
+                        }
+                        setDownloadNotice('APK क्लाउडमा तयारी हुँदैछ। तत्काल चलाउन दायाँपट्टिको "२. Instant Web App (१-क्लिक)" बटन थिच्नुहोस् वा क्यामेराले QR स्क्यान गर्नुहोस्!');
+                      }
                     }}
                     className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
                   >
@@ -364,7 +387,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                     ) : (
                       <Download className="w-4 h-4" />
                     )}
-                    <span>Android APK (.apk) सिधै डाउनलोड गर्नुहोस्</span>
+                    <span>{hasRealApk ? 'Android APK (.apk) सिधै डाउनलोड गर्नुहोस्' : 'Android APK (तयारी अवस्था / १-क्लिक इन्स्टल)'}</span>
                   </button>
                 </div>
 
