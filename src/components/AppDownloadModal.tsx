@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Download, 
@@ -14,8 +14,15 @@ import {
   Share2, 
   PlusSquare,
   HelpCircle,
-  FileCheck
+  FileCheck,
+  Check
 } from 'lucide-react';
+import { 
+  DEFAULT_DIRECT_DOWNLOADS, 
+  triggerDirectBrowserDownload, 
+  checkLatestRelease 
+} from '../utils/appVersionManager';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 export type PlatformTab = 'WINDOWS' | 'ANDROID' | 'MAC' | 'IOS';
 
@@ -33,6 +40,10 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
   initialTab = 'WINDOWS',
 }) => {
   const [activeTab, setActiveTab] = useState<PlatformTab>(initialTab);
+  const [downloadUrls, setDownloadUrls] = useState(DEFAULT_DIRECT_DOWNLOADS);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const { isInstallable, isInstalled, install } = usePWAInstall();
 
   React.useEffect(() => {
     if (initialTab) {
@@ -40,10 +51,51 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
     }
   }, [initialTab, isOpen]);
 
+  // Synchronize latest release asset URLs from GitHub if available
+  useEffect(() => {
+    let isMounted = true;
+    checkLatestRelease()
+      .then((rel) => {
+        if (!isMounted || !rel || !rel.assets || rel.assets.length === 0) return;
+
+        const setupAsset = rel.assets.find(
+          (a) => a.name.includes('setup') && a.name.endsWith('.exe')
+        )?.downloadUrl;
+        const portableAsset = rel.assets.find(
+          (a) => !a.name.includes('setup') && a.name.endsWith('.exe')
+        )?.downloadUrl;
+        const apkAsset = rel.assets.find((a) => a.name.endsWith('.apk'))?.downloadUrl;
+        const dmgAsset = rel.assets.find((a) => a.name.endsWith('.dmg'))?.downloadUrl;
+        const zipAsset = rel.assets.find((a) => a.name.endsWith('.zip'))?.downloadUrl;
+
+        setDownloadUrls((prev) => ({
+          windowsSetup: setupAsset || prev.windowsSetup,
+          windowsPortable: portableAsset || prev.windowsPortable,
+          androidApk: apkAsset || prev.androidApk,
+          macDmg: dmgAsset || prev.macDmg,
+          macZip: zipAsset || prev.macZip,
+        }));
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   if (!isOpen) return null;
 
   const GITHUB_REPO_URL = 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga';
   const RELEASES_URL = `${GITHUB_REPO_URL}/releases/latest`;
+
+  const handleStartDownload = (url: string, fileName: string, label: string) => {
+    setDownloadingFile(fileName);
+    setDownloadNotice(`${label} डाउनलोड सुरु भयो! फाइल कम्प्युटरको Downloads फोल्डरमा सुरक्षित हुँदैछ।`);
+    triggerDirectBrowserDownload(url, fileName);
+    setTimeout(() => {
+      setDownloadingFile(null);
+    }, 3000);
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-fadeIn">
@@ -147,6 +199,23 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
 
         {/* Tab Content Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1 text-stone-800 dark:text-stone-200 text-xs sm:text-sm">
+
+          {/* Download Started Confirmation Banner */}
+          {downloadNotice && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 rounded-2xl text-emerald-900 dark:text-emerald-200 text-xs flex items-center justify-between gap-2 shadow-sm animate-fadeIn">
+              <div className="flex items-center gap-2 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>{downloadNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDownloadNotice(null)}
+                className="p-1 hover:bg-emerald-200/50 dark:hover:bg-emerald-800/50 rounded-lg text-emerald-700 dark:text-emerald-300 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
           
           {/* TAB 1: WINDOWS */}
           {activeTab === 'WINDOWS' && (
@@ -177,16 +246,27 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-500">
-                    डेस्कटप आइकन, स्टार्ट मेनु र स्वचालित अटो-अपडेटसहित कम्प्युटरमा इन्स्टल हुन्छ।
+                    डेस्कटप आइकन, स्टार्ट मेनु र स्वचालित अटो-अपडेटसहित कम्प्युटरमा इन्स्टल हुन्छ (~१३१ MB)।
                   </p>
                   <a
-                    href={`${RELEASES_URL}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-2.5 px-4 bg-[#7A1C1C] hover:bg-[#991B1B] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102"
+                    href={downloadUrls.windowsSetup}
+                    download="nepali-vedic-jyotish-panchanga-setup-1.0.0.exe"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleStartDownload(
+                        downloadUrls.windowsSetup,
+                        'nepali-vedic-jyotish-panchanga-setup-1.0.0.exe',
+                        'Windows Setup (.exe)'
+                      );
+                    }}
+                    className="w-full py-2.5 px-4 bg-[#7A1C1C] hover:bg-[#991B1B] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
                   >
-                    <Download className="w-4 h-4" />
-                    Setup (.exe) डाउनलोड गर्नुहोस्
+                    {downloadingFile === 'nepali-vedic-jyotish-panchanga-setup-1.0.0.exe' ? (
+                      <Check className="w-4 h-4 text-emerald-300" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    Setup (.exe) सिधै डाउनलोड गर्नुहोस्
                   </a>
                 </div>
 
@@ -201,16 +281,27 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-500">
-                    पेनड्राइभ वा कुनै पनि फोल्डरमा राखेर सिधै डबल-क्लिक गरी चलाउन मिल्ने।
+                    पेनड्राइभ वा कुनै पनि फोल्डरमा राखेर सिधै डबल-क्लिक गरी चलाउन मिल्ने (~१०० MB)।
                   </p>
                   <a
-                    href={`${RELEASES_URL}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-2.5 px-4 bg-stone-800 dark:bg-stone-700 hover:bg-stone-900 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102"
+                    href={downloadUrls.windowsPortable}
+                    download="nepali-vedic-jyotish-panchanga-1.0.0.exe"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleStartDownload(
+                        downloadUrls.windowsPortable,
+                        'nepali-vedic-jyotish-panchanga-1.0.0.exe',
+                        'Windows Portable (.exe)'
+                      );
+                    }}
+                    className="w-full py-2.5 px-4 bg-stone-800 dark:bg-stone-700 hover:bg-stone-900 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
                   >
-                    <Download className="w-4 h-4" />
-                    Portable (.exe) डाउनलोड गर्नुहोस्
+                    {downloadingFile === 'nepali-vedic-jyotish-panchanga-1.0.0.exe' ? (
+                      <Check className="w-4 h-4 text-emerald-300" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    Portable (.exe) सिधै डाउनलोड गर्नुहोस्
                   </a>
                 </div>
               </div>
@@ -234,7 +325,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                 </div>
                 <div>
                   <h4 className="font-bold text-base text-stone-900 dark:text-stone-100">
-                    Android का लागि मोबाइल एप (.apk)
+                    Android का लागि मोबाइल एप (APK तथा Instant App)
                   </h4>
                   <p className="text-xs text-stone-500">
                     Android 8.0 देखि Android 15+ समर्थित • १००% अफलाइन पञ्चाङ्ग र कुण्डली
@@ -242,38 +333,101 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-emerald-900 dark:text-emerald-300">
-                    Direct Android Package (APK)
-                  </span>
-                  <span className="text-[10px] text-emerald-700 bg-white dark:bg-emerald-900/40 px-2 py-0.5 rounded-full font-bold">
-                    Latest Build
-                  </span>
+              {/* Two Download/Install Options */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Option 1: Direct Android APK */}
+                <div className="p-4 rounded-2xl border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-stone-900 space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-stone-900 dark:text-stone-100 text-xs">
+                      १. Android Package (.apk)
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                      सिधै डाउनलोड
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500">
+                    कम्प्युटर वा फोनमा सिधै .apk फाइल डाउनलोड गरी इन्स्टल गर्नुहोस्।
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleStartDownload(
+                        downloadUrls.androidApk,
+                        'nepali-vedic-jyotish-panchanga.apk',
+                        'Android APK (.apk)'
+                      );
+                    }}
+                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
+                  >
+                    {downloadingFile === 'nepali-vedic-jyotish-panchanga.apk' ? (
+                      <Check className="w-4 h-4 text-emerald-200" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    <span>Android APK (.apk) सिधै डाउनलोड गर्नुहोस्</span>
+                  </button>
                 </div>
-                <p className="text-xs text-stone-600 dark:text-stone-400">
-                  सीधै आफ्नो एन्ड्रोइड फोनमा डाउनलोड गरी इन्स्टल गर्नुहोस्। इन्स्टल गर्दा 'Install from Unknown Sources' अनुमति दिनुहोस्।
-                </p>
-                <a
-                  href={`${RELEASES_URL}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-transform hover:scale-102"
-                >
-                  <Download className="w-4 h-4" />
-                  Android APK डाउनलोड गर्नुहोस् (.apk)
-                </a>
+
+                {/* Option 2: 1-Click PWA Install */}
+                <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-stone-900 dark:text-stone-100 text-xs">
+                      २. Instant Web App (१-क्लिक)
+                    </span>
+                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-md">
+                      मोबाइलमै इन्स्टल
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500">
+                    मोबाइलको ब्राउजरमै १-क्लिकमा होम स्क्रिनमा एप थप्नुहोस् (बिना झन्झट)।
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (isInstalled) {
+                        setDownloadNotice('यो एप तपाईंको डिभाइसमा पहिले नै स्थापना भइसकेको छ।');
+                        return;
+                      }
+                      if (isInstallable) {
+                        const installed = await install();
+                        if (installed) {
+                          setDownloadNotice('एप सफलतापूर्वक तपाईंको मोबाइलमा स्थापना भयो!');
+                        }
+                      } else {
+                        // If not directly installable, trigger APK download
+                        handleStartDownload(
+                          downloadUrls.androidApk,
+                          'nepali-vedic-jyotish-panchanga.apk',
+                          'Android APK (.apk)'
+                        );
+                      }
+                    }}
+                    className="w-full py-2.5 px-4 bg-stone-800 dark:bg-stone-700 hover:bg-stone-900 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>{isInstalled ? 'एप इन्स्टल भइसकेको छ ✅' : 'मोबाइलमा स्थापना गर्नुहोस् (Install)'}</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="p-3.5 bg-stone-100 dark:bg-stone-900 rounded-2xl space-y-1.5 text-xs text-stone-600 dark:text-stone-400">
-                <span className="font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> मोबाइलमा इन्स्टल गर्ने तरिका:
-                </span>
-                <ol className="list-decimal list-inside space-y-1 pl-1 text-[11px]">
-                  <li>माथिको हरियो बटन थिचेर APK फाइल डाउनलोड गर्नुहोस्।</li>
-                  <li>डाउनलोड सकिएपछि फाइलमा क्लिक गरी "Install" रोज्नुहोस्।</li>
-                  <li>एप खोल्नुहोस् र बिना इन्टरनेट जुनसुकै स्थानमा कुण्डली तथा पञ्चाङ्ग प्रयोग गर्नुहोस्।</li>
-                </ol>
+              {/* QR Code section for easy mobile scanning */}
+              <div className="p-4 bg-stone-100 dark:bg-stone-900/90 rounded-2xl border border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row items-center gap-4 text-xs">
+                <div className="p-2 bg-white rounded-xl border border-stone-300 dark:border-stone-700 shrink-0 shadow-xs">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/')}`}
+                    alt="Mobile Install QR Code"
+                    className="w-20 h-20"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="space-y-1 text-center sm:text-left">
+                  <span className="font-bold text-stone-800 dark:text-stone-200 block text-xs">
+                    📱 मोबाइलबाट QR कोड स्क्यान गरी खोल्नुहोस्
+                  </span>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+                    यदि तपाईं कम्प्युटरमा हुनुहुन्छ भने आफ्नो मोबाइल क्यामेराले यो QR स्क्यान गर्नुहोस् र मोबाइलमा सिधै खोल्नुहोस्।
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -287,7 +441,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                 </div>
                 <div>
                   <h4 className="font-bold text-base text-stone-900 dark:text-stone-100">
-                    macOS (Apple Mac) का लागि कम्प्युटर एप (.dmg)
+                    macOS (Apple Mac) का लागि कम्प्युटर एप
                   </h4>
                   <p className="text-xs text-stone-500">
                     Apple Silicon (M1/M2/M3/M4) तथा Intel Mac समर्थित
@@ -295,22 +449,76 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 space-y-3">
-                <span className="font-bold text-xs text-stone-900 dark:text-stone-100 block">
-                  Apple Mac Installer (.dmg)
-                </span>
-                <p className="text-xs text-stone-600 dark:text-stone-400">
-                  DMG फाइल डाउनलोड गरी सिधै आफ्नो Applications फोल्डरमा ड्र्याग गर्नुहोस्।
-                </p>
-                <a
-                  href={`${RELEASES_URL}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-3 px-4 bg-stone-900 hover:bg-black text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-transform hover:scale-102"
-                >
-                  <Download className="w-4 h-4" />
-                  macOS DMG डाउनलोड गर्नुहोस् (.dmg)
-                </a>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Option 1: DMG */}
+                <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-stone-900 dark:text-stone-100">
+                      १. Apple Mac DMG (.dmg)
+                    </span>
+                    <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-md">
+                      सिफारिस गरिएको
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                    DMG फाइल डाउनलोड गरी Applications फोल्डरमा ड्र्याग गर्नुहोस् (~१३७ MB)।
+                  </p>
+                  <a
+                    href={downloadUrls.macDmg}
+                    download="nepali-vedic-jyotish-panchanga-1.0.0.dmg"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleStartDownload(
+                        downloadUrls.macDmg,
+                        'nepali-vedic-jyotish-panchanga-1.0.0.dmg',
+                        'macOS DMG (.dmg)'
+                      );
+                    }}
+                    className="w-full py-2.5 px-4 bg-stone-900 hover:bg-black text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
+                  >
+                    {downloadingFile === 'nepali-vedic-jyotish-panchanga-1.0.0.dmg' ? (
+                      <Check className="w-4 h-4 text-emerald-300" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    macOS DMG सिधै डाउनलोड
+                  </a>
+                </div>
+
+                {/* Option 2: ARM64 Zip */}
+                <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-stone-900 dark:text-stone-100">
+                      २. Apple Silicon Zip (.zip)
+                    </span>
+                    <span className="text-[10px] font-semibold text-purple-600 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-md">
+                      M1/M2/M3/M4
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                    Apple Silicon चिप भएका नयाँ Mac का लागि कम्प्रेस गरिएको जिप फाइल (~१३४ MB)।
+                  </p>
+                  <a
+                    href={downloadUrls.macZip}
+                    download="nepali-vedic-jyotish-panchanga-1.0.0-arm64-mac.zip"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleStartDownload(
+                        downloadUrls.macZip,
+                        'nepali-vedic-jyotish-panchanga-1.0.0-arm64-mac.zip',
+                        'macOS ARM64 Zip (.zip)'
+                      );
+                    }}
+                    className="w-full py-2.5 px-4 bg-stone-700 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
+                  >
+                    {downloadingFile === 'nepali-vedic-jyotish-panchanga-1.0.0-arm64-mac.zip' ? (
+                      <Check className="w-4 h-4 text-emerald-300" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    Apple Silicon Zip सिधै डाउनलोड
+                  </a>
+                </div>
               </div>
 
               <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800/50 text-[11px] text-amber-900 dark:text-amber-300">

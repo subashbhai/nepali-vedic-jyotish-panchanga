@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">नेपाली वैदिक ज्योतिष</string>
+    <string name="title_activity_main">नेपाली वैदिक ज्योतिष</string>
+    <string name="package_name">com.balananda.jyotish</string>
+    <string name="custom_url_scheme">com.balananda.jyotish</string>
+</resources>

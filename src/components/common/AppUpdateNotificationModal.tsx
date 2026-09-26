@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   CURRENT_APP_VERSION,
+  DEFAULT_DIRECT_DOWNLOADS,
   RemoteReleaseInfo,
   ElectronUpdaterStatus,
   checkLatestRelease,
@@ -210,18 +211,15 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
               <button
                 type="button"
                 onClick={() => {
-                  if (apkAsset?.downloadUrl) {
-                    triggerDirectBrowserDownload(apkAsset.downloadUrl, 'nepali-jyotish.apk');
-                  } else {
-                    handleStartInAppDownload();
-                  }
+                  const apkUrl = apkAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.androidApk;
+                  triggerDirectBrowserDownload(apkUrl, 'nepali-vedic-jyotish-panchanga.apk');
                 }}
                 className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-300/80 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 transition-all text-xs text-emerald-900 dark:text-emerald-200 group cursor-pointer text-left"
               >
                 <div className="flex items-center gap-2">
                   <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
                   <div>
-                    <span className="font-bold block">Android APK</span>
+                    <span className="font-bold block">Android APK (.apk)</span>
                     <span className="text-[10px] text-stone-500">मोबाइलका लागि सिधै डाउनलोड</span>
                   </div>
                 </div>

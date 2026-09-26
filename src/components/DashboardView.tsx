@@ -306,7 +306,7 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
 
   const handleCopyDailySankalpa = () => {
     if (!dailySankalpa) return;
-    const fullTextToCopy = `॥ दैनिक वैदिक सङ्कल्प ॥\n${dailySankalpa.sanskritText}\n\n[नेपाली भावार्थ]:\n${dailySankalpa.nepaliMeaning}\n\n📍 तीर्थ/देवपीठ: ${dailySankalpa.geoInfo.sacredRiverSanskrit} | ${dailySankalpa.geoInfo.prominentDeitySanskrit}\n— नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग`;
+    const fullTextToCopy = `॥ दैनिक वैदिक सङ्कल्प ॥\n${dailySankalpa.sanskritText}\n\n📍 तीर्थ/देवपीठ: ${dailySankalpa.geoInfo.sacredRiverSanskrit} | ${dailySankalpa.geoInfo.prominentDeitySanskrit}\n— नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग`;
     
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(fullTextToCopy).then(() => {
@@ -639,12 +639,6 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                     {dailySankalpa.sanskritText}
                   </p>
                 </div>
-              </div>
-
-              <div className="mt-3 pt-2.5 border-t border-amber-200/70 dark:border-stone-700/60 text-[11px] sm:text-[11.5px] text-stone-700 dark:text-stone-300 font-sans leading-relaxed">
-                <p className="text-justify">
-                  <strong className="text-amber-800 dark:text-amber-300">भावार्थ:</strong> {dailySankalpa.nepaliMeaning}
-                </p>
               </div>
             </div>
           </div>
