@@ -41,13 +41,18 @@ import {
   ArrowRightLeft,
   Gift,
   CloudCheck,
-  Palette
+  Palette,
+  Download,
+  Monitor,
+  Smartphone,
+  Apple
 } from 'lucide-react';
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
 import { RBACSession } from '../db/rbacStore';
 import { evaluateSubscriptionStatus, is3DayTrialActive, start3DayTrial, is7DayTrialActive } from '../db/subscriptionStore';
 import { is24HourTrialActive, isClientPurchaseApproved } from '../db/clientLeadStore';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
+import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 
 // Public menus visible on the first screen before login
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
@@ -342,10 +347,14 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
   const [isUnifiedSettingsOpen, setIsUnifiedSettingsOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
+  const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
   const sewaButtonRef = useRef<HTMLButtonElement>(null);
   const sewaMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const unifiedSettingsRef = useRef<HTMLDivElement>(null);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   const isSuperOrStoreAdmin =
     rbacSession?.role === 'SUPER_ADMIN' ||
@@ -393,6 +402,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       }
       if (unifiedSettingsRef.current && !unifiedSettingsRef.current.contains(e.target as Node)) {
         setIsUnifiedSettingsOpen(false);
+      }
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
+        setIsDownloadDropdownOpen(false);
       }
     };
     const handleScrollOrResize = () => {
@@ -592,6 +604,179 @@ export const Navigation: React.FC<NavigationProps> = memo(({
 
         {/* Right Section: Dropdowns and User Actions (Outside overflow-x-auto so dropdowns float on front!) */}
         <div className="flex items-center gap-2 shrink-0 relative z-50">
+
+          {/* डाउनलोड Dropdown Menu (Windows, Android, Mac, iOS) - संस्था प्रोफाइल र सेटिङको बीचमा */}
+          <div className="relative shrink-0 z-50" ref={downloadMenuRef}>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setIsDownloadDropdownOpen(!isDownloadDropdownOpen)}
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
+                isDownloadDropdownOpen
+                  ? 'bg-[#7A1C1C] text-white border-[#5C1515] ring-2 ring-[#7A1C1C]/30 shadow-md'
+                  : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
+              }`}
+              title="कम्प्युटर तथा मोबाइल एप डाउनलोड गर्नुहोस् (Windows, Android, Mac, iOS)"
+            >
+              <Download className={`w-4 h-4 ${isDownloadDropdownOpen ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
+              <span>डाउनलोड</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isDownloadDropdownOpen ? 'rotate-180 text-amber-400' : 'opacity-70'}`} />
+            </motion.button>
+
+            {isDownloadDropdownOpen && (
+              <div className="absolute right-0 sm:right-auto sm:left-0 mt-1.5 w-[calc(100vw-24px)] max-w-sm sm:w-92 bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border-2 border-amber-400/80 dark:border-stone-700 p-2.5 z-[100] animate-in fade-in slide-in-from-top-1">
+                {/* Header */}
+                <div className="px-3 py-2 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-[#7A1C1C]/10 dark:bg-amber-500/15 flex items-center justify-center text-[#7A1C1C] dark:text-amber-400">
+                      <Download className="w-4 h-4" />
+                    </div>
+                    <span className="font-bold text-xs sm:text-sm text-stone-800 dark:text-stone-100">
+                      📲 एप डाउनलोड (Download App)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/60">
+                    १००% अफलाइन
+                  </span>
+                </div>
+
+                {/* 4 Platforms list */}
+                <div className="py-1.5 space-y-1">
+                  {/* 1. Windows */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDownloadDropdownOpen(false);
+                      setDownloadModalPlatform('WINDOWS');
+                      setIsDownloadModalOpen(true);
+                      window.open('https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest', '_blank');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-blue-50/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-blue-200 dark:hover:border-stone-700"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Monitor className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-blue-700 dark:group-hover:text-blue-400">
+                          १. Windows (कम्प्युटर एप)
+                        </span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300">
+                          .exe
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        Windows 10, 11 • सेटअप इन्स्टलर तथा पोर्टेबल
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 2. Android */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDownloadDropdownOpen(false);
+                      setDownloadModalPlatform('ANDROID');
+                      setIsDownloadModalOpen(true);
+                      window.open('https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest', '_blank');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-emerald-50/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-emerald-200 dark:hover:border-stone-700"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+                          २. Android (मोबाइल एप)
+                        </span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
+                          .apk
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        Samsung, Xiaomi, Vivo • सिधै एन्ड्रोइडमा इन्स्टल
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 3. Mac */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDownloadDropdownOpen(false);
+                      setDownloadModalPlatform('MAC');
+                      setIsDownloadModalOpen(true);
+                      window.open('https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest', '_blank');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-stone-300 dark:hover:border-stone-700"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-stone-500/15 text-stone-800 dark:text-stone-200 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Apple className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-stone-900 dark:group-hover:text-white">
+                          ३. Mac (macOS एप्पल एप)
+                        </span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200">
+                          .dmg
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        Apple Mac M1/M2/M3/M4 तथा Intel MacBook
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 4. iOS */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDownloadDropdownOpen(false);
+                      setDownloadModalPlatform('IOS');
+                      setIsDownloadModalOpen(true);
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-purple-50/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-purple-200 dark:hover:border-stone-700"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/15 text-purple-700 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-purple-700 dark:group-hover:text-purple-400">
+                          ४. iOS (iPhone / iPad)
+                        </span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300">
+                          PWA / Safari
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        Safari बाट Add to Home Screen गरी १००% अफलाइन
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-1 pt-2 border-t border-stone-200 dark:border-stone-800 flex items-center justify-between text-[11px] px-1">
+                  <span className="text-stone-500 dark:text-stone-400">स्वचालित लाइभ अपडेट</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDownloadDropdownOpen(false);
+                      setIsDownloadModalOpen(true);
+                    }}
+                    className="text-[#7A1C1C] dark:text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>विस्तृत हब हेर्नुहोस्</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* एकीकृत सेटिङ, मद्दत र क्लाउड सिंक Dropdown Menu - केवल अधिकृत ग्राहक, २४-घण्टे ट्रयाल वा सुपरएडमिनलाई मात्र देखिने */}
           {isFullyUnlocked && (
@@ -1075,6 +1260,13 @@ export const Navigation: React.FC<NavigationProps> = memo(({
           </div>
         </div>
       )}
+
+      {/* ४-प्लेटफर्म एप डाउनलोड मोडल (Windows, Android, Mac, iOS) */}
+      <AppDownloadModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        initialTab={downloadModalPlatform}
+      />
     </nav>
   );
 });
