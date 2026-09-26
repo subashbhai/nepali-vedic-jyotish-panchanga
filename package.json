@@ -68,7 +68,8 @@
     "publish": {
       "provider": "github",
       "owner": "subashbhai",
-      "repo": "nepali-vedic-jyotish-panchanga"
+      "repo": "nepali-vedic-jyotish-panchanga",
+      "releaseType": "release"
     },
     "win": {
       "target": [
