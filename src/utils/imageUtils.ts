@@ -2,6 +2,7 @@
  * Utility functions for Image Processing, Compression, Cropping, and Default SVG generation
  * for Balananda Jyotish, Vastu Tatha Karmakanda Sewa (बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा)
  */
+import { getAssetUrl } from './assetHelper';
 
 export interface CropAspectPreset {
   label: string;
@@ -115,7 +116,7 @@ export async function cropCanvasImage(
  * Generates high-resolution default brand Logo for बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा
  */
 export function getDefaultLogoSvg(): string {
-  return '/logo.png';
+  return getAssetUrl('/logo.png');
 }
 
 /**

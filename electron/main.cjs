@@ -1,5 +1,22 @@
-const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const { pathToFileURL } = require('url');
+
+// Register custom standard protocol for 100% offline asset and page serving
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+      bypassCSP: true,
+    },
+  },
+]);
 
 let mainWindow = null;
 
@@ -17,13 +34,19 @@ if (!gotTheLock) {
 }
 
 function createWindow() {
+  const iconPath = process.platform === 'win32'
+    ? (fs.existsSync(path.join(__dirname, '../public/favicon.ico'))
+        ? path.join(__dirname, '../public/favicon.ico')
+        : path.join(__dirname, '../public/logo.png'))
+    : path.join(__dirname, '../public/logo.png');
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 850,
     minWidth: 1024,
     minHeight: 700,
     title: 'बालानन्द वैदिक ज्योतिष, पञ्चाङ्ग तथा वास्तु सेवा',
-    icon: path.join(__dirname, '../public/logo.png'),
+    icon: iconPath,
     backgroundColor: '#FAF8F5',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -142,12 +165,15 @@ function createWindow() {
     mainWindow.loadURL(process.env.ELECTRON_START_URL);
   } else if (isDev) {
     mainWindow.loadURL('http://localhost:3000').catch(() => {
-      // Fallback to local dist file if dev server is not running
-      mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+      mainWindow.loadURL('app://localhost/index.html').catch(() => {
+        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+      });
     });
   } else {
-    // 100% Offline production loading directly from disk
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // 100% Offline production loading with standard origin semantics (works with /logo.png, /assets/...)
+    mainWindow.loadURL('app://localhost/index.html').catch(() => {
+      mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    });
   }
 
   // Open external links in default browser instead of electron window
@@ -164,8 +190,87 @@ function createWindow() {
   });
 }
 
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.cjs': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.webmanifest': 'application/manifest+json',
+};
+
 // App lifecycle
 app.whenReady().then(() => {
+  // Setup custom 'app://' protocol to serve dist files with proper root-relative URL semantics
+  // Uses fs.readFileSync which works transparently both inside app.asar and unpacked.
+  protocol.handle('app', async (request) => {
+    try {
+      const parsedUrl = new URL(request.url);
+      let pathname = decodeURIComponent(parsedUrl.pathname);
+
+      if (!pathname || pathname === '/' || pathname === '/index.html') {
+        pathname = 'index.html';
+      } else if (pathname.startsWith('/')) {
+        pathname = pathname.slice(1);
+      }
+
+      const distDir = path.join(__dirname, '../dist');
+      const candidates = [
+        path.join(distDir, pathname),
+        path.join(__dirname, '../public', pathname),
+        path.join(distDir, 'assets', pathname),
+        path.join(__dirname, '../public/assets', pathname),
+      ];
+
+      let foundPath = null;
+      for (const cand of candidates) {
+        if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+          foundPath = cand;
+          break;
+        }
+      }
+
+      // Fallback to index.html for SPA routes without extension
+      if (!foundPath && !path.extname(pathname)) {
+        const indexPath = path.join(distDir, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          foundPath = indexPath;
+        }
+      }
+
+      if (foundPath) {
+        const ext = path.extname(foundPath).toLowerCase();
+        const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+        const data = fs.readFileSync(foundPath);
+        return new Response(data, {
+          status: 200,
+          headers: {
+            'Content-Type': mimeType,
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-cache',
+          },
+        });
+      }
+
+      console.warn('[Protocol app] File not found:', pathname);
+      return new Response('File not found: ' + pathname, { status: 404 });
+    } catch (err) {
+      console.error('[Protocol app] Error handling request:', err);
+      return new Response('Internal error', { status: 500 });
+    }
+  });
+
   createWindow();
 
   app.on('activate', () => {

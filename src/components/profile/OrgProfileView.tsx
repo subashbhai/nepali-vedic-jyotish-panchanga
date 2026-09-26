@@ -31,6 +31,7 @@ import {
   Lock
 } from 'lucide-react';
 import { OrganizationProfile } from '../../types/astrology';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import { NavTab } from '../Navigation';
 import { DEFAULT_ORG_PROFILE } from '../../db/profileStore';
 import { ServiceLoginRequiredModal, ServiceItemInfo } from '../common/ServiceLoginRequiredModal';
@@ -185,11 +186,15 @@ export const OrgProfileView: React.FC<OrgProfileViewProps> = ({
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-stone-800 rounded-full flex items-center justify-center shadow-lg border-2 border-amber-400/60 shrink-0 overflow-hidden p-0.5 ring-2 ring-amber-400/20">
                 <img 
-                  src={formData.logoUrl || '/logo.png'} 
+                  src={getAssetUrl(formData.logoUrl || '/logo.png')} 
                   alt="Logo" 
                   className="w-full h-full object-cover rounded-full" 
                   onError={(e) => {
-                    e.currentTarget.src = '/logo.png';
+                    handleImageFallback(e, [
+                      getAssetUrl('/logo.png'),
+                      getAssetUrl('/assets/logo.png'),
+                      getAssetUrl('/balananda-logo.png'),
+                    ]);
                   }}
                 />
               </div>

@@ -10,6 +10,7 @@ import {
   getActiveRBACSession,
   clearRBACSession
 } from '../../db/rbacStore';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import {
   User,
   Lock,
@@ -347,7 +348,18 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
         {/* Modal Header */}
         <div className="text-center space-y-2 mb-5">
           <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-white dark:bg-stone-800 p-0.5 shadow-lg border-2 border-amber-400/60 overflow-hidden ring-2 ring-amber-400/20">
-            <img src="/logo.png" alt="बालानन्द लोगो" className="w-full h-full object-cover rounded-full select-none" />
+            <img 
+              src={getAssetUrl('/logo.png')} 
+              alt="बालानन्द लोगो" 
+              className="w-full h-full object-cover rounded-full select-none" 
+              onError={(e) => {
+                handleImageFallback(e, [
+                  getAssetUrl('/logo.png'),
+                  getAssetUrl('/assets/logo.png'),
+                  getAssetUrl('/balananda-logo.png'),
+                ]);
+              }}
+            />
           </div>
 
           <div className="inline-flex items-center gap-2 bg-amber-500/10 dark:bg-amber-500/20 px-3.5 py-1 rounded-full text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30">

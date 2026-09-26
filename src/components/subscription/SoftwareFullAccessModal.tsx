@@ -24,6 +24,7 @@ import {
   SoftwarePackageTier,
   activateSoftwareFullAccess
 } from '../../db/subscriptionStore';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 interface SoftwareFullAccessModalProps {
   isOpen: boolean;
@@ -133,11 +134,15 @@ export const SoftwareFullAccessModal: React.FC<SoftwareFullAccessModalProps> = (
           <div className="flex items-center gap-3 pr-8">
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white dark:bg-stone-900 p-0.5 border-2 border-amber-300/80 flex items-center justify-center shrink-0 shadow-md overflow-hidden ring-2 ring-amber-400/30">
               <img
-                src="/logo.png"
+                src={getAssetUrl('/logo.png')}
                 alt="बालानन्द लोगो"
                 className="w-full h-full object-cover rounded-full select-none"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                  handleImageFallback(e, [
+                    getAssetUrl('/logo.png'),
+                    getAssetUrl('/assets/logo.png'),
+                    getAssetUrl('/balananda-logo.png'),
+                  ]);
                 }}
               />
             </div>

@@ -9,6 +9,8 @@
  * 4. Auspicious Color, Direction & Sadhana Recommendation
  */
 
+import { getAssetUrl } from './assetHelper';
+
 export interface DayDeityInfo {
   dayIndex: number; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   dayNameNepali: string; // e.g. "आइतबार" / "आइतवार"
@@ -158,29 +160,31 @@ export const VEDIC_DAY_DEITIES: DayDeityInfo[] = [
  * Resolves day deity details based on day name or date
  */
 export function getDayDeityInfo(dayNameNepali?: string, dateAD?: string): DayDeityInfo {
+  let deity: DayDeityInfo = VEDIC_DAY_DEITIES[0];
+
   if (dayNameNepali) {
     const clean = dayNameNepali.trim().toLowerCase();
-    if (clean.includes('आइत') || clean.includes('रवि') || clean.includes('sun')) return VEDIC_DAY_DEITIES[0];
-    if (clean.includes('सोम') || clean.includes('इन्दु') || clean.includes('mon')) return VEDIC_DAY_DEITIES[1];
-    if (clean.includes('मङ्गल') || clean.includes('मंगल') || clean.includes('भौम') || clean.includes('tue')) return VEDIC_DAY_DEITIES[2];
-    if (clean.includes('बुध') || clean.includes('सौम्य') || clean.includes('wed')) return VEDIC_DAY_DEITIES[3];
-    if (clean.includes('बिही') || clean.includes('विही') || clean.includes('बृहस्पति') || clean.includes('गुरु') || clean.includes('thu')) return VEDIC_DAY_DEITIES[4];
-    if (clean.includes('शुक्र') || clean.includes('भृगु') || clean.includes('fri')) return VEDIC_DAY_DEITIES[5];
-    if (clean.includes('शनि') || clean.includes('मन्द') || clean.includes('sat')) return VEDIC_DAY_DEITIES[6];
-  }
-
-  if (dateAD) {
+    if (clean.includes('आइत') || clean.includes('रवि') || clean.includes('sun')) deity = VEDIC_DAY_DEITIES[0];
+    else if (clean.includes('सोम') || clean.includes('इन्दु') || clean.includes('mon')) deity = VEDIC_DAY_DEITIES[1];
+    else if (clean.includes('मङ्गल') || clean.includes('मंगल') || clean.includes('भौम') || clean.includes('tue')) deity = VEDIC_DAY_DEITIES[2];
+    else if (clean.includes('बुध') || clean.includes('सौम्य') || clean.includes('wed')) deity = VEDIC_DAY_DEITIES[3];
+    else if (clean.includes('बिही') || clean.includes('विही') || clean.includes('बृहस्पति') || clean.includes('गुरु') || clean.includes('thu')) deity = VEDIC_DAY_DEITIES[4];
+    else if (clean.includes('शुक्र') || clean.includes('भृगु') || clean.includes('fri')) deity = VEDIC_DAY_DEITIES[5];
+    else if (clean.includes('शनि') || clean.includes('मन्द') || clean.includes('sat')) deity = VEDIC_DAY_DEITIES[6];
+  } else if (dateAD) {
     try {
       const d = new Date(dateAD);
       if (!isNaN(d.getTime())) {
         const dayIdx = d.getDay(); // 0 = Sunday
-        return VEDIC_DAY_DEITIES[dayIdx];
+        deity = VEDIC_DAY_DEITIES[dayIdx];
       }
     } catch {
       // Fallback
     }
+  } else {
+    const todayIdx = new Date().getDay();
+    deity = VEDIC_DAY_DEITIES[todayIdx];
   }
 
-  const todayIdx = new Date().getDay();
-  return VEDIC_DAY_DEITIES[todayIdx];
+  return { ...deity, imagePath: getAssetUrl(deity.imagePath) };
 }
