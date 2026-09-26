@@ -15,13 +15,15 @@ import {
   DollarSign,
   ShieldCheck,
   Check,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import {
   ClientLead,
   getStoredClientLeads,
   superAdminApprovePurchase,
-  superAdminRejectPurchase
+  superAdminRejectPurchase,
+  superAdminApproveByTransactionId
 } from '../../../db/clientLeadStore';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 
@@ -34,6 +36,7 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PURCHASE_PENDING' | 'PURCHASE_APPROVED' | 'TRIAL_ACTIVE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [manualTxInput, setManualTxInput] = useState('');
 
   const loadLeads = () => {
     setLeads(getStoredClientLeads());
@@ -57,6 +60,24 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
       alert(res.messageNepali);
     }
   };
+
+  const handleDirectApproveTx = (txCode: string) => {
+    if (!txCode.trim()) {
+      alert('कृपया eSewa/Khalti कारोबार नम्बर (Transaction ID) उल्लेख गर्नुहोस्।');
+      return;
+    }
+    const res = superAdminApproveByTransactionId(txCode.trim(), 'SuperAdmin');
+    if (res.success) {
+      setActionSuccessMsg(res.messageNepali);
+      loadLeads();
+      onRefresh?.();
+      setManualTxInput('');
+      setTimeout(() => setActionSuccessMsg(null), 5000);
+    } else {
+      alert(res.messageNepali);
+    }
+  };
+
 
   const handleReject = (leadId: string) => {
     const reason = prompt('अस्वीकृत गर्नुको कारण उल्लेख गर्नुहोस् (वैकल्पिक):') || 'रकम रुजु हुन सकेन।';
@@ -111,6 +132,58 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
             ✓ {actionSuccessMsg}
           </div>
         )}
+      </div>
+
+      {/* Quick Direct Transaction Approver Box */}
+      <div className="bg-gradient-to-r from-amber-950/60 via-stone-900 to-amber-950/60 border-2 border-amber-500/50 rounded-2xl p-4 sm:p-5 shadow-xl shadow-amber-950/20">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-amber-500 text-stone-950 rounded-lg font-black text-xs flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 fill-current" /> त्वरित स्वीकृति
+              </span>
+              <h3 className="font-bold text-stone-100 text-sm sm:text-base">
+                eSewa / Khalti कारोबार नम्बर (Tx ID) बाट सिधै सक्रिय गर्नुहोस्
+              </h3>
+            </div>
+            <p className="text-xs text-stone-400">
+              ग्राहकले पठाएको Transaction Code (जस्तै: <code className="text-amber-300 font-mono font-bold">ESE454576474</code>) यहाँ राखी तुरून्त १-क्लिकमा अप्रुभ गर्नुहोस्।
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="उदा: ESE454576474"
+                value={manualTxInput}
+                onChange={(e) => setManualTxInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleDirectApproveTx(manualTxInput);
+                }}
+                className="w-full sm:w-64 px-3 py-2 bg-stone-950 border border-amber-500/60 rounded-xl text-amber-200 placeholder:text-stone-500 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              {manualTxInput !== 'ESE454576474' && (
+                <button
+                  type="button"
+                  onClick={() => setManualTxInput('ESE454576474')}
+                  className="absolute right-2 top-2 text-[10px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2 py-0.5 rounded border border-amber-500/30 cursor-pointer"
+                  title="हालैको ट्रान्ज्याक्सन कोड भर्नुहोस्"
+                >
+                  ESE454576474
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => handleDirectApproveTx(manualTxInput)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+              स्वीकृत तथा सक्रिय गर्नुहोस् (Approve)
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
