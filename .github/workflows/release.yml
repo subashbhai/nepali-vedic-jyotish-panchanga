@@ -10,13 +10,9 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-
+  build-windows:
+    name: Build & Direct Release (Windows .exe)
+    runs-on: windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,14 +29,40 @@ jobs:
       - name: Build Web Application
         run: npm run build
 
-      - name: Build and Publish Windows App
-        if: matrix.os == 'windows-latest'
+      - name: Build and Direct Publish Windows App (.exe + latest.yml)
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Ensure GitHub Release is Public (Not Draft)
+        shell: bash
+        run: |
+          gh release edit ${{ github.ref_name }} --draft=false || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: Build & Release (macOS App)
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Web Application
+        run: npm run build
+
       - name: Build and Publish macOS App
-        if: matrix.os == 'macos-latest'
         run: npx electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false

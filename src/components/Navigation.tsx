@@ -53,6 +53,7 @@ import { evaluateSubscriptionStatus, is3DayTrialActive, start3DayTrial, is7DayTr
 import { is24HourTrialActive, isClientPurchaseApproved } from '../db/clientLeadStore';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 // Public menus visible on the first screen before login
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
@@ -352,6 +353,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
   const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
+  const { isInstalled } = usePWAInstall();
   const sewaButtonRef = useRef<HTMLButtonElement>(null);
   const sewaMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
@@ -607,8 +609,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
         {/* Right Section: Dropdowns and User Actions (Outside overflow-x-auto so dropdowns float on front!) */}
         <div className="flex items-center gap-2 shrink-0 relative z-50">
 
-          {/* डाउनलोड Dropdown Menu (Windows, Android, Mac, iOS) - संस्था प्रोफाइल र सेटिङको बीचमा */}
-          <div className="relative shrink-0 z-50" ref={downloadMenuRef}>
+          {/* डाउनलोड Dropdown Menu (Windows, Android, Mac, iOS) - मात्र वेबसाइटमा देखिने, इन्स्टल भइसकेको एपमा स्वतः हट्ने */}
+          {!isInstalled && (
+            <div className="relative shrink-0 z-50" ref={downloadMenuRef}>
             <motion.button
               type="button"
               whileHover={{ scale: 1.02 }}
@@ -776,6 +779,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               </div>
             )}
           </div>
+        )}
 
           {/* एकीकृत सेटिङ, मद्दत, क्लाउड सिंक तथा सुपरएडमिन Dropdown Menu */}
           <div className="relative shrink-0 z-50" ref={unifiedSettingsRef}>
@@ -1286,12 +1290,14 @@ export const Navigation: React.FC<NavigationProps> = memo(({
         </div>
       )}
 
-      {/* ४-प्लेटफर्म एप डाउनलोड मोडल (Windows, Android, Mac, iOS) */}
-      <AppDownloadModal
-        isOpen={isDownloadModalOpen}
-        onClose={() => setIsDownloadModalOpen(false)}
-        initialTab={downloadModalPlatform}
-      />
+      {/* ४-प्लेटफर्म एप डाउनलोड मोडल (Windows, Android, Mac, iOS) - मात्र वेबसाइटमा खुला हुने */}
+      {!isInstalled && (
+        <AppDownloadModal
+          isOpen={isDownloadModalOpen}
+          onClose={() => setIsDownloadModalOpen(false)}
+          initialTab={downloadModalPlatform}
+        />
+      )}
     </nav>
   );
 });
