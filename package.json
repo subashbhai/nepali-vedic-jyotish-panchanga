@@ -1,6 +1,8 @@
 {
   "name": "nepali-vedic-jyotish-panchanga",
   "productName": "नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग",
+  "description": "नेपाली वैदिक ज्योतिष, पञ्चाङ्ग, कुण्डली तथा वास्तु सेवा प्रणाली",
+  "author": "Balananda Jyotish <subashbhai@gmail.com>",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -40,7 +42,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "autoprefixer": "^10.4.21",
-    "electron": "^35.0.0",
+    "electron": "35.0.0",
     "electron-builder": "^25.1.8",
     "electron-updater": "^6.3.9",
     "esbuild": "^0.25.0",
@@ -54,6 +56,7 @@
   "build": {
     "appId": "com.balananda.jyotish",
     "productName": "नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग",
+    "electronVersion": "35.0.0",
     "directories": {
       "output": "dist_electron"
     },
