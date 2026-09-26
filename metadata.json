@@ -1,0 +1,6 @@
+{
+  "name": "बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा",
+  "description": "नेपालकै सबैभन्दा भरपर्दो वैदिक सेवा - वैदिक ज्योतिष, पञ्चाङ्ग, कुण्डली, फलादेश, गोचर, वास्तु तथा कर्मकाण्ड सेवा प्रणाली।",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

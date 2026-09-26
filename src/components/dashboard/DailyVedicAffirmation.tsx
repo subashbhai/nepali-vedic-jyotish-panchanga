@@ -1,0 +1,1 @@
+export { DailyVedicAffirmation } from '../DailyVedicAffirmation';

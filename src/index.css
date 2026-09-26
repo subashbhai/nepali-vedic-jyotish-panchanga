@@ -1,0 +1,212 @@
+@import url('https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&family=Tiro+Devanagari+Marathi:ital@0;1&display=swap');
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Mukta', 'Noto Sans Devanagari', 'Tiro Devanagari Marathi', serif, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Print Safe Page Break Rules */
+.page-break-after-always {
+  break-after: page !important;
+  page-break-after: always !important;
+}
+
+.page-break-inside-avoid {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.break-before-page {
+  break-before: page !important;
+  page-break-before: always !important;
+}
+
+/* Ensure table headers repeat on page break */
+table {
+  page-break-inside: auto;
+  border-collapse: collapse;
+}
+
+tr {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+thead {
+  display: table-header-group !important;
+}
+
+tfoot {
+  display: table-footer-group !important;
+}
+
+/* Screen Preview Container for A4 Paper Sheet Simulation */
+.a4-preview-container {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 1.5rem auto;
+  background-color: #FFFDF7;
+  color: #1c1917;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+@media screen and (max-width: 850px) {
+  .a4-preview-container {
+    width: 100%;
+    min-height: auto;
+    margin: 0.5rem 0;
+    box-shadow: none;
+    border-radius: 12px;
+  }
+}
+
+/* Dedicated Printing Rules (@media print) */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 12mm 12mm;
+  }
+
+  html, body {
+    background-color: #FFFDF7 !important;
+    color: #1c1917 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+    counter-reset: page;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Hide all non-printable UI elements */
+  nav,
+  header:not(.printable-header),
+  footer:not(.printable-footer),
+  aside,
+  .no-print,
+  button,
+  input,
+  select,
+  textarea,
+  .search-bar,
+  .modal-overlay,
+  .action-bar,
+  .sidebar,
+  .dashboard-header,
+  .sticky,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Printable Page Containers */
+  .printable-page {
+    counter-increment: page;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    width: 100% !important;
+    max-width: 210mm !important;
+    height: 275mm !important;
+    min-height: 275mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #FFFDF7 !important;
+    box-sizing: border-box !important;
+  }
+
+  .page-number-css::after {
+    content: counter(page);
+  }
+
+  /* SVG Kundali Charts and Aspect Tables Protection */
+  svg, .kundali-chart-wrapper, .aspect-table, .chart-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Printable Document Container in Print */
+  #patrika_printable_document_area,
+  #printable-faladesh-report,
+  #printable-kundali-document,
+  #printable-dasha-report,
+  .printable-document {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #FFFDF7 !important;
+    box-shadow: none !important;
+  }
+
+  .a4-preview-container {
+    box-shadow: none !important;
+    background: #FFFDF7 !important;
+  }
+
+  /* Force background colors and SVG strokes to print accurately */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+/* ========================================================================= */
+/* 🌟 CLIENT THEMES (सफ्टवेयर थिम कस्टमाइजेसन)                                */
+/* ========================================================================= */
+
+/* १. शाही म्यारून (Royal Maroon) */
+html[data-client-theme="royal_maroon"] header {
+  background: linear-gradient(to right, #4c0519, #700c22, #4c0519) !important;
+  border-bottom-color: rgba(244, 63, 94, 0.4) !important;
+}
+html[data-client-theme="royal_maroon"] {
+  --client-primary: #7A1C1C;
+  --client-accent: #9B2C2C;
+}
+
+/* २. हरित तुलसी (Sacred Sage) */
+html[data-client-theme="forest_sage"] header {
+  background: linear-gradient(to right, #064e3b, #047857, #064e3b) !important;
+  border-bottom-color: rgba(52, 211, 153, 0.4) !important;
+}
+html[data-client-theme="forest_sage"] {
+  --client-primary: #059669;
+  --client-accent: #047857;
+}
+
+/* ३. मन्दिर आइभोरी (Temple Ivory) */
+html[data-client-theme="temple_ivory"] header {
+  background: linear-gradient(to right, #44403c, #57534e, #44403c) !important;
+  border-bottom-color: rgba(217, 119, 6, 0.4) !important;
+}
+html[data-client-theme="temple_ivory"] {
+  --client-primary: #a16207;
+  --client-accent: #ca8a04;
+}
+
+/* ४. खगोलीय कृष्ण (Celestial Midnight) */
+html[data-client-theme="midnight_dark"] header {
+  background: linear-gradient(to right, #090d16, #1e293b, #090d16) !important;
+  border-bottom-color: rgba(59, 130, 246, 0.4) !important;
+}
+html[data-client-theme="midnight_dark"] {
+  --client-primary: #3B82F6;
+  --client-accent: #1D4ED8;
+}
+
+/* ५. स्वर्ण वैदिक (Vedic Gold - Classic Default) */
+html[data-client-theme="vedic_gold"] header {
+  background: linear-gradient(to right, #78350f, #451a03, #78350f) !important;
+  border-bottom-color: rgba(245, 158, 11, 0.4) !important;
+}
+
