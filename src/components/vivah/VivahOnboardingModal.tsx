@@ -76,7 +76,7 @@ export const VivahOnboardingModal: React.FC<VivahOnboardingModalProps> = ({
       diet: 'VEG',
       drinkingSmoking: 'NO',
       aboutMe: 'सरल, इमानदार र संस्कारवान्। परिवार र कार्यक्षेत्र दुवैलाई सन्तुलनमा राख्ने सोच भएको।',
-      profilePhoto: DEFAULT_AVATARS_GROOM[0],
+      profilePhoto: '',
       contactPhone: '9841000000',
       contactEmail: '',
       verificationLevel: 'BASIC',
@@ -134,7 +134,7 @@ export const VivahOnboardingModal: React.FC<VivahOnboardingModalProps> = ({
     setFormData((prev) => ({
       ...prev,
       gender,
-      profilePhoto: gender === 'GROOM' ? DEFAULT_AVATARS_GROOM[0] : DEFAULT_AVATARS_BRIDE[0],
+      profilePhoto: prev.profilePhoto || '',
     }));
   };
 
@@ -196,7 +196,7 @@ export const VivahOnboardingModal: React.FC<VivahOnboardingModalProps> = ({
         preferredDistricts: ['काठमाडौँ', 'पोखरा'],
         preferredProvinces: ['बागमती प्रदेश'],
       },
-      profilePhoto: formData.profilePhoto || (formData.gender === 'GROOM' ? DEFAULT_AVATARS_GROOM[0] : DEFAULT_AVATARS_BRIDE[0]),
+      profilePhoto: formData.profilePhoto || '',
       additionalPhotos: [],
       verificationLevel: 'BASIC',
       verificationStatus: 'APPROVED',
