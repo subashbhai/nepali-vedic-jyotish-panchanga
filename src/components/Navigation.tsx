@@ -54,6 +54,7 @@ import { is24HourTrialActive, isClientPurchaseApproved } from '../db/clientLeadS
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload } from '../utils/appVersionManager';
 
 // Public menus visible on the first screen before login
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
@@ -353,7 +354,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
   const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
-  const { isInstalled } = usePWAInstall();
+  const { isInstalled, isInstallable, install } = usePWAInstall();
   const sewaButtonRef = useRef<HTMLButtonElement>(null);
   const sewaMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
@@ -649,88 +650,142 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 {/* 4 Platforms list */}
                 <div className="py-1.5 space-y-1">
                   {/* 1. Windows */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsDownloadDropdownOpen(false);
-                      setDownloadModalPlatform('WINDOWS');
-                      setIsDownloadModalOpen(true);
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-blue-50/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-blue-200 dark:hover:border-stone-700"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <Monitor className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-blue-700 dark:group-hover:text-blue-400">
-                          १. Windows (कम्प्युटर एप)
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300">
-                          .exe
-                        </span>
+                  <div className="flex items-center justify-between p-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-stone-800 group border border-transparent hover:border-blue-200 dark:hover:border-stone-700 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDownloadDropdownOpen(false);
+                        setDownloadModalPlatform('WINDOWS');
+                        setIsDownloadModalOpen(true);
+                      }}
+                      className="flex-1 text-left flex items-start gap-2.5 cursor-pointer text-stone-800 dark:text-stone-200"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <Monitor className="w-4 h-4" />
                       </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        Windows 10, 11 • सेटअप इन्स्टलर तथा पोर्टेबल
-                      </p>
-                    </div>
-                  </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-blue-700 dark:group-hover:text-blue-400">
+                            १. Windows (कम्प्युटर एप)
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300">
+                            .exe
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                          Windows 10, 11 • सेटअप इन्स्टलर तथा पोर्टेबल
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      title="सिधै Windows Setup (.exe) डाउनलोड गर्नुहोस्"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDownloadDropdownOpen(false);
+                        triggerDirectBrowserDownload(
+                          DEFAULT_DIRECT_DOWNLOADS.windowsSetup,
+                          'nepali-vedic-jyotish-panchanga-setup-1.0.0.exe'
+                        );
+                      }}
+                      className="ml-2 px-2.5 py-1.5 rounded-lg bg-[#7A1C1C] hover:bg-[#991B1B] text-white text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer shrink-0 transition-transform active:scale-95"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>.exe</span>
+                    </button>
+                  </div>
 
                   {/* 2. Android */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsDownloadDropdownOpen(false);
-                      setDownloadModalPlatform('ANDROID');
-                      setIsDownloadModalOpen(true);
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-emerald-50/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-emerald-200 dark:hover:border-stone-700"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <Smartphone className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
-                          २. Android (मोबाइल एप)
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
-                          .apk
-                        </span>
+                  <div className="flex items-center justify-between p-2 rounded-xl hover:bg-emerald-50/70 dark:hover:bg-stone-800 group border border-transparent hover:border-emerald-200 dark:hover:border-stone-700 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDownloadDropdownOpen(false);
+                        setDownloadModalPlatform('ANDROID');
+                        setIsDownloadModalOpen(true);
+                      }}
+                      className="flex-1 text-left flex items-start gap-2.5 cursor-pointer text-stone-800 dark:text-stone-200"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <Smartphone className="w-4 h-4 text-emerald-600" />
                       </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        Samsung, Xiaomi, Vivo • सिधै एन्ड्रोइडमा इन्स्टल
-                      </p>
-                    </div>
-                  </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+                            २. Android (मोबाइल एप)
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
+                            .apk
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                          Samsung, Xiaomi, Vivo • .apk फाइल तथा १-क्लिक इन्स्टल
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      title="सिधै Android APK (.apk) डाउनलोड गर्नुहोस्"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDownloadDropdownOpen(false);
+                        triggerDirectBrowserDownload(
+                          DEFAULT_DIRECT_DOWNLOADS.androidApk,
+                          'nepali-vedic-jyotish-panchanga.apk'
+                        );
+                      }}
+                      className="ml-2 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer shrink-0 transition-transform active:scale-95"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>.apk</span>
+                    </button>
+                  </div>
 
                   {/* 3. Mac */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsDownloadDropdownOpen(false);
-                      setDownloadModalPlatform('MAC');
-                      setIsDownloadModalOpen(true);
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group border border-transparent hover:border-stone-300 dark:hover:border-stone-700"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-stone-500/15 text-stone-800 dark:text-stone-200 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <Apple className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-stone-900 dark:group-hover:text-white">
-                          ३. Mac (macOS एप्पल एप)
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200">
-                          .dmg
-                        </span>
+                  <div className="flex items-center justify-between p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 group border border-transparent hover:border-stone-300 dark:hover:border-stone-700 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDownloadDropdownOpen(false);
+                        setDownloadModalPlatform('MAC');
+                        setIsDownloadModalOpen(true);
+                      }}
+                      className="flex-1 text-left flex items-start gap-2.5 cursor-pointer text-stone-800 dark:text-stone-200"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-stone-500/15 text-stone-800 dark:text-stone-200 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <Apple className="w-4 h-4" />
                       </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        Apple Mac M1/M2/M3/M4 तथा Intel MacBook
-                      </p>
-                    </div>
-                  </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-stone-900 dark:group-hover:text-white">
+                            ३. Mac (macOS एप्पल एप)
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200">
+                            .dmg
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                          Apple Mac M1/M2/M3/M4 तथा Intel MacBook
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      title="सिधै Mac DMG (.dmg) डाउनलोड गर्नुहोस्"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDownloadDropdownOpen(false);
+                        triggerDirectBrowserDownload(
+                          DEFAULT_DIRECT_DOWNLOADS.macDmg,
+                          'nepali-vedic-jyotish-panchanga-1.0.0.dmg'
+                        );
+                      }}
+                      className="ml-2 px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-black text-white text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer shrink-0 transition-transform active:scale-95"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>.dmg</span>
+                    </button>
+                  </div>
 
                   {/* 4. iOS */}
                   <button
