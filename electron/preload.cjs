@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   printPage: () => ipcRenderer.invoke('print-page'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: (customUrl) => ipcRenderer.invoke('download-update', customUrl),
   restartAndInstall: () => ipcRenderer.invoke('restart-and-install'),
   onUpdaterStatus: (callback) => {
     const subscription = (_event, value) => callback(value);

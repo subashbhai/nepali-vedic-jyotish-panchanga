@@ -354,6 +354,8 @@ app.whenReady().then(() => {
       });
     }, 3500);
 
+    let downloadedUpdatePath = null;
+
     // IPC triggers
     ipcMain.handle('check-for-updates', async () => {
       try {
@@ -364,9 +366,143 @@ app.whenReady().then(() => {
       }
     });
 
+    ipcMain.handle('download-update', async (_event, customUrl) => {
+      console.log('[AutoUpdater] download-update requested. customUrl:', customUrl);
+
+      // Attempt 1: Official autoUpdater download if packaged
+      if (app.isPackaged && autoUpdater) {
+        try {
+          console.log('[AutoUpdater] Triggering autoUpdater.downloadUpdate()...');
+          await autoUpdater.downloadUpdate();
+          return { success: true, method: 'electron-updater' };
+        } catch (err) {
+          console.warn('[AutoUpdater] autoUpdater.downloadUpdate() skipped or error:', err.message);
+        }
+      }
+
+      // Attempt 2: Direct streaming in-app downloader
+      try {
+        const https = require('https');
+        const http = require('http');
+        const fs = require('fs');
+        const os = require('os');
+        const path = require('path');
+
+        const targetUrl = customUrl || 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga-setup-1.0.1.exe';
+        const tempFilePath = path.join(os.tmpdir(), `nepali-vedic-setup-update-${Date.now()}.exe`);
+
+        console.log('[InAppDownloader] Streaming update from:', targetUrl, 'to:', tempFilePath);
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('updater-status', {
+            status: 'downloading',
+            percent: 0,
+            transferred: 0,
+            total: 100
+          });
+        }
+
+        const downloadWithRedirects = (url, depth = 0) => {
+          if (depth > 6) {
+            throw new Error('Too many redirects');
+          }
+          const client = url.startsWith('https:') ? https : http;
+          client.get(url, { headers: { 'User-Agent': 'Nepali-Vedic-Desktop' } }, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+              return downloadWithRedirects(res.headers.location, depth + 1);
+            }
+
+            if (res.statusCode !== 200) {
+              const err = new Error(`Download failed with status: ${res.statusCode}`);
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('updater-status', {
+                  status: 'error',
+                  message: err.message
+                });
+              }
+              return;
+            }
+
+            const totalBytes = parseInt(res.headers['content-length'] || '0', 10);
+            let transferredBytes = 0;
+            const fileStream = fs.createWriteStream(tempFilePath);
+
+            let lastPercent = -1;
+            res.on('data', (chunk) => {
+              transferredBytes += chunk.length;
+              if (totalBytes > 0) {
+                const percent = Math.min(100, Math.round((transferredBytes / totalBytes) * 100));
+                if (percent !== lastPercent) {
+                  lastPercent = percent;
+                  if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('updater-status', {
+                      status: 'downloading',
+                      percent,
+                      transferred: transferredBytes,
+                      total: totalBytes
+                    });
+                  }
+                }
+              }
+            });
+
+            res.pipe(fileStream);
+
+            fileStream.on('finish', () => {
+              fileStream.close();
+              downloadedUpdatePath = tempFilePath;
+              console.log('[InAppDownloader] Download completed successfully at:', tempFilePath);
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('updater-status', {
+                  status: 'downloaded',
+                  version: 'नवीनतम'
+                });
+              }
+            });
+
+            fileStream.on('error', (err) => {
+              fs.unlink(tempFilePath, () => {});
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('updater-status', {
+                  status: 'error',
+                  message: err.message
+                });
+              }
+            });
+          }).on('error', (err) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('updater-status', {
+                status: 'error',
+                message: err.message
+              });
+            }
+          });
+        };
+
+        downloadWithRedirects(targetUrl);
+        return { success: true, method: 'direct-stream' };
+      } catch (directErr) {
+        console.error('[InAppDownloader] Direct stream failed:', directErr);
+        return { success: false, error: directErr.message };
+      }
+    });
+
     ipcMain.handle('restart-and-install', () => {
       try {
-        autoUpdater.quitAndInstall(false, true);
+        if (downloadedUpdatePath && fs.existsSync(downloadedUpdatePath)) {
+          console.log('[InAppDownloader] Launching downloaded installer:', downloadedUpdatePath);
+          shell.openPath(downloadedUpdatePath);
+          setTimeout(() => {
+            app.quit();
+          }, 1200);
+          return { success: true };
+        }
+
+        if (autoUpdater && app.isPackaged) {
+          autoUpdater.quitAndInstall(false, true);
+          return { success: true };
+        }
+
         return { success: true };
       } catch (err) {
         return { success: false, error: err.message };

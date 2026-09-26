@@ -64,6 +64,9 @@ interface TransitNotificationCenterModalProps {
   todayAD: string;
   todayBS: string;
   onNavigateToGochar: () => void;
+  hasUpdate?: boolean;
+  updateVersion?: string;
+  onOpenAppUpdates?: () => void;
 }
 
 export const TransitNotificationCenterModal: React.FC<TransitNotificationCenterModalProps> = ({
@@ -75,7 +78,10 @@ export const TransitNotificationCenterModal: React.FC<TransitNotificationCenterM
   transitPlanets,
   todayAD,
   todayBS,
-  onNavigateToGochar
+  onNavigateToGochar,
+  hasUpdate = false,
+  updateVersion,
+  onOpenAppUpdates
 }) => {
   const [activeTab, setActiveTab] = useState<'alerts' | 'settings' | 'history'>('alerts');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
@@ -349,6 +355,41 @@ export const TransitNotificationCenterModal: React.FC<TransitNotificationCenterM
               className="text-stone-400 hover:text-stone-700 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* PROMINENT APP UPDATE BANNER IF UPDATE IS AVAILABLE */}
+        {hasUpdate && (
+          <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-rose-700 text-white p-3.5 sm:p-4 rounded-2xl mx-4 sm:mx-6 mt-4 shadow-md flex items-center justify-between gap-3 border border-amber-300/40">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 text-stone-950 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                <Sparkles className="w-5 h-5 text-stone-950 animate-bounce" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-stone-950">
+                    नयाँ सफ्टवेयर अपडेट
+                  </span>
+                  <span className="text-xs font-mono font-bold text-amber-200">
+                    {updateVersion ? `v${updateVersion.replace(/^v/i, '')}` : 'नयाँ'}
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-white/95 mt-0.5">
+                  नयाँ संस्करण उपलब्ध छ! सफ्टवेयरभित्रै सिधै डाउनलोड तथा १-क्लिक अपडेट गर्न सकिन्छ।
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                if (onOpenAppUpdates) onOpenAppUpdates();
+              }}
+              className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-stone-950 font-black rounded-xl text-xs transition shadow-md shrink-0 cursor-pointer flex items-center gap-1.5 active:scale-95"
+            >
+              <span>अपडेट खोल्नुहोस्</span>
+              <span>→</span>
             </button>
           </div>
         )}

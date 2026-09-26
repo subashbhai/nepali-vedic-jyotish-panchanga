@@ -24,7 +24,10 @@ import {
   getDismissedUpdateVersion,
   setDismissedUpdateVersion,
   triggerDesktopUpdateCheck,
-  triggerDesktopRestartAndInstall
+  triggerDesktopDownloadUpdate,
+  triggerDesktopRestartAndInstall,
+  triggerDirectBrowserDownload,
+  triggerInAppOrDirectDownload
 } from '../../utils/appVersionManager';
 
 interface AppUpdateNotificationModalProps {
@@ -56,12 +59,19 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
     triggerDesktopRestartAndInstall();
   };
 
+  const handleStartInAppDownload = async () => {
+    await triggerInAppOrDirectDownload(remoteRelease);
+  };
+
   const handleDismissForNow = () => {
     if (targetVersion) {
       setDismissedUpdateVersion(targetVersion);
     }
     onClose();
   };
+
+  const winAsset = remoteRelease?.assets?.find(a => a.platform === 'windows');
+  const apkAsset = remoteRelease?.assets?.find(a => a.platform === 'android');
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
@@ -111,50 +121,46 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-stone-800 dark:text-stone-200 flex-1">
-          {/* Status Message / Download Progress for Desktop */}
-          {isDesktop && (
-            <div className="p-4 rounded-2xl bg-stone-100 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold flex items-center gap-1.5 text-stone-900 dark:text-stone-100">
-                  <Laptop className="w-4 h-4 text-amber-600" />
-                  <span>डेस्कटप एप स्वचालित अद्यावधिक:</span>
-                </span>
-                <span className="font-mono text-amber-700 dark:text-amber-400 font-bold">
-                  {isDownloaded
-                    ? 'तयार छ (Ready)'
-                    : isDownloading
-                    ? `${downloadPercent}% डाउनलोड हुँदैछ`
-                    : electronStatus.status === 'checking'
-                    ? 'जाँच भइरहेको छ...'
-                    : 'अपडेट उपलब्ध'}
-                </span>
-              </div>
-
-              {isDownloading && (
-                <div className="space-y-1.5">
-                  <div className="w-full bg-stone-200 dark:bg-stone-700 h-2.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-amber-500 to-emerald-500 h-full transition-all duration-300 rounded-full"
-                      style={{ width: `${downloadPercent}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[11px] text-stone-500">
-                    <span>पृष्ठभूमिमा डाउनलोड हुँदैछ...</span>
-                    <span>{downloadPercent}%</span>
-                  </div>
-                </div>
-              )}
-
-              {isDownloaded && (
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <p className="text-xs text-emerald-900 dark:text-emerald-200 font-medium">
-                    नयाँ अपडेट डाउनलोड भइसकेको छ। नयाँ सुविधाहरू लागु गर्न अहिले नै रिस्टार्ट गर्नुहोस्।
-                  </p>
-                </div>
-              )}
+          {/* Status Message / Download Progress */}
+          <div className="p-4 rounded-2xl bg-stone-100 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold flex items-center gap-1.5 text-stone-900 dark:text-stone-100">
+                <Laptop className="w-4 h-4 text-amber-600" />
+                <span>{isDesktop ? 'डेस्कटप एप सिधै डाउनलोड स्थिति:' : 'अद्यावधिक डाउनलोड स्थिति:'}</span>
+              </span>
+              <span className="font-mono text-amber-700 dark:text-amber-400 font-bold">
+                {isDownloaded
+                  ? 'डाउनलोड सम्पन्न (Ready)'
+                  : isDownloading
+                  ? `${downloadPercent}% डाउनलोड हुँदैछ`
+                  : 'डाउनलोडका लागि तयार'}
+              </span>
             </div>
-          )}
+
+            {isDownloading && (
+              <div className="space-y-1.5">
+                <div className="w-full bg-stone-200 dark:bg-stone-700 h-2.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-amber-500 to-emerald-500 h-full transition-all duration-300 rounded-full"
+                    style={{ width: `${downloadPercent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[11px] text-stone-500">
+                  <span>सफ्टवेयरभित्रै सिधै डाउनलोड हुँदैछ...</span>
+                  <span className="font-bold font-mono text-amber-600">{downloadPercent}%</span>
+                </div>
+              </div>
+            )}
+
+            {isDownloaded && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <p className="text-xs text-emerald-900 dark:text-emerald-200 font-medium">
+                  नयाँ अपडेट यसै कम्प्युटरमा डाउनलोड भइसकेको छ! नयाँ सुविधाहरू लागु गर्न तलको हरियो रिस्टार्ट बटन थिच्नुहोस्।
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Release Highlights / What's New */}
           <div>
@@ -172,54 +178,55 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
                   <li>डेस्कटप एप लोगो तथा देवताका ग्राफिक्सहरू १००% अफलाइन सुरक्षित।</li>
                   <li>नेटिभ बहु-रिजोलुसन विन्डोज आइकन समर्थन।</li>
                   <li>द्रुत गतिमा ज्योतिषीय तथा पञ्चाङ्ग गणना प्रणाली।</li>
-                  <li>नयाँ सुरक्षा तथा स्थिरता सुधारहरू।</li>
+                  <li>सफ्टवेयरभित्रै सिधै इन-एप डाउनलोड तथा अटो-अपडेट प्रणाली।</li>
                 </ul>
               )}
             </div>
           </div>
 
-          {/* Direct Download Options for All Platforms (Windows, Android, Mac) */}
+          {/* Direct In-App Download Platform Buttons */}
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-stone-700 dark:text-stone-300">
-              प्रत्यक्ष डाउनलोड लिङ्कहरू (Direct Downloads):
+              यसै सफ्टवेयरमा सिधै डाउनलोड गर्नुहोस् (Direct Downloads):
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <a
-                href={
-                  remoteRelease?.assets.find(a => a.platform === 'windows')?.downloadUrl ||
-                  `https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases`
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-2.5 rounded-xl border border-blue-300/80 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-all text-xs text-blue-900 dark:text-blue-200 group"
+              <button
+                type="button"
+                onClick={handleStartInAppDownload}
+                className="flex items-center justify-between p-2.5 rounded-xl border border-blue-300/80 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/70 dark:hover:bg-blue-900/40 transition-all text-xs text-blue-900 dark:text-blue-200 group cursor-pointer text-left"
               >
                 <div className="flex items-center gap-2">
-                  <Laptop className="w-4 h-4 text-blue-600" />
-                  <div className="text-left">
+                  <Laptop className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div>
                     <span className="font-bold block">Windows Setup (.exe)</span>
                     <span className="text-[10px] text-stone-500">
-                      {formatFileSize(remoteRelease?.assets.find(a => a.platform === 'windows')?.size || 0) || 'नवीनतम संस्करण'}
+                      {formatFileSize(winAsset?.size || 0) || 'सिधै सफ्टवेयरमा डाउनलोड'}
                     </span>
                   </div>
                 </div>
-                <Download className="w-3.5 h-3.5 text-blue-600 group-hover:translate-y-0.5 transition-transform" />
-              </a>
+                <Download className="w-3.5 h-3.5 text-blue-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
+              </button>
 
-              <a
-                href={`https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-300/80 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 transition-all text-xs text-emerald-900 dark:text-emerald-200 group"
+              <button
+                type="button"
+                onClick={() => {
+                  if (apkAsset?.downloadUrl) {
+                    triggerDirectBrowserDownload(apkAsset.downloadUrl, 'nepali-jyotish.apk');
+                  } else {
+                    handleStartInAppDownload();
+                  }
+                }}
+                className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-300/80 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 transition-all text-xs text-emerald-900 dark:text-emerald-200 group cursor-pointer text-left"
               >
                 <div className="flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-emerald-600" />
-                  <div className="text-left">
-                    <span className="font-bold block">Android APK / PWA</span>
-                    <span className="text-[10px] text-stone-500">मोबाइलका लागि</span>
+                  <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold block">Android APK</span>
+                    <span className="text-[10px] text-stone-500">मोबाइलका लागि सिधै डाउनलोड</span>
                   </div>
                 </div>
-                <Download className="w-3.5 h-3.5 text-emerald-600 group-hover:translate-y-0.5 transition-transform" />
-              </a>
+                <Download className="w-3.5 h-3.5 text-emerald-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
+              </button>
             </div>
           </div>
         </div>
@@ -235,25 +242,33 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
           </button>
 
           <div className="flex items-center gap-2">
-            {isDesktop && isDownloaded ? (
+            {isDownloaded ? (
               <button
                 type="button"
                 onClick={handleRestartAndInstall}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg flex items-center gap-2 cursor-pointer transition-all active:scale-95 animate-pulse"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>अहिले रिस्टार्ट गरी अपडेट गर्नुहोस्</span>
+                <span>अहिले रिस्टार्ट गरी नयाँ संस्करण खोल्नुहोस्</span>
+              </button>
+            ) : isDownloading ? (
+              <button
+                type="button"
+                disabled
+                className="px-5 py-2.5 rounded-xl bg-amber-500 text-stone-950 font-black text-xs shadow-lg flex items-center gap-2 cursor-wait opacity-90"
+              >
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>डाउनलोड हुँदैछ ({downloadPercent}%)...</span>
               </button>
             ) : (
-              <a
-                href={remoteRelease?.downloadUrl || `https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={handleStartInAppDownload}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black text-xs shadow-lg flex items-center gap-2 cursor-pointer transition-all active:scale-95"
               >
                 <Download className="w-4 h-4" />
-                <span>अपडेट डाउनलोड गर्नुहोस्</span>
-              </a>
+                <span>यसै सफ्टवेयरमा सिधै डाउनलोड गर्नुहोस्</span>
+              </button>
             )}
           </div>
         </div>
@@ -334,22 +349,37 @@ export const AppUpdateFloatingBanner: React.FC<{
       </div>
 
       <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-amber-500/30">
-        {isDesktop && isDownloaded ? (
+        {isDownloaded ? (
           <button
             onClick={() => triggerDesktopRestartAndInstall()}
-            className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer animate-pulse"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>रिस्टार्ट गरी लागु गर्नुहोस्</span>
           </button>
+        ) : isDownloading ? (
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+            <span className="text-xs font-mono font-bold text-amber-300">
+              सफ्टवेयरमा डाउनलोड हुँदैछ ({electronStatus.percent || 0}%)...
+            </span>
+          </div>
         ) : (
-          <button
-            onClick={onOpenDetails}
-            className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>अपडेट हेर्नुहोस्</span>
-          </button>
+          <>
+            <button
+              onClick={onOpenDetails}
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-xs transition-all cursor-pointer"
+            >
+              विवरण
+            </button>
+            <button
+              onClick={() => triggerInAppOrDirectDownload(remoteRelease)}
+              className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>सिधै डाउनलोड गर्नुहोस्</span>
+            </button>
+          </>
         )}
       </div>
     </div>

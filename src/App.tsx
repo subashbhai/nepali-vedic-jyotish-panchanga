@@ -1667,7 +1667,7 @@ export default function App() {
           />
         )}
 
-        {/* Major Planetary Transit Push Notification Center Modal */}
+        {/* Major Planetary Transit & App Update Notification Center Modal */}
         <TransitNotificationCenterModal
           isOpen={isTransitNotificationModalOpen}
           onClose={() => setIsTransitNotificationModalOpen(false)}
@@ -1678,6 +1678,9 @@ export default function App() {
           todayAD={todayAD}
           todayBS={todayBS}
           onNavigateToGochar={() => setActiveTab('gochar')}
+          hasUpdate={appUpdate.hasUpdate}
+          updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
+          onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
         />
 
         {/* Vastu New Window Modal */}
