@@ -15,6 +15,23 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="shortcut icon" href="/logo.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- Google AdSense: website मा मात्र लोड हुन्छ, Electron desktop app मा लोड हुँदैन -->
+    <script>
+      (function() {
+        // Electron desktop app मा AdSense नलोड गर्ने
+        if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.isDesktop) {
+          return;
+        }
+        var s = document.createElement('script');
+        s.async = true;
+        s.crossOrigin = 'anonymous';
+        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1955279955732879';
+        s.setAttribute('data-ad-client', 'ca-pub-1955279955732879');
+        document.head.appendChild(s);
+        window.__adsenseLoaded = true;
+      })();
+    </script>
   </head>
   <body>
     <script>
