@@ -52,7 +52,8 @@ import {
   OrganizationProfile,
   AstrologerProfile,
   PurohitProfile,
-  VastuExpertProfile
+  VastuExpertProfile,
+  LocationData
 } from '../types/astrology';
 import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 import { NavTab } from './Navigation';
@@ -72,6 +73,12 @@ import { DailyWhatsAppDispatchManager } from './admin/DailyWhatsAppDispatchManag
 import { RBACSession } from '../db/rbacStore';
 import { PersonalizedMemberAstrologyHub } from './dashboard/PersonalizedMemberAstrologyHub';
 import { generateDailyVedicSankalpa } from '../utils/vedicSankalpaEngine';
+import { 
+  getStoredUserLocation, 
+  saveUserDetectedLocation, 
+  getCurrentUserGPS, 
+  BALANANDA_GEO_UPDATED_EVENT 
+} from '../utils/geoLocationHelper';
 import { MahaSankalpaModal } from './sankalpa/MahaSankalpaModal';
 import { DailyPanchangaPrintModal } from './panchanga/DailyPanchangaPrintModal';
 import { 
@@ -296,13 +303,54 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
     return transitPlanets && transitPlanets.length > 0 ? transitPlanets : planets;
   }, [transitPlanets, planets]);
 
+  const [activeGeoLocation, setActiveGeoLocation] = React.useState<LocationData>(() => {
+    return activeProfile?.location || getStoredUserLocation();
+  });
+  const [isDetectingCardGPS, setIsDetectingCardGPS] = React.useState(false);
+
+  // Sync when activeProfile changes
+  React.useEffect(() => {
+    if (activeProfile?.location) {
+      setActiveGeoLocation(activeProfile.location);
+    } else {
+      setActiveGeoLocation(getStoredUserLocation());
+    }
+  }, [activeProfile]);
+
+  // Listen to global geo updates
+  React.useEffect(() => {
+    const handleGeoUpdate = (e: any) => {
+      if (e.detail) {
+        setActiveGeoLocation(e.detail);
+      }
+    };
+    window.addEventListener(BALANANDA_GEO_UPDATED_EVENT, handleGeoUpdate);
+    return () => {
+      window.removeEventListener(BALANANDA_GEO_UPDATED_EVENT, handleGeoUpdate);
+    };
+  }, []);
+
+  const handleRefreshCardGPS = async () => {
+    setIsDetectingCardGPS(true);
+    try {
+      const res = await getCurrentUserGPS();
+      saveUserDetectedLocation(res.location);
+      setActiveGeoLocation(res.location);
+    } catch (err: any) {
+      alert(err.message || 'GPS स्थान पत्ता लगाउन सकिएन।');
+    } finally {
+      setIsDetectingCardGPS(false);
+    }
+  };
+
   const dailySankalpa = React.useMemo(() => {
     return generateDailyVedicSankalpa(
       todayPanchanga,
       activeProfile,
-      currentTransitOrNatalPlanets
+      currentTransitOrNatalPlanets,
+      activeGeoLocation
     );
-  }, [todayPanchanga, activeProfile, currentTransitOrNatalPlanets]);
+  }, [todayPanchanga, activeProfile, currentTransitOrNatalPlanets, activeGeoLocation]);
 
   const handleCopyDailySankalpa = () => {
     if (!dailySankalpa) return;
@@ -422,10 +470,10 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
               type="button"
               onClick={() => setIsDailyPanchangaModalOpen(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-xs sm:text-sm shadow-xs transition-all cursor-pointer active:scale-95 text-white bg-emerald-600 hover:bg-emerald-500"
-              title="WhatsApp मा पञ्चाङ्ग सेयर गर्नुहोस्"
+              title="पञ्चाङ्ग सेयर गर्नुहोस् (WhatsApp, Facebook, Messenger)"
             >
-              <MessageCircle className="w-4 h-4 text-white" />
-              <span>WhatsApp सेयर</span>
+              <Share2 className="w-4 h-4 text-white" />
+              <span>सेयर</span>
             </button>
           </div>
         </div>
@@ -583,6 +631,24 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                {/* Location badge with 1-click GPS refresh */}
+                <button
+                  type="button"
+                  onClick={handleRefreshCardGPS}
+                  disabled={isDetectingCardGPS}
+                  title="हालको स्थान GPS बाट स्वतः अद्यावधिक गर्नुहोस्"
+                  className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-stone-800 dark:hover:bg-stone-700 text-amber-900 dark:text-amber-200 font-bold border border-amber-200 dark:border-stone-700 flex items-center gap-1 cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
+                >
+                  {isDetectingCardGPS ? (
+                    <span className="w-2.5 h-2.5 border-2 border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : (
+                    <span>🛰️</span>
+                  )}
+                  <span className="max-w-[105px] truncate">
+                    {activeGeoLocation?.district || activeGeoLocation?.name?.split('(')[0]?.trim() || 'काठमाडौँ'}
+                  </span>
+                </button>
+
                 {activeProfile && (
                   <span className="text-[10.5px] bg-amber-50 dark:bg-stone-800 text-amber-900 dark:text-amber-200 px-2.5 py-0.5 rounded-lg font-bold border border-amber-200 dark:border-amber-800/60 max-w-[130px] truncate" title={`यजमान: ${activeProfile.name} (${activeProfile.gotra || activeProfile.fatherDetails?.gotra || 'कश्यप'} गोत्र)`}>
                     यजमान: {activeProfile.name}

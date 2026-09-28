@@ -39,7 +39,7 @@ export const TransitNotificationBell: React.FC<TransitNotificationBellProps> = (
       id="btn-transit-notification-bell"
       type="button"
       onClick={handleClick}
-      className={`relative p-2 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-xl border border-[#E6E0D5] dark:border-stone-700 text-[#78716C] dark:text-stone-300 hover:text-amber-700 dark:hover:text-amber-300 transition-colors shadow-sm cursor-pointer group active:scale-95 ${
+      className={`relative p-2 bg-[var(--header-btn-bg,rgba(255,255,255,0.9))] hover:bg-[var(--header-btn-hover,#F5F5F4)] rounded-xl border border-[var(--header-btn-border,#E6E0D5)] text-[var(--header-btn-text,#78716C)] hover:text-[var(--header-title,#1A1A1A)] transition-all shadow-xs cursor-pointer group active:scale-95 backdrop-blur-md ${
         hasUpdate ? 'ring-2 ring-amber-400/80 shadow-amber-500/20' : ''
       } ${className}`}
       title={
@@ -52,9 +52,9 @@ export const TransitNotificationBell: React.FC<TransitNotificationBellProps> = (
       aria-label="सूचना तथा गोचर केन्द्र"
     >
       {shouldBlink ? (
-        <BellRing className={`w-4 h-4 ${hasUpdate ? 'text-amber-600 dark:text-amber-400 animate-bounce' : 'text-amber-600 dark:text-amber-400 animate-pulse'} group-hover:scale-110 transition-transform`} />
+        <BellRing className={`w-4 h-4 text-[var(--header-accent,#D97706)] ${hasUpdate ? 'animate-bounce' : 'animate-pulse'} group-hover:scale-110 transition-transform`} />
       ) : (
-        <Bell className="w-4 h-4 text-stone-600 dark:text-stone-300 group-hover:scale-110 transition-transform" />
+        <Bell className="w-4 h-4 text-current group-hover:scale-110 transition-transform" />
       )}
 
       {/* Alert Badge (Software Update OR Transit Alerts) */}

@@ -1,4 +1,4 @@
-import React, { memo, useState, useRef, useEffect } from 'react';
+﻿import React, { memo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home, 
@@ -45,7 +45,9 @@ import {
   Download,
   Monitor,
   Smartphone,
-  Apple
+  Apple,
+  Menu,
+  X
 } from 'lucide-react';
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
 import { RBACSession } from '../db/rbacStore';
@@ -54,7 +56,7 @@ import { is24HourTrialActive, isClientPurchaseApproved } from '../db/clientLeadS
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
-import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload } from '../utils/appVersionManager';
+import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
 
 // Public menus visible on the first screen before login
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
@@ -354,6 +356,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
   const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const { isInstalled, isInstallable, install } = usePWAInstall();
   const sewaButtonRef = useRef<HTMLButtonElement>(null);
   const sewaMenuRef = useRef<HTMLDivElement>(null);
@@ -448,9 +451,20 @@ export const Navigation: React.FC<NavigationProps> = memo(({
 
   return (
     <nav className="text-[#2D241E] dark:text-stone-100 transition-colors">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-2.5 relative">
+      <div className="max-w-[1700px] w-full mx-auto px-2 sm:px-3 py-1.5 flex items-center justify-between gap-1.5 sm:gap-2 relative">
+
+        {/* ☰ Mobile Hamburger Button — only on small screens */}
+        <button
+          type="button"
+          onClick={() => setIsMobileDrawerOpen(true)}
+          className="sm:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100/80 dark:bg-stone-800/80 border border-[#E6E0D5] dark:border-stone-700 text-[#7A1C1C] dark:text-amber-400 shadow-xs shrink-0 cursor-pointer"
+          aria-label="मेनु खोल्नुहोस्"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
         {/* Main Navigation Items */}
-        <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
+        <div className="hidden sm:flex items-center gap-1 sm:gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5">
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isSewa = item.id === 'sewa';
@@ -473,7 +487,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={toggleSewaMenu}
-                    className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
+                    className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
                       isSewaActive
                         ? 'text-amber-300 ring-2 ring-amber-500/50 shadow-md border-transparent bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515]'
                         : isSewaMenuOpen
@@ -494,8 +508,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       />
                     )}
 
-                    <span className="relative z-10 flex items-center gap-1.5">
-                      <Icon className="w-4 h-4 text-amber-400 animate-pulse" />
+                    <span className="relative z-10 flex items-center gap-1 sm:gap-1.5">
+                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse" />
                       <span>{item.labelNepali}</span>
                       {!isFullyUnlocked && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500 text-stone-950 text-[10px] font-black border border-amber-300 shadow-2xs animate-pulse">
@@ -557,7 +571,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={handleTabClick}
-                  className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
+                  className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
                     isActive
                       ? 'text-white ring-2 ring-[#7A1C1C]/30 shadow-md border-transparent'
                       : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
@@ -577,9 +591,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     />
                   )}
 
-                  <span className="relative z-10 flex items-center gap-1.5">
+                  <span className="relative z-10 flex items-center gap-1 sm:gap-1.5">
                     <Icon
-                      className={`w-4 h-4 ${
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
                         isActive
                           ? 'text-amber-300'
                           : 'text-[#7A1C1C] dark:text-amber-400'
@@ -608,17 +622,17 @@ export const Navigation: React.FC<NavigationProps> = memo(({
         </div>
 
         {/* Right Section: Dropdowns and User Actions (Outside overflow-x-auto so dropdowns float on front!) */}
-        <div className="flex items-center gap-2 shrink-0 relative z-50">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 relative z-50">
 
           {/* डाउनलोड Dropdown Menu (Windows, Android, Mac, iOS) - मात्र वेबसाइटमा देखिने, इन्स्टल भइसकेको एपमा स्वतः हट्ने */}
-          {!isInstalled && (
+          {!isInstalled && !isDesktopApp() && (
             <div className="relative shrink-0 z-50" ref={downloadMenuRef}>
             <motion.button
               type="button"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => setIsDownloadDropdownOpen(!isDownloadDropdownOpen)}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
+              className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
                 isDownloadDropdownOpen
                   ? 'bg-[#7A1C1C] text-white border-[#5C1515] ring-2 ring-[#7A1C1C]/30 shadow-md'
                   : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
@@ -841,14 +855,14 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => setIsUnifiedSettingsOpen(!isUnifiedSettingsOpen)}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
+              className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
                 isUnifiedSettingsOpen || activeTab === 'settings' || activeTab === 'help'
                   ? 'bg-[#7A1C1C] text-white border-[#5C1515] ring-2 ring-[#7A1C1C]/30 shadow-md'
                   : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
               }`}
               title="प्रणाली सेटिङ, लेटरहेड, मद्दत तथा क्लाउड सिंक"
             >
-              <Settings className={`w-4 h-4 ${isUnifiedSettingsOpen || activeTab === 'settings' || activeTab === 'help' ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
+              <Settings className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isUnifiedSettingsOpen || activeTab === 'settings' || activeTab === 'help' ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
               <span>सेटिङ</span>
               {/* Green status indicator dot for healthy cloud sync */}
               <span className="relative flex h-2 w-2 ml-0.5">
@@ -1058,12 +1072,12 @@ export const Navigation: React.FC<NavigationProps> = memo(({
 
           {/* Right Action: RBAC Session status badge or Sign In */}
           {rbacSession ? (
-            <div className="pl-2 border-l border-stone-200 dark:border-stone-800 flex items-center gap-2 shrink-0">
+            <div className="pl-1.5 sm:pl-2 border-l border-stone-200 dark:border-stone-800 flex items-center gap-1.5 shrink-0">
               {/* Post-sign-in user status pill */}
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-stone-800 border border-amber-200/80 dark:border-stone-700 rounded-xl">
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 dark:bg-stone-800 border border-amber-200/80 dark:border-stone-700 rounded-xl">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                 <div className="flex flex-col text-left">
-                  <span className="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight truncate max-w-[120px]">
+                  <span className="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight truncate max-w-[100px] xl:max-w-[120px]">
                     {rbacSession.fullName}
                   </span>
                   <span className="text-[10px] text-[#7A1C1C] dark:text-amber-400 font-semibold leading-tight truncate">
@@ -1351,6 +1365,210 @@ export const Navigation: React.FC<NavigationProps> = memo(({
           initialTab={downloadModalPlatform}
         />
       )}
+
+      {/* ================================================================= */}
+      {/* MOBILE LEFT DRAWER — visible only on small screens                 */}
+      {/* ================================================================= */}
+      {isMobileDrawerOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-[9990] sm:hidden"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+
+          {/* Drawer Panel */}
+          <div className="fixed top-0 left-0 h-full w-[82vw] max-w-xs bg-white dark:bg-stone-900 z-[9995] shadow-2xl sm:hidden flex flex-col overflow-hidden animate-in slide-in-from-left duration-200">
+
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#7A1C1C] to-[#9B2C2C] text-white shrink-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-300" />
+                <span className="font-bold text-sm font-serif">नेपाली वैदिक पञ्चाङ्ग</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/15 hover:bg-white/25 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Active indicator bar */}
+            <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/50 shrink-0">
+              <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">हाल सक्रिय</p>
+              <p className="text-xs font-bold text-[#7A1C1C] dark:text-amber-300">
+                {MAIN_NAV_ITEMS.find(i => i.id === activeTab)?.labelNepali || activeTab}
+              </p>
+            </div>
+
+            {/* Scrollable Menu Content */}
+            <div className="flex-1 overflow-y-auto py-2">
+
+              {/* MAIN MENUS */}
+              <div className="px-4 pt-2 pb-1">
+                <p className="text-[10px] font-black text-stone-400 dark:text-stone-500 uppercase tracking-widest">मुख्य मेनु</p>
+              </div>
+              {visibleNavItems.filter(i => i.id !== 'sewa').map((item) => {
+                const MIcon = item.icon;
+                const mIsActive = activeTab === item.id && activeModule === 'MAIN';
+                const mIsAllowed = !rbacSession
+                  ? PUBLIC_UNAUTH_NAV_IDS.has(item.id)
+                  : (isFullyUnlocked || NORMAL_USER_ALLOWED_TABS.has(item.id));
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (!rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(item.id)) { if (onOpenAuthModal) onOpenAuthModal(); return; }
+                      if (!mIsAllowed) { if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali); return; }
+                      onTabChange(item.id);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors cursor-pointer border-b border-stone-50 dark:border-stone-800/40 ${
+                      mIsActive ? 'bg-[#7A1C1C] text-white' : 'text-stone-800 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-stone-800'
+                    }`}
+                  >
+                    <MIcon className={`w-4 h-4 shrink-0 ${mIsActive ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
+                    <span className="flex-1 text-left">{item.labelNepali}</span>
+                    {!mIsAllowed && <Lock className="w-3 h-3 text-amber-500 shrink-0" />}
+                    {mIsActive && <ChevronRight className="w-3 h-3 text-amber-300 shrink-0" />}
+                  </button>
+                );
+              })}
+
+              {/* VEDIC SERVICES */}
+              <div className="px-4 pt-3 pb-1 mt-1 border-t border-stone-100 dark:border-stone-800">
+                <p className="text-[10px] font-black text-stone-400 dark:text-stone-500 uppercase tracking-widest">वैदिक सेवाहरू</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  if (!isFullyUnlocked) { if (onOpenPurchaseModal) onOpenPurchaseModal('ज्योतिष'); return; }
+                  if (onEnterJyotish) onEnterJyotish(); else onTabChange('jyotishi');
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors cursor-pointer ${
+                  activeModule === 'JYOTISH' ? 'bg-[#7A1C1C] text-white' : 'text-stone-800 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-stone-800'
+                }`}
+              >
+                <Sparkles className={`w-4 h-4 shrink-0 ${activeModule === 'JYOTISH' ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
+                <span className="flex-1 text-left">ज्योतिष कार्यक्षेत्र</span>
+                {!isFullyUnlocked && <Lock className="w-3 h-3 text-amber-500 shrink-0" />}
+                <ChevronRight className={`w-3 h-3 shrink-0 ${activeModule === 'JYOTISH' ? 'text-amber-300' : 'text-stone-400'}`} />
+              </button>
+
+              {ANYA_FALADESH_ITEMS.map((sub) => {
+                const SIcon = sub.icon;
+                const sActive = activeTab === sub.id;
+                return (
+                  <button key={sub.id} type="button"
+                    onClick={() => { setIsMobileDrawerOpen(false); onTabChange(sub.id); }}
+                    className={`w-full flex items-center gap-3 pl-10 pr-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer border-b border-stone-50 dark:border-stone-800/30 ${
+                      sActive ? 'bg-amber-100 dark:bg-amber-950/40 text-[#7A1C1C]' : 'text-stone-600 dark:text-stone-400 hover:bg-amber-50 dark:hover:bg-stone-800'
+                    }`}
+                  >
+                    <SIcon className="w-3.5 h-3.5 shrink-0 text-[#7A1C1C] dark:text-amber-500" />
+                    <span className="flex-1 text-left">{sub.labelNepali}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-bold">{sub.badge}</span>
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  if (!isFullyUnlocked) { if (onOpenPurchaseModal) onOpenPurchaseModal('वास्तुशास्त्र'); return; }
+                  if (onOpenVastuModal) onOpenVastuModal('project'); else onTabChange('vastu');
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-emerald-50 dark:hover:bg-stone-800 transition-colors"
+              >
+                <Compass className="w-4 h-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                <span className="flex-1 text-left">वास्तुशास्त्र</span>
+                {!isFullyUnlocked && <Lock className="w-3 h-3 text-amber-500 shrink-0" />}
+                <ChevronRight className="w-3 h-3 shrink-0 text-stone-400" />
+              </button>
+
+              {VASTU_SUBMENU_ITEMS.slice(0, 4).map((vi) => {
+                const VI = vi.icon;
+                return (
+                  <button key={vi.id} type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (!isFullyUnlocked && onOpenPurchaseModal) { onOpenPurchaseModal(vi.labelNepali); return; }
+                      if (onOpenVastuModal) onOpenVastuModal(vi.id);
+                    }}
+                    className="w-full flex items-center gap-3 pl-10 pr-4 py-2.5 text-xs font-semibold cursor-pointer text-stone-600 dark:text-stone-400 hover:bg-emerald-50 dark:hover:bg-stone-800 transition-colors border-b border-stone-50 dark:border-stone-800/30"
+                  >
+                    <VI className="w-3.5 h-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                    <span className="flex-1 text-left">{vi.labelNepali}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 font-bold">{vi.badge}</span>
+                  </button>
+                );
+              })}
+
+              {/* OTHER SECTION */}
+              <div className="px-4 pt-3 pb-1 mt-1 border-t border-stone-100 dark:border-stone-800">
+                <p className="text-[10px] font-black text-stone-400 dark:text-stone-500 uppercase tracking-widest">अन्य</p>
+              </div>
+
+              <button type="button"
+                onClick={() => { setIsMobileDrawerOpen(false); if (onOpenSettingsModal) onOpenSettingsModal('astro'); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+              >
+                <Settings className="w-4 h-4 shrink-0 text-[#7A1C1C] dark:text-amber-400" />
+                <span className="flex-1 text-left">सेटिङ</span>
+              </button>
+
+              <button type="button"
+                onClick={() => { setIsMobileDrawerOpen(false); onTabChange('help'); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+              >
+                <HelpCircle className="w-4 h-4 shrink-0 text-[#7A1C1C] dark:text-amber-400" />
+                <span className="flex-1 text-left">मद्दत / सहायता</span>
+              </button>
+
+              {!isInstalled && !isDesktopApp() && (
+                <button type="button"
+                  onClick={() => { setIsMobileDrawerOpen(false); setDownloadModalPlatform('ANDROID'); setIsDownloadModalOpen(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+                >
+                  <Download className="w-4 h-4 shrink-0 text-[#7A1C1C] dark:text-amber-400" />
+                  <span className="flex-1 text-left">एप डाउनलोड</span>
+                </button>
+              )}
+
+              {rbacSession ? (
+                onLogoutRBAC && rbacSession.role !== 'CUSTOMER' && (
+                  <button type="button"
+                    onClick={() => { setIsMobileDrawerOpen(false); onLogoutRBAC(); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-stone-800 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4 shrink-0" />
+                    <span className="flex-1 text-left">लगआउट</span>
+                  </button>
+                )
+              ) : (
+                onOpenAuthModal && (
+                  <button type="button"
+                    onClick={() => { setIsMobileDrawerOpen(false); onOpenAuthModal(); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-[#7A1C1C] dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-stone-800 transition-colors"
+                  >
+                    <LogIn className="w-4 h-4 shrink-0" />
+                    <span className="flex-1 text-left">साइन इन / लगइन</span>
+                  </button>
+                )
+              )}
+
+              <div className="h-8" />
+            </div>
+          </div>
+        </>
+      )}
+
     </nav>
   );
 });

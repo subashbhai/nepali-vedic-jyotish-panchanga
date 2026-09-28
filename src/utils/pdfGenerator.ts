@@ -15,35 +15,29 @@ function getCanvasCtx(): CanvasRenderingContext2D | null {
 }
 
 /**
- * Math fallback to parse OKLCH color function if Canvas2D is unavailable or fails
+ * Math fallback to parse OKLAB color function if Canvas2D is unavailable or fails
  */
-function oklchToRgbMath(oklchStr: string): string {
-  // Matches oklch(L C H [/ A]) or oklch(L, C, H[, A])
-  const regex = /oklch\(\s*([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:\s*(?:\/|,)\s*([^\s,/)]+))?\s*\)/i;
-  const match = oklchStr.match(regex);
+function oklabToRgbMath(oklabStr: string): string {
+  const regex = /oklab\(\s*([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:\s*(?:\/|,)\s*([^\s,/)]+))?\s*\)/i;
+  const match = oklabStr.match(regex);
   if (!match) return '#000000';
 
-  let [, lStr, cStr, hStr, aStr] = match;
+  let [, lStr, aStr, bStr, aValStr] = match;
 
   let L = lStr === 'none' ? 0 : lStr.endsWith('%') ? parseFloat(lStr) / 100 : parseFloat(lStr);
-  let C = cStr === 'none' ? 0 : cStr.endsWith('%') ? parseFloat(cStr) / 100 : parseFloat(cStr);
-  let H = hStr === 'none' ? 0 : parseFloat(hStr.replace(/deg|rad|turn/i, ''));
-  let A = aStr ? (aStr === 'none' ? 1 : aStr.endsWith('%') ? parseFloat(aStr) / 100 : parseFloat(aStr)) : 1;
+  let aAxis = aStr === 'none' ? 0 : aStr.endsWith('%') ? (parseFloat(aStr) / 100) * 0.4 : parseFloat(aStr);
+  let bAxis = bStr === 'none' ? 0 : bStr.endsWith('%') ? (parseFloat(bStr) / 100) * 0.4 : parseFloat(bStr);
+  let alpha = aValStr ? (aValStr === 'none' ? 1 : aValStr.endsWith('%') ? parseFloat(aValStr) / 100 : parseFloat(aValStr)) : 1;
 
   if (isNaN(L)) L = 0;
-  if (isNaN(C)) C = 0;
-  if (isNaN(H)) H = 0;
-  if (isNaN(A)) A = 1;
-
-  // OKLCH to OKLAB
-  const hRad = (H * Math.PI) / 180;
-  const aLab = C * Math.cos(hRad);
-  const bLab = C * Math.sin(hRad);
+  if (isNaN(aAxis)) aAxis = 0;
+  if (isNaN(bAxis)) bAxis = 0;
+  if (isNaN(alpha)) alpha = 1;
 
   // OKLAB to Linear sRGB
-  const l_ = L + 0.3963377774 * aLab + 0.2158037573 * bLab;
-  const m_ = L - 0.1055613458 * aLab - 0.0638541728 * bLab;
-  const s_ = L - 0.0894841775 * aLab - 1.2914855480 * bLab;
+  const l_ = L + 0.3963377774 * aAxis + 0.2158037573 * bAxis;
+  const m_ = L - 0.1055613458 * aAxis - 0.0638541728 * bAxis;
+  const s_ = L - 0.0894841775 * aAxis - 1.2914855480 * bAxis;
 
   const lComp = l_ * l_ * l_;
   const mComp = m_ * m_ * m_;
@@ -63,53 +57,188 @@ function oklchToRgbMath(oklchStr: string): string {
   const g = toSrgb(gLin);
   const b = toSrgb(bLin);
 
-  if (A < 1) {
-    return `rgba(${r}, ${g}, ${b}, ${parseFloat(A.toFixed(3))})`;
+  if (alpha < 1) {
+    return `rgba(${r}, ${g}, ${b}, ${parseFloat(alpha.toFixed(3))})`;
   }
   return `rgb(${r}, ${g}, ${b})`;
 }
 
 /**
- * Converts a single oklch(...) expression to rgb/rgba
+ * Math fallback to parse OKLCH color function if Canvas2D is unavailable or fails
  */
-function parseSingleOklchToRgb(oklchMatch: string): string {
+function oklchToRgbMath(oklchStr: string): string {
+  const regex = /oklch\(\s*([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:\s*(?:\/|,)\s*([^\s,/)]+))?\s*\)/i;
+  const match = oklchStr.match(regex);
+  if (!match) return '#000000';
+
+  let [, lStr, cStr, hStr, aStr] = match;
+
+  let L = lStr === 'none' ? 0 : lStr.endsWith('%') ? parseFloat(lStr) / 100 : parseFloat(lStr);
+  let C = cStr === 'none' ? 0 : cStr.endsWith('%') ? parseFloat(cStr) / 100 : parseFloat(cStr);
+  let H = hStr === 'none' ? 0 : parseFloat(hStr.replace(/deg|rad|turn/i, ''));
+  let A = aStr ? (aStr === 'none' ? 1 : aStr.endsWith('%') ? parseFloat(aStr) / 100 : parseFloat(aStr)) : 1;
+
+  if (isNaN(L)) L = 0;
+  if (isNaN(C)) C = 0;
+  if (isNaN(H)) H = 0;
+  if (isNaN(A)) A = 1;
+
+  const hRad = (H * Math.PI) / 180;
+  const aLab = C * Math.cos(hRad);
+  const bLab = C * Math.sin(hRad);
+
+  return oklabToRgbMath(`oklab(${L} ${aLab} ${bLab} / ${A})`);
+}
+
+/**
+ * CIE Lab to sRGB math fallback
+ */
+function labToRgbMath(labStr: string): string {
+  const regex = /lab\(\s*([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:[\s,]+)([^\s,/]+)(?:\s*(?:\/|,)\s*([^\s,/)]+))?\s*\)/i;
+  const match = labStr.match(regex);
+  if (!match) return '#000000';
+  let [, lStr, aStr, bStr, alphaStr] = match;
+  let L = parseFloat(lStr);
+  let aAxis = parseFloat(aStr);
+  let bAxis = parseFloat(bStr);
+  let A = alphaStr ? (alphaStr.endsWith('%') ? parseFloat(alphaStr) / 100 : parseFloat(alphaStr)) : 1;
+  if (isNaN(L)) L = 0;
+  if (isNaN(aAxis)) aAxis = 0;
+  if (isNaN(bAxis)) bAxis = 0;
+  if (isNaN(A)) A = 1;
+
+  let y = (L + 16) / 116;
+  let x = aAxis / 500 + y;
+  let z = y - bAxis / 200;
+
+  const fn = (t: number) => (t * t * t > 0.008856 ? t * t * t : (t - 16 / 116) / 7.787);
+  x = 0.95047 * fn(x);
+  y = 1.00000 * fn(y);
+  z = 1.08883 * fn(z);
+
+  let rLin = x * 3.2406 - y * 1.5372 - z * 0.4986;
+  let gLin = -x * 0.9689 + y * 1.8758 + z * 0.0415;
+  let bLin = x * 0.0557 - y * 0.2040 + z * 1.0570;
+
+  const toSrgb = (c: number) => {
+    const clamped = Math.max(0, Math.min(1, c));
+    const srgb = clamped > 0.0031308 ? 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055 : 12.92 * clamped;
+    return Math.round(srgb * 255);
+  };
+
+  const r = toSrgb(rLin);
+  const g = toSrgb(gLin);
+  const b = toSrgb(bLin);
+
+  return A < 1 ? `rgba(${r}, ${g}, ${b}, ${parseFloat(A.toFixed(3))})` : `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * Converts a single modern color expression (oklab, oklch, lab, lch, color-mix) to rgb/rgba
+ */
+function parseSingleModernColorToRgb(colorStr: string): string {
+  if (!colorStr || typeof colorStr !== 'string') return '#000000';
+  const trimmed = colorStr.trim();
+
+  // If already standard format, return directly
+  if (trimmed.startsWith('#') || trimmed.startsWith('rgb(') || trimmed.startsWith('rgba(')) {
+    return trimmed;
+  }
+
+  // Try Canvas 2D first - modern Chromium / Electron natively parses oklab, oklch, lab, color-mix
   const ctx = getCanvasCtx();
   if (ctx) {
     try {
       ctx.fillStyle = '#000000';
-      ctx.fillStyle = oklchMatch;
-      const result = ctx.fillStyle;
-      if (result && result !== '#000000') {
-        return result;
+      ctx.fillStyle = trimmed;
+      let res = ctx.fillStyle;
+      if (res && res !== '#000000' && !res.includes('okl') && !res.includes('lab') && !res.includes('color(') && !res.includes('color-mix')) {
+        return res;
       }
       ctx.fillStyle = '#ffffff';
-      ctx.fillStyle = oklchMatch;
+      ctx.fillStyle = trimmed;
       if (ctx.fillStyle === '#000000') {
         return '#000000';
       }
-      if (ctx.fillStyle && ctx.fillStyle !== '#ffffff') {
-        return ctx.fillStyle;
+      res = ctx.fillStyle;
+      if (res && res !== '#ffffff' && !res.includes('okl') && !res.includes('lab') && !res.includes('color(') && !res.includes('color-mix')) {
+        return res;
       }
     } catch {
       // Fall through to math
     }
   }
-  return oklchToRgbMath(oklchMatch);
+
+  // Math & pattern fallbacks
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('oklab(')) {
+    return oklabToRgbMath(trimmed);
+  }
+  if (lower.startsWith('oklch(')) {
+    return oklchToRgbMath(trimmed);
+  }
+  if (lower.startsWith('lab(')) {
+    return labToRgbMath(trimmed);
+  }
+  if (lower.startsWith('lch(')) {
+    return oklchToRgbMath(trimmed);
+  }
+  if (lower.startsWith('color-mix(')) {
+    // Matches e.g. color-mix(in oklab, #166534 50%, transparent)
+    const transparentMatch = trimmed.match(/color-mix\(\s*in\s+[a-z0-9_-]+,\s*([^,%]+?)\s*(\d+%)?\s*,\s*transparent/i);
+    if (transparentMatch) {
+      const baseCol = transparentMatch[1].trim();
+      const pctStr = transparentMatch[2] || '100%';
+      const alpha = parseFloat(pctStr) / 100;
+      let rgb = parseSingleModernColorToRgb(baseCol);
+      if (rgb.startsWith('rgb(')) {
+        return rgb.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+      }
+      if (rgb.startsWith('#') && rgb.length === 7) {
+        const r = parseInt(rgb.slice(1, 3), 16);
+        const g = parseInt(rgb.slice(3, 5), 16);
+        const b = parseInt(rgb.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+      return `rgba(0, 0, 0, ${alpha})`;
+    }
+    return '#666666';
+  }
+
+  if (lower.includes('transparent')) return 'rgba(0, 0, 0, 0)';
+  if (lower.includes('white')) return 'rgb(255, 255, 255)';
+  return '#333333';
 }
 
+const HAS_MODERN_COLOR_REGEX = /(?:oklch|oklab|lab|lch|light-dark|color-mix|color)\s*\(/i;
+const MODERN_COLOR_CAPTURE_REGEX = /\b(?:oklch|oklab|lab|lch|light-dark|color-mix|color)\s*\((?:[^()]+|\([^()]*\))*\)/gi;
+
 /**
- * Converts all oklch(...) occurrences in any string to standard rgb/rgba
+ * Converts all modern CSS color occurrences in any string to standard rgb/rgba
  */
-function convertAllOklchInString(str: string): string {
-  if (!str || typeof str !== 'string' || !str.includes('oklch')) {
+export function convertAllModernColorsInString(str: string): string {
+  if (!str || typeof str !== 'string' || !HAS_MODERN_COLOR_REGEX.test(str)) {
     return str;
   }
-  return str.replace(/oklch\([^)]+\)/gi, (match) => parseSingleOklchToRgb(match));
+
+  let result = str;
+  let iterations = 0;
+  while (iterations < 4 && HAS_MODERN_COLOR_REGEX.test(result)) {
+    const prev = result;
+    result = result.replace(MODERN_COLOR_CAPTURE_REGEX, (match) => parseSingleModernColorToRgb(match));
+    if (result === prev) {
+      // Force sanitize any leftover unparsed modern color functions so html2canvas never crashes
+      result = result.replace(/(?:oklch|oklab|lab|lch|light-dark|color-mix|color)\s*\([^)]*\)/gi, '#000000');
+      break;
+    }
+    iterations++;
+  }
+  return result;
 }
 
 /**
- * Shared DOM clone sanitizer for html2canvas to safely convert modern CSS colors (oklch, lab)
- * and ensure all nested containers are visible for high-fidelity PDF capture.
+ * Shared DOM clone sanitizer for html2canvas to safely convert modern CSS colors (oklab, oklch, lab, color-mix)
+ * and ensure all nested containers are visible for high-fidelity PDF and PNG capture.
  */
 export function sanitizeCloneForCanvas(clonedDoc: Document, clonedElement: HTMLElement) {
   // 0. Ensure clonedElement and all its ancestors are visible and not hidden off-screen
@@ -129,23 +258,64 @@ export function sanitizeCloneForCanvas(clonedDoc: Document, clonedElement: HTMLE
     // Ignore style adjustment errors
   }
 
-  // 1. Process all <style> elements in clonedDoc
-  const styleElements = clonedDoc.querySelectorAll('style');
-  styleElements.forEach((styleEl) => {
-    if (styleEl.textContent && styleEl.textContent.includes('oklch')) {
-      styleEl.textContent = convertAllOklchInString(styleEl.textContent);
-    }
-  });
-
-  // 2. Process all styleSheets in clonedDoc directly
+  // 1. Process and inline parent document stylesheets (converting modern colors to rgb/rgba)
   try {
-    const sheets = Array.from(clonedDoc.styleSheets);
+    const parentDoc = typeof document !== 'undefined' ? document : clonedDoc;
+    const parentSheets = Array.from(parentDoc.styleSheets || []);
+    parentSheets.forEach((sheet) => {
+      try {
+        const rules = sheet.cssRules;
+        if (rules && rules.length > 0) {
+          let sheetCss = '';
+          for (let i = 0; i < rules.length; i++) {
+            sheetCss += rules[i].cssText + '\n';
+          }
+          if (sheetCss && HAS_MODERN_COLOR_REGEX.test(sheetCss)) {
+            const cleanCss = convertAllModernColorsInString(sheetCss);
+            const inlineTag = clonedDoc.createElement('style');
+            inlineTag.setAttribute('data-sanitized-inlined', 'true');
+            inlineTag.textContent = cleanCss;
+            clonedDoc.head.appendChild(inlineTag);
+          }
+        }
+      } catch {
+        // Cross-origin stylesheet rules (e.g. google fonts) cannot be read; safe to ignore
+      }
+    });
+
+    // Remove local link[rel="stylesheet"] from clonedDoc so html2canvas doesn't fetch and crash on raw modern CSS
+    const links = Array.from(clonedDoc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
+    links.forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      if (!href.includes('fonts.googleapis.com') && !href.includes('fonts.gstatic.com')) {
+        link.remove();
+      }
+    });
+  } catch {
+    // Ignore stylesheet inlining errors
+  }
+
+  // 2. Process all <style> elements in clonedDoc
+  try {
+    const styleElements = clonedDoc.querySelectorAll('style');
+    styleElements.forEach((styleEl) => {
+      if (styleEl.textContent && HAS_MODERN_COLOR_REGEX.test(styleEl.textContent)) {
+        styleEl.textContent = convertAllModernColorsInString(styleEl.textContent);
+      }
+    });
+  } catch {
+    // Ignore style element errors
+  }
+
+  // 3. Process all styleSheets in clonedDoc directly
+  try {
+    const sheets = Array.from(clonedDoc.styleSheets || []);
     sheets.forEach((sheet) => {
       try {
         const rules = Array.from(sheet.cssRules || []);
         rules.forEach((rule, idx) => {
-          if (rule.cssText && rule.cssText.includes('oklch')) {
-            const newCssText = convertAllOklchInString(rule.cssText);
+          if (rule.cssText && HAS_MODERN_COLOR_REGEX.test(rule.cssText)) {
+            const newCssText = convertAllModernColorsInString(rule.cssText);
             try {
               sheet.deleteRule(idx);
               sheet.insertRule(newCssText, idx);
@@ -155,8 +325,8 @@ export function sanitizeCloneForCanvas(clonedDoc: Document, clonedElement: HTMLE
                 for (let i = 0; i < style.length; i++) {
                   const prop = style[i];
                   const val = style.getPropertyValue(prop);
-                  if (val && val.includes('oklch')) {
-                    style.setProperty(prop, convertAllOklchInString(val));
+                  if (val && HAS_MODERN_COLOR_REGEX.test(val)) {
+                    style.setProperty(prop, convertAllModernColorsInString(val));
                   }
                 }
               }
@@ -171,7 +341,7 @@ export function sanitizeCloneForCanvas(clonedDoc: Document, clonedElement: HTMLE
     // Ignore stylesheet iteration errors
   }
 
-  // 3. Process DOM elements in clonedElement only
+  // 4. Process DOM elements in clonedElement
   const win = clonedDoc.defaultView || window;
   const allElements = Array.from(clonedElement.querySelectorAll('*')) as HTMLElement[];
   if (!allElements.includes(clonedElement)) {
@@ -193,34 +363,35 @@ export function sanitizeCloneForCanvas(clonedDoc: Document, clonedElement: HTMLE
     'fill',
     'stroke',
     'stop-color',
-    'caret-color'
+    'caret-color',
+    'accent-color',
   ];
 
   allElements.forEach((el) => {
     if (!el) return;
 
-    // Replace inline style string if present
+    // 4a. Replace inline style string if present
     const styleAttr = el.getAttribute('style');
-    if (styleAttr && styleAttr.includes('oklch')) {
-      el.setAttribute('style', convertAllOklchInString(styleAttr));
+    if (styleAttr && HAS_MODERN_COLOR_REGEX.test(styleAttr)) {
+      el.setAttribute('style', convertAllModernColorsInString(styleAttr));
     }
 
-    // Check SVG attributes
+    // 4b. Check SVG attributes
     ['fill', 'stroke', 'stop-color', 'color'].forEach((attr) => {
       const attrVal = el.getAttribute(attr);
-      if (attrVal && attrVal.includes('oklch')) {
-        el.setAttribute(attr, convertAllOklchInString(attrVal));
+      if (attrVal && HAS_MODERN_COLOR_REGEX.test(attrVal)) {
+        el.setAttribute(attr, convertAllModernColorsInString(attrVal));
       }
     });
 
-    // Check computed styles and override with inline rgb styles
+    // 4c. Check computed styles and override with inline RGB values
     if (el.style) {
       try {
         const computed = win.getComputedStyle(el);
         colorProperties.forEach((prop) => {
           const val = computed.getPropertyValue(prop);
-          if (val && val.includes('oklch')) {
-            const convertedVal = convertAllOklchInString(val);
+          if (val && HAS_MODERN_COLOR_REGEX.test(val)) {
+            const convertedVal = convertAllModernColorsInString(val);
             el.style.setProperty(prop, convertedVal, 'important');
           }
         });
@@ -502,6 +673,8 @@ export async function generatePNGFileFromElement(
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
+      windowWidth: 1200,
+      onclone: (clonedDoc, clonedEl) => sanitizeCloneForCanvas(clonedDoc, clonedEl),
     });
 
     return new Promise((resolve) => {
@@ -790,25 +963,14 @@ export async function sharePDFToWhatsApp(
       }
     }
 
-    // Fallback: Download file automatically to user's device
-    if (res.blob) {
-      const blobUrl = URL.createObjectURL(res.blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(blobUrl);
-    }
-
-    // Open WhatsApp Web or App
-    const note = '\n\n(सूचना: प्रतिवेदन PDF फाइल तपाईंको डिभाइसमा डाउनलोड भएको छ, कृपया यस च्याटमा पठाउनुहोस्।)';
-    const encodedText = encodeURIComponent(messageText + note);
+    // Open WhatsApp Web or App directly without downloading file to user's device
+    const encodedText = encodeURIComponent(messageText);
     const waUrl = cleanPhone
       ? `https://wa.me/${cleanPhone}?text=${encodedText}`
       : `https://api.whatsapp.com/send?text=${encodedText}`;
 
     window.open(waUrl, '_blank');
-    return { success: true, method: 'download-and-whatsapp' };
+    return { success: true, method: 'whatsapp' };
   } catch (err: any) {
     console.error('sharePDFToWhatsApp error:', err);
     return { success: false, method: 'error', error: err?.message || 'WhatsApp सेयर गर्न असफल भयो।' };

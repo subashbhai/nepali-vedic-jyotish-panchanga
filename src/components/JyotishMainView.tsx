@@ -557,7 +557,7 @@ export const JyotishMainView: React.FC<JyotishMainViewProps> = memo(({
             </div>
 
             {/* Block 3 (RHS): जन्मकालीन पञ्चाङ्ग (कुण्डलीको दायाँ) */}
-            <div className="w-full h-full flex flex-col">
+            <div className="w-full flex flex-col gap-4">
               <PanchangaPanel
                 panchanga={panchanga}
                 profile={currentProfile}

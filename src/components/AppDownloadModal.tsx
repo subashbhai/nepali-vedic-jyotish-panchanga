@@ -23,6 +23,7 @@ import {
   checkLatestRelease 
 } from '../utils/appVersionManager';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { ApkDownloadPromptModal } from './common/ApkDownloadPromptModal';
 
 export type PlatformTab = 'WINDOWS' | 'ANDROID' | 'MAC' | 'IOS';
 
@@ -43,6 +44,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
   const [downloadUrls, setDownloadUrls] = useState(DEFAULT_DIRECT_DOWNLOADS);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const [isPromptPreviewOpen, setIsPromptPreviewOpen] = useState(false);
   const { isInstallable, isInstalled, install } = usePWAInstall();
 
   React.useEffect(() => {
@@ -51,7 +53,26 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
     }
   }, [initialTab, isOpen]);
 
-  const [hasRealApk, setHasRealApk] = useState(false);
+  const [hasRealApk, setHasRealApk] = useState(true);
+  const [localIp, setLocalIp] = useState<string>('192.168.1.67');
+
+  useEffect(() => {
+    fetch('/api/network-info')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.localIp && data.localIp !== 'localhost') {
+          setLocalIp(data.localIp);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const qrTargetUrl = typeof window !== 'undefined'
+    ? (isLocalHost
+        ? `http://${localIp || '192.168.1.67'}:${window.location.port || '3000'}/?action=download-apk`
+        : `${window.location.origin}${window.location.pathname}?action=download-apk`)
+    : '/?action=download-apk';
 
   // Synchronize latest release asset URLs from GitHub if available
   useEffect(() => {
@@ -352,33 +373,22 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                         ? 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50'
                         : 'text-amber-800 bg-amber-50 dark:bg-amber-950/50'
                     }`}>
-                      {hasRealApk ? 'सिधै डाउनलोड' : 'क्लाउड बिल्ड हुँदैछ'}
+                      {hasRealApk ? 'सिधै डाउनलोड (२८ MB)' : 'क्लाउड बिल्ड हुँदैछ'}
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-500">
                     {hasRealApk
-                      ? 'कम्प्युटर वा फोनमा सिधै .apk फाइल डाउनलोड गरी इन्स्टल गर्नुहोस्।'
+                      ? 'कम्प्युटर वा फोनमा सिधै .apk फाइल डाउनलोड गरी इन्स्टल गर्नुहोस् (~२८ MB)।'
                       : 'नयाँ APK फाइल क्लाउडमा तयार भइरहेको छ। तत्काल मोबाइलमा चलाउन २ नम्बरको १-क्लिक इन्स्टल वा QR स्क्यान गर्नुहोस्।'}
                   </p>
                   <button
                     type="button"
-                    onClick={async () => {
-                      if (hasRealApk) {
-                        handleStartDownload(
-                          downloadUrls.androidApk,
-                          'nepali-vedic-jyotish-panchanga.apk',
-                          'Android APK (.apk)'
-                        );
-                      } else {
-                        if (isInstallable) {
-                          const installed = await install();
-                          if (installed) {
-                            setDownloadNotice('एप सफलतापूर्वक तपाईंको मोबाइलमा स्थापना भयो!');
-                            return;
-                          }
-                        }
-                        setDownloadNotice('APK क्लाउडमा तयारी हुँदैछ। तत्काल चलाउन दायाँपट्टिको "२. Instant Web App (१-क्लिक)" बटन थिच्नुहोस् वा क्यामेराले QR स्क्यान गर्नुहोस्!');
-                      }
+                    onClick={() => {
+                      handleStartDownload(
+                        downloadUrls.androidApk,
+                        'nepali-vedic-jyotish-panchanga.apk',
+                        'Android APK (.apk)'
+                      );
                     }}
                     className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
                   >
@@ -387,7 +397,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                     ) : (
                       <Download className="w-4 h-4" />
                     )}
-                    <span>{hasRealApk ? 'Android APK (.apk) सिधै डाउनलोड गर्नुहोस्' : 'Android APK (तयारी अवस्था / १-क्लिक इन्स्टल)'}</span>
+                    <span>Android APK (.apk) सिधै डाउनलोड गर्नुहोस्</span>
                   </button>
                 </div>
 
@@ -435,21 +445,35 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
 
               {/* QR Code section for easy mobile scanning */}
               <div className="p-4 bg-stone-100 dark:bg-stone-900/90 rounded-2xl border border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row items-center gap-4 text-xs">
-                <div className="p-2 bg-white rounded-xl border border-stone-300 dark:border-stone-700 shrink-0 shadow-xs">
+                <div className="p-2.5 bg-white rounded-xl border border-stone-300 dark:border-stone-700 shrink-0 shadow-xs flex flex-col items-center">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/')}`}
-                    alt="Mobile Install QR Code"
-                    className="w-20 h-20"
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(qrTargetUrl)}`}
+                    alt="Mobile APK Download QR Code"
+                    className="w-24 h-24 rounded-lg"
                     loading="lazy"
                   />
+                  <span className="text-[9px] text-stone-500 font-bold mt-1">Scan for APK</span>
                 </div>
-                <div className="space-y-1 text-center sm:text-left">
-                  <span className="font-bold text-stone-800 dark:text-stone-200 block text-xs">
-                    📱 मोबाइलबाट QR कोड स्क्यान गरी खोल्नुहोस्
-                  </span>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
-                    यदि तपाईं कम्प्युटरमा हुनुहुन्छ भने आफ्नो मोबाइल क्यामेराले यो QR स्क्यान गर्नुहोस् र मोबाइलमा सिधै खोल्नुहोस्।
-                  </p>
+                <div className="space-y-2 text-center sm:text-left flex-1">
+                  <div>
+                    <span className="font-bold text-stone-800 dark:text-stone-200 block text-xs">
+                      📱 मोबाइल क्यामेराबाट QR स्क्यान गर्नुहोस्
+                    </span>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-0.5">
+                      कम्प्युटरबाट आफ्नो फोनको क्यामेराले यो कोड स्क्यान गर्दा सिधै <strong>"Download App?"</strong> पपअप खुल्नेछ र १-क्लिकमा APK डाउनलोड हुनेछ।
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-0.5 justify-center sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => setIsPromptPreviewOpen(true)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-bold text-[11px] border border-emerald-600/30 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>पपअप कस्तो खुल्छ जाँच्नुहोस् (Preview Prompt)</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -602,21 +626,10 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
             </div>
           )}
 
-          {/* GitHub Repository Reference */}
-          <div className="pt-3 border-t border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-stone-500">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>आधिकारिक खुला स्रोत भण्डार: <strong>subashbhai/nepali-vedic-jyotish-panchanga</strong></span>
-            </div>
-            <a
-              href={RELEASES_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[#7A1C1C] dark:text-amber-400 font-bold hover:underline flex items-center gap-1"
-            >
-              <span>सबै रिलिज तथा चेन्जलोग हेर्नुहोस्</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+          {/* Security & Verification Footer */}
+          <div className="pt-3 border-t border-stone-200 dark:border-stone-800 flex items-center justify-center gap-2 text-[11px] text-stone-500">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span>सुरक्षित, १००% विज्ञापनरहित तथा आधिकारिक नेपाली वैदिक ज्योतिष प्रणाली</span>
           </div>
         </div>
 
@@ -631,6 +644,13 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Render APK Download Prompt Modal for preview */}
+      <ApkDownloadPromptModal
+        isOpen={isPromptPreviewOpen}
+        onClose={() => setIsPromptPreviewOpen(false)}
+        apkUrl={downloadUrls.androidApk}
+      />
     </div>
   );
 };

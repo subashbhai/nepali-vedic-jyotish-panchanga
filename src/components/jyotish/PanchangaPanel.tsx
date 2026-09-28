@@ -23,6 +23,8 @@ import { NAKSHATRA_NAMAKSHARA_MAP } from '../../utils/panchangaEngine';
 import { generateDivisionalChartEx } from '../../utils/vargaEngine';
 import { evaluateVishaNadi } from '../../utils/vishaNadiEngine';
 import { getParvaForDay } from '../../utils/parvaEngine';
+import { calculateIshtaDevata } from '../../utils/ishtaDevataEngine';
+
 
 export interface PanchangaPanelProps {
   panchanga: PanchangaData;
@@ -756,11 +758,17 @@ export const PanchangaPanel: React.FC<PanchangaPanelProps> = memo(({
     return getParvaForDay(bYear, bMonth, bDay, tName, paksha);
   }, [profile, panchanga]);
 
+  // 12. Ishta Devata (इष्ट देवता) — static display, no modal
+  const ishtaData = useMemo(() => {
+    return calculateIshtaDevata(lagna as any, planets as any, profile as any);
+  }, [lagna, planets, profile]);
+
   // Shubhachakra and Ashubhachakra data for current Moon Rashi
   const currentChakraData = useMemo(() => {
     const rashi = panchanga.moonRashi || 'वृष';
     return SHUBHA_ASHUBHA_CHAKRA_MAP[rashi] || SHUBHA_ASHUBHA_CHAKRA_MAP['वृष'];
   }, [panchanga.moonRashi]);
+
 
   // Nav-Tara calculation based on selectedTaraPlanet
   const navTaraRows = useMemo(() => {
@@ -942,7 +950,21 @@ export const PanchangaPanel: React.FC<PanchangaPanelProps> = memo(({
             </h3>
           </div>
 
+          {/* Classical Janmakalin Shloka */}
+          <div className="mx-2 mt-2 mb-1 px-3 py-2 rounded-xl bg-gradient-to-br from-red-50 to-amber-50 dark:from-red-950/30 dark:to-stone-900 border border-red-200 dark:border-red-900/60 shadow-xs">
+            <p className="text-center text-[11px] sm:text-[12px] font-bold text-[#7A1C1C] dark:text-amber-300 font-serif leading-relaxed tracking-wide">
+              जन्मकाले ग्रहाणां च स्थितिर्भाग्यफलप्रदा।
+            </p>
+            <p className="text-center text-[11px] sm:text-[12px] font-bold text-[#7A1C1C] dark:text-amber-300 font-serif leading-relaxed tracking-wide">
+              लग्नं तिथिर्नक्षत्रं च जीवने शुभदं भवेत्॥
+            </p>
+            <p className="text-center text-[9.5px] text-amber-700 dark:text-amber-500 font-medium mt-1">
+              — बृहत् पाराशर होराशास्त्रम् | जन्मकालमा ग्रहस्थिति भाग्यफलदायी हुन्छ
+            </p>
+          </div>
+
           {/* 11-Row Balanced 2-Column Table */}
+
           <div className="w-full overflow-y-auto flex-1">
             <table className="w-full h-full border-collapse text-xs sm:text-[12.5px] bg-white dark:bg-stone-900">
               <tbody>
@@ -1061,7 +1083,7 @@ export const PanchangaPanel: React.FC<PanchangaPanelProps> = memo(({
                 </tr>
 
                 {/* ११. पर्व */}
-                <tr className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 transition-colors">
+                <tr className="border-b border-slate-200 dark:border-stone-800 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 transition-colors">
                   <td className="w-[44%] py-2 sm:py-2.5 px-2 text-center font-bold text-[#1E3A8A] dark:text-indigo-400 border-r border-slate-200 dark:border-stone-800">
                     पर्व
                   </td>
@@ -1078,6 +1100,28 @@ export const PanchangaPanel: React.FC<PanchangaPanelProps> = memo(({
                     </div>
                   </td>
                 </tr>
+
+                {/* १२. इष्ट देवता (शास्त्र सम्मत गणना) */}
+                <tr className="bg-amber-50/40 dark:bg-amber-950/20">
+                  <td className="w-[44%] py-2 sm:py-2.5 px-2 text-center font-bold text-[#7A1C1C] dark:text-amber-400 border-r border-slate-200 dark:border-stone-800">
+                    <div className="flex items-center justify-center gap-1">
+                      <Flame className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span>इष्ट देवता</span>
+                    </div>
+                  </td>
+                  <td className="w-[56%] py-1.5 sm:py-2 px-2 text-center">
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <span className="text-xs sm:text-sm font-extrabold text-[#7A1C1C] dark:text-amber-300">
+                        {ishtaData?.deityName || '—'}
+                      </span>
+                      <span className="text-[9.5px] text-amber-700 dark:text-amber-400 font-medium leading-tight">
+                        {ishtaData?.deityTitle || ''}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+
+
               </tbody>
             </table>
           </div>
@@ -1195,7 +1239,21 @@ export const PanchangaPanel: React.FC<PanchangaPanelProps> = memo(({
             </h3>
           </div>
 
+          {/* Classical Panchanga Shloka */}
+          <div className="mx-2 mt-2 mb-1 px-3 py-2 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-stone-900 border border-amber-200 dark:border-amber-800/60 shadow-xs">
+            <p className="text-center text-[11px] sm:text-[12px] font-bold text-[#7A1C1C] dark:text-amber-300 font-serif leading-relaxed tracking-wide">
+              तिथिर्विष्णुस्तथा वारो नक्षत्रं विष्णुरेव च।
+            </p>
+            <p className="text-center text-[11px] sm:text-[12px] font-bold text-[#7A1C1C] dark:text-amber-300 font-serif leading-relaxed tracking-wide">
+              योगश्च करणं चैव पञ्चाङ्गं विष्णुरुच्यते॥
+            </p>
+            <p className="text-center text-[9.5px] text-amber-700 dark:text-amber-500 font-medium mt-1">
+              — विष्णु पुराण | पञ्चाङ्गका पाँच अङ्ग सबै विष्णुस्वरूप हुन्
+            </p>
+          </div>
+
           {/* 9-Row 2-Column Table matching reference */}
+
           <div className="w-full overflow-x-auto">
             <table className="w-full border-collapse text-xs sm:text-[13px] bg-white dark:bg-stone-900">
               <tbody>
@@ -1369,7 +1427,7 @@ export const PanchangaPanel: React.FC<PanchangaPanelProps> = memo(({
                   </td>
                 </tr>
 
-                <tr>
+                <tr className="border-b border-slate-200 dark:border-stone-800">
                   <td className="py-1.5 px-2 font-bold text-slate-700 dark:text-stone-300 border-r border-slate-200 dark:border-stone-800 bg-slate-50/50 dark:bg-stone-800/40">
                     शुभ लग्न
                   </td>
@@ -1377,6 +1435,8 @@ export const PanchangaPanel: React.FC<PanchangaPanelProps> = memo(({
                     {currentChakraData.shubha.shubhLagna}
                   </td>
                 </tr>
+
+
               </tbody>
             </table>
           </div>

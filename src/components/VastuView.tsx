@@ -31,8 +31,10 @@ import {
   Download,
   ChevronDown,
   Image as ImageIcon,
-  MessageCircle
+  MessageCircle,
+  Share2
 } from 'lucide-react';
+import { WhatsAppIcon, FacebookIcon, MessengerIcon } from './common/WhatsAppShareModal';
 import { 
   VASTU_ZONES, 
   ROOM_CONFIGS, 
@@ -47,6 +49,7 @@ import { VastuPlannerModule } from '../vastuPlanner/VastuPlannerModule';
 import { canUserPrintDocuments } from '../db/subscriptionStore';
 import { VastuSinglePageReport } from './vastu/VastuSinglePageReport';
 import { JyotishVastuLicenseHeader } from './common/JyotishVastuLicenseHeader';
+import { sanitizeCloneForCanvas } from '../utils/pdfGenerator';
 
 interface VastuViewProps {
   orgProfile?: OrganizationProfile;
@@ -320,8 +323,12 @@ export const VastuView: React.FC<VastuViewProps> = ({
   const [isExportingVastuPNG, setIsExportingVastuPNG] = useState(false);
   const [isVastuDownloadOpen, setIsVastuDownloadOpen] = useState(false);
   const [isReportSectionDownloadOpen, setIsReportSectionDownloadOpen] = useState(false);
+  const [isVastuShareOpen, setIsVastuShareOpen] = useState(false);
+  const [isReportSectionShareOpen, setIsReportSectionShareOpen] = useState(false);
   const vastuDownloadRef = useRef<HTMLDivElement>(null);
   const reportSectionDownloadRef = useRef<HTMLDivElement>(null);
+  const vastuShareRef = useRef<HTMLDivElement>(null);
+  const reportSectionShareRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -331,12 +338,18 @@ export const VastuView: React.FC<VastuViewProps> = ({
       if (reportSectionDownloadRef.current && !reportSectionDownloadRef.current.contains(e.target as Node)) {
         setIsReportSectionDownloadOpen(false);
       }
+      if (vastuShareRef.current && !vastuShareRef.current.contains(e.target as Node)) {
+        setIsVastuShareOpen(false);
+      }
+      if (reportSectionShareRef.current && !reportSectionShareRef.current.contains(e.target as Node)) {
+        setIsReportSectionShareOpen(false);
+      }
     };
-    if (isVastuDownloadOpen || isReportSectionDownloadOpen) {
+    if (isVastuDownloadOpen || isReportSectionDownloadOpen || isVastuShareOpen || isReportSectionShareOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [isVastuDownloadOpen, isReportSectionDownloadOpen]);
+  }, [isVastuDownloadOpen, isReportSectionDownloadOpen, isVastuShareOpen, isReportSectionShareOpen]);
 
   const executeVastuSinglePagePrint = () => {
     const docEl = document.getElementById('vastu-single-page-report');
@@ -470,11 +483,12 @@ export const VastuView: React.FC<VastuViewProps> = ({
         useCORS: true,
         logging: false,
         backgroundColor: '#FFFDF9',
-        windowWidth: 794,
-        onclone: (_clonedDoc, clonedEl) => {
+        windowWidth: 1200,
+        onclone: (clonedDoc, clonedEl) => {
+          sanitizeCloneForCanvas(clonedDoc, clonedEl);
           clonedEl.style.transform = 'none';
           clonedEl.style.boxShadow = 'none';
-          clonedEl.style.margin = '0';
+          clonedEl.style.margin = '0 auto';
           clonedEl.style.width = '210mm';
           clonedEl.style.height = '296mm';
         },
@@ -515,8 +529,17 @@ export const VastuView: React.FC<VastuViewProps> = ({
       const canvas = await html2canvas(docEl, {
         scale: 2,
         useCORS: true,
+        logging: false,
         backgroundColor: '#FFFDF9',
-        windowWidth: 794,
+        windowWidth: 1200,
+        onclone: (clonedDoc, clonedEl) => {
+          sanitizeCloneForCanvas(clonedDoc, clonedEl);
+          clonedEl.style.transform = 'none';
+          clonedEl.style.boxShadow = 'none';
+          clonedEl.style.margin = '0 auto';
+          clonedEl.style.width = '210mm';
+          clonedEl.style.height = '296mm';
+        },
       });
 
       const cleanName = currentProject.projectName.replace(/[\s\/:]+/g, '_');
@@ -536,66 +559,62 @@ export const VastuView: React.FC<VastuViewProps> = ({
     }
   };
 
-  const handleShareVastuWhatsAppPNG = async () => {
-    if (isExportingVastuPNG) return;
-    setIsExportingVastuPNG(true);
+  const getVastuShareText = () => {
+    return `॥ बालानन्द वैदिक वास्तुशास्त्र तथा भवन मूल्याङ्कन प्रतिवेदन ॥\n🏠 परियोजना: ${currentProject.projectName} (${currentProject.clientName})\n📍 स्थान: ${currentProject.address}\n📐 वास्तु प्राप्ताङ्क: ${auditResult.percentage}% (${auditResult.gradeNepali})\n\n— बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा\n🌐 ${typeof window !== 'undefined' ? window.location.href : 'https://suwashdmk.com'}`;
+  };
 
-    try {
-      if (activeSubTab !== 'report') {
-          handleSelectSubTab('report');
-        await new Promise((r) => setTimeout(r, 300));
-      }
-
-      const [{ default: html2canvas }] = await Promise.all([import('html2canvas')]);
-      const docEl = document.getElementById('vastu-single-page-report');
-      if (!docEl) throw new Error('Vastu document element not found');
-
-      const canvas = await html2canvas(docEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#FFFDF9',
-        windowWidth: 794,
-      });
-
-      const cleanName = currentProject.projectName.replace(/[\s\/:]+/g, '_');
-      const shareTitle = `वास्तु मूल्याङ्कन प्रतिवेदन - ${currentProject.projectName}`;
-      const shareText = `॥ बालानन्द वैदिक वास्तुशास्त्र तथा भवन मूल्याङ्कन प्रतिवेदन ॥\n🏠 परियोजना: ${currentProject.projectName} (${currentProject.clientName})\n📍 स्थान: ${currentProject.address}\n📐 वास्तु प्राप्ताङ्क: ${auditResult.percentage}% (${auditResult.gradeNepali})\n\n— बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा\n🌐 https://suwashdmk.com`;
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) throw new Error('Blob conversion failed');
-        const pngFile = new File([blob], `Vastu_Report_${cleanName}.png`, { type: 'image/png' });
-
-        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pngFile] })) {
-          try {
-            await navigator.share({
-              files: [pngFile],
-              title: shareTitle,
-              text: shareText,
-            });
-            return;
-          } catch (shareErr: any) {
-            if (shareErr.name === 'AbortError') return;
-          }
-        }
-
-        // Fallback: download PNG and open WhatsApp
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Vastu_Report_${cleanName}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        const waMsg = encodeURIComponent(
-          `${shareText}\n\n(आधिकारिक वास्तु प्रतिवेदनको PNG तस्बिर डाउनलोड भएको छ। कृपया यहाँ पठाउनुहोस्।)`
-        );
-        window.open(`https://api.whatsapp.com/send?text=${waMsg}`, '_blank');
-      }, 'image/png');
-    } catch (err) {
-      console.error('Failed to share Vastu PNG:', err);
-    } finally {
-      setIsExportingVastuPNG(false);
+  const handleShareVastuWhatsApp = () => {
+    setIsVastuShareOpen(false);
+    setIsReportSectionShareOpen(false);
+    const text = getVastuShareText();
+    let phone = currentProject.clientPhone ? currentProject.clientPhone.replace(/\D/g, '') : '';
+    if (phone.length === 10 && phone.startsWith('9')) {
+      phone = '977' + phone;
     }
+    const encoded = encodeURIComponent(text);
+    const waUrl = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleShareVastuFacebook = () => {
+    setIsVastuShareOpen(false);
+    setIsReportSectionShareOpen(false);
+    const text = getVastuShareText();
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`, '_blank', 'width=620,height=540');
+  };
+
+  const handleShareVastuMessenger = async () => {
+    setIsVastuShareOpen(false);
+    setIsReportSectionShareOpen(false);
+    const text = getVastuShareText();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {}
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    if (isMobile) {
+      window.location.href = `fb-messenger://share?link=${encodeURIComponent(url)}`;
+    } else {
+      window.open('https://www.messenger.com/', '_blank');
+    }
+    setProjectToastMessage('वास्तु प्रतिवेदन कपी भयो र Messenger खुल्दैछ!');
+    setTimeout(() => setProjectToastMessage(null), 3000);
+  };
+
+  const handleCopyVastuShareText = async () => {
+    setIsVastuShareOpen(false);
+    setIsReportSectionShareOpen(false);
+    const text = getVastuShareText();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        setProjectToastMessage('वास्तु प्रतिवेदन विवरण क्लिपबोर्डमा कपी भयो!');
+        setTimeout(() => setProjectToastMessage(null), 3000);
+      }
+    } catch {}
   };
 
   // Calculate Land Test Rating
@@ -716,15 +735,56 @@ export const VastuView: React.FC<VastuViewProps> = ({
             )}
           </div>
 
-          <button
-            onClick={handleShareVastuWhatsAppPNG}
-            disabled={isExportingVastuPNG}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 disabled:opacity-60"
-            title="WhatsApp मा सेयर गर्नुहोस्"
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span>{isExportingVastuPNG ? 'तयार हुँदै...' : 'WhatsApp सेयर'}</span>
-          </button>
+          {/* Share Dropdown Button */}
+          <div className="relative" ref={vastuShareRef}>
+            <button
+              type="button"
+              onClick={() => setIsVastuShareOpen((prev) => !prev)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+              title="सामाजिक सञ्जालमा सेयर गर्नुहोस्"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>सेयर</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isVastuShareOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isVastuShareOpen && (
+              <div className="absolute right-0 top-full mt-1.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-xl z-50 py-1 min-w-[170px] overflow-hidden divide-y divide-stone-100 dark:divide-stone-800 animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  type="button"
+                  onClick={handleShareVastuWhatsApp}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-emerald-50 dark:hover:bg-stone-800 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer text-left"
+                >
+                  <WhatsAppIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareVastuFacebook}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-blue-50 dark:hover:bg-stone-800 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer text-left"
+                >
+                  <FacebookIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span>Facebook</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareVastuMessenger}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-sky-50 dark:hover:bg-stone-800 hover:text-sky-600 dark:hover:text-sky-400 transition cursor-pointer text-left"
+                >
+                  <MessengerIcon className="w-4 h-4 text-sky-500 shrink-0" />
+                  <span>Messenger</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyVastuShareText}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-stone-800 hover:text-amber-600 dark:hover:text-amber-400 transition cursor-pointer text-left"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>विवरण कपी गर्नुहोस्</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1885,15 +1945,56 @@ export const VastuView: React.FC<VastuViewProps> = ({
                 )}
               </div>
 
-              <button
-                onClick={handleShareVastuWhatsAppPNG}
-                disabled={isExportingVastuPNG}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-60"
-                title="WhatsApp मा सेयर गर्नुहोस्"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>{isExportingVastuPNG ? 'तयार हुँदै...' : 'WhatsApp सेयर'}</span>
-              </button>
+              {/* Share Dropdown Button */}
+              <div className="relative" ref={reportSectionShareRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsReportSectionShareOpen((prev) => !prev)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="सामाजिक सञ्जालमा सेयर गर्नुहोस्"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>सेयर</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isReportSectionShareOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isReportSectionShareOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-xl z-50 py-1 min-w-[170px] overflow-hidden divide-y divide-stone-100 dark:divide-stone-800 animate-in fade-in zoom-in-95 duration-100">
+                    <button
+                      type="button"
+                      onClick={handleShareVastuWhatsApp}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-emerald-50 dark:hover:bg-stone-800 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer text-left"
+                    >
+                      <WhatsAppIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>WhatsApp</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShareVastuFacebook}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-blue-50 dark:hover:bg-stone-800 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer text-left"
+                    >
+                      <FacebookIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                      <span>Facebook</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShareVastuMessenger}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-sky-50 dark:hover:bg-stone-800 hover:text-sky-600 dark:hover:text-sky-400 transition cursor-pointer text-left"
+                    >
+                      <MessengerIcon className="w-4 h-4 text-sky-500 shrink-0" />
+                      <span>Messenger</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyVastuShareText}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-stone-800 hover:text-amber-600 dark:hover:text-amber-400 transition cursor-pointer text-left"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>विवरण कपी गर्नुहोस्</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

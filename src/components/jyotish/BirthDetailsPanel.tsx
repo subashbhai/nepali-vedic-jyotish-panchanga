@@ -1,12 +1,12 @@
 import React, { memo } from 'react';
-import { User, MapPin, Clock, Calendar, Edit3, Printer, Globe } from 'lucide-react';
+import { User, MapPin, Clock, Calendar, Edit3, Globe } from 'lucide-react';
 import { BirthDetails, PanchangaData, LagnaInfo } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
 
 interface BirthDetailsPanelProps {
   profile: BirthDetails;
   onEdit: () => void;
-  onPrint: () => void;
+  onPrint?: () => void;
   panchanga?: PanchangaData;
   lagna?: LagnaInfo;
 }
@@ -14,7 +14,6 @@ interface BirthDetailsPanelProps {
 export const BirthDetailsPanel: React.FC<BirthDetailsPanelProps> = memo(({
   profile,
   onEdit,
-  onPrint,
   panchanga,
   lagna,
 }) => {
@@ -55,13 +54,6 @@ export const BirthDetailsPanel: React.FC<BirthDetailsPanelProps> = memo(({
             title="सम्पादन गर्नुहोस्"
           >
             <Edit3 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onPrint}
-            className="p-1.5 text-stone-600 hover:text-[#7A1C1C] dark:text-stone-400 dark:hover:text-amber-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors"
-            title="मुद्रण गर्नुहोस्"
-          >
-            <Printer className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -176,20 +168,13 @@ export const BirthDetailsPanel: React.FC<BirthDetailsPanelProps> = memo(({
       </div>
 
       {/* Buttons */}
-      <div className="pt-2 flex items-center gap-2 border-t border-[#E6E0D5] dark:border-stone-800">
+      <div className="pt-2 border-t border-[#E6E0D5] dark:border-stone-800">
         <button
           onClick={onEdit}
-          className="flex-1 py-1.5 px-3 bg-[#FAF7F2] dark:bg-stone-800 hover:bg-[#EAE4D9] dark:hover:bg-stone-700 text-[#7A1C1C] dark:text-amber-300 rounded-lg text-xs font-bold border border-[#E6E0D5] dark:border-stone-700 flex items-center justify-center gap-1.5 transition-colors"
+          className="w-full py-1.5 px-3 bg-[#FAF7F2] dark:bg-stone-800 hover:bg-[#EAE4D9] dark:hover:bg-stone-700 text-[#7A1C1C] dark:text-amber-300 rounded-lg text-xs font-bold border border-[#E6E0D5] dark:border-stone-700 flex items-center justify-center gap-1.5 transition-colors"
         >
           <Edit3 className="w-3.5 h-3.5" />
-          <span>सम्पादन</span>
-        </button>
-        <button
-          onClick={onPrint}
-          className="flex-1 py-1.5 px-3 bg-[#7A1C1C] hover:bg-[#5C1515] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-colors"
-        >
-          <Printer className="w-3.5 h-3.5 text-amber-300" />
-          <span>मुद्रण</span>
+          <span>जन्म विवरण सम्पादन गर्नुहोस्</span>
         </button>
       </div>
     </div>

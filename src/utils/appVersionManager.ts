@@ -42,11 +42,11 @@ export const GITHUB_ALL_RELEASES_API_URL = `https://api.github.com/repos/${GITHU
  * Automatically triggers browser download manager without opening GitHub repo tabs
  */
 export const DEFAULT_DIRECT_DOWNLOADS = {
-  windowsSetup: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga-setup-1.0.1.exe',
-  windowsPortable: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga-1.0.1.exe',
-  androidApk: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga.apk',
-  macDmg: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga-1.0.0.dmg',
-  macZip: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga-1.0.0-arm64-mac.zip',
+  windowsSetup: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-setup-1.0.0.exe',
+  windowsPortable: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0.exe',
+  androidApk: '/downloads/nepali-vedic-jyotish-panchanga.apk',
+  macDmg: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0.dmg',
+  macZip: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0-arm64-mac.zip',
 };
 
 /**
@@ -101,7 +101,7 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
         releaseName: `नेपाली वैदिक ज्योतिष v${CURRENT_APP_VERSION}`,
         publishedAt: new Date().toISOString(),
         releaseNotes: 'प्रारम्भिक आधिकारिक संस्करण (Initial Official Release)',
-        downloadUrl: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`,
+        downloadUrl: DEFAULT_DIRECT_DOWNLOADS.windowsSetup,
         hasUpdate: false,
         assets: [
           {
@@ -126,14 +126,13 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
       };
     }
 
-    const latestRelease = releasesList[0];
-    const remoteTag = latestRelease.tag_name || latestRelease.name || CURRENT_APP_VERSION;
-    const hasUpdate = isNewerVersion(remoteTag, CURRENT_APP_VERSION);
+    // Find the latest release that actually has uploaded .exe binaries
+    const releaseWithExe = releasesList.find((r: any) =>
+      Array.isArray(r.assets) && r.assets.some((a: any) => typeof a.name === 'string' && a.name.endsWith('.exe'))
+    ) || releasesList[0];
 
-    // Find the latest release that actually has uploaded binaries (e.g. v1.0.0 has 7 assets)
-    const releaseWithAssets = releasesList.find((r: any) => Array.isArray(r.assets) && r.assets.length > 0) || latestRelease;
-    const rawAssets: any[] = Array.isArray(releaseWithAssets.assets) && releaseWithAssets.assets.length > 0 
-      ? releaseWithAssets.assets 
+    const rawAssets: any[] = Array.isArray(releaseWithExe.assets) && releaseWithExe.assets.length > 0 
+      ? releaseWithExe.assets 
       : [];
 
     let assets: RemoteReleaseInfo['assets'] = rawAssets.map((asset: any) => {
@@ -174,12 +173,20 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
       ];
     }
 
+    // Target release must be the release that contains real downloadable assets
+    const activeRelease = releaseWithExe;
+    const remoteTag = activeRelease.tag_name || activeRelease.name || CURRENT_APP_VERSION;
+    
+    // Only flag hasUpdate if the release with real assets is actually newer than current
+    const hasUpdate = isNewerVersion(remoteTag, CURRENT_APP_VERSION);
+    const winExeAsset = assets.find(a => a.platform === 'windows')?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.windowsSetup;
+
     return {
       version: remoteTag,
-      releaseName: latestRelease.name || `संस्करण ${remoteTag}`,
-      publishedAt: latestRelease.published_at || new Date().toISOString(),
-      releaseNotes: latestRelease.body || 'नयाँ सुधार र गतिशीलता थप गरिएको छ।',
-      downloadUrl: latestRelease.html_url || `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`,
+      releaseName: activeRelease.name || `संस्करण ${remoteTag}`,
+      publishedAt: activeRelease.published_at || new Date().toISOString(),
+      releaseNotes: activeRelease.body || 'नयाँ सुधार र गतिशीलता थप गरिएको छ।',
+      downloadUrl: winExeAsset,
       hasUpdate,
       assets
     };

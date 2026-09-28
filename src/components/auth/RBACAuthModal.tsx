@@ -30,13 +30,23 @@ import {
   Clock,
   Sparkles,
   Calendar,
-  Compass
+  Compass,
+  Navigation,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { BirthDetails, LocationData, Gender } from '../../types/astrology';
 import { saveProfile, getStoredProfiles } from '../../db/profileStore';
 import { convertBSToADFull, convertADToBSFull } from '../../utils/bsCalendarData';
 import { toDevanagariNumerals, fromDevanagariNumerals } from '../../utils/nepaliCalendar';
 import { WORLD_LOCATIONS_DATA, searchWorldLocations } from '../../data/worldLocations';
+import {
+  getCurrentUserGPS,
+  saveUserDetectedLocation,
+  getStoredUserLocation,
+  NEPAL_77_DISTRICTS
+} from '../../utils/geoLocationHelper';
+import { getSacredLocationInfo } from '../../utils/vedicSankalpaEngine';
 
 const POPULAR_NEPAL_CITIES: Array<{
   name: string;
@@ -117,11 +127,23 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
   const [selectedLocation, setSelectedLocation] = useState<LocationData>({
     name: 'काठमाडौँ (Kathmandu)',
     district: 'काठमाडौँ',
+    province: 'बागमती प्रदेश',
     country: 'नेपाल',
     latitude: 27.7172,
     longitude: 85.3240,
     timeZone: 5.75,
   });
+
+  const [isDetectingGPS, setIsDetectingGPS] = useState(false);
+  const [gpsSuccessNote, setGpsSuccessNote] = useState<string | null>(null);
+  const [activeSacredGeo, setActiveSacredGeo] = useState(() => getSacredLocationInfo({
+    name: 'काठमाडौँ (Kathmandu)',
+    district: 'काठमाडौँ',
+    latitude: 27.7172,
+    longitude: 85.3240,
+    timeZone: 5.75,
+    country: 'नेपाल'
+  }));
 
   // Forgot Password State
   const [forgotPhone, setForgotPhone] = useState('');
@@ -173,20 +195,92 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     }
   }, [adYear, adMonth, adDay, dateType]);
 
+  // Sync stored user location when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const stored = getStoredUserLocation();
+      if (stored && stored.name) {
+        setSelectedLocation(stored);
+        setSelectedCityName(stored.name);
+        setActiveSacredGeo(getSacredLocationInfo(stored));
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleCitySelect = (cityName: string) => {
     setSelectedCityName(cityName);
-    const found = POPULAR_NEPAL_CITIES.find(c => c.name === cityName);
-    if (found) {
-      setSelectedLocation({
-        name: found.name,
-        district: found.district,
+    setGpsSuccessNote(null);
+    setErrorMsg(null);
+
+    // 1. Check popular cities
+    const foundPopular = POPULAR_NEPAL_CITIES.find(c => c.name === cityName);
+    if (foundPopular) {
+      const loc: LocationData = {
+        name: foundPopular.name,
+        district: foundPopular.district,
+        province: 'नेपाल',
+        country: foundPopular.tz === 5.5 ? 'भारत' : 'नेपाल',
+        latitude: foundPopular.lat,
+        longitude: foundPopular.long,
+        timeZone: foundPopular.tz,
+        flag: foundPopular.tz === 5.5 ? '🇮🇳' : '🇳🇵'
+      };
+      setSelectedLocation(loc);
+      setActiveSacredGeo(getSacredLocationInfo(loc));
+      saveUserDetectedLocation(loc);
+      return;
+    }
+
+    // 2. Check 77 districts
+    const foundDistrict = NEPAL_77_DISTRICTS.find(d => `${d.headquarter}, ${d.district}` === cityName || d.district === cityName);
+    if (foundDistrict) {
+      const loc: LocationData = {
+        name: `${foundDistrict.headquarter}, ${foundDistrict.district}`,
+        englishName: `${foundDistrict.districtEn} District`,
+        district: foundDistrict.district,
+        province: foundDistrict.province,
         country: 'नेपाल',
-        latitude: found.lat,
-        longitude: found.long,
-        timeZone: found.tz,
-      });
+        latitude: foundDistrict.latitude,
+        longitude: foundDistrict.longitude,
+        timeZone: 5.75,
+        flag: '🇳🇵'
+      };
+      setSelectedLocation(loc);
+      setActiveSacredGeo(getSacredLocationInfo(loc));
+      saveUserDetectedLocation(loc);
+      return;
+    }
+
+    // 3. Check world locations
+    const foundWorld = WORLD_LOCATIONS_DATA.find(w => w.name === cityName);
+    if (foundWorld) {
+      setSelectedLocation(foundWorld);
+      setActiveSacredGeo(getSacredLocationInfo(foundWorld));
+      saveUserDetectedLocation(foundWorld);
+      return;
+    }
+  };
+
+  const handleDetectCurrentLocation = async () => {
+    setIsDetectingGPS(true);
+    setErrorMsg(null);
+    setGpsSuccessNote(null);
+    try {
+      const res = await getCurrentUserGPS();
+      setSelectedLocation(res.location);
+      setSelectedCityName(res.location.name);
+      saveUserDetectedLocation(res.location);
+      const sacred = getSacredLocationInfo(res.location);
+      setActiveSacredGeo(sacred);
+      setGpsSuccessNote(
+        `📍 स्थान पत्ता लाग्यो: ${res.location.name} (दूरी ~${res.distanceKm} कि.मी.)`
+      );
+    } catch (err: any) {
+      setErrorMsg(err.message || 'स्थान पत्ता लगाउन सकिएन।');
+    } finally {
+      setIsDetectingGPS(false);
     }
   };
 
@@ -271,6 +365,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
 
     // Save profile to store
     const savedProfile = saveProfile(newProfile);
+    saveUserDetectedLocation(selectedLocation);
 
     // 5. Register RBAC Account with birth details attached
     const regRes = registerRBACAccount({
@@ -749,27 +844,101 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
             </div>
 
             {/* Birth Location */}
-            <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                जन्म स्थान (Birth Place): *
-              </label>
+            <div className="p-3 bg-stone-50 dark:bg-stone-900/70 border border-stone-200 dark:border-stone-800 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5 text-xs">
+                  <MapPin className="w-4 h-4 text-[#7A1C1C] dark:text-amber-400" />
+                  <span>जन्म स्थान (Birth Place & Geolocation): *</span>
+                </label>
+              </div>
+
+              {/* 1-Click GPS Detect Button */}
+              <button
+                type="button"
+                onClick={handleDetectCurrentLocation}
+                disabled={isDetectingGPS}
+                className="w-full py-2 px-3 bg-gradient-to-r from-amber-100 to-orange-100 hover:from-amber-200 hover:to-orange-200 dark:from-stone-800 dark:to-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-xl text-amber-900 dark:text-amber-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98 disabled:opacity-50"
+              >
+                {isDetectingGPS ? (
+                  <>
+                    <Loader2 className="w-4 h-4 text-amber-700 animate-spin" />
+                    <span>GPS द्वारा स्थान पत्ता लगाइँदैछ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                    <span>🛰️ मेरो हालको स्थान पत्ता लगाउनुहोस् (Auto GPS)</span>
+                  </>
+                )}
+              </button>
+
+              {/* GPS Success Notification */}
+              {gpsSuccessNote && (
+                <div className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-lg text-emerald-800 dark:text-emerald-300 text-[11px] font-semibold flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                  <span>{gpsSuccessNote}</span>
+                </div>
+              )}
+
+              {/* District & City Selection Dropdown (77 Districts + World) */}
               <div className="relative">
-                <MapPin className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                <MapPin className="w-4 h-4 text-stone-400 absolute left-3 top-2.5 pointer-events-none" />
                 <select
                   value={selectedCityName}
                   onChange={e => handleCitySelect(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none"
+                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none text-xs font-medium"
                 >
-                  {POPULAR_NEPAL_CITIES.map(c => (
-                    <option key={c.name} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
+                  <optgroup label="⭐ प्रमुख शहरहरू (Popular Hubs)">
+                    {POPULAR_NEPAL_CITIES.map(c => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+
+                  {['कोशी प्रदेश', 'मधेश प्रदेश', 'बागमती प्रदेश', 'गण्डकी प्रदेश', 'लुम्बिनी प्रदेश', 'कर्णाली प्रदेश', 'सुदूरपश्चिम प्रदेश'].map(prov => {
+                    const dists = NEPAL_77_DISTRICTS.filter(d => d.province === prov);
+                    return (
+                      <optgroup key={prov} label={`🇳🇵 ${prov} (${dists.length} जिल्लाहरू)`}>
+                        {dists.map(d => {
+                          const val = `${d.headquarter}, ${d.district}`;
+                          return (
+                            <option key={d.district} value={val}>
+                              {d.district} — {d.headquarter} ({d.districtEn})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    );
+                  })}
+
+                  <optgroup label="🌐 अन्तर्राष्ट्रिय प्रमुख शहरहरू">
+                    {WORLD_LOCATIONS_DATA.filter(w => w.region !== 'nepal').slice(0, 15).map(w => (
+                      <option key={w.name} value={w.name}>
+                        {w.flag || '📍'} {w.name} ({w.country})
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
-              <p className="text-[10px] text-stone-400 mt-1">
-                अक्षांश: {selectedLocation.latitude.toFixed(2)}° N, देशान्तर: {selectedLocation.longitude.toFixed(2)}° E
-              </p>
+
+              {/* Dynamic Sacred Geography Card for selected place */}
+              <div className="p-2.5 rounded-xl bg-amber-50/80 dark:bg-stone-800/90 border border-amber-200 dark:border-stone-700 text-[11px] space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between text-stone-500 dark:text-stone-400 text-[10px]">
+                  <span>स्थान: {selectedLocation.name}</span>
+                  <span className="font-mono">
+                    {selectedLocation.latitude.toFixed(2)}° N, {selectedLocation.longitude.toFixed(2)}° E
+                  </span>
+                </div>
+                <div className="flex items-start gap-1 text-stone-800 dark:text-stone-200">
+                  <span className="text-amber-800 dark:text-amber-400 font-bold shrink-0">📍 पवित्र नदी:</span>
+                  <span className="font-semibold">{activeSacredGeo.riverNepali}</span>
+                </div>
+                <div className="flex items-start gap-1 text-stone-800 dark:text-stone-200">
+                  <span className="text-amber-800 dark:text-amber-400 font-bold shrink-0">🛕 प्रसिद्ध देवपीठ:</span>
+                  <span className="font-semibold">{activeSacredGeo.deityNepali}</span>
+                </div>
+              </div>
             </div>
 
             {/* Password */}

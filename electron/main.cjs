@@ -130,7 +130,9 @@ function createWindow() {
         {
           label: 'नयाँ अपडेट जाँच गर्नुहोस् (Check for Updates)',
           click: () => {
-            shell.openExternal('https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('trigger-check-updates');
+            }
           },
         },
         {
@@ -347,10 +349,10 @@ app.whenReady().then(() => {
       }
     });
 
-    // Run update check 3 seconds after window is ready
+    // Run update check 3.5 seconds after window is ready
     setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-        console.log('[AutoUpdater] Initial check caught:', err.message);
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.log('[AutoUpdater] Initial check caught:', err ? err.message : err);
       });
     }, 3500);
 
@@ -388,7 +390,7 @@ app.whenReady().then(() => {
         const os = require('os');
         const path = require('path');
 
-        const targetUrl = customUrl || 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/latest/download/nepali-vedic-jyotish-panchanga-setup-1.0.1.exe';
+        const targetUrl = customUrl || 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-setup-1.0.0.exe';
         const tempFilePath = path.join(os.tmpdir(), `nepali-vedic-setup-update-${Date.now()}.exe`);
 
         console.log('[InAppDownloader] Streaming update from:', targetUrl, 'to:', tempFilePath);
@@ -403,13 +405,18 @@ app.whenReady().then(() => {
         }
 
         const downloadWithRedirects = (url, depth = 0) => {
-          if (depth > 6) {
-            throw new Error('Too many redirects');
+          if (depth > 8) {
+            const err = new Error('Too many redirects');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('updater-status', { status: 'error', message: err.message });
+            }
+            return;
           }
           const client = url.startsWith('https:') ? https : http;
           client.get(url, { headers: { 'User-Agent': 'Nepali-Vedic-Desktop' } }, (res) => {
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-              return downloadWithRedirects(res.headers.location, depth + 1);
+              const redirectUrl = new URL(res.headers.location, url).toString();
+              return downloadWithRedirects(redirectUrl, depth + 1);
             }
 
             if (res.statusCode !== 200) {

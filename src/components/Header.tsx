@@ -30,6 +30,7 @@ import { PWAInstallButton } from './PWAInstallButton';
 import { TransitNotificationBell } from './TransitNotificationBell';
 import { LogoUploadModal } from './common/LogoUploadModal';
 import { getStoredCustomLogo, APP_LOGO_CHANGED_EVENT } from '../utils/logoManager';
+import { getStoredClientTheme } from '../utils/themeStore';
 
 interface HeaderProps {
   activeProfile?: BirthDetails | null;
@@ -91,16 +92,22 @@ export const Header: React.FC<HeaderProps> = memo(({
   const [badgeInfo, setBadgeInfo] = useState<SubscriptionBadgeInfo>(() => getSubscriptionBadgeInfo());
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
   const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(() => getStoredCustomLogo());
+  const [, setCurrentTheme] = useState(() => getStoredClientTheme());
 
   useEffect(() => {
     const handleLogoChange = (e: any) => {
       setCustomLogoUrl(e.detail?.logoUrl ?? getStoredCustomLogo());
     };
+    const handleThemeChange = () => {
+      setCurrentTheme(getStoredClientTheme());
+    };
     window.addEventListener(APP_LOGO_CHANGED_EVENT as any, handleLogoChange);
     window.addEventListener('storage', handleLogoChange);
+    window.addEventListener('client-theme-changed', handleThemeChange);
     return () => {
       window.removeEventListener(APP_LOGO_CHANGED_EVENT as any, handleLogoChange);
       window.removeEventListener('storage', handleLogoChange);
+      window.removeEventListener('client-theme-changed', handleThemeChange);
     };
   }, []);
 
@@ -158,14 +165,14 @@ export const Header: React.FC<HeaderProps> = memo(({
   };
 
   return (
-    <header className="text-[#2D241E] dark:text-stone-100 border-b border-[#E6E0D5]/70 dark:border-stone-800/70 transition-colors">
+    <header className="text-[var(--header-meta,#2D241E)] dark:text-[var(--header-meta,#F5F5F4)] border-b border-[#E6E0D5]/70 dark:border-stone-800/70 transition-colors shadow-xs">
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
         {/* Brand Logo & Name */}
         <div className="flex items-center gap-3">
           <div className="relative group shrink-0">
             <div 
               onClick={handleLogoClick} 
-              className="w-11 h-11 md:w-12 md:h-12 bg-white dark:bg-stone-800 border-2 border-amber-400/60 dark:border-amber-500/60 rounded-full flex items-center justify-center shadow-md overflow-hidden shrink-0 cursor-pointer hover:opacity-95 hover:scale-105 transition-all p-0.5 ring-2 ring-amber-400/20"
+              className="w-11 h-11 md:w-12 md:h-12 bg-white dark:bg-stone-800 border-2 border-[var(--header-logo-border,#F59E0B)] rounded-full flex items-center justify-center shadow-md overflow-hidden shrink-0 cursor-pointer hover:opacity-95 hover:scale-105 transition-all p-0.5 ring-2 ring-[var(--header-logo-ring,rgba(245,158,11,0.25))]"
               title="बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा (क्लिक गर्नुहोस्)"
             >
               <img 
@@ -184,7 +191,7 @@ export const Header: React.FC<HeaderProps> = memo(({
                 e.stopPropagation();
                 setIsLogoModalOpen(true);
               }}
-              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 hover:bg-amber-600 text-stone-950 flex items-center justify-center shadow-md border-2 border-white dark:border-stone-900 cursor-pointer hover:scale-115 transition-transform"
+              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[var(--header-accent,#F59E0B)] hover:brightness-110 text-stone-950 flex items-center justify-center shadow-md border-2 border-white dark:border-stone-900 cursor-pointer hover:scale-115 transition-transform"
               title="आफ्नो लोगो अपलोड वा परिवर्तन गर्नुहोस् (Upload Custom Logo)"
             >
               <Camera className="w-2.5 h-2.5" />
@@ -192,41 +199,41 @@ export const Header: React.FC<HeaderProps> = memo(({
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base sm:text-lg md:text-xl font-bold font-serif tracking-wide text-[#1A1A1A] dark:text-stone-100 flex items-center gap-2 flex-wrap">
+              <h1 className="text-base sm:text-lg md:text-xl font-bold font-serif tracking-wide text-[var(--header-title,#1A1A1A)] flex items-center gap-2 flex-wrap transition-colors drop-shadow-xs">
                 <span>{orgName}</span>
                 {badgeInfo.isPurchased && (
                   <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wider font-sans bg-gradient-to-r from-amber-500/25 to-orange-500/20 text-amber-900 dark:text-amber-200 border-2 border-amber-500/50 shadow-xs backdrop-blur-xs select-none cursor-default"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wider font-sans bg-[var(--header-badge-bg,rgba(217,119,6,0.2))] text-[var(--header-badge-text,#FFFBEB)] border-2 border-[var(--header-badge-border,rgba(245,158,11,0.5))] shadow-xs backdrop-blur-xs select-none cursor-default"
                     title={badgeInfo.tooltip}
                   >
-                    <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <Crown className="w-3.5 h-3.5 text-[var(--header-accent,#F59E0B)]" />
                     <span>{badgeInfo.text}</span>
                   </span>
                 )}
               </h1>
             </div>
-            <p className="text-xs font-semibold text-[#D97706] dark:text-amber-400 mt-0.5">
+            <p className="text-xs font-bold text-[var(--header-subtitle,#D97706)] mt-0.5 tracking-wide transition-colors">
               नेपालकै सबैभन्दा भरपर्दो वैदिक सेवा
             </p>
-            <div className="flex flex-wrap items-center gap-x-3 text-xs text-[#78716C] dark:text-stone-400 mt-0.5">
+            <div className="flex flex-wrap items-center gap-x-3 text-xs text-[var(--header-meta,#78716C)] mt-0.5 transition-colors">
               <button
                 type="button"
                 onClick={onOpenDateConverter}
-                className="flex items-center gap-1 hover:text-amber-700 dark:hover:text-amber-300 transition-colors cursor-pointer group"
+                className="flex items-center gap-1 hover:brightness-125 transition-all cursor-pointer group"
                 title="नेपाली मिति रूपान्तरण औजार खोल्नुहोस्"
               >
-                <Calendar className="w-3.5 h-3.5 text-[#D97706] group-hover:scale-110 transition-transform" />
+                <Calendar className="w-3.5 h-3.5 text-[var(--header-accent,#D97706)] group-hover:scale-110 transition-transform" />
                 <span>मिति:</span>
-                <strong className="text-[#2D241E] dark:text-stone-200 underline decoration-amber-500/40 underline-offset-2 group-hover:text-[#D97706]">{todayBS}</strong>
-                <ArrowRightLeft className="w-3 h-3 text-amber-600 opacity-60 group-hover:opacity-100 ml-0.5" />
+                <strong className="text-[var(--header-highlight,#2D241E)] underline decoration-current/40 underline-offset-2">{todayBS}</strong>
+                <ArrowRightLeft className="w-3 h-3 text-[var(--header-accent,#D97706)] opacity-70 group-hover:opacity-100 ml-0.5" />
               </button>
-              <span className="hidden md:inline">•</span>
+              <span className="hidden md:inline opacity-60">•</span>
               <a 
                 href={`tel:${orgPhone.replace(/[^0-9+]/g, '')}`} 
-                className="hidden md:flex items-center gap-1 text-[#D97706] hover:underline font-bold"
+                className="hidden md:flex items-center gap-1 text-[var(--header-subtitle,#D97706)] hover:underline font-bold"
                 title="सम्पर्क गर्नुहोस्"
               >
-                <Phone className="w-3.5 h-3.5" />
+                <Phone className="w-3.5 h-3.5 text-[var(--header-accent,#D97706)]" />
                 <span>{orgPhone}</span>
               </a>
             </div>
@@ -237,12 +244,12 @@ export const Header: React.FC<HeaderProps> = memo(({
         <div className="flex items-center gap-2 flex-wrap">
           {/* RBAC Session Status Button (when logged in) */}
           {rbacSession && (
-            <div className="flex items-center gap-2 bg-amber-500/10 dark:bg-amber-950/40 p-1.5 pl-3 rounded-2xl border border-amber-500/30 text-xs">
+            <div className="flex items-center gap-2 bg-[var(--header-btn-bg,rgba(255,255,255,0.9))] p-1.5 pl-3 rounded-2xl border border-[var(--header-btn-border,#E6E0D5)] text-xs shadow-xs backdrop-blur-md">
               <div className="text-left leading-tight">
-                <span className="font-bold text-stone-900 dark:text-stone-100 block truncate max-w-[120px]">
+                <span className="font-bold text-[var(--header-title,#1A1A1A)] block truncate max-w-[120px]">
                   {rbacSession.fullName}
                 </span>
-                <span className="text-[10px] font-mono text-[#D97706] font-bold block">
+                <span className="text-[10px] font-mono text-[var(--header-subtitle,#D97706)] font-bold block">
                   {rbacSession.roleNameNepali}
                 </span>
               </div>
@@ -294,12 +301,12 @@ export const Header: React.FC<HeaderProps> = memo(({
             <button
               type="button"
               onClick={() => onNavigateToAdmin('client_approvals')}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500/15 via-red-500/10 to-amber-500/15 hover:from-amber-500/25 hover:to-red-500/25 text-[#7A1C1C] dark:text-amber-300 font-bold text-xs rounded-xl border border-amber-400/50 dark:border-amber-600/50 shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[var(--header-btn-bg,rgba(255,255,255,0.9))] hover:bg-[var(--header-btn-hover,#F5F5F4)] text-[var(--header-title,#1A1A1A)] font-bold text-xs rounded-xl border border-[var(--header-btn-border,#E6E0D5)] shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0 backdrop-blur-md"
               title="सुपरएडमिन नियन्त्रण कक्ष तथा खरिद आवेदन स्वीकृति (Superadmin Approval Portal)"
             >
-              <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/30 shrink-0" />
+              <Crown className="w-3.5 h-3.5 text-[var(--header-accent,#D97706)] fill-current shrink-0" />
               <span className="hidden sm:inline">सुपरएडमिन</span>
-              <span className="px-1.5 py-0.2 bg-amber-500 text-stone-950 text-[10px] font-black rounded-md">
+              <span className="px-1.5 py-0.2 bg-[var(--header-accent,#D97706)] text-stone-950 text-[10px] font-black rounded-md">
                 स्वीकृति
               </span>
             </button>
@@ -307,23 +314,26 @@ export const Header: React.FC<HeaderProps> = memo(({
 
           {/* Settings Button */}
           <button
+            type="button"
             onClick={onOpenSettings}
-            className="p-2 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-xl border border-[#E6E0D5] dark:border-stone-700 text-[#78716C] dark:text-stone-300 hover:text-[#1a1a1a] transition-colors shadow-sm"
+            className="p-2 bg-[var(--header-btn-bg,rgba(255,255,255,0.9))] hover:bg-[var(--header-btn-hover,#F5F5F4)] rounded-xl border border-[var(--header-btn-border,#E6E0D5)] text-[var(--header-btn-text,#78716C)] hover:text-[var(--header-title,#1A1A1A)] transition-all shadow-sm hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md"
             title="सेटिङहरू"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4 h-4 text-current" />
           </button>
 
-          {/* Theme Toggle Button */}
+          {/* Theme Toggle Button (Light/Dark Mode) */}
           <button
+            type="button"
             onClick={onToggleTheme}
-            className="p-2 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-xl border border-[#E6E0D5] dark:border-stone-700 text-[#78716C] dark:text-stone-300 hover:text-[#1a1a1a] transition-colors shadow-sm"
-            title="लाइट/डार्क मोड फेर्नुहोस्"
+            className="p-2 bg-[var(--header-btn-bg,rgba(255,255,255,0.9))] hover:bg-[var(--header-btn-hover,#F5F5F4)] rounded-xl border border-[var(--header-btn-border,#E6E0D5)] text-[var(--header-btn-text,#78716C)] hover:text-[var(--header-title,#1A1A1A)] transition-all shadow-sm hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md group"
+            title={settings.themeMode === 'dark' ? 'लाइट मोडमा जानुहोस् (Switch to Light Mode)' : 'डार्क मोडमा जानुहोस् (Switch to Dark Mode)'}
+            aria-label="Toggle Light and Dark Mode"
           >
             {settings.themeMode === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
+              <Sun className="w-4 h-4 text-amber-300 animate-pulse group-hover:rotate-45 transition-transform" />
             ) : (
-              <Moon className="w-4 h-4 text-stone-600" />
+              <Moon className="w-4 h-4 text-current group-hover:-rotate-12 transition-transform" />
             )}
           </button>
         </div>

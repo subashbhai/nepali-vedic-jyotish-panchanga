@@ -4,8 +4,9 @@
  * Graha positions (planetary transits), and geographical sacred coordinates (Country, District, Sacred River, Deity).
  */
 
-import { PanchangaData, BirthDetails, PlanetPosition } from '../types/astrology';
+import { PanchangaData, BirthDetails, PlanetPosition, LocationData } from '../types/astrology';
 import { toDevanagariNumerals } from './nepaliCalendar';
+import { calculateGeoDistanceKm, getStoredUserLocation } from './geoLocationHelper';
 
 export interface SacredLocationInfo {
   countrySanskrit: string; // e.g. नेपाल देशे
@@ -17,241 +18,985 @@ export interface SacredLocationInfo {
   deityNepali: string;
 }
 
-// Database of Nepal Districts to Sacred Rivers and Pilgrimage Deity Shrines
-const NEPAL_SACRED_GEOGRAPHY: Record<string, {
+export interface SacredGeoDefinition {
+  district: string;
   subdivision: string;
   locality: string;
   riverSanskrit: string;
   deitySanskrit: string;
   riverNepali: string;
   deityNepali: string;
-}> = {
-  // Kathmandu Valley
-  'काठमाडौँ': {
-    subdivision: 'बागमती मण्डले',
-    locality: 'काष्ठमण्डप नगरे',
-    riverSanskrit: 'पवित्र बागमती-विष्णुमती-मनोहरा पुण्यतीर्थे',
-    deitySanskrit: 'श्रीपशुपतिनाथ-गुह्येश्वरी-स्वयम्भू चरणसन्निधौ',
-    riverNepali: 'बागमती र विष्णुमती नदी',
-    deityNepali: 'श्री पशुपतिनाथ तथा गुह्येश्वरी'
+  lat: number;
+  lon: number;
+  aliases: string[];
+}
+
+/**
+ * Comprehensive Sacred Geography of Nepal (नेपालका ७७ वटै जिल्लाका पवित्र नदी, तीर्थ तथा प्रसिद्ध देवपीठ/मन्दिर)
+ * Shastra-compliant Sanskrit declarations & authentic Nepali names with geographic coordinates.
+ */
+export const NEPAL_SACRED_GEOGRAPHY: Record<string, SacredGeoDefinition> = {
+  // ==========================================
+  // कोशी प्रदेश (KOSHI PROVINCE - 14 Districts)
+  // ==========================================
+  'झापा': {
+    district: 'झापा',
+    subdivision: 'कोशी मण्डले',
+    locality: 'भद्रपुर-विर्तामोड क्षेत्रे',
+    riverSanskrit: 'पवित्र मेची-कन्काई-विरिङ पुण्यतीर्थे',
+    deitySanskrit: 'श्रीअर्जुनधारा-सताक्षीधाम-किच्चकवध चरणसन्निधौ',
+    riverNepali: 'मेची, कन्काई र विरिङ नदी',
+    deityNepali: 'श्री अर्जुनधारा तथा सताक्षीधाम',
+    lat: 26.6333,
+    lon: 87.9833,
+    aliases: ['झापा', 'jhapa', 'birtamode', 'विर्तामोड', 'bhadrapur', 'भद्रपुर', 'damak', 'दमक', 'kakarbhitta', 'काँकडभिट्टा']
   },
-  'काठमाडौं': {
+  'मोरङ': {
+    district: 'मोरङ',
+    subdivision: 'कोशी मण्डले',
+    locality: 'विराटनगर नगरे',
+    riverSanskrit: 'पवित्र बक्राहा-केशल्या नदीतीरे विराटक्षेत्रे',
+    deitySanskrit: 'श्रीविराटेश्वर महादेव-काली मन्दिर चरणसन्निधौ',
+    riverNepali: 'बक्राहा र केशल्या नदी',
+    deityNepali: 'श्री विराटेश्वर महादेव तथा काली मन्दिर',
+    lat: 26.4525,
+    lon: 87.2718,
+    aliases: ['मोरङ', 'morang', 'biratnagar', 'विराटनगर', 'बिराटनगर', 'urlabari', 'उर्लाबारी']
+  },
+  'सुनसरी': {
+    district: 'सुनसरी',
+    subdivision: 'कोशी मण्डले',
+    locality: 'धरान-इटहरी-वराहक्षेत्रे',
+    riverSanskrit: 'पवित्र सप्तकोशीतीरे पिण्डेश्वर-कौशिकी पुण्यतीर्थे',
+    deitySanskrit: 'श्रीवराहक्षेत्र-दन्तकाली-पिण्डेश्वर चरणसन्निधौ',
+    riverNepali: 'सप्तकोशी नदी र वराहक्षेत्र',
+    deityNepali: 'श्री वराहक्षेत्र, दन्तकाली तथा पिण्डेश्वर',
+    lat: 26.8125,
+    lon: 87.2833,
+    aliases: ['सुनसरी', 'sunsari', 'dharan', 'धरान', 'itahari', 'इटहरी', 'barahachhetra', 'वराहक्षेत्र', 'inaruwa', 'इनरुवा']
+  },
+  'इलाम': {
+    district: 'इलाम',
+    subdivision: 'कोशी मण्डले',
+    locality: 'इलाम नगरे',
+    riverSanskrit: 'पवित्र माईखोला-जोगमाई पुण्यजलाशयक्षेत्रे',
+    deitySanskrit: 'श्रीमाईपोखरी-गजुरमुखी-सिंहवाहिनी भगवती चरणसन्निधौ',
+    riverNepali: 'माईखोला र जोगमाई',
+    deityNepali: 'श्री माईपोखरी तथा गजुरमुखी',
+    lat: 26.9111,
+    lon: 87.9231,
+    aliases: ['इलाम', 'ilam', 'pashupatinagar', 'पशुपतिनगर', 'maipokhari', 'माईपोखरी']
+  },
+  'पाँचथर': {
+    district: 'पाँचथर',
+    subdivision: 'कोशी मण्डले',
+    locality: 'फिदिम नगरे',
+    riverSanskrit: 'पवित्र हेँवाखोला-काबेली पुण्यतीर्थे',
+    deitySanskrit: 'श्रीलब्रेकुटी-फिदिम शिवालय चरणसन्निधौ',
+    riverNepali: 'हेँवाखोला र काबेली नदी',
+    deityNepali: 'श्री लब्रेकुटी तथा फिदिम शिवालय',
+    lat: 27.1500,
+    lon: 87.7500,
+    aliases: ['पाँचथर', 'panchthar', 'phidim', 'फिदिम']
+  },
+  'ताप्लेजुङ': {
+    district: 'ताप्लेजुङ',
+    subdivision: 'कोशी मण्डले',
+    locality: 'फुङलिङ पाथिभरा क्षेत्रे',
+    riverSanskrit: 'पवित्र तमोर नदीतीरे पाथिभरा पुण्यशिखरे',
+    deitySanskrit: 'श्रीमहाशक्तियुक्ता पाथिभरा देवी चरणसन्निधौ',
+    riverNepali: 'तमोर नदी',
+    deityNepali: 'श्री पाथिभरा देवी भगवती',
+    lat: 27.3500,
+    lon: 87.6667,
+    aliases: ['ताप्लेजुङ', 'taplejung', 'fungling', 'फुङलिङ', 'pathibhara', 'पाथिभरा']
+  },
+  'सङ्खुवासभा': {
+    district: 'सङ्खुवासभा',
+    subdivision: 'कोशी मण्डले',
+    locality: 'खाँदबारी नगरे',
+    riverSanskrit: 'पवित्र अरुण नदीतीरे शिवधारा क्षेत्रे',
+    deitySanskrit: 'श्रीशिवधारा-मनकामना महादेव चरणसन्निधौ',
+    riverNepali: 'अरुण नदी',
+    deityNepali: 'श्री शिवधारा तथा मनकामना',
+    lat: 27.3750,
+    lon: 87.2167,
+    aliases: ['सङ्खुवासभा', 'संखुवासभा', 'sankhuwasabha', 'khandbari', 'खाँदबारी']
+  },
+  'तेह्रथुम': {
+    district: 'तेह्रथुम',
+    subdivision: 'कोशी मण्डले',
+    locality: 'म्याङलुङ नगरे',
+    riverSanskrit: 'पवित्र मयाङखोला-तमोर नदीतीरे',
+    deitySanskrit: 'श्रीसिद्धकाली भगवती चरणसन्निधौ',
+    riverNepali: 'मयाङखोला र तमोर',
+    deityNepali: 'श्री सिद्धकाली मन्दिर',
+    lat: 27.1333,
+    lon: 87.5333,
+    aliases: ['तेह्रथुम', 'tehrathum', 'myanglung', 'म्याङलुङ']
+  },
+  'धनकुटा': {
+    district: 'धनकुटा',
+    subdivision: 'कोशी मण्डले',
+    locality: 'धनकुटा नगरे',
+    riverSanskrit: 'पवित्र तमोर नदीतीरे विश्रान्ति क्षेत्रे',
+    deitySanskrit: 'श्रीनिशान भगवती-विश्रान्ति मन्दिर चरणसन्निधौ',
+    riverNepali: 'तमोर नदी',
+    deityNepali: 'श्री निशान भगवती तथा विश्रान्ति',
+    lat: 26.9833,
+    lon: 87.3333,
+    aliases: ['धनकुटा', 'dhankuta', 'bhedetar', 'भेडेटार']
+  },
+  'भोजपुर': {
+    district: 'भोजपुर',
+    subdivision: 'कोशी मण्डले',
+    locality: 'भोजपुर नगरे',
+    riverSanskrit: 'पवित्र अरुण-सुनकोशी पुण्यतीर्थे',
+    deitySanskrit: 'श्रीसिद्धकाली-टक्सार गणेश चरणसन्निधौ',
+    riverNepali: 'अरुण र सुनकोशी नदी',
+    deityNepali: 'श्री सिद्धकाली तथा टक्सार गणेश',
+    lat: 27.1708,
+    lon: 87.0458,
+    aliases: ['भोजपुर', 'bhojpur', 'taksar', 'टक्सार']
+  },
+  'खोटाङ': {
+    district: 'खोटाङ',
+    subdivision: 'कोशी मण्डले',
+    locality: 'हलेसी धाम क्षेत्रे',
+    riverSanskrit: 'पवित्र दूधकोशी-सुनकोशी सङ्गमतीर्थे',
+    deitySanskrit: 'श्रीहलेसी महादेव (पूर्वको पशुपतिनाथ) चरणसन्निधौ',
+    riverNepali: 'दूधकोशी र सुनकोशी नदी',
+    deityNepali: 'श्री हलेसी महादेव (पूर्वको पशुपति)',
+    lat: 27.2000,
+    lon: 86.7833,
+    aliases: ['खोटाङ', 'khotang', 'halesi', 'हलेसी', 'diktel', 'दिक्तेल']
+  },
+  'सोलुखुम्बु': {
+    district: 'सोलुखुम्बु',
+    subdivision: 'कोशी मण्डले',
+    locality: 'सगरमाथा पावनक्षेत्रे',
+    riverSanskrit: 'पवित्र दूधकोशी-इम्जाखोला हिमवत्पुण्यतीर्थे',
+    deitySanskrit: 'श्रीत्याङबोचे-ज्वालामुखी महादेव चरणसन्निधौ',
+    riverNepali: 'दूधकोशी र इम्जा खोला',
+    deityNepali: 'श्री त्याङबोचे तथा सगरमाथा क्षेत्र',
+    lat: 27.5000,
+    lon: 86.5833,
+    aliases: ['सोलुखुम्बु', 'solukhumbu', 'salleri', 'सल्लेरी', 'namche', 'नाम्चे', 'lukla', 'लुक्ला']
+  },
+  'ओखलढुङ्गा': {
+    district: 'ओखलढुङ्गा',
+    subdivision: 'कोशी मण्डले',
+    locality: 'ओखलढुङ्गा नगरे',
+    riverSanskrit: 'पवित्र लिखु-सुनकोशी पुण्यतीर्थे',
+    deitySanskrit: 'श्रीककनी देवी-पोकली भगवती चरणसन्निधौ',
+    riverNepali: 'लिखु र सुनकोशी नदी',
+    deityNepali: 'श्री ककनी देवी तथा पोकली',
+    lat: 27.3167,
+    lon: 86.5000,
+    aliases: ['ओखलढुङ्गा', 'okhaldhunga', 'pokali', 'पोकली']
+  },
+  'उदयपुर': {
+    district: 'उदयपुर',
+    subdivision: 'कोशी मण्डले',
+    locality: 'गाईघाट त्रियुगा क्षेत्रे',
+    riverSanskrit: 'पवित्र त्रियुगा-सप्तकोशी पुण्यतीर्थे',
+    deitySanskrit: 'श्रीरौतापोखरी भगवती-चौदण्डीगढी चरणसन्निधौ',
+    riverNepali: 'त्रियुगा र सप्तकोशी नदी',
+    deityNepali: 'श्री रौतापोखरी तथा चौदण्डीगढी',
+    lat: 26.7900,
+    lon: 86.7000,
+    aliases: ['उदयपुर', 'udayapur', 'gaighat', 'गाईघाट', 'rautapokhari', 'रौतापोखरी']
+  },
+
+  // ==========================================
+  // मधेश प्रदेश (MADHESH PROVINCE - 8 Districts)
+  // ==========================================
+  'सप्तरी': {
+    district: 'सप्तरी',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'राजविराज छिन्नमस्ता क्षेत्रे',
+    riverSanskrit: 'पवित्र कोशी-खाँडो नदीतीरे छिन्नमस्ता पीठक्षेत्रे',
+    deitySanskrit: 'श्रीछिन्नमस्ता भगवती (सखडा) चरणसन्निधौ',
+    riverNepali: 'सप्तकोशी र खाँडो नदी',
+    deityNepali: 'श्री छिन्नमस्ता भगवती (सखडा)',
+    lat: 26.5417,
+    lon: 86.7500,
+    aliases: ['सप्तरी', 'saptari', 'rajbiraj', 'राजविराज', 'chhinnamasta', 'छिन्नमस्ता']
+  },
+  'सिराहा': {
+    district: 'सिराहा',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'लहान-सिराहा क्षेत्रे',
+    riverSanskrit: 'पवित्र कमला-बलान नदीतीरे',
+    deitySanskrit: 'श्रीकमलामाई-सलहेश फूलबारी चरणसन्निधौ',
+    riverNepali: 'कमला र बलान नदी',
+    deityNepali: 'श्री कमलामाई तथा राजा सलहेश',
+    lat: 26.6500,
+    lon: 86.2000,
+    aliases: ['सिराहा', 'siraha', 'lahan', 'लहान']
+  },
+  'धनुषा': {
+    district: 'धनुषा',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'जनकपुरधाम विदेहक्षेत्रे',
+    riverSanskrit: 'पवित्र दुग्धमती नदीतीरे गङ्गासागर-धनुषसागर पुण्यतीर्थे',
+    deitySanskrit: 'श्रीमज्जगज्जननी जानकी-श्रीरामचन्द्र चरणसन्निधौ',
+    riverNepali: 'दुग्धमती नदी र गङ्गासागर',
+    deityNepali: 'श्री जानकी मन्दिर तथा राम मन्दिर',
+    lat: 26.7271,
+    lon: 85.9231,
+    aliases: ['धनुषा', 'dhanusha', 'janakpur', 'जनकपुर', 'janakpurdham', 'जनकपुरधाम']
+  },
+  'महोत्तरी': {
+    district: 'महोत्तरी',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'जलेश्वरनाथ क्षेत्रे',
+    riverSanskrit: 'पवित्र रातो-विगही नदीतीरे जलेश्वर तीर्थे',
+    deitySanskrit: 'श्रीजलेश्वरनाथ महादेव चरणसन्निधौ',
+    riverNepali: 'रातो र विगही नदी',
+    deityNepali: 'श्री जलेश्वरनाथ महादेव',
+    lat: 26.6500,
+    lon: 85.8000,
+    aliases: ['महोत्तरी', 'mahottari', 'jaleshwor', 'जलेश्वर', 'bardibas', 'बर्दिबास']
+  },
+  'सर्लाही': {
+    district: 'सर्लाही',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'मलङ्गवा क्षेत्रे',
+    riverSanskrit: 'पवित्र बागमती-लखनदेही नदीतीरे',
+    deitySanskrit: 'श्रीचतुर्भुज नारायण-नाढीमन ताल चरणसन्निधौ',
+    riverNepali: 'बागमती र लखनदेही नदी',
+    deityNepali: 'श्री चतुर्भुज नारायण मन्दिर',
+    lat: 26.8500,
+    lon: 85.5500,
+    aliases: ['सर्लाही', 'sarlahi', 'malangwa', 'मलङ्गवा', 'barahathawa', 'बरहथवा']
+  },
+  'रौतहट': {
+    district: 'रौतहट',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'गौर-शिवनगर क्षेत्रे',
+    riverSanskrit: 'पवित्र बागमती-लालबकैया नदीतीरे',
+    deitySanskrit: 'श्रीशिवनगर महादेव मन्दिर चरणसन्निधौ',
+    riverNepali: 'बागमती र लालबकैया नदी',
+    deityNepali: 'श्री शिवनगर महादेव',
+    lat: 26.7667,
+    lon: 85.2833,
+    aliases: ['रौतहट', 'rautahat', 'gaur', 'गौर', 'chandrapur', 'चन्द्रपुर']
+  },
+  'बारा': {
+    district: 'बारा',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'सिम्रौनगढ-गढीमाई क्षेत्रे',
+    riverSanskrit: 'पवित्र पसाहा-बकैया नदीतीरे गढीमाई शक्तिपीठक्षेत्रे',
+    deitySanskrit: 'श्रीगढीमाई भगवती-कङ्काली माई चरणसन्निधौ',
+    riverNepali: 'पसाहा र बकैया नदी',
+    deityNepali: 'श्री गढीमाई भगवती तथा कङ्काली',
+    lat: 27.0333,
+    lon: 85.0000,
+    aliases: ['बारा', 'bara', 'kalaiya', 'कलैया', 'gadhimai', 'गढीमाई', 'simara', 'सिमरा']
+  },
+  'पर्सा': {
+    district: 'पर्सा',
+    subdivision: 'मधेश प्रदेशे',
+    locality: 'वीरगञ्ज नगरे',
+    riverSanskrit: 'पवित्र सिर्सिया नदीतीरे गहवामाई क्षेत्रे',
+    deitySanskrit: 'श्रीगहवामाई भगवती-विन्ध्यवासिनी चरणसन्निधौ',
+    riverNepali: 'सिर्सिया नदी',
+    deityNepali: 'श्री गहवामाई तथा विन्ध्यवासिनी',
+    lat: 27.0000,
+    lon: 84.8667,
+    aliases: ['पर्सा', 'parsa', 'birgunj', 'वीरगञ्ज', 'बिरगन्ज']
+  },
+
+  // ==========================================
+  // बागमती प्रदेश (BAGMATI PROVINCE - 13 Districts)
+  // ==========================================
+  'काठमाडौँ': {
+    district: 'काठमाडौँ',
     subdivision: 'बागमती मण्डले',
     locality: 'काष्ठमण्डप नगरे',
     riverSanskrit: 'पवित्र बागमती-विष्णुमती-मनोहरा पुण्यतीर्थे',
     deitySanskrit: 'श्रीपशुपतिनाथ-गुह्येश्वरी-स्वयम्भू चरणसन्निधौ',
     riverNepali: 'बागमती र विष्णुमती नदी',
-    deityNepali: 'श्री पशुपतिनाथ तथा गुह्येश्वरी'
+    deityNepali: 'श्री पशुपतिनाथ तथा गुह्येश्वरी',
+    lat: 27.7172,
+    lon: 85.3240,
+    aliases: ['काठमाडौँ', 'काठमाडौं', 'kathmandu', 'ktm', 'काष्ठमण्डप', 'thamel', 'बानेश्वर']
   },
   'ललितपुर': {
+    district: 'ललितपुर',
     subdivision: 'बागमती मण्डले',
     locality: 'ललितपत्तन नगरे',
     riverSanskrit: 'पवित्र बागमती-गोदावरी पुण्यसलिला क्षेत्रे',
     deitySanskrit: 'श्रीकृष्ण-रातोमच्छिन्द्रनाथ चरणसन्निधौ',
     riverNepali: 'बागमती र गोदावरी खोला',
-    deityNepali: 'श्रीकृष्ण मन्दिर तथा पाटन दरबार क्षेत्र'
+    deityNepali: 'श्रीकृष्ण मन्दिर तथा पाटन दरबार क्षेत्र',
+    lat: 27.6644,
+    lon: 85.3188,
+    aliases: ['ललितपुर', 'lalitpur', 'patan', 'पाटन', 'godawari', 'गोदावरी', 'pulchowk', 'पुल्चोक']
   },
   'भक्तपुर': {
+    district: 'भक्तपुर',
     subdivision: 'बागमती मण्डले',
     locality: 'भक्तपुर भादगाउँ नगरे',
     riverSanskrit: 'पवित्र हनुमन्ते-मनोहरा पुण्यतीर्थे',
     deitySanskrit: 'श्रीचाँगुनारायण-दत्तात्रेय-नवदुर्गा चरणसन्निधौ',
     riverNepali: 'हनुमन्ते र मनोहरा नदी',
-    deityNepali: 'श्री चाँगुनारायण तथा दत्तात्रेय'
+    deityNepali: 'श्री चाँगुनारायण तथा दत्तात्रेय',
+    lat: 27.6710,
+    lon: 85.4298,
+    aliases: ['भक्तपुर', 'bhaktapur', 'bhadgaon', 'भादगाउँ', 'changunarayan', 'चाँगुनारायण', 'suryabinayak', 'सूर्यविनायक']
   },
-
-  // Gandaki / Pokhara
-  'कास्की': {
-    subdivision: 'गण्डकी प्रदेशे',
-    locality: 'पोखरा नगरे',
-    riverSanskrit: 'पवित्र सेतीगण्डकीतीरे फेवाताल पुण्यजलाशयक्षेत्रे',
-    deitySanskrit: 'श्रीविन्ध्यवासिनी-तालवाराही भगवती चरणसन्निधौ',
-    riverNepali: 'सेतीगण्डकी र फेवाताल',
-    deityNepali: 'श्री विन्ध्यवासिनी तथा तालवाराही'
-  },
-  'पोखरा': {
-    subdivision: 'गण्डकी प्रदेशे',
-    locality: 'पोखरा नगरे',
-    riverSanskrit: 'पवित्र सेतीगण्डकीतीरे फेवाताल पुण्यजलाशयक्षेत्रे',
-    deitySanskrit: 'श्रीविन्ध्यवासिनी-तालवाराही भगवती चरणसन्निधौ',
-    riverNepali: 'सेतीगण्डकी र फेवाताल',
-    deityNepali: 'श्री विन्ध्यवासिनी तथा तालवाराही'
-  },
-
-  // Chitwan & Nawalparasi
-  'चितवन': {
+  'काभ्रेपलाञ्चोक': {
+    district: 'काभ्रेपलाञ्चोक',
     subdivision: 'बागमती मण्डले',
-    locality: 'भरतपुर-नारायणगढ क्षेत्रे',
+    locality: 'बनेपा-धुलिखेल क्षेत्रे',
+    riverSanskrit: 'पवित्र रोशी-पुण्यमाता नदीतीरे चण्डेश्वरी पीठक्षेत्रे',
+    deitySanskrit: 'श्रीचण्डेश्वरी भगवती-धनेश्वर महादेव चरणसन्निधौ',
+    riverNepali: 'रोशी र पुण्यमाता नदी',
+    deityNepali: 'श्री चण्डेश्वरी तथा धनेश्वर महादेव',
+    lat: 27.6167,
+    lon: 85.5500,
+    aliases: ['काभ्रेपलाञ्चोक', 'काभ्रे', 'kavre', 'kavrepalanchok', 'banepa', 'बनेपा', 'dhulikhel', 'धुलिखेल', 'panauti', 'पनौती']
+  },
+  'सिन्धुपाल्चोक': {
+    district: 'सिन्धुपाल्चोक',
+    subdivision: 'बागमती मण्डले',
+    locality: 'हेलम्बु-चौतारा क्षेत्रे',
+    riverSanskrit: 'पवित्र भोटेकोशी-इन्द्रावती सङ्गमतीर्थे',
+    deitySanskrit: 'श्रीगौराती भीमेश्वर-पाल्चोक भगवती चरणसन्निधौ',
+    riverNepali: 'भोटेकोशी र इन्द्रावती नदी',
+    deityNepali: 'श्री गौराती भीमेश्वर तथा पाल्चोक भगवती',
+    lat: 27.7667,
+    lon: 85.7167,
+    aliases: ['सिन्धुपाल्चोक', 'sindhupalchok', 'chautara', 'चौतारा', 'melamchi', 'मेलम्ची']
+  },
+  'दोलखा': {
+    district: 'दोलखा',
+    subdivision: 'बागमती मण्डले',
+    locality: 'दोलखा भीमेश्वर क्षेत्रे',
+    riverSanskrit: 'पवित्र तामाकोशी नदीतीरे भीमेश्वर धामक्षेत्रे',
+    deitySanskrit: 'श्रीदोलखा भीमसेन (भीमेश्वर) चरणसन्निधौ',
+    riverNepali: 'तामाकोशी नदी',
+    deityNepali: 'श्री दोलखा भीमसेन',
+    lat: 27.6667,
+    lon: 86.0500,
+    aliases: ['दोलखा', 'dolkha', 'charikot', 'चरीकोट', 'bhimeshwar', 'भीमेश्वर']
+  },
+  'रामेछाप': {
+    district: 'रामेछाप',
+    subdivision: 'बागमती मण्डले',
+    locality: 'मन्थली-खाँडादेवी क्षेत्रे',
+    riverSanskrit: 'पवित्र तामाकोशी-सुनकोशी सङ्गमतीर्थे',
+    deitySanskrit: 'श्रीखाँडादेवी भगवती चरणसन्निधौ',
+    riverNepali: 'तामाकोशी र सुनकोशी नदी',
+    deityNepali: 'श्री खाँडादेवी भगवती',
+    lat: 27.3333,
+    lon: 86.0833,
+    aliases: ['रामेछाप', 'ramechhap', 'manthali', 'मन्थली', 'khandadevi', 'खाँडादेवी']
+  },
+  'सिन्धुली': {
+    district: 'सिन्धुली',
+    subdivision: 'बागमती मण्डले',
+    locality: 'सिन्धुलीगढी क्षेत्रे',
+    riverSanskrit: 'पवित्र कमला-मरिण नदीतीरे',
+    deitySanskrit: 'श्रीभद्रकाली-कमलामाई चरणसन्निधौ',
+    riverNepali: 'कमला र मरिण नदी',
+    deityNepali: 'श्री भद्रकाली तथा कमलामाई',
+    lat: 27.2500,
+    lon: 85.9167,
+    aliases: ['सिन्धुली', 'sindhuli', 'kamalamai', 'कमलामाई']
+  },
+  'नुवाकोट': {
+    district: 'नुवाकोट',
+    subdivision: 'बागमती मण्डले',
+    locality: 'ऐतिहासिक नुवाकोट क्षेत्रे',
+    riverSanskrit: 'पवित्र त्रिशूली-तादी नदीतीरे भैरवी क्षेत्रे',
+    deitySanskrit: 'श्रीनिरञ्जना भैरवी भगवती चरणसन्निधौ',
+    riverNepali: 'त्रिशूली र तादी नदी',
+    deityNepali: 'श्री नुवाकोट भैरवी भगवती',
+    lat: 27.9167,
+    lon: 85.1667,
+    aliases: ['नुवाकोट', 'nuwakot', 'bidur', 'विदुर', 'battar', 'बट्टार']
+  },
+  'रसुवा': {
+    district: 'रसुवा',
+    subdivision: 'बागमती मण्डले',
+    locality: 'गोसाइँकुण्ड पावनतीर्थे',
+    riverSanskrit: 'पवित्र त्रिशूली नदी उद्गम गोसाइँकुण्ड सरोवरे',
+    deitySanskrit: 'श्रीगोसाइँकुण्डेश्वर नीलकण्ठ महादेव चरणसन्निधौ',
+    riverNepali: 'त्रिशूली नदी र गोसाइँकुण्ड',
+    deityNepali: 'श्री गोसाइँकुण्ड महादेव',
+    lat: 28.1167,
+    lon: 85.3000,
+    aliases: ['रसुवा', 'rasuwa', 'gosaikunda', 'गोसाइँकुण्ड', 'dhunche', 'धुन्चे']
+  },
+  'धादिङ': {
+    district: 'धादिङ',
+    subdivision: 'बागमती मण्डले',
+    locality: 'धादिङ त्रिपुरासुन्दरी क्षेत्रे',
+    riverSanskrit: 'पवित्र त्रिशूली-आँखुखोला सङ्गमक्षेत्रे',
+    deitySanskrit: 'श्रीत्रिपुरासुन्दरी भगवती चरणसन्निधौ',
+    riverNepali: 'त्रिशूली र आँखुखोला',
+    deityNepali: 'श्री त्रिपुरासुन्दरी भगवती',
+    lat: 27.8667,
+    lon: 84.9000,
+    aliases: ['धादिङ', 'dhading', 'tripurasundari', 'त्रिपुरासुन्दरी']
+  },
+  'मकवानपुर': {
+    district: 'मकवानपुर',
+    subdivision: 'बागमती मण्डले',
+    locality: 'हेटौँडा नगरे',
+    riverSanskrit: 'पवित्र सामरी-कर्रा-राप्ती नदीतीरे',
+    deitySanskrit: 'श्रीभुटनदेवी-चुरियामाई चरणसन्निधौ',
+    riverNepali: 'सामरी र कर्रा खोला',
+    deityNepali: 'श्री भुटनदेवी तथा चुरियामाई',
+    lat: 27.4167,
+    lon: 85.0333,
+    aliases: ['मकवानपुर', 'makwanpur', 'hetauda', 'हेटौँडा', 'भिमफेदी']
+  },
+  'चितवन': {
+    district: 'चितवन',
+    subdivision: 'बागमती मण्डले',
+    locality: 'देवघाट-भरतपुर क्षेत्रे',
     riverSanskrit: 'पवित्र नारायणी-सप्तगण्डकी-त्रिशूली देवघाट सङ्गमपुण्यतीर्थे',
     deitySanskrit: 'श्रीहरिहरक्षेत्र-मौलाकालिका भगवती चरणसन्निधौ',
     riverNepali: 'नारायणी नदी र देवघाट सङ्गम',
-    deityNepali: 'श्री देवघाटधाम तथा मौलाकालिका'
-  },
-  'नवलपरासी': {
-    subdivision: 'गण्डकी-लुम्बिनी प्रदेशे',
-    locality: 'नवलपरासी क्षेत्रे',
-    riverSanskrit: 'पवित्र नारायणी-त्रिवेणी सङ्गमपुण्यतीर्थे',
-    deitySanskrit: 'श्रीत्रिवेणीधाम-वाल्मीकि आश्रम चरणसन्निधौ',
-    riverNepali: 'नारायणी नदी र त्रिवेणी धाम',
-    deityNepali: 'श्री त्रिवेणीधाम तथा गजेन्द्रमोक्ष'
+    deityNepali: 'श्री देवघाटधाम तथा मौलाकालिका',
+    lat: 27.6833,
+    lon: 84.4333,
+    aliases: ['चितवन', 'chitwan', 'bharatpur', 'भरतपुर', 'narayangarh', 'नारायणगढ', 'devghat', 'देवघाट']
   },
 
-  // Lumbini / Rupandehi
-  'रुपन्देही': {
-    subdivision: 'लुम्बिनी मण्डले',
-    locality: 'बुटवल-भैरहवा नगरे',
-    riverSanskrit: 'पवित्र तिनाउ-दानव नदीतीरे लुम्बिनी तपोभूमि क्षेत्रे',
-    deitySanskrit: 'श्रीमायादेवी-सिद्धबाबा चरणसन्निधौ',
-    riverNepali: 'तिनाउ नदी र लुम्बिनी क्षेत्र',
-    deityNepali: 'श्री सिद्धबाबा मन्दिर तथा लुम्बिनी'
-  },
-  'बुटवल': {
-    subdivision: 'लुम्बिनी मण्डले',
-    locality: 'बुटवल नगरे',
-    riverSanskrit: 'पवित्र तिनाउ नदीतीरे सिद्धक्षेत्रे',
-    deitySanskrit: 'श्रीसिद्धबाबा-जितगढी चरणसन्निधौ',
-    riverNepali: 'तिनाउ नदी',
-    deityNepali: 'श्री सिद्धबाबा मन्दिर'
-  },
-
-  // Koshi / Eastern Nepal
-  'सुनसरी': {
-    subdivision: 'कोशी मण्डले',
-    locality: 'धरान-इटहरी क्षेत्रे',
-    riverSanskrit: 'पवित्र सप्तकोशीतीरे पिण्डेश्वर-कौशिकी पुण्यतीर्थे',
-    deitySanskrit: 'श्रीवराहक्षेत्र-दन्तकाली-पिण्डेश्वर चरणसन्निधौ',
-    riverNepali: 'सप्तकोशी नदी र वराहक्षेत्र',
-    deityNepali: 'श्री वराहक्षेत्र तथा पिण्डेश्वर'
-  },
-  'धरान': {
-    subdivision: 'कोशी मण्डले',
-    locality: 'धरान विजयपुर नगरे',
-    riverSanskrit: 'पवित्र सेउती-सर्दू नदीतीरे विजयपुर पुण्यक्षेत्रे',
-    deitySanskrit: 'श्रीदन्तकाली-पिण्डेश्वर-बुढासुब्बा चरणसन्निधौ',
-    riverNepali: 'सेउती र सर्दू खोला',
-    deityNepali: 'श्री दन्तकाली तथा पिण्डेश्वर'
-  },
-  'मोरङ': {
-    subdivision: 'कोशी मण्डले',
-    locality: 'विराटनगर नगरे',
-    riverSanskrit: 'पवित्र बक्राहा-केशल्या नदीतीरे विराटक्षेत्रे',
-    deitySanskrit: 'श्रीविराटेश्वर-काली मन्दिर चरणसन्निधौ',
-    riverNepali: 'बक्राहा र केशल्या नदी',
-    deityNepali: 'श्री विराटेश्वर महादेव'
-  },
-  'विराटनगर': {
-    subdivision: 'कोशी मण्डले',
-    locality: 'विराटनगर नगरे',
-    riverSanskrit: 'पवित्र बक्राहा-केशल्या नदीतीरे विराटक्षेत्रे',
-    deitySanskrit: 'श्रीविराटेश्वर-काली मन्दिर चरणसन्निधौ',
-    riverNepali: 'बक्राहा र केशल्या नदी',
-    deityNepali: 'श्री विराटेश्वर महादेव'
-  },
-
-  // Madhesh / Janakpur
-  'धनुषा': {
-    subdivision: 'मधेश प्रदेशे',
-    locality: 'जनकपुरधाम नगरे',
-    riverSanskrit: 'पवित्र दुग्धमती नदीतीरे गङ्गासागर-धनुषसागर पुण्यक्षेत्रे',
-    deitySanskrit: 'श्रीमज्जगज्जननी जानकी-श्रीरामचन्द्र चरणसन्निधौ',
-    riverNepali: 'दुग्धमती नदी र गङ्गासागर',
-    deityNepali: 'श्री जानकी मन्दिर तथा राम मन्दिर'
-  },
-  'जनकपुर': {
-    subdivision: 'मधेश प्रदेशे',
-    locality: 'जनकपुरधाम नगरे',
-    riverSanskrit: 'पवित्र दुग्धमती नदीतीरे गङ्गासागर-धनुषसागर पुण्यक्षेत्रे',
-    deitySanskrit: 'श्रीमज्जगज्जननी जानकी-श्रीरामचन्द्र चरणसन्निधौ',
-    riverNepali: 'दुग्धमती नदी र गङ्गासागर',
-    deityNepali: 'श्री जानकी मन्दिर तथा राम मन्दिर'
-  },
-
-  // Dhaulagiri / Kali Gandaki
-  'बागलुङ': {
+  // ==========================================
+  // गण्डकी प्रदेश (GANDAKI PROVINCE - 11 Districts)
+  // ==========================================
+  'कास्की': {
+    district: 'कास्की',
     subdivision: 'गण्डकी प्रदेशे',
-    locality: 'बागलुङ नगरे',
-    riverSanskrit: 'पवित्र कालिगण्डकी-काठेखोला सङ्गमक्षेत्रे शालिग्रामतीर्थे',
-    deitySanskrit: 'श्रीकालिका भगवती-पञ्चकोट चरणसन्निधौ',
-    riverNepali: 'कालीगण्डकी र काठेखोला',
-    deityNepali: 'श्री बागलुङ कालिका भगवती'
+    locality: 'पोखरा नगरे',
+    riverSanskrit: 'पवित्र सेतीगण्डकीतीरे फेवाताल पुण्यजलाशयक्षेत्रे',
+    deitySanskrit: 'श्रीविन्ध्यवासिनी-तालवाराही भगवती चरणसन्निधौ',
+    riverNepali: 'सेतीगण्डकी र फेवाताल',
+    deityNepali: 'श्री विन्ध्यवासिनी तथा तालवाराही',
+    lat: 28.2096,
+    lon: 83.9856,
+    aliases: ['कास्की', 'kaski', 'pokhara', 'पोखरा', 'lekhnath', 'लेखनाथ']
   },
-  'मुस्ताङ': {
+  'तनहुँ': {
+    district: 'तनहुँ',
     subdivision: 'गण्डकी प्रदेशे',
-    locality: 'मुक्तिनाथ क्षेत्रे',
-    riverSanskrit: 'पवित्र शालिग्रामवाहिनी कालिगण्डकी उद्गमतीर्थे',
-    deitySanskrit: 'श्रीमुक्तिनाथ-ज्वालामाई चरणसन्निधौ',
-    riverNepali: 'कालीगण्डकी नदी उद्गमस्थल',
-    deityNepali: 'श्री मुक्तिनाथ भगवान्'
+    locality: 'व्यासक्षेत्र-दमौली नगरे',
+    riverSanskrit: 'पवित्र मादी-सेतीगण्डकी सङ्गम व्यासगुफा पुण्यतीर्थे',
+    deitySanskrit: 'श्रीवेदव्यास तपोभूमि-छाब्दीवाराही चरणसन्निधौ',
+    riverNepali: 'मादी र सेतीगण्डकी सङ्गम',
+    deityNepali: 'श्री व्यास गुफा तथा छाब्दीवाराही',
+    lat: 27.9667,
+    lon: 84.2833,
+    aliases: ['तनहुँ', 'tanahun', 'damauli', 'दमौली', 'chhabdi', 'छाब्दी']
   },
-
-  // Mid-West / Bheri / Rapti
-  'बाँके': {
-    subdivision: 'लुम्बिनी प्रदेशे',
-    locality: 'नेपालगञ्ज नगरे',
-    riverSanskrit: 'पवित्र राप्ती नदीतीरे बागेश्वरी क्षेत्रे',
-    deitySanskrit: 'श्रीबागेश्वरी भगवती चरणसन्निधौ',
-    riverNepali: 'राप्ती नदी',
-    deityNepali: 'श्री बागेश्वरी मन्दिर'
-  },
-  'नेपालगञ्ज': {
-    subdivision: 'लुम्बिनी प्रदेशे',
-    locality: 'नेपालगञ्ज नगरे',
-    riverSanskrit: 'पवित्र राप्ती नदीतीरे बागेश्वरी क्षेत्रे',
-    deitySanskrit: 'श्रीबागेश्वरी भगवती चरणसन्निधौ',
-    riverNepali: 'राप्ती नदी',
-    deityNepali: 'श्री बागेश्वरी मन्दिर'
-  },
-  'दाङ': {
-    subdivision: 'लुम्बिनी प्रदेशे',
-    locality: 'दाङ उपत्यका क्षेत्रे',
-    riverSanskrit: 'पवित्र बबई नदीतीरे धारपानी-धारापानी क्षेत्रे',
-    deitySanskrit: 'श्रीअम्बिकेश्वरी-पाण्डवेश्वर महादेव चरणसन्निधौ',
-    riverNepali: 'बबई नदी',
-    deityNepali: 'श्री अम्बिकेश्वरी तथा पाण्डवेश्वर'
-  },
-
-  // Far-West / Sudurpashchim
-  'कैलाली': {
-    subdivision: 'सुदूरपश्चिम प्रदेशे',
-    locality: 'धनगढी नगरे',
-    riverSanskrit: 'पवित्र कर्णाली-मोहना नदीतीरे बेहडाबाबा क्षेत्रे',
-    deitySanskrit: 'श्रीबेहडाबाबा महादेव चरणसन्निधौ',
-    riverNepali: 'कर्णाली र मोहना नदी',
-    deityNepali: 'श्री बेहडाबाबा मन्दिर'
-  },
-  'कञ्चनपुर': {
-    subdivision: 'सुदूरपश्चिम प्रदेशे',
-    locality: 'महेन्द्रनगर क्षेत्रे',
-    riverSanskrit: 'पवित्र महाकाली नदीतीरे सिद्धनाथ क्षेत्रे',
-    deitySanskrit: 'श्रीसिद्धनाथ बाबा-झिलमिला चरणसन्निधौ',
-    riverNepali: 'महाकाली नदी',
-    deityNepali: 'श्री सिद्धनाथ मन्दिर'
-  },
-  'डडेल्धुरा': {
-    subdivision: 'सुदूरपश्चिम प्रदेशे',
-    locality: 'डडेल्धुरा क्षेत्रे',
-    riverSanskrit: 'पवित्र रङ्गुन नदीतीरे उग्रतारा क्षेत्रे',
-    deitySanskrit: 'श्रीउग्रतारा भगवती चरणसन्निधौ',
-    riverNepali: 'रङ्गुन खोला',
-    deityNepali: 'श्री उग्रतारा मन्दिर'
-  },
-
-  // Gorkha
   'गोरखा': {
+    district: 'गोरखा',
     subdivision: 'गण्डकी प्रदेशे',
     locality: 'गोरखा ऐतिहासिक क्षेत्रे',
     riverSanskrit: 'पवित्र त्रिशूली-दरौंदी नदीतीरे मनकामना क्षेत्रे',
     deitySanskrit: 'श्रीगोरखनाथ-मनकामना भगवती चरणसन्निधौ',
     riverNepali: 'त्रिशूली र दरौंदी नदी',
-    deityNepali: 'श्री गोरखनाथ तथा मनकामना'
+    deityNepali: 'श्री गोरखनाथ तथा मनकामना',
+    lat: 28.0000,
+    lon: 84.6333,
+    aliases: ['गोरखा', 'gorkha', 'manakamana', 'मनकामना']
+  },
+  'लमजुङ': {
+    district: 'लमजुङ',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'बेसीसहर क्षेत्रे',
+    riverSanskrit: 'पवित्र मर्स्याङ्दी नदीतीरे ईशानेश्वर क्षेत्रे',
+    deitySanskrit: 'श्रीईशानेश्वर महादेव (करापु)-लमजुङ कालिका चरणसन्निधौ',
+    riverNepali: 'मर्स्याङ्दी नदी',
+    deityNepali: 'श्री ईशानेश्वर महादेव तथा लमजुङ कालिका',
+    lat: 28.2333,
+    lon: 84.3833,
+    aliases: ['लमजुङ', 'lamjung', 'besisahar', 'बेसीसहर']
+  },
+  'स्याङ्जा': {
+    district: 'स्याङ्जा',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'छायाँक्षेत्र-पुतलीबजार नगरे',
+    riverSanskrit: 'पवित्र आँधीखोला-कालिगण्डकी पुण्यतीर्थे',
+    deitySanskrit: 'श्रीछायाँक्षेत्र-छाङ्छाङ्दी भगवती चरणसन्निधौ',
+    riverNepali: 'आँधीखोला र कालीगण्डकी',
+    deityNepali: 'श्री छायाँक्षेत्र तथा छाङ्छाङ्दी',
+    lat: 28.1000,
+    lon: 83.8667,
+    aliases: ['स्याङ्जा', 'syangja', 'waling', 'वालिङ', 'putalibazar', 'पुतलीबजार']
+  },
+  'पर्वत': {
+    district: 'पर्वत',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'कुश्मा मोदीवेणी क्षेत्रे',
+    riverSanskrit: 'पवित्र कालिगण्डकी-मोदीखोला मोदीवेणी सङ्गमतीर्थे',
+    deitySanskrit: 'श्रीगुप्तेश्वर महादेव-अल्पेश्वर चरणसन्निधौ',
+    riverNepali: 'कालीगण्डकी र मोदीवेणी सङ्गम',
+    deityNepali: 'श्री गुप्तेश्वर महादेव',
+    lat: 28.2167,
+    lon: 83.6833,
+    aliases: ['पर्वत', 'parbat', 'kushma', 'कुश्मा', 'gupteshwor', 'गुप्तेश्वर']
+  },
+  'बागलुङ': {
+    district: 'बागलुङ',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'बागलुङ पञ्चकोट क्षेत्रे',
+    riverSanskrit: 'पवित्र कालिगण्डकी-काठेखोला सङ्गमक्षेत्रे शालिग्रामतीर्थे',
+    deitySanskrit: 'श्रीकालिका भगवती-पञ्चकोट चरणसन्निधौ',
+    riverNepali: 'कालीगण्डकी र काठेखोला',
+    deityNepali: 'श्री बागलुङ कालिका भगवती तथा पञ्चकोट',
+    lat: 28.2667,
+    lon: 83.6000,
+    aliases: ['बागलुङ', 'baglung', 'kalika', 'कालिका', 'panchakot', 'पञ्चकोट']
+  },
+  'म्याग्दी': {
+    district: 'म्याग्दी',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'बेनी गलेश्वर क्षेत्रे',
+    riverSanskrit: 'पवित्र कालिगण्डकी-म्याग्दीखोला सङ्गमतीर्थे',
+    deitySanskrit: 'श्रीगलेश्वर महादेव चरणसन्निधौ',
+    riverNepali: 'कालीगण्डकी र म्याग्दी खोला',
+    deityNepali: 'श्री गलेश्वर महादेव',
+    lat: 28.3500,
+    lon: 83.5667,
+    aliases: ['म्याग्दी', 'myagdi', 'beni', 'बेनी', 'galeshwor', 'गलेश्वर']
+  },
+  'मुस्ताङ': {
+    district: 'मुस्ताङ',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'मुक्तिनाथ धामक्षेत्रे',
+    riverSanskrit: 'पवित्र शालिग्रामवाहिनी कालिगण्डकी उद्गमतीर्थे',
+    deitySanskrit: 'श्रीमुक्तिनाथ-ज्वालामाई चरणसन्निधौ',
+    riverNepali: 'कालीगण्डकी नदी उद्गमस्थल',
+    deityNepali: 'श्री मुक्तिनाथ भगवान्',
+    lat: 28.7833,
+    lon: 83.7333,
+    aliases: ['मुस्ताङ', 'mustang', 'muktinath', 'मुक्तिनाथ', 'jomsom', 'जोमसोम']
+  },
+  'मनाङ': {
+    district: 'मनाङ',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'मनाङ हिमवत्क्षेत्रे',
+    riverSanskrit: 'पवित्र मर्स्याङ्दी उद्गमतीर्थे तिलिचो सरोवरे',
+    deitySanskrit: 'श्रीब्रागा गुम्बा-स्थानीय ईश चरणसन्निधौ',
+    riverNepali: 'मर्स्याङ्दी नदी र तिलिचो ताल',
+    deityNepali: 'श्री तिलिचो तीर्थ तथा ब्रागा गुम्बा',
+    lat: 28.5500,
+    lon: 84.2333,
+    aliases: ['मनाङ', 'manang', 'chame', 'चामे', 'tilicho', 'तिलिचो']
+  },
+  'नवलपरासी पूर्व': {
+    district: 'नवलपरासी पूर्व',
+    subdivision: 'गण्डकी प्रदेशे',
+    locality: 'कावासोती-देवचुली क्षेत्रे',
+    riverSanskrit: 'पवित्र नारायणी-त्रिवेणी सङ्गमपुण्यतीर्थे',
+    deitySanskrit: 'श्रीत्रिवेणीधाम-मौलाकालिका भगवती चरणसन्निधौ',
+    riverNepali: 'नारायणी नदी र त्रिवेणी धाम',
+    deityNepali: 'श्री त्रिवेणीधाम तथा मौलाकालिका',
+    lat: 27.6500,
+    lon: 84.1167,
+    aliases: ['नवलपरासी पूर्व', 'नवलपुर', 'nawalpur', 'kawasoti', 'कावासोती', 'gaindakot', 'गैँडाकोट']
+  },
+
+  // ==========================================
+  // लुम्बिनी प्रदेश (LUMBINI PROVINCE - 12 Districts)
+  // ==========================================
+  'पाल्पा': {
+    district: 'पाल्पा',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'रुरुक्षेत्र-तानसेन नगरे',
+    riverSanskrit: 'पवित्र कालिगण्डकीतीरे रुरुक्षेत्र ऋषिकेश पुण्यतीर्थे',
+    deitySanskrit: 'श्रीऋषिकेश मन्दिर-भैरवस्थान भगवती चरणसन्निधौ',
+    riverNepali: 'कालीगण्डकी र रुरुक्षेत्र',
+    deityNepali: 'श्री ऋषिकेश मन्दिर तथा भैरवस्थान',
+    lat: 27.8667,
+    lon: 83.5500,
+    aliases: ['पाल्पा', 'palpa', 'tansen', 'तानसेन', 'ridi', 'रिडी', 'ruru', 'रुरुक्षेत्र']
+  },
+  'नवलपरासी पश्चिम': {
+    district: 'नवलपरासी पश्चिम',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'रामग्राम-परासी क्षेत्रे',
+    riverSanskrit: 'पवित्र झरही-नारायणी नदीतीरे',
+    deitySanskrit: 'श्रीपाल्हीनन्दन-रामग्राम स्तूपक्षेत्रे',
+    riverNepali: 'झरही नदी',
+    deityNepali: 'श्री पाल्हीनन्दन तथा रामग्राम',
+    lat: 27.5333,
+    lon: 83.6667,
+    aliases: ['नवलपरासी पश्चिम', 'परासी', 'parasi', 'ramgram', 'रामग्राम']
+  },
+  'रुपन्देही': {
+    district: 'रुपन्देही',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'बुटवल-भैरहवा-लुम्बिनी क्षेत्रे',
+    riverSanskrit: 'पवित्र तिनाउ-दानव नदीतीरे लुम्बिनी तपोभूमि क्षेत्रे',
+    deitySanskrit: 'श्रीमायादेवी-सिद्धबाबा चरणसन्निधौ',
+    riverNepali: 'तिनाउ नदी र लुम्बिनी क्षेत्र',
+    deityNepali: 'श्री सिद्धबाबा मन्दिर तथा लुम्बिनी',
+    lat: 27.7000,
+    lon: 83.4500,
+    aliases: ['रुपन्देही', 'rupandehi', 'butwal', 'बुटवल', 'bhairahawa', 'भैरहवा', 'lumbini', 'लुम्बिनी']
+  },
+  'कपिलवस्तु': {
+    district: 'कपिलवस्तु',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'तौलिहवा प्राचीन क्षेत्रे',
+    riverSanskrit: 'पवित्र वाणगङ्गा नदीतीरे',
+    deitySanskrit: 'श्रीतौलेश्वरनाथ महादेव चरणसन्निधौ',
+    riverNepali: 'वाणगङ्गा नदी',
+    deityNepali: 'श्री तौलेश्वरनाथ महादेव',
+    lat: 27.5500,
+    lon: 83.0500,
+    aliases: ['कपिलवस्तु', 'kapilvastu', 'taulihawa', 'तौलिहवा', 'banganga', 'वाणगङ्गा']
+  },
+  'अर्घाखाँची': {
+    district: 'अर्घाखाँची',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'सन्धिखर्क सुपादेउराली क्षेत्रे',
+    riverSanskrit: 'पवित्र वाणगङ्गा-बाङ्गी खोलातीरे',
+    deitySanskrit: 'श्रीसुपादेउराली भगवती चरणसन्निधौ',
+    riverNepali: 'वाणगङ्गा र बाङ्गी खोला',
+    deityNepali: 'श्री सुपा देउराली मन्दिर',
+    lat: 27.9167,
+    lon: 83.1333,
+    aliases: ['अर्घाखाँची', 'arghakhanchi', 'sandhikharka', 'सन्धिखर्क', 'supadeurali', 'सुपादेउराली']
+  },
+  'गुल्मी': {
+    district: 'गुल्मी',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'तम्घास रेसुङ्गा धामक्षेत्रे',
+    riverSanskrit: 'पवित्र बडिगाड-कालिगण्डकीतीरे रेसुङ्गा तपोभूभौ',
+    deitySanskrit: 'श्रीरेसुङ्गाधाम तपोभूमि-शृङ्गीऋषि चरणसन्निधौ',
+    riverNepali: 'बडिगाड र कालीगण्डकी',
+    deityNepali: 'श्री रेसुङ्गा धाम तथा शृङ्गीऋषि',
+    lat: 28.0667,
+    lon: 83.2500,
+    aliases: ['गुल्मी', 'gulmi', 'tamghas', 'तम्घास', 'resunga', 'रेसुङ्गा']
+  },
+  'रोल्पा': {
+    district: 'रोल्पा',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'लिवाङ जलजला क्षेत्रे',
+    riverSanskrit: 'पवित्र माडीखोलातीरे जलजला पावनक्षेत्रे',
+    deitySanskrit: 'श्रीजलजला देवी-बराह मन्दिर चरणसन्निधौ',
+    riverNepali: 'माडी खोला',
+    deityNepali: 'श्री जलजला देवी',
+    lat: 28.3000,
+    lon: 82.6333,
+    aliases: ['रोल्पा', 'rolpa', 'liwarg', 'लिवाङ', 'jaljala', 'जलजला']
+  },
+  'प्युठान': {
+    district: 'प्युठान',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'स्वर्गद्वारी पावनक्षेत्रे',
+    riverSanskrit: 'पवित्र झिमरुक-माडी नदीतीरे स्वर्गद्वारी धामे',
+    deitySanskrit: 'श्रीस्वर्गद्वारी प्रभुहंस तपोभूमि चरणसन्निधौ',
+    riverNepali: 'झिमरुक र माडी नदी',
+    deityNepali: 'श्री स्वर्गद्वारी आश्रमधाम',
+    lat: 28.1000,
+    lon: 82.9000,
+    aliases: ['प्युठान', 'pyuthan', 'swargadwari', 'स्वर्गद्वारी']
+  },
+  'दाङ': {
+    district: 'दाङ',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'घोराही-तुलसीपुर उपत्यकाक्षेत्रे',
+    riverSanskrit: 'पवित्र बबई-राप्ती नदीतीरे धारपानी क्षेत्रे',
+    deitySanskrit: 'श्रीपाण्डवेश्वर महादेव (धारपानी)-अम्बिकेश्वरी चरणसन्निधौ',
+    riverNepali: 'बबई नदी र धारापानी',
+    deityNepali: 'श्री धारापानी पाण्डवेश्वर तथा अम्बिकेश्वरी',
+    lat: 28.0333,
+    lon: 82.3000,
+    aliases: ['दाङ', 'dang', 'ghorahi', 'घोराही', 'tulsipur', 'तुलसीपुर', 'dharapani', 'धारापानी']
+  },
+  'बाँके': {
+    district: 'बाँके',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'नेपालगञ्ज नगरे',
+    riverSanskrit: 'पवित्र राप्ती नदीतीरे बागेश्वरी क्षेत्रे',
+    deitySanskrit: 'श्रीबागेश्वरी भगवती चरणसन्निधौ',
+    riverNepali: 'राप्ती नदी',
+    deityNepali: 'श्री बागेश्वरी भगवती',
+    lat: 28.0500,
+    lon: 81.6167,
+    aliases: ['बाँके', 'banke', 'nepalgunj', 'नेपालगञ्ज', 'नेपालगन्ज', 'kohalpur', 'कोहलपुर']
+  },
+  'बर्दिया': {
+    district: 'बर्दिया',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'गुलरिया ठाकुरद्वारा क्षेत्रे',
+    riverSanskrit: 'पवित्र कर्णाली-गेरुवा-बबई नदीतीरे',
+    deitySanskrit: 'श्रीठाकुरबाबा महादेव चरणसन्निधौ',
+    riverNepali: 'कर्णाली र बबई नदी',
+    deityNepali: 'श्री ठाकुरबाबा मन्दिर',
+    lat: 28.2333,
+    lon: 81.3333,
+    aliases: ['बर्दिया', 'bardia', 'gulariya', 'गुलरिया', 'thakurbaba', 'ठाकुरबाबा']
+  },
+  'रुकुम पूर्व': {
+    district: 'रुकुम पूर्व',
+    subdivision: 'लुम्बिनी प्रदेशे',
+    locality: 'रुकुमकोट कमलदह क्षेत्रे',
+    riverSanskrit: 'पवित्र सानीभेरी नदीतीरे',
+    deitySanskrit: 'श्रीदेउराली भगवती-कमलदह तीर्थे',
+    riverNepali: 'सानीभेरी नदी र कमलदह',
+    deityNepali: 'श्री देउराली भगवती',
+    lat: 28.6000,
+    lon: 82.6333,
+    aliases: ['रुकुम पूर्व', 'rukum east', 'rukumkot', 'रुकुमकोट']
+  },
+
+  // ==========================================
+  // कर्णाली प्रदेश (KARNALI PROVINCE - 10 Districts)
+  // ==========================================
+  'सुर्खेत': {
+    district: 'सुर्खेत',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'वीरेन्द्रनगर उपत्यकाक्षेत्रे',
+    riverSanskrit: 'पवित्र भेरी नदीतीरे बुलबुले पावनक्षेत्रे',
+    deitySanskrit: 'श्रीदेउतीबज्यै भगवती-काँक्रेविहार चरणसन्निधौ',
+    riverNepali: 'भेरी नदी र बुलबुले',
+    deityNepali: 'श्री देउती बज्यै तथा काँक्रेविहार',
+    lat: 28.6000,
+    lon: 81.6333,
+    aliases: ['सुर्खेत', 'surkhet', 'birendranagar', 'वीरेन्द्रनगर', 'deutibajyai', 'देउतीबज्यै']
+  },
+  'दैलेख': {
+    district: 'दैलेख',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'पञ्चकोशी तीर्थक्षेत्रे',
+    riverSanskrit: 'पवित्र लोहोरे-छामघाट नदीतीरे पञ्चकोशी धामे',
+    deitySanskrit: 'श्रीशिरस्थान-नाभिस्थान-पादुका ज्वाला चरणसन्निधौ',
+    riverNepali: 'लोहोरे र छामघाट नदी',
+    deityNepali: 'श्री पञ्चकोशी धाम (शिरस्थान, नाभिस्थान)',
+    lat: 28.8333,
+    lon: 81.7167,
+    aliases: ['दैलेख', 'dailekh', 'panchakoshi', 'पञ्चकोशी', 'shirasthan', 'शिरस्थान']
+  },
+  'जाजरकोट': {
+    district: 'जाजरकोट',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'खलङ्गा जाजरकोट क्षेत्रे',
+    riverSanskrit: 'पवित्र भेरी नदीतीरे',
+    deitySanskrit: 'श्रीकालिका मन्दिर-जगतीपुर चरणसन्निधौ',
+    riverNepali: 'भेरी नदी',
+    deityNepali: 'श्री कालिका मन्दिर',
+    lat: 28.7000,
+    lon: 82.2000,
+    aliases: ['जाजरकोट', 'jajarkot']
+  },
+  'रुकुम पश्चिम': {
+    district: 'रुकुम पश्चिम',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'मुसिकोट क्षेत्रे',
+    riverSanskrit: 'पवित्र सानीभेरी नदीतीरे',
+    deitySanskrit: 'श्रीडिग्रे शाइकुमारी भगवती चरणसन्निधौ',
+    riverNepali: 'सानीभेरी नदी',
+    deityNepali: 'श्री डिग्रे शाइकुमारी भगवती',
+    lat: 28.6333,
+    lon: 82.4667,
+    aliases: ['रुकुम पश्चिम', 'rukum west', 'musikot', 'मुसिकोट', 'digre', 'डिग्रे']
+  },
+  'सल्यान': {
+    district: 'सल्यान',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'खलङ्गा खैराबाङ क्षेत्रे',
+    riverSanskrit: 'पवित्र शारदा नदीतीरे खैराबाङ क्षेत्रे',
+    deitySanskrit: 'श्रीखैराबाङ भुवनेश्वरी भगवती चरणसन्निधौ',
+    riverNepali: 'शारदा नदी',
+    deityNepali: 'श्री खैराबाङ भुवनेश्वरी भगवती',
+    lat: 28.3667,
+    lon: 82.1667,
+    aliases: ['सल्यान', 'salyan', 'sharda', 'शारदा', 'khairabang', 'खैराबाङ']
+  },
+  'जुम्ला': {
+    district: 'जुम्ला',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'चन्दननाथ पावनक्षेत्रे',
+    riverSanskrit: 'पवित्र तिला-हिमा नदीतीरे चन्दननाथ धामे',
+    deitySanskrit: 'श्रीचन्दननाथ-भैरवनाथ स्वामी चरणसन्निधौ',
+    riverNepali: 'तिला र हिमा नदी',
+    deityNepali: 'श्री चन्दननाथ तथा भैरवनाथ',
+    lat: 29.2750,
+    lon: 82.1833,
+    aliases: ['जुम्ला', 'jumla', 'chandannath', 'चन्दननाथ']
+  },
+  'कालीकोट': {
+    district: 'कालीकोट',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'मान्म पञ्चदेवल क्षेत्रे',
+    riverSanskrit: 'पवित्र कर्णाली-तिला सङ्गमपुण्यतीर्थे',
+    deitySanskrit: 'श्रीबडिमालिका-पञ्चदेवल चरणसन्निधौ',
+    riverNepali: 'कर्णाली र तिला नदी',
+    deityNepali: 'श्री बडिमालिका तथा पञ्चदेवल',
+    lat: 29.1333,
+    lon: 81.8000,
+    aliases: ['कालीकोट', 'कालिकोट', 'kalikot', 'manma', 'मान्म']
+  },
+  'मुगु': {
+    district: 'मुगु',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'रारा सरोवर छायाँनाथ क्षेत्रे',
+    riverSanskrit: 'पवित्र मुगु कर्णाली नदीतीरे रारा ताल सरोवरे',
+    deitySanskrit: 'श्रीछायाँनाथ महादेव चरणसन्निधौ',
+    riverNepali: 'मुगु कर्णाली र रारा ताल',
+    deityNepali: 'श्री छायाँनाथ महादेव',
+    lat: 29.5833,
+    lon: 82.1667,
+    aliases: ['मुगु', 'mugu', 'rara', 'रारा', 'gamgadhi', 'गमगढी']
+  },
+  'हुम्ला': {
+    district: 'हुम्ला',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'सिमिकोट खार्पुनाथ क्षेत्रे',
+    riverSanskrit: 'पवित्र कर्णाली नदी उद्गमक्षेत्रे मानसरोवर सन्निधौ',
+    deitySanskrit: 'श्रीखार्पुनाथ शिव चरणसन्निधौ',
+    riverNepali: 'कर्णाली नदी',
+    deityNepali: 'श्री खार्पुनाथ महादेव',
+    lat: 29.9667,
+    lon: 81.8333,
+    aliases: ['हुम्ला', 'humla', 'simikot', 'सिमिकोट', 'kharpunaath', 'खार्पुनाथ']
+  },
+  'डोल्पा': {
+    district: 'डोल्पा',
+    subdivision: 'कर्णाली प्रदेशे',
+    locality: 'फोक्सुण्डो तपोभूमि क्षेत्रे',
+    riverSanskrit: 'पवित्र भेरी नदीतीरे शे-फोक्सुण्डो पुण्यजलाशये',
+    deitySanskrit: 'श्रीबाला त्रिपुरासुन्दरी भगवती चरणसन्निधौ',
+    riverNepali: 'भेरी नदी र शे-फोक्सुण्डो',
+    deityNepali: 'श्री बाला त्रिपुरासुन्दरी',
+    lat: 28.9833,
+    lon: 82.9000,
+    aliases: ['डोल्पा', 'dolpa', 'phoksundo', 'फोक्सुण्डो', 'dunai', 'दुनै']
+  },
+
+  // ==========================================
+  // सुदूरपश्चिम प्रदेश (SUDURPASHCHIM - 9 Districts)
+  // ==========================================
+  'कैलाली': {
+    district: 'कैलाली',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'धनगढी-गोदावरी क्षेत्रे',
+    riverSanskrit: 'पवित्र कर्णाली-मोहना नदीतीरे बेहडाबाबा क्षेत्रे',
+    deitySanskrit: 'श्रीबेहडाबाबा महादेव-गोदावरी धाम चरणसन्निधौ',
+    riverNepali: 'कर्णाली र मोहना नदी',
+    deityNepali: 'श्री बेहडाबाबा मन्दिर तथा गोदावरी धाम',
+    lat: 28.6833,
+    lon: 80.6000,
+    aliases: ['कैलाली', 'kailali', 'dhangadhi', 'धनगढी', 'attariya', 'अत्तरिया', 'behada', 'बेहडाबाबा']
+  },
+  'कञ्चनपुर': {
+    district: 'कञ्चनपुर',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'महेन्द्रनगर भीमदत्त क्षेत्रे',
+    riverSanskrit: 'पवित्र महाकाली नदीतीरे सिद्धनाथ क्षेत्रे',
+    deitySanskrit: 'श्रीसिद्धनाथ बाबा-झिलमिला भगवती चरणसन्निधौ',
+    riverNepali: 'महाकाली नदी',
+    deityNepali: 'श्री सिद्धनाथ मन्दिर तथा झिलमिला',
+    lat: 28.9667,
+    lon: 80.1833,
+    aliases: ['कञ्चनपुर', 'kanchanpur', 'mahendranagar', 'महेन्द्रनगर', 'bhimdatta', 'भीमदत्त', 'siddhanath', 'सिद्धनाथ']
+  },
+  'डडेल्धुरा': {
+    district: 'डडेल्धुरा',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'उग्रतारा पावनक्षेत्रे',
+    riverSanskrit: 'पवित्र रङ्गुन-महाकाली नदीतीरे उग्रतारा क्षेत्रे',
+    deitySanskrit: 'श्रीउग्रतारा भगवती-घटालबाबा चरणसन्निधौ',
+    riverNepali: 'रङ्गुन खोला र महाकाली',
+    deityNepali: 'श्री उग्रतारा भगवती तथा घटालबाबा',
+    lat: 29.3000,
+    lon: 80.5833,
+    aliases: ['डडेल्धुरा', 'dadeldhura', 'ugratara', 'उग्रतारा', 'ghatalbaba', 'घटालबाबा']
+  },
+  'बैतडी': {
+    district: 'बैतडी',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'दशरथचन्द निङ्गलाशैनी क्षेत्रे',
+    riverSanskrit: 'पवित्र महाकाली-चौल्यानी नदीतीरे',
+    deitySanskrit: 'श्रीत्रिपुरासुन्दरी-निङ्गलाशैनी भगवती चरणसन्निधौ',
+    riverNepali: 'महाकाली र चौल्यानी नदी',
+    deityNepali: 'श्री त्रिपुरासुन्दरी तथा निङ्गलाशैनी',
+    lat: 29.5167,
+    lon: 80.4167,
+    aliases: ['बैतडी', 'baitadi', 'ninglashaini', 'निङ्गलाशैनी', 'patam', 'पाटन']
+  },
+  'दार्चुला': {
+    district: 'दार्चुला',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'खलङ्गा मालिकार्जुन क्षेत्रे',
+    riverSanskrit: 'पवित्र महाकाली नदीतीरे मालिकार्जुन धामक्षेत्रे',
+    deitySanskrit: 'श्रीमालिकार्जुन धाम (शिव ज्योतिर्लिङ्ग) चरणसन्निधौ',
+    riverNepali: 'महाकाली नदी',
+    deityNepali: 'श्री मालिकार्जुन धाम',
+    lat: 29.8500,
+    lon: 80.5333,
+    aliases: ['दार्चुला', 'darchula', 'khalanga', 'मालिकार्जुन', 'malikarjun']
+  },
+  'डोटी': {
+    district: 'डोटी',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'दिपायल-सिलगढी क्षेत्रे',
+    riverSanskrit: 'पवित्र सेती नदीतीरे शैलेश्वरी शक्तिपीठक्षेत्रे',
+    deitySanskrit: 'श्रीशैलेश्वरी भगवती चरणसन्निधौ',
+    riverNepali: 'सेती नदी',
+    deityNepali: 'श्री शैलेश्वरी भगवती',
+    lat: 29.2667,
+    lon: 80.9333,
+    aliases: ['डोटी', 'doti', 'dipayal', 'दिपायल', 'silgadhi', 'सिलगढी', 'shaileshwori', 'शैलेश्वरी']
+  },
+  'अछाम': {
+    district: 'अछाम',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'वैद्यनाथ धामक्षेत्रे',
+    riverSanskrit: 'पवित्र बूढीगङ्गा-कैलाशखोला सङ्गम वैद्यनाथ धामे',
+    deitySanskrit: 'श्रीवैद्यनाथ ज्योतिर्लिङ्ग महादेव चरणसन्निधौ',
+    riverNepali: 'बूढीगङ्गा र कैलाश खोला',
+    deityNepali: 'श्री वैद्यनाथ ज्योतिर्लिङ्ग धाम',
+    lat: 29.1167,
+    lon: 81.2833,
+    aliases: ['अछाम', 'achham', 'mangalsen', 'मङ्गलसेन', 'vaidyanath', 'वैद्यनाथ']
+  },
+  'बाजुरा': {
+    district: 'बाजुरा',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'मार्तडी बडिमालिका क्षेत्रे',
+    riverSanskrit: 'पवित्र बूढीगङ्गा नदीतीरे',
+    deitySanskrit: 'श्रीबडिमालिका भगवती शक्तिपीठ चरणसन्निधौ',
+    riverNepali: 'बूढीगङ्गा नदी',
+    deityNepali: 'श्री बडिमालिका भगवती',
+    lat: 29.5000,
+    lon: 81.5000,
+    aliases: ['बाजुरा', 'bajura', 'badimalika', 'बडिमालिका', 'martadi', 'मार्तडी']
+  },
+  'बझाङ': {
+    district: 'बझाङ',
+    subdivision: 'सुदूरपश्चिम प्रदेशे',
+    locality: 'चैनपुर सुर्मासरोवर क्षेत्रे',
+    riverSanskrit: 'पवित्र सेती नदीतीरे सुर्मासरोवर तीर्थे',
+    deitySanskrit: 'श्रीसुर्मादेवी भगवती चरणसन्निधौ',
+    riverNepali: 'सेती नदी र सुर्मा सरोवर',
+    deityNepali: 'श्री सुर्मादेवी भगवती',
+    lat: 29.5667,
+    lon: 81.2000,
+    aliases: ['बझाङ', 'bajhang', 'chainpur', 'चैनपुर', 'surmasarowar', 'सुर्मासरोवर']
   }
 };
 
 /**
- * Resolves sacred location coordinates (river, temple, area) for a given location string
+ * Resolves sacred location coordinates (river, temple, area) for a given location or coordinates
  */
-export function getSacredLocationInfo(locationName?: string): SacredLocationInfo {
-  const defaultInfo: SacredLocationInfo = {
+export function getSacredLocationInfo(
+  locationOrName?: string | LocationData | null,
+  coordinates?: { latitude: number; longitude: number }
+): SacredLocationInfo {
+  const defaultKathmanduInfo: SacredLocationInfo = {
     countrySanskrit: 'नेपाल देशे',
     subdivisionSanskrit: 'बागमती मण्डले',
     localitySanskrit: 'काष्ठमण्डप नगरे',
@@ -261,33 +1006,113 @@ export function getSacredLocationInfo(locationName?: string): SacredLocationInfo
     deityNepali: 'श्री पशुपतिनाथ तथा गुह्येश्वरी'
   };
 
-  if (!locationName) return defaultInfo;
+  // 1. Extract inputs
+  let inputName = '';
+  let inputDistrict = '';
+  let lat = coordinates?.latitude;
+  let lon = coordinates?.longitude;
 
-  const cleanLoc = locationName.trim();
-  for (const [key, data] of Object.entries(NEPAL_SACRED_GEOGRAPHY)) {
-    if (cleanLoc.includes(key) || key.includes(cleanLoc)) {
-      return {
-        countrySanskrit: 'नेपाल देशे',
-        subdivisionSanskrit: data.subdivision,
-        localitySanskrit: data.locality,
-        sacredRiverSanskrit: data.riverSanskrit,
-        prominentDeitySanskrit: data.deitySanskrit,
-        riverNepali: data.riverNepali,
-        deityNepali: data.deityNepali
-      };
+  if (locationOrName && typeof locationOrName === 'object') {
+    inputName = locationOrName.name || '';
+    inputDistrict = locationOrName.district || '';
+    if (!lat && locationOrName.latitude) lat = locationOrName.latitude;
+    if (!lon && locationOrName.longitude) lon = locationOrName.longitude;
+  } else if (typeof locationOrName === 'string') {
+    inputName = locationOrName.trim();
+  }
+
+  // 2. If nothing was supplied, try stored user location
+  if (!inputName && !inputDistrict && (!lat || !lon)) {
+    const stored = getStoredUserLocation();
+    if (stored) {
+      inputName = stored.name || '';
+      inputDistrict = stored.district || '';
+      if (!lat) lat = stored.latitude;
+      if (!lon) lon = stored.longitude;
     }
   }
 
-  // Generic Nepal fallback
-  return {
+  // 3. Check for coordinates inside string if still missing e.g. "27.71, 85.32"
+  if ((!lat || !lon) && inputName) {
+    const coordMatch = inputName.match(/([0-9]{2}\.[0-9]+)[^\d]+([0-9]{2}\.[0-9]+)/);
+    if (coordMatch) {
+      lat = parseFloat(coordMatch[1]);
+      lon = parseFloat(coordMatch[2]);
+    }
+  }
+
+  // Helper to convert definition to SacredLocationInfo
+  const formatResult = (data: SacredGeoDefinition): SacredLocationInfo => ({
     countrySanskrit: 'नेपाल देशे',
-    subdivisionSanskrit: `${cleanLoc} मण्डले`,
-    localitySanskrit: `${cleanLoc} नगरे`,
-    sacredRiverSanskrit: 'गङ्गा-यमुना-सरस्वती-सर्वतीर्थ पुण्यसलिला क्षेत्रे',
-    prominentDeitySanskrit: 'स्थानीय श्रीकुलदेवता-इष्टदेवता चरणसन्निधौ',
-    riverNepali: 'स्थानीय पुण्यसलिला नदी तथा तीर्थ',
-    deityNepali: 'इष्टदेवता तथा कुलदेवता'
-  };
+    subdivisionSanskrit: data.subdivision,
+    localitySanskrit: data.locality,
+    sacredRiverSanskrit: data.riverSanskrit,
+    prominentDeitySanskrit: data.deitySanskrit,
+    riverNepali: data.riverNepali,
+    deityNepali: data.deityNepali,
+  });
+
+  // 4. District Direct Match
+  if (inputDistrict) {
+    const cleanDist = inputDistrict.trim().toLowerCase();
+    for (const [key, data] of Object.entries(NEPAL_SACRED_GEOGRAPHY)) {
+      if (key === inputDistrict || data.aliases.some(a => a.toLowerCase() === cleanDist || cleanDist.includes(a.toLowerCase()))) {
+        return formatResult(data);
+      }
+    }
+  }
+
+  // 5. Name Fuzzy / Substring Match
+  if (inputName) {
+    const cleanText = inputName.toLowerCase().replace(/[\(\)\[\],\/]/g, ' ');
+    const tokens = cleanText.split(/\s+/).filter(Boolean);
+
+    for (const [key, data] of Object.entries(NEPAL_SACRED_GEOGRAPHY)) {
+      // Check if key or any alias is matched
+      if (cleanText.includes(key.toLowerCase()) || data.aliases.some(a => cleanText.includes(a.toLowerCase()))) {
+        return formatResult(data);
+      }
+      for (const tok of tokens) {
+        if (tok.length > 2 && (key.toLowerCase().includes(tok) || data.aliases.some(a => a.toLowerCase() === tok))) {
+          return formatResult(data);
+        }
+      }
+    }
+  }
+
+  // 6. Proximity / Coordinate-based Reverse Lookup
+  if (lat && lon && lat >= 25.5 && lat <= 31.0 && lon >= 79.5 && lon <= 89.0) {
+    let closestEntry: SacredGeoDefinition = NEPAL_SACRED_GEOGRAPHY['काठमाडौँ'];
+    let minD = 99999;
+
+    for (const data of Object.values(NEPAL_SACRED_GEOGRAPHY)) {
+      const d = calculateGeoDistanceKm(lat, lon, data.lat, data.lon);
+      if (d < minD) {
+        minD = d;
+        closestEntry = data;
+      }
+    }
+
+    if (minD < 120) {
+      return formatResult(closestEntry);
+    }
+  }
+
+  // 7. Graceful Nepal Default (Never show generic fallback)
+  if (inputName && inputName.length > 1) {
+    const cleanDisplayName = inputName.split('(')[0].trim();
+    return {
+      countrySanskrit: 'नेपाल देशे',
+      subdivisionSanskrit: `${cleanDisplayName} मण्डले`,
+      localitySanskrit: `${cleanDisplayName} क्षेत्रे`,
+      sacredRiverSanskrit: 'पवित्र बागमती-गण्डकी-कोशी-कर्णाली-सर्वतीर्थ पुण्यसलिला क्षेत्रे',
+      prominentDeitySanskrit: 'श्रीपशुपतिनाथ-इष्टदेवता-कुलदेवता चरणसन्निधौ',
+      riverNepali: 'बागमती र गण्डकी लगायत पावन नदीहरू',
+      deityNepali: 'श्री पशुपतिनाथ तथा स्थानीय देवपीठ'
+    };
+  }
+
+  return defaultKathmanduInfo;
 }
 
 // Map Tithi name to Sanskrit grammatical locative (सप्तमी विभक्ति)
@@ -377,9 +1202,10 @@ export interface DailySankalpaData {
 export function generateDailyVedicSankalpa(
   panchanga: PanchangaData,
   profile?: BirthDetails | null,
-  planets?: PlanetPosition[]
+  planets?: PlanetPosition[],
+  overrideLocation?: LocationData | string
 ): DailySankalpaData {
-  const geo = getSacredLocationInfo(profile?.location?.name);
+  const geo = getSacredLocationInfo(overrideLocation || profile?.location);
 
   const dayName = panchanga.dayNameNepali || panchanga.vaar?.name || 'शुभ वार';
   const masaName = panchanga.masaInfo?.masaName || 'वैशाख';
@@ -468,7 +1294,7 @@ export interface MahaSankalpaOptions {
   pujaType?: SankalpaPujaType;
   customGotra?: string;
   customName?: string;
-  customLocation?: string;
+  customLocation?: string | LocationData;
   familyMembersIncluded?: boolean;
 }
 
@@ -577,7 +1403,7 @@ export function generateMahaSankalpa(options: MahaSankalpaOptions): MahaSankalpa
     familyMembersIncluded = true
   } = options;
 
-  const geo = getSacredLocationInfo(customLocation || profile?.location?.name);
+  const geo = getSacredLocationInfo(customLocation || profile?.location);
   const purpose = PUJA_TYPE_DETAILS[pujaType] || PUJA_TYPE_DETAILS.daily;
 
   const dayName = panchanga.dayNameNepali || panchanga.vaar?.name || 'शुभ वार';

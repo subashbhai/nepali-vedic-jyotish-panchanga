@@ -80,7 +80,7 @@ export const BalanandaDailyPanchangaDocument: React.FC<BalanandaDailyPanchangaDo
             {/* ========================================================================= */}
             {/* 1. BALANANDA JYOTISH OFFICIAL LETTERHEAD (बालानन्द ज्योतिष लेटरहेड)        */}
             {/* ========================================================================= */}
-            <div className="border-b-2 border-[#166534]/50 pb-1.5">
+            <div className="border-b-2 pb-1.5" style={{ borderColor: 'rgba(22, 101, 52, 0.5)' }}>
               {/* Top Vedic Mangala-Vachana */}
               <div className="text-center text-[10px] text-[#166534] font-semibold tracking-wider flex items-center justify-center gap-3">
                 <span>{orgProfile?.mangalShloka || '॥ श्री गणेशाय नमः ॥ ॥ श्री कुलदेवतायै नमः ॥ ॥ श्री पशुपतिनाथो विजयते ॥'}</span>
@@ -93,6 +93,7 @@ export const BalanandaDailyPanchangaDocument: React.FC<BalanandaDailyPanchangaDo
                   <img
                     src={getAssetUrl(orgProfile?.logoUrl || '/logo.png')}
                     alt={orgName}
+                    crossOrigin="anonymous"
                     className="w-full h-full object-contain"
                     onError={(e) => {
                       const target = e.currentTarget;
@@ -168,6 +169,7 @@ export const BalanandaDailyPanchangaDocument: React.FC<BalanandaDailyPanchangaDo
               <img
                 src={getAssetUrl(dayDeity.imagePath)}
                 alt={dayDeity.deityName}
+                crossOrigin="anonymous"
                 className="w-full h-full object-cover object-center"
                 onError={(e) => {
                   handleImageFallback(e, [

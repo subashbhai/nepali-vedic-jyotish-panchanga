@@ -22,6 +22,7 @@ import {
   searchWorldLocations
 } from '../data/worldLocations';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
+import { findNearestNepalDistrict, saveUserDetectedLocation } from '../utils/geoLocationHelper';
 
 interface LocationSelectorModalProps {
   isOpen: boolean;
@@ -73,18 +74,25 @@ export const LocationSelectorModal: React.FC<LocationSelectorModalProps> = ({
         // Estimate local timezone offset in hours from browser
         const offsetMinutes = -new Date().getTimezoneOffset();
         const tz = Math.round((offsetMinutes / 60) * 100) / 100;
+        const isNepal = lat >= 26.0 && lat <= 30.8 && lon >= 79.8 && lon <= 88.5;
+        const { district } = findNearestNepalDistrict(lat, lon);
 
         const detectedLocation: LocationData = {
-          name: `मेरो वर्तमान स्थान (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`,
-          englishName: 'My Current Location (GPS)',
-          country: 'वर्तमान स्थान (Current Location)',
+          name: isNepal
+            ? `${district.headquarter}, ${district.district}`
+            : `GPS स्थान (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`,
+          englishName: isNepal ? `${district.districtEn} District` : 'GPS Location',
+          district: isNepal ? district.district : undefined,
+          province: isNepal ? district.province : undefined,
+          country: isNepal ? 'नेपाल' : 'अन्तर्राष्ट्रिय',
           latitude: lat,
           longitude: lon,
-          timeZone: tz,
-          region: 'all',
-          flag: '📍',
+          timeZone: isNepal ? 5.75 : tz,
+          region: isNepal ? 'nepal' : 'all',
+          flag: isNepal ? '🇳🇵' : '📍',
         };
 
+        saveUserDetectedLocation(detectedLocation);
         onSelectLocation(detectedLocation);
         onClose();
       },

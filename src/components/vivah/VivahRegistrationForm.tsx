@@ -14,10 +14,16 @@ import {
   ShieldCheck,
   AlertCircle,
   Shield,
-  KeyRound
+  KeyRound,
+  LocateFixed
 } from 'lucide-react';
 import { VivahProfile, ProfileGender, MaritalStatus, EmploymentType, VisibilitySetting } from '../../types/vivahTypes';
 import { RBACSession, registerRBACAccount, getRoleLabelNepali } from '../../db/rbacStore';
+import { 
+  NEPAL_77_DISTRICTS, 
+  getCurrentUserGPS, 
+  findNearestNepalDistrict 
+} from '../../utils/geoLocationHelper';
 import {
   NEPALI_GOTRAS,
   NEPALI_CASTES,
@@ -59,6 +65,10 @@ export const VivahRegistrationForm: React.FC<VivahRegistrationFormProps> = ({
     fatherOccupation: false,
     motherOccupation: false,
   });
+
+  // GPS Auto-location State
+  const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
+  const [gpsLocationMsg, setGpsLocationMsg] = useState<string>('');
 
   // Form State
   const [formData, setFormData] = useState<Partial<VivahProfile>>({
@@ -141,6 +151,35 @@ export const VivahRegistrationForm: React.FC<VivahRegistrationFormProps> = ({
 
   const handleTextChange = (field: keyof VivahProfile, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAutoGPSLocation = async () => {
+    setIsDetectingLocation(true);
+    setGpsLocationMsg('');
+    try {
+      const gps = await getCurrentUserGPS();
+      const nearest = findNearestNepalDistrict(gps.latitude, gps.longitude);
+      setFormData(prev => ({
+        ...prev,
+        currentDistrict: nearest.district.district,
+        currentProvince: nearest.district.province
+      }));
+      setGpsLocationMsg(`✓ GPS पहिचान: ${nearest.district.district} (${nearest.district.province})`);
+    } catch (err: any) {
+      alert(err.message || 'GPS स्थान पत्ता लगाउन सकिएन। कृपया सूचीबाट आफ्नो जिल्ला छान्नुहोस्।');
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
+
+  const handleDistrictSelect = (districtName: string) => {
+    const matched = NEPAL_77_DISTRICTS.find(d => d.district === districtName);
+    setFormData(prev => ({
+      ...prev,
+      currentDistrict: districtName,
+      currentProvince: matched ? matched.province : prev.currentProvince
+    }));
+    setGpsLocationMsg('');
   };
 
   const handlePartnerPrefChange = (field: string, value: any) => {
@@ -403,17 +442,68 @@ export const VivahRegistrationForm: React.FC<VivahRegistrationFormProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
-                  हालको जिल्ला (Current District) *
-                </label>
-                <input
-                  type="text"
-                  value={formData.currentDistrict || ''}
-                  onChange={(e) => handleTextChange('currentDistrict', e.target.value)}
-                  placeholder="उदा: काठमाडौँ, ललितपुर, कास्की..."
-                  className="w-full bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl p-3"
-                  required
-                />
+                <div className="flex items-center justify-between mb-1 gap-1 flex-wrap">
+                  <label className="font-bold text-stone-700 dark:text-stone-300 text-xs sm:text-sm">
+                    हालको जिल्ला (Current District) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAutoGPSLocation}
+                    disabled={isDetectingLocation}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition-colors shadow-2xs cursor-pointer"
+                    title="आफ्नो वर्तमान यन्त्रको GPS बाट स्थान पत्ता लगाउनुहोस्"
+                  >
+                    <LocateFixed className={`w-3.5 h-3.5 text-amber-700 dark:text-amber-400 ${isDetectingLocation ? 'animate-spin' : ''}`} />
+                    <span>{isDetectingLocation ? 'GPS खोज्दै...' : '📍 वर्तमान स्थान (GPS)'}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <select
+                    value={NEPAL_77_DISTRICTS.some(d => d.district === formData.currentDistrict) ? formData.currentDistrict : (formData.currentDistrict ? 'OTHER' : '')}
+                    onChange={(e) => {
+                      if (e.target.value === 'OTHER') {
+                        if (formData.currentDistrict && NEPAL_77_DISTRICTS.some(d => d.district === formData.currentDistrict)) {
+                          handleTextChange('currentDistrict', '');
+                        }
+                      } else if (e.target.value) {
+                        handleDistrictSelect(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl p-3 text-sm font-medium"
+                  >
+                    <option value="">-- ७७ जिल्लाहरूबाट छान्नुहोस् (Select District) --</option>
+                    {['कोशी प्रदेश', 'मधेश प्रदेश', 'बागमती प्रदेश', 'गण्डकी प्रदेश', 'लुम्बिनी प्रदेश', 'कर्णाली प्रदेश', 'सुदूरपश्चिम प्रदेश'].map(prov => (
+                      <optgroup key={prov} label={prov}>
+                        {NEPAL_77_DISTRICTS.filter(d => d.province === prov).map(d => (
+                          <option key={d.district} value={d.district}>
+                            {d.district} ({d.districtEn})
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                    <option value="OTHER">अन्य जिल्ला / विदेश / म्यानुअल प्रविष्टि</option>
+                  </select>
+
+                  {/* Manual input if custom district entered or outside 77 districts */}
+                  {(!NEPAL_77_DISTRICTS.some(d => d.district === formData.currentDistrict) || formData.currentDistrict === 'अन्य') && (
+                    <input
+                      type="text"
+                      value={formData.currentDistrict || ''}
+                      onChange={(e) => handleTextChange('currentDistrict', e.target.value)}
+                      placeholder="जिल्ला वा स्थानको नाम म्यानुअल रूपमा लेख्नुहोस्..."
+                      className="w-full bg-stone-50 dark:bg-stone-900 border border-amber-300 dark:border-amber-700 rounded-xl p-2.5 text-sm"
+                      required
+                    />
+                  )}
+
+                  {gpsLocationMsg && (
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-in fade-in">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{gpsLocationMsg}</span>
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -432,6 +522,7 @@ export const VivahRegistrationForm: React.FC<VivahRegistrationFormProps> = ({
                   <option value="लुम्बिनी प्रदेश">लुम्बिनी प्रदेश</option>
                   <option value="कर्णाली प्रदेश">कर्णाली प्रदेश</option>
                   <option value="सुदूरपश्चिम प्रदेश">सुदूरपश्चिम प्रदेश</option>
+                  <option value="विदेश / अन्य">विदेश / अन्य</option>
                 </select>
               </div>
 
