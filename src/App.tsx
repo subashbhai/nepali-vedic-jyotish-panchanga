@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition } from 'react';
 import { Header } from './components/Header';
 import { Navigation, NavTab, TabTransition, NORMAL_USER_ALLOWED_TABS, PUBLIC_UNAUTH_NAV_IDS } from './components/Navigation';
 import { DashboardView } from './components/DashboardView';
@@ -137,6 +137,9 @@ export default function App() {
   const [settings, setSettingsState] = useState<ApplicationSettings>(getStoredSettings());
   const [isApkPromptModalOpen, setIsApkPromptModalOpen] = useState(false);
 
+  // useTransition: Jyotish module switch लाई non-urgent render बनाउँछ → blinking बन्द हुन्छ
+  const [, startModuleTransition] = useTransition();
+
   // Automatically trigger APK download prompt modal when opened with ?action=download-apk or ?download=apk (e.g. from QR scan)
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -173,12 +176,10 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [activeTab]);
 
-  // Ensure setting activeTab to 'jyotishi' switches to full JYOTISH module
-  useEffect(() => {
-    if (activeTab === 'jyotishi' && activeModule !== 'JYOTISH') {
-      enterJyotishModule();
-    }
-  }, [activeTab, activeModule]);
+
+  // NOTE: Redundant useEffect removed — enterJyotishModule() already sets both
+  // activeModule='JYOTISH' and activeTab='jyotishi' together. Re-calling it from
+  // a useEffect caused a second render pass which caused visible blinking/flash.
 
   // Seamlessly consolidate legacy 'patro', 'calendar', and 'date_converter' routes into 'panchanga'
   useEffect(() => {
@@ -484,8 +485,11 @@ export default function App() {
       setIsClientPurchaseLeadModalOpen(true);
       return;
     }
-    setActiveModule('JYOTISH');
-    setActiveTab('jyotishi');
+    // startModuleTransition: React लाई blink नगरी background मा Jyotish render गर्न भन्छ
+    startModuleTransition(() => {
+      setActiveModule('JYOTISH');
+      setActiveTab('jyotishi');
+    });
     if (window.location.hash !== '#jyotish') {
       window.history.pushState({ module: 'JYOTISH' }, '', '#jyotish');
     }
@@ -493,10 +497,12 @@ export default function App() {
 
   // Function to exit Jyotish workspace back to main
   const exitJyotishModule = () => {
-    setActiveModule('MAIN');
-    if (activeTab === 'jyotishi') {
-      setActiveTab(isFullyUnlocked ? 'dashboard' : 'yajaman');
-    }
+    startModuleTransition(() => {
+      setActiveModule('MAIN');
+      if (activeTab === 'jyotishi') {
+        setActiveTab(isFullyUnlocked ? 'dashboard' : 'yajaman');
+      }
+    });
     if (window.location.hash === '#jyotish') {
       window.history.pushState({ module: 'MAIN' }, '', window.location.pathname + window.location.search);
     }
@@ -947,12 +953,8 @@ export default function App() {
   if (activeModule === 'JYOTISH' && rbacSession && isFullyUnlocked) {
     return (
       <div className="min-h-screen bg-[#FAF7F2] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] font-sans selection:bg-amber-200 selection:text-amber-950 transition-colors duration-200 flex flex-col">
-        <Suspense fallback={
-          <div className="flex flex-col items-center justify-center p-12 space-y-3 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/60 dark:border-stone-800 shadow-sm animate-pulse m-6 flex-1">
-            <div className="w-10 h-10 border-4 border-[#7A1C1C] border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-semibold text-[#7A1C1C]">ज्योतिष कार्यक्षेत्र लोड हुँदैछ...</span>
-          </div>
-        }>
+        {/* Jyotish module: Suspense fallback invisible हुन्छ — blinking/flash हुँदैन */}
+        <Suspense fallback={<div className="flex-1 min-h-screen" />}>
           <JyotishMainView
             profiles={profiles}
             activeProfile={activeProfile}
