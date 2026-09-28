@@ -1153,11 +1153,15 @@ export default function App() {
             />
           ) : (
             <>
-              {/* Advertisement / Sponsorship Banner (विज्ञापनको लागि सम्पर्क : ९७६४४००५३३) */}
-              <AdvertisementBanner
-                contactPhone="९७६४४००५३३"
-                contactEmail={orgProfile?.email || 'suwashdmk@gmail.com'}
-              />
+              {/* Advertisement Banner — website मा मात्र, Jyotish र Vastu बाहेक सबै pages मा */}
+              {!['jyotishi', 'kundali', 'faladesh', 'dasha', 'gochar', 'muhurta',
+                  'prashna', 'ankajyotish', 'kpjyotish', 'neemajyotish',
+                  'vastu', 'vastu_compass', 'vastu_mandala', 'vastu_audit'].includes(activeTab) && (
+                <AdvertisementBanner
+                  contactPhone="९७६४४००५३३"
+                  contactEmail={orgProfile?.email || 'suwashdmk@gmail.com'}
+                />
+              )}
 
               <Suspense fallback={
                 <div className="flex flex-col items-center justify-center p-12 space-y-3 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/60 dark:border-stone-800 shadow-sm animate-pulse flex-1">
