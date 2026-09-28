@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>बालानन्द ज्योतिष तथा पञ्चाङ्ग</title>
+    <script>
+      // GitHub Pages SPA redirect fix
+      // 404 भएपछि यसले root मा redirect गर्छ जसले React app load गर्छ
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.host + l.pathname.split('/').slice(0, 2).join('/') +
+        '/?/' + l.pathname.slice(1) + l.search + l.hash
+      );
+    </script>
+  </head>
+  <body></body>
+</html>
