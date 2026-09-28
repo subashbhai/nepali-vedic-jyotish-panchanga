@@ -37,8 +37,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build web app
-        run: npm run build
+      - name: Build web app (Vite only — server build skip)
+        run: npx vite build
         env:
           NODE_ENV: production
 
