@@ -111,17 +111,17 @@ export function applyThemeToDOM(themeId: ClientThemeId): void {
     } else {
       // Check if user explicitly set dark mode in astrology settings
       try {
-        const settingsRaw = localStorage.getItem('balananda_astro_settings');
+        const settingsRaw = localStorage.getItem('nepali_astro_settings_v1') || localStorage.getItem('balananda_astro_settings');
         if (settingsRaw) {
           const s = JSON.parse(settingsRaw);
-          if (s.themeMode !== 'dark') {
+          if (s.themeMode === 'dark') {
+            root.classList.add('dark');
+          } else if (s.themeMode === 'light') {
             root.classList.remove('dark');
           }
-        } else {
-          root.classList.remove('dark');
         }
-      } catch {
-        root.classList.remove('dark');
+      } catch (err) {
+        // preserve current dark class if parsing fails
       }
     }
   } catch (e) {

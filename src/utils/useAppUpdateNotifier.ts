@@ -37,24 +37,45 @@ export function useAppUpdateNotifier() {
 
   // 2. Electron IPC Listener for Realtime Auto-updater status
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).electronAPI?.onUpdaterStatus) {
-      const unsubscribe = (window as any).electronAPI.onUpdaterStatus((statusData: ElectronUpdaterStatus) => {
-        console.log('[useAppUpdateNotifier] Received Electron updater status:', statusData);
-        setElectronStatus(statusData);
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      const api = (window as any).electronAPI;
+      const unsubs: (() => void)[] = [];
 
-        if (statusData.status === 'available' || statusData.status === 'downloaded') {
-          // Trigger check for release notes
-          checkLatestRelease().then(rel => {
-            if (rel) setRemoteRelease(rel);
-          });
-        }
-      });
+      if (api.onUpdaterStatus) {
+        const unsub = api.onUpdaterStatus((statusData: ElectronUpdaterStatus) => {
+          console.log('[useAppUpdateNotifier] Received Electron updater status:', statusData);
+          setElectronStatus(statusData);
+
+          if (statusData.status === 'available' || statusData.status === 'downloaded') {
+            checkLatestRelease().then(rel => {
+              if (rel) setRemoteRelease(rel);
+            });
+          }
+        });
+        if (typeof unsub === 'function') unsubs.push(unsub);
+      }
+
+      if (api.onTriggerCheckUpdates) {
+        const unsub = api.onTriggerCheckUpdates(() => {
+          console.log('[useAppUpdateNotifier] Triggered check from Electron menu');
+          performCheck(true);
+        });
+        if (typeof unsub === 'function') unsubs.push(unsub);
+      }
+
+      if (api.onOpenUpdateModal) {
+        const unsub = api.onOpenUpdateModal(() => {
+          console.log('[useAppUpdateNotifier] Opened update modal from notification click');
+          setIsUpdateModalOpen(true);
+        });
+        if (typeof unsub === 'function') unsubs.push(unsub);
+      }
 
       return () => {
-        if (typeof unsubscribe === 'function') unsubscribe();
+        unsubs.forEach(fn => fn());
       };
     }
-  }, []);
+  }, [performCheck]);
 
   // 3. Initial check on mount + 30 minute interval
   useEffect(() => {

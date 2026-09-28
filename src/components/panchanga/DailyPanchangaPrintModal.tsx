@@ -17,6 +17,8 @@ import {
 import { PanchangaData, OrganizationProfile } from '../../types/astrology';
 import { BalanandaDailyPanchangaDocument } from './BalanandaDailyPanchangaDocument';
 import { getDayDeityInfo } from '../../utils/deitySchedule';
+import { sanitizeCloneForCanvas } from '../../utils/pdfGenerator';
+import { WhatsAppIcon, FacebookIcon, MessengerIcon } from '../common/WhatsAppShareModal';
 
 export interface DailyPanchangaPrintModalProps {
   isOpen: boolean;
@@ -42,23 +44,28 @@ export const DailyPanchangaPrintModal: React.FC<DailyPanchangaPrintModalProps> =
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isExportingPNG, setIsExportingPNG] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [previewZoom, setPreviewZoom] = useState<number>(0.85);
 
   const documentWrapperRef = useRef<HTMLDivElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
         setIsDownloadOpen(false);
       }
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target as Node)) {
+        setIsShareOpen(false);
+      }
     };
-    if (isDownloadOpen) {
+    if (isDownloadOpen || isShareOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [isDownloadOpen]);
+  }, [isDownloadOpen, isShareOpen]);
 
   if (!isOpen) return null;
 
@@ -168,6 +175,10 @@ export const DailyPanchangaPrintModal: React.FC<DailyPanchangaPrintModalProps> =
 
   // Helper to generate canvas from the 1-page document
   const generateDocumentCanvas = async () => {
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
     const [{ default: html2canvas }] = await Promise.all([import('html2canvas')]);
     const docEl = document.getElementById('balananda-single-page-panchanga');
     if (!docEl) throw new Error('Document element not found');
@@ -177,14 +188,46 @@ export const DailyPanchangaPrintModal: React.FC<DailyPanchangaPrintModalProps> =
       useCORS: true,
       logging: false,
       backgroundColor: '#FFFDF9',
-      windowWidth: 794, // 210mm in standard 96dpi pixels
-      onclone: (_clonedDoc, clonedEl) => {
-        // Ensure exact fixed dimensions in clone
+      windowWidth: 1200,
+      onclone: (clonedDoc, clonedEl) => {
+        // 1. Sanitize modern CSS colors (oklch) and parent layout transforms
+        sanitizeCloneForCanvas(clonedDoc, clonedEl);
+
+        // 2. Pre-inline all loaded images as local base64 data URLs to prevent canvas tainting or network CORS errors
+        try {
+          const originalImages = docEl.querySelectorAll<HTMLImageElement>('img');
+          const clonedImages = clonedEl.querySelectorAll<HTMLImageElement>('img');
+          clonedImages.forEach((clonedImg, idx) => {
+            const origImg = originalImages[idx];
+            if (origImg && origImg.complete && origImg.naturalWidth > 0) {
+              try {
+                const c = document.createElement('canvas');
+                c.width = origImg.naturalWidth;
+                c.height = origImg.naturalHeight;
+                const ctx = c.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(origImg, 0, 0);
+                  clonedImg.src = c.toDataURL('image/png');
+                  clonedImg.removeAttribute('srcset');
+                }
+              } catch {
+                clonedImg.crossOrigin = 'anonymous';
+              }
+            } else {
+              clonedImg.crossOrigin = 'anonymous';
+            }
+          });
+        } catch (imgErr) {
+          console.warn('Image inlining error:', imgErr);
+        }
+
+        // 3. Ensure exact fixed dimensions in clone
         clonedEl.style.transform = 'none';
         clonedEl.style.boxShadow = 'none';
-        clonedEl.style.margin = '0';
+        clonedEl.style.margin = '0 auto';
         clonedEl.style.width = '210mm';
         clonedEl.style.height = '296mm';
+        clonedEl.style.maxHeight = '296mm';
       },
     });
   };
@@ -207,11 +250,36 @@ export const DailyPanchangaPrintModal: React.FC<DailyPanchangaPrintModalProps> =
       const imgData = canvas.toDataURL('image/jpeg', 0.96);
       pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
 
-      pdf.save(`Balananda_Panchanga_${cleanDate}.pdf`);
+      const fileName = `Balananda_Panchanga_${cleanDate}.pdf`;
+
+      // Method 1: direct pdf.save
+      try {
+        pdf.save(fileName);
+      } catch (saveErr) {
+        console.warn('pdf.save direct error:', saveErr);
+      }
+
+      // Method 2: Blob anchor download fallback (guaranteed in all browsers / PWA / Electron)
+      try {
+        const blob = pdf.output('blob');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (document.body.contains(a)) document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 1500);
+      } catch (blobErr) {
+        console.warn('Blob anchor error:', blobErr);
+      }
+
       showStatus('आधिकारिक PDF सफलतापूर्वक डाउनलोड भयो!');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to export Panchanga PDF:', err);
-      showStatus('PDF डाउनलोड गर्दा त्रुटि भयो। कृपया पुन: प्रयास गर्नुहोस्।', 'error');
+      showStatus(`PDF डाउनलोड गर्दा त्रुटि भयो: ${err?.message || 'कृपया पुनः प्रयास गर्नुहोस्'}`, 'error');
     } finally {
       setIsExportingPDF(false);
     }
@@ -224,87 +292,88 @@ export const DailyPanchangaPrintModal: React.FC<DailyPanchangaPrintModalProps> =
 
     try {
       const canvas = await generateDocumentCanvas();
-      canvas.toBlob((blob) => {
-        if (!blob) throw new Error('Blob conversion failed');
-        const url = URL.createObjectURL(blob);
+      const fileName = `Balananda_Panchanga_${cleanDate}.png`;
+
+      // Download via Blob or DataURL
+      const triggerDownload = (url: string) => {
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Balananda_Panchanga_${cleanDate}.png`;
+        a.download = fileName;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        setTimeout(() => {
+          if (document.body.contains(a)) document.body.removeChild(a);
+          if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+        }, 1500);
+      };
+
+      if (canvas.toBlob) {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            triggerDownload(URL.createObjectURL(blob));
+          } else {
+            triggerDownload(canvas.toDataURL('image/png'));
+          }
+          showStatus('उच्च गुणस्तरको PNG तस्बिर सफलतापूर्वक डाउनलोड भयो!');
+        }, 'image/png');
+      } else {
+        triggerDownload(canvas.toDataURL('image/png'));
         showStatus('उच्च गुणस्तरको PNG तस्बिर सफलतापूर्वक डाउनलोड भयो!');
-      }, 'image/png');
-    } catch (err) {
+      }
+    } catch (err: any) {
       console.error('Failed to export PNG:', err);
-      showStatus('PNG तयार गर्दा त्रुटि भयो।', 'error');
+      showStatus(`PNG तयार गर्दा त्रुटि भयो: ${err?.message || 'कृपया पुनः प्रयास गर्नुहोस्'}`, 'error');
     } finally {
       setIsExportingPNG(false);
     }
   };
 
-  // 4. WhatsApp Share with PNG Image File
-  const handleShareWhatsAppPNG = async () => {
-    if (isExportingPNG) return;
-    setIsExportingPNG(true);
+  const getPanchangaShareText = () => {
+    return `॥ बालानन्द दैनिक वैदिक पञ्चाङ्ग ॥\n📅 मिति: वि.सं. ${dateBS} (${dayDeity.dayNameNepali})\n🚩 आजका स्वामी: ${dayDeity.deityName} (${dayDeity.grahaLord})\n✨ आजको मन्त्र: ${dayDeity.bijaMantra}\n🌅 सूर्योदय: ${panchanga.sunrise} | 🌇 सूर्यास्त: ${panchanga.sunset}\n\n— ${orgProfile?.name || 'बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा'}\n🌐 ${typeof window !== 'undefined' ? window.location.href : 'https://suwashdmk.com'}`;
+  };
 
-    const shareTitle = `बालानन्द दैनिक वैदिक पञ्चाङ्ग - ${dateBS}`;
-    const shareText = `॥ बालानन्द दैनिक वैदिक पञ्चाङ्ग ॥\n📅 मिति: वि.सं. ${dateBS} (${dayDeity.dayNameNepali})\n🚩 आजका स्वामी: ${dayDeity.deityName} (${dayDeity.grahaLord})\n✨ आजको मन्त्र: ${dayDeity.bijaMantra}\n🌅 सूर्योदय: ${panchanga.sunrise} | 🌇 सूर्यास्त: ${panchanga.sunset}\n\n— बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा\n🌐 https://suwashdmk.com`;
+  // 1. WhatsApp Share (NO AUTO DOWNLOAD)
+  const handleShareWhatsApp = () => {
+    const text = getPanchangaShareText();
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    showStatus('WhatsApp खुल्दैछ...');
+  };
 
+  // 2. Facebook Share (NO AUTO DOWNLOAD)
+  const handleShareFacebook = () => {
+    const text = getPanchangaShareText();
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`, '_blank', 'width=620,height=540');
+    showStatus('Facebook संवाद खुल्दैछ...');
+  };
+
+  // 3. Messenger Share (NO AUTO DOWNLOAD)
+  const handleShareMessenger = async () => {
+    const text = getPanchangaShareText();
     try {
-      const canvas = await generateDocumentCanvas();
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          throw new Error('Canvas blob generation failed');
-        }
-
-        const pngFile = new File([blob], `Balananda_Panchanga_${cleanDate}.png`, {
-          type: 'image/png',
-        });
-
-        // Test if browser supports Web Share API with image files (mobile / modern browsers)
-        if (
-          typeof navigator !== 'undefined' &&
-          navigator.canShare &&
-          navigator.canShare({ files: [pngFile] })
-        ) {
-          try {
-            await navigator.share({
-              files: [pngFile],
-              title: shareTitle,
-              text: shareText,
-            });
-            showStatus('WhatsApp मा PNG तस्बिर सफलतापूर्वक सेयर गरियो!');
-            return;
-          } catch (shareErr: any) {
-            if (shareErr.name === 'AbortError') {
-              return; // User cancelled share dialog
-            }
-            console.warn('Navigator share files failed, falling back to download & link:', shareErr);
-          }
-        }
-
-        // Fallback for desktop / unsupported environments:
-        // Automatically download the PNG image file and open WhatsApp with formatted message
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Balananda_Panchanga_${cleanDate}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        const waMsg = encodeURIComponent(
-          `${shareText}\n\n(आधिकारिक पञ्चाङ्गको PNG तस्बिर तपाईंको उपकरणमा डाउनलोड भइसकेको छ। कृपया सिधै यहाँ पठाउनुहोस्।)`
-        );
-        window.open(`https://api.whatsapp.com/send?text=${waMsg}`, '_blank');
-        showStatus('PNG तस्बिर डाउनलोड भयो र WhatsApp च्याट खुल्यो!');
-      }, 'image/png');
-    } catch (err) {
-      console.error('Failed to share PNG to WhatsApp:', err);
-      showStatus('WhatsApp मा PNG सेयर गर्दा त्रुटि भयो।', 'error');
-    } finally {
-      setIsExportingPNG(false);
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {}
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = `fb-messenger://share?link=${encodeURIComponent(url)}`;
+    } else {
+      window.open('https://www.messenger.com/', '_blank');
     }
+    showStatus('पञ्चाङ्ग विवरण कपी भयो र Messenger खुल्दैछ!');
+  };
+
+  // 4. Copy Text
+  const handleCopyShareText = async () => {
+    const text = getPanchangaShareText();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        showStatus('पञ्चाङ्ग विवरण क्लिपबोर्डमा कपी भयो!');
+      }
+    } catch {}
   };
 
   return (
@@ -432,25 +501,69 @@ export const DailyPanchangaPrintModal: React.FC<DailyPanchangaPrintModalProps> =
             )}
           </div>
 
-          {/* 3. WHATSAPP SHARE BUTTON */}
-          <button
-            onClick={handleShareWhatsAppPNG}
-            disabled={isExportingPNG}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-60"
-            title="WhatsApp मा सेयर गर्नुहोस्"
-          >
-            {isExportingPNG ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>तयार हुँदै...</span>
-              </>
-            ) : (
-              <>
-                <MessageCircle className="w-4 h-4 text-white" />
-                <span>WhatsApp सेयर</span>
-              </>
+          {/* 3. UNIFIED SHARE DROPDOWN BUTTON (WhatsApp, Facebook, Messenger, Copy) */}
+          <div className="relative" ref={shareMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsShareOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+              title="सामाजिक सञ्जालमा सेयर गर्नुहोस्"
+            >
+              <Share2 className="w-4 h-4 text-white" />
+              <span>सेयर</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isShareOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Dropdown containing WhatsApp, Facebook, Messenger, and Copy */}
+            {isShareOpen && (
+              <div className="absolute right-0 mt-1.5 w-44 bg-stone-900 border border-emerald-500/40 rounded-xl shadow-2xl py-1 z-50 text-white animate-in fade-in zoom-in-95 duration-100 divide-y divide-stone-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsShareOpen(false);
+                    handleShareWhatsApp();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold hover:bg-stone-800 text-stone-200 hover:text-emerald-400 transition cursor-pointer text-left"
+                >
+                  <WhatsAppIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsShareOpen(false);
+                    handleShareFacebook();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold hover:bg-stone-800 text-stone-200 hover:text-blue-400 transition cursor-pointer text-left"
+                >
+                  <FacebookIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span>Facebook</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsShareOpen(false);
+                    handleShareMessenger();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold hover:bg-stone-800 text-stone-200 hover:text-sky-400 transition cursor-pointer text-left"
+                >
+                  <MessengerIcon className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span>Messenger</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsShareOpen(false);
+                    handleCopyShareText();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold hover:bg-stone-800 text-stone-200 hover:text-amber-300 transition cursor-pointer text-left"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>सन्देश कपी गर्नुहोस्</span>
+                </button>
+              </div>
             )}
-          </button>
+          </div>
 
           {/* Close Modal */}
           <button

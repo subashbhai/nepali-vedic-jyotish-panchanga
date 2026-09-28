@@ -13,4 +13,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('updater-status', subscription);
     return () => ipcRenderer.removeListener('updater-status', subscription);
   },
+  onTriggerCheckUpdates: (callback) => {
+    const subscription = () => callback();
+    ipcRenderer.on('trigger-check-updates', subscription);
+    return () => ipcRenderer.removeListener('trigger-check-updates', subscription);
+  },
+  onOpenUpdateModal: (callback) => {
+    const subscription = () => callback();
+    ipcRenderer.on('open-update-modal', subscription);
+    return () => ipcRenderer.removeListener('open-update-modal', subscription);
+  },
 });

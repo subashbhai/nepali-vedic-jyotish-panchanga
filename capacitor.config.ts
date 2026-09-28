@@ -1,4 +1,9 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+interface CapacitorConfig {
+  appId: string;
+  appName: string;
+  webDir: string;
+  [key: string]: any;
+}
 
 const config: CapacitorConfig = {
   appId: 'com.balananda.jyotish',

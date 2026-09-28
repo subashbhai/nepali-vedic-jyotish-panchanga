@@ -28,8 +28,10 @@ import {
   FileText,
   Image as ImageIcon,
   MessageCircle,
-  Loader2
+  Loader2,
+  Share2
 } from 'lucide-react';
+import { WhatsAppIcon, FacebookIcon, MessengerIcon } from './common/WhatsAppShareModal';
 
 import { 
   BirthDetails, 
@@ -164,9 +166,27 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
   const [isCheenaQuickEditOpen, setIsCheenaQuickEditOpen] = useState(false);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+  const [showShareDropdown, setShowShareDropdown] = useState(false);
   const [isSharingWhatsApp, setIsSharingWhatsApp] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
+  const downloadDropdownRef = useRef<HTMLDivElement>(null);
+  const shareDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (downloadDropdownRef.current && !downloadDropdownRef.current.contains(e.target as Node)) {
+        setShowDownloadDropdown(false);
+      }
+      if (shareDropdownRef.current && !shareDropdownRef.current.contains(e.target as Node)) {
+        setShowShareDropdown(false);
+      }
+    };
+    if (showDownloadDropdown || showShareDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDownloadDropdown, showShareDropdown]);
 
   // Filtered Jatak Search Results
   const filteredProfiles = (profiles || []).filter((p) => {
@@ -238,19 +258,60 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
     }
   };
 
-  // Handle direct WhatsApp PDF Share
-  const handleWhatsAppShare = async () => {
-    setIsSharingWhatsApp(true);
-    try {
-      const fileName = `Kundali_Patrika_${profile.name}.pdf`;
-      const msg = `नमस्कार, ${profile.name} को प्रामाणिक जन्मपत्रिका प्रतिवेदन यस पत्रमा संलग्न गरिएको छ।`;
-      const phone = profile.phone || profile.fatherDetails?.phone;
-      await sharePDFToWhatsApp('patrika_printable_document_area', fileName, msg, phone);
-    } catch (e) {
-      console.error('WhatsApp share error:', e);
-    } finally {
-      setIsSharingWhatsApp(false);
+  const getPatrikaShareText = () => {
+    return `॥ वैदिक जन्मपत्रिका प्रतिवेदन ॥\n👤 जातकको नाम: ${profile.name}\n📅 जन्म मिति: वि.सं. ${toDevanagariNumerals(profile.dateBS)} | समय: ${toDevanagariNumerals(profile.time)}\n📍 जन्म स्थान: ${profile.location?.name || 'नेपाल'}\n📜 प्रतिवेदन प्रकार: ${currentPatrikaMeta?.label || 'जन्मपत्रिका'}\n\n— ${orgProfile?.name || 'बालानन्द वैदिक ज्योतिष सेवा'}\n🌐 ${typeof window !== 'undefined' ? window.location.href : 'https://suwashdmk.com'}`;
+
+  };
+
+  const handleShareWhatsApp = () => {
+    setShowShareDropdown(false);
+    const text = getPatrikaShareText();
+    const phone = profile.phone || profile.fatherDetails?.phone;
+    let cleanPhone = phone ? phone.replace(/\D/g, '') : '';
+    if (cleanPhone.length === 10 && cleanPhone.startsWith('9')) {
+      cleanPhone = '977' + cleanPhone;
     }
+    const encoded = encodeURIComponent(text);
+    const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleShareFacebook = () => {
+    setShowShareDropdown(false);
+    const text = getPatrikaShareText();
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`, '_blank', 'width=620,height=540');
+  };
+
+  const handleShareMessenger = async () => {
+    setShowShareDropdown(false);
+    const text = getPatrikaShareText();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {}
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    if (isMobile) {
+      window.location.href = `fb-messenger://share?link=${encodeURIComponent(url)}`;
+    } else {
+      window.open('https://www.messenger.com/', '_blank');
+    }
+    setDownloadStatus('विवरण कपी भयो र Messenger खुल्दैछ!');
+    setTimeout(() => setDownloadStatus(null), 3000);
+  };
+
+  const handleCopyShareText = async () => {
+    setShowShareDropdown(false);
+    const text = getPatrikaShareText();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        setDownloadStatus('जन्मपत्रिका विवरण क्लिपबोर्डमा कपी भयो!');
+        setTimeout(() => setDownloadStatus(null), 3000);
+      }
+    } catch {}
   };
 
   const togglePageSelection = (key: keyof typeof selectedPrintPages) => {
@@ -429,7 +490,7 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
             )}
 
             {/* Unified Download Dropdown (PDF & PNG) */}
-            <div className="relative">
+            <div className="relative" ref={downloadDropdownRef}>
               <button
                 type="button"
                 onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
@@ -467,20 +528,56 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
               )}
             </div>
 
-            {/* Direct WhatsApp PDF Share */}
-            <button
-              onClick={handleWhatsAppShare}
-              disabled={isSharingWhatsApp}
-              className="flex items-center gap-1.5 bg-[#166534] hover:bg-[#14532d] text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm cursor-pointer active:scale-95 disabled:opacity-60"
-              title="प्रत्यक्ष WhatsApp मा PDF प्रतिवेदन पठाउनुहोस्"
-            >
-              {isSharingWhatsApp ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <MessageCircle className="w-4 h-4 text-emerald-300" />
+            {/* Unified Share Dropdown Button */}
+            <div className="relative" ref={shareDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setShowShareDropdown(!showShareDropdown)}
+                className="flex items-center gap-1.5 bg-[#166534] hover:bg-[#14532d] text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm cursor-pointer active:scale-95"
+                title="सामाजिक सञ्जालमा सेयर गर्नुहोस्"
+              >
+                <Share2 className="w-4 h-4 text-emerald-300" />
+                <span>सेयर</span>
+                <ChevronDown className={`w-3.5 h-3.5 opacity-80 transition-transform duration-150 ${showShareDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showShareDropdown && (
+                <div className="absolute right-0 top-full mt-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl shadow-xl z-30 py-1 min-w-[160px] overflow-hidden divide-y divide-stone-100 dark:divide-stone-700 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={handleShareWhatsApp}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-emerald-50 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-100 flex items-center gap-2 cursor-pointer"
+                  >
+                    <WhatsAppIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>WhatsApp</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShareFacebook}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-blue-50 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-100 flex items-center gap-2 cursor-pointer"
+                  >
+                    <FacebookIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span>Facebook</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShareMessenger}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-sky-50 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-100 flex items-center gap-2 cursor-pointer"
+                  >
+                    <MessengerIcon className="w-4 h-4 text-sky-500 shrink-0" />
+                    <span>Messenger</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyShareText}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-amber-50 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-100 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>विवरण कपी गर्नुहोस्</span>
+                  </button>
+                </div>
               )}
-              <span>{isSharingWhatsApp ? 'तयार हुँदै...' : 'WhatsApp सेयर'}</span>
-            </button>
+            </div>
           </div>
         </div>
 

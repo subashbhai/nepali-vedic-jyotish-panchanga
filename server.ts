@@ -1,5 +1,7 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import os from "os";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -721,6 +723,43 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
   // Health check API
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", app: "Nepali Vedic Jyotish & Panchanga" });
+  });
+
+  // Local Network IP discovery API (for mobile QR code scan in local Wi-Fi)
+  app.get("/api/network-info", (req, res) => {
+    try {
+      const interfaces = os.networkInterfaces();
+      let localIp = 'localhost';
+      for (const name of Object.keys(interfaces)) {
+        const netList = interfaces[name];
+        if (netList) {
+          for (const iface of netList) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+              localIp = iface.address;
+              break;
+            }
+          }
+        }
+        if (localIp !== 'localhost') break;
+      }
+      res.json({ localIp, port: PORT });
+    } catch {
+      res.json({ localIp: 'localhost', port: PORT });
+    }
+  });
+
+  // Direct APK download route with explicit attachment header
+  app.get(["/downloads/nepali-vedic-jyotish-panchanga.apk", "/api/download/apk"], (req, res) => {
+    const apkPublicPath = path.join(process.cwd(), "public", "downloads", "nepali-vedic-jyotish-panchanga.apk");
+    const apkDistPath = path.join(process.cwd(), "dist", "downloads", "nepali-vedic-jyotish-panchanga.apk");
+    const targetFile = fs.existsSync(apkPublicPath) ? apkPublicPath : apkDistPath;
+
+    if (fs.existsSync(targetFile)) {
+      res.setHeader("Content-Type", "application/vnd.android.package-archive");
+      res.setHeader("Content-Disposition", 'attachment; filename="nepali-vedic-jyotish-panchanga.apk"');
+      return res.sendFile(targetFile);
+    }
+    return res.status(404).send("APK file not found on server.");
   });
 
   // Vite middleware for development or static serving for production

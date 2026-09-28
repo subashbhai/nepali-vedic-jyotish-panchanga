@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&family=Tiro+Devanagari+Marathi:ital@0;1&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     font-family: 'Mukta', 'Noto Sans Devanagari', 'Tiro Devanagari Marathi', serif, sans-serif;
@@ -164,10 +166,58 @@ tfoot {
 /* 🌟 CLIENT THEMES (सफ्टवेयर थिम कस्टमाइजेसन)                                */
 /* ========================================================================= */
 
+header {
+  --header-title: #1A1A1A;
+  --header-subtitle: #D97706;
+  --header-meta: #78716C;
+  --header-highlight: #2D241E;
+  --header-accent: #D97706;
+  --header-badge-bg: rgba(217, 119, 6, 0.15);
+  --header-badge-border: rgba(217, 119, 6, 0.4);
+  --header-badge-text: #92400E;
+  --header-btn-bg: rgba(255, 255, 255, 0.95);
+  --header-btn-border: #E6E0D5;
+  --header-btn-text: #78716C;
+  --header-btn-hover: #F5F5F4;
+  --header-logo-border: #F59E0B;
+  --header-logo-ring: rgba(245, 158, 11, 0.25);
+}
+
+.dark header {
+  --header-title: #F5F5F4;
+  --header-subtitle: #FBBF24;
+  --header-meta: #A8A29E;
+  --header-highlight: #E7E5E4;
+  --header-accent: #FBBF24;
+  --header-badge-bg: rgba(245, 158, 11, 0.2);
+  --header-badge-border: rgba(245, 158, 11, 0.4);
+  --header-badge-text: #FDE68A;
+  --header-btn-bg: rgba(41, 37, 36, 0.85);
+  --header-btn-border: #44403C;
+  --header-btn-text: #D6D3D1;
+  --header-btn-hover: #292524;
+  --header-logo-border: #F59E0B;
+  --header-logo-ring: rgba(245, 158, 11, 0.25);
+}
+
 /* १. शाही म्यारून (Royal Maroon) */
 html[data-client-theme="royal_maroon"] header {
-  background: linear-gradient(to right, #4c0519, #700c22, #4c0519) !important;
+  background: linear-gradient(135deg, #3B0510 0%, #6B1124 50%, #4A0815 100%) !important;
   border-bottom-color: rgba(244, 63, 94, 0.4) !important;
+  --header-title: #FFF1F2;
+  --header-subtitle: #FDE047;
+  --header-meta: #FFE4E6;
+  --header-highlight: #FDE047;
+  --header-accent: #FB7185;
+  --header-badge-bg: rgba(244, 63, 94, 0.25);
+  --header-badge-border: rgba(251, 113, 133, 0.5);
+  --header-badge-text: #FFF1F2;
+  --header-btn-bg: rgba(59, 5, 16, 0.7);
+  --header-btn-border: rgba(244, 63, 94, 0.5);
+  --header-btn-text: #FECDD3;
+  --header-btn-hover: rgba(107, 17, 36, 0.9);
+  --header-logo-border: #FB7185;
+  --header-logo-ring: rgba(251, 113, 133, 0.4);
 }
 html[data-client-theme="royal_maroon"] {
   --client-primary: #7A1C1C;
@@ -176,8 +226,22 @@ html[data-client-theme="royal_maroon"] {
 
 /* २. हरित तुलसी (Sacred Sage) */
 html[data-client-theme="forest_sage"] header {
-  background: linear-gradient(to right, #064e3b, #047857, #064e3b) !important;
+  background: linear-gradient(135deg, #02261E 0%, #064E3B 50%, #043328 100%) !important;
   border-bottom-color: rgba(52, 211, 153, 0.4) !important;
+  --header-title: #ECFDF5;
+  --header-subtitle: #FDE047;
+  --header-meta: #D1FAE5;
+  --header-highlight: #FDE047;
+  --header-accent: #34D399;
+  --header-badge-bg: rgba(52, 211, 153, 0.25);
+  --header-badge-border: rgba(52, 211, 153, 0.5);
+  --header-badge-text: #ECFDF5;
+  --header-btn-bg: rgba(2, 38, 30, 0.7);
+  --header-btn-border: rgba(52, 211, 153, 0.5);
+  --header-btn-text: #A7F3D0;
+  --header-btn-hover: rgba(6, 78, 59, 0.9);
+  --header-logo-border: #34D399;
+  --header-logo-ring: rgba(52, 211, 153, 0.4);
 }
 html[data-client-theme="forest_sage"] {
   --client-primary: #059669;
@@ -186,8 +250,22 @@ html[data-client-theme="forest_sage"] {
 
 /* ३. मन्दिर आइभोरी (Temple Ivory) */
 html[data-client-theme="temple_ivory"] header {
-  background: linear-gradient(to right, #44403c, #57534e, #44403c) !important;
+  background: linear-gradient(135deg, #241E19 0%, #3D332B 50%, #2A231D 100%) !important;
   border-bottom-color: rgba(217, 119, 6, 0.4) !important;
+  --header-title: #FEF3C7;
+  --header-subtitle: #FDE68A;
+  --header-meta: #E7E5E4;
+  --header-highlight: #FBBF24;
+  --header-accent: #F59E0B;
+  --header-badge-bg: rgba(217, 119, 6, 0.25);
+  --header-badge-border: rgba(245, 158, 11, 0.5);
+  --header-badge-text: #FEF3C7;
+  --header-btn-bg: rgba(42, 35, 29, 0.7);
+  --header-btn-border: rgba(217, 119, 6, 0.5);
+  --header-btn-text: #FEF3C7;
+  --header-btn-hover: rgba(61, 51, 43, 0.9);
+  --header-logo-border: #F59E0B;
+  --header-logo-ring: rgba(245, 158, 11, 0.4);
 }
 html[data-client-theme="temple_ivory"] {
   --client-primary: #a16207;
@@ -196,8 +274,22 @@ html[data-client-theme="temple_ivory"] {
 
 /* ४. खगोलीय कृष्ण (Celestial Midnight) */
 html[data-client-theme="midnight_dark"] header {
-  background: linear-gradient(to right, #090d16, #1e293b, #090d16) !important;
+  background: linear-gradient(135deg, #060A14 0%, #111C3D 50%, #090E20 100%) !important;
   border-bottom-color: rgba(59, 130, 246, 0.4) !important;
+  --header-title: #F0F9FF;
+  --header-subtitle: #FDE047;
+  --header-meta: #BAE6FD;
+  --header-highlight: #FDE047;
+  --header-accent: #38BDF8;
+  --header-badge-bg: rgba(59, 130, 246, 0.25);
+  --header-badge-border: rgba(96, 165, 250, 0.5);
+  --header-badge-text: #F0F9FF;
+  --header-btn-bg: rgba(17, 28, 61, 0.7);
+  --header-btn-border: rgba(59, 130, 246, 0.5);
+  --header-btn-text: #BAE6FD;
+  --header-btn-hover: rgba(30, 58, 138, 0.9);
+  --header-logo-border: #38BDF8;
+  --header-logo-ring: rgba(56, 189, 248, 0.4);
 }
 html[data-client-theme="midnight_dark"] {
   --client-primary: #3B82F6;
@@ -206,7 +298,25 @@ html[data-client-theme="midnight_dark"] {
 
 /* ५. स्वर्ण वैदिक (Vedic Gold - Classic Default) */
 html[data-client-theme="vedic_gold"] header {
-  background: linear-gradient(to right, #78350f, #451a03, #78350f) !important;
+  background: linear-gradient(135deg, #451a03 0%, #78350f 50%, #3d1602 100%) !important;
   border-bottom-color: rgba(245, 158, 11, 0.4) !important;
+  --header-title: #FFFBEB;
+  --header-subtitle: #FDE68A;
+  --header-meta: #FEF3C7;
+  --header-highlight: #FBBF24;
+  --header-accent: #F59E0B;
+  --header-badge-bg: rgba(245, 158, 11, 0.25);
+  --header-badge-border: rgba(245, 158, 11, 0.5);
+  --header-badge-text: #FFFBEB;
+  --header-btn-bg: rgba(69, 26, 3, 0.7);
+  --header-btn-border: rgba(245, 158, 11, 0.5);
+  --header-btn-text: #FDE68A;
+  --header-btn-hover: rgba(120, 53, 15, 0.9);
+  --header-logo-border: #F59E0B;
+  --header-logo-ring: rgba(245, 158, 11, 0.4);
+}
+html[data-client-theme="vedic_gold"] {
+  --client-primary: #D97706;
+  --client-accent: #B45309;
 }
 

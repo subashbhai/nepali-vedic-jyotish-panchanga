@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   HeartHandshake, 
   Home, 
@@ -15,12 +15,13 @@ import {
   Lock, 
   HelpCircle, 
   Shield, 
-  Filter,
-  CheckCircle,
-  Eye,
-  AlertCircle,
-  Menu,
-  X
+  Filter, 
+  CheckCircle, 
+  Eye, 
+  AlertCircle, 
+  Menu, 
+  X,
+  ChevronDown
 } from 'lucide-react';
 import { 
   VivahProfile, 
@@ -132,6 +133,25 @@ export const VivahMainView: React.FC<VivahMainViewProps> = ({
 
   // Active Chat User State
   const [activeChatTarget, setActiveChatTarget] = useState<{ userId: string; name: string } | null>(null);
+
+  // Dropdown States for Desktop Navigation Menus
+  const [isUserFeaturesMenuOpen, setIsUserFeaturesMenuOpen] = useState<boolean>(false);
+  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState<boolean>(false);
+  const userFeaturesMenuRef = useRef<HTMLDivElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userFeaturesMenuRef.current && !userFeaturesMenuRef.current.contains(e.target as Node)) {
+        setIsUserFeaturesMenuOpen(false);
+      }
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target as Node)) {
+        setIsSettingsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Filter State
   const [filters, setFilters] = useState<FilterState>({
@@ -347,6 +367,29 @@ export const VivahMainView: React.FC<VivahMainViewProps> = ({
     { id: 'SUPPORT', label: 'सहायता / Support', icon: HelpCircle },
   ];
 
+  // Group 1: User / Matrimonial Features Dropdown
+  const userFeatureTabs: Array<{ id: VivahSectionTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }> = [
+    { id: 'MATCH', label: 'Match / Compatibility', icon: Sparkles },
+    { id: 'MY_PROFILE', label: 'मेरो प्रोफाइल', icon: User },
+    { id: 'REQUESTS', label: 'अनुरोधहरू', icon: Inbox, badge: requests.length },
+    { id: 'MESSAGING', label: 'सुरक्षित सन्देश', icon: MessageSquare },
+    { id: 'FAVORITES', label: 'मनपर्ने प्रोफाइल', icon: Heart, badge: favorites.length },
+  ];
+
+  // Group 2: Verification, Privacy & Support Dropdown
+  const settingsSupportTabs: Array<{ id: VivahSectionTab; label: string; icon: React.FC<{ className?: string }> }> = [
+    { id: 'VERIFICATION', label: 'Verification', icon: ShieldCheck },
+    { id: 'PRIVACY', label: 'Privacy & Settings', icon: Lock },
+    { id: 'SUPPORT', label: 'सहायता / Support', icon: HelpCircle },
+  ];
+
+  const isUserFeaturesActive = ['MATCH', 'MY_PROFILE', 'REQUESTS', 'MESSAGING', 'FAVORITES'].includes(activeSubTab);
+  const activeUserFeature = userFeatureTabs.find(t => t.id === activeSubTab);
+  const userFeaturesTotalBadge = (requests.length || 0) + (favorites.length || 0);
+
+  const isSettingsActive = ['VERIFICATION', 'PRIVACY', 'SUPPORT'].includes(activeSubTab);
+  const activeSettingFeature = settingsSupportTabs.find(t => t.id === activeSubTab);
+
   // If Admin / Moderator, add Admin tab
   if (
     rbacSession && 
@@ -420,34 +463,213 @@ export const VivahMainView: React.FC<VivahMainViewProps> = ({
 
         {/* Navigation Bar / Menu */}
         <div className="bg-white dark:bg-[#1E1B18] rounded-2xl border border-[#E6E0D5] dark:border-stone-800 p-2 sm:p-3 shadow-sm sticky top-[115px] z-20 backdrop-blur-md">
-          {/* Desktop Tab Menu */}
-          <div className="hidden lg:flex items-center gap-1.5 overflow-x-auto pb-1">
-            {navTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeSubTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveSubTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    isActive
-                      ? 'bg-[#D97706] text-white shadow-md'
-                      : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-[#D97706]'}`} />
-                  <span>{tab.label}</span>
-                  {tab.badge !== undefined && tab.badge > 0 && (
-                    <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-bold ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
-                    }`}>
-                      {tab.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/* Desktop Tab Menu with Clean Dropdowns */}
+          <div className="hidden lg:flex items-center gap-2 overflow-visible pb-1">
+            {/* 1. विवाह पोर्टल (Overview) */}
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('OVERVIEW')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeSubTab === 'OVERVIEW'
+                  ? 'bg-[#D97706] text-white shadow-md'
+                  : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+              }`}
+            >
+              <Home className={`w-4 h-4 ${activeSubTab === 'OVERVIEW' ? 'text-white' : 'text-[#D97706]'}`} />
+              <span>विवाह पोर्टल</span>
+            </button>
+
+            {/* 2. प्रोफाइल खोज (Search) */}
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('SEARCH')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeSubTab === 'SEARCH'
+                  ? 'bg-[#D97706] text-white shadow-md'
+                  : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+              }`}
+            >
+              <Search className={`w-4 h-4 ${activeSubTab === 'SEARCH' ? 'text-white' : 'text-[#D97706]'}`} />
+              <span>प्रोफाइल खोज</span>
+              {filteredProfiles.length > 0 && (
+                <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-bold ${
+                  activeSubTab === 'SEARCH' ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-stone-800 text-amber-900 dark:text-amber-300'
+                }`}>
+                  {filteredProfiles.length}
+                </span>
+              )}
+            </button>
+
+            {/* 3. नयाँ विवाह प्रोफाइल (Register) */}
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('REGISTER')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeSubTab === 'REGISTER'
+                  ? 'bg-[#D97706] text-white shadow-md'
+                  : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+              }`}
+            >
+              <UserPlus className={`w-4 h-4 ${activeSubTab === 'REGISTER' ? 'text-white' : 'text-[#D97706]'}`} />
+              <span>नयाँ विवाह प्रोफाइल</span>
+            </button>
+
+            {/* Dropdown 1: Match, My Profile, Requests, Messaging, Favorites */}
+            <div className="relative" ref={userFeaturesMenuRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUserFeaturesMenuOpen(!isUserFeaturesMenuOpen);
+                  setIsSettingsMenuOpen(false);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  isUserFeaturesActive
+                    ? 'bg-[#D97706] text-white shadow-md'
+                    : isUserFeaturesMenuOpen
+                    ? 'bg-amber-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100'
+                    : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+                }`}
+                title="म्याच, मेरो प्रोफाइल, अनुरोध, सन्देश तथा मनपर्ने सूची"
+              >
+                <Sparkles className={`w-4 h-4 ${isUserFeaturesActive ? 'text-white' : 'text-[#D97706]'}`} />
+                <span>{activeUserFeature ? activeUserFeature.label : 'म्याच एवं प्रोफाइल'}</span>
+                {userFeaturesTotalBadge > 0 && (
+                  <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-bold ${
+                    isUserFeaturesActive ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200'
+                  }`}>
+                    {userFeaturesTotalBadge}
+                  </span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isUserFeaturesMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isUserFeaturesMenuOpen && (
+                <div className="absolute left-0 mt-1.5 w-60 bg-white dark:bg-[#1E1B18] rounded-2xl shadow-2xl border border-amber-200/80 dark:border-stone-700 p-1.5 z-50 animate-in fade-in slide-in-from-top-1">
+                  {userFeatureTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeSubTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveSubTab(tab.id);
+                          setIsUserFeaturesMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-amber-500/15 text-amber-900 dark:text-amber-200 font-extrabold'
+                            : 'hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className={`w-4 h-4 ${isActive ? 'text-[#D97706]' : 'text-stone-500 dark:text-stone-400'}`} />
+                          <span>{tab.label}</span>
+                        </div>
+                        {tab.badge !== undefined && tab.badge > 0 && (
+                          <span className="px-1.5 py-0.2 text-[10px] rounded-full font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200">
+                            {tab.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 4. विवाह विज्ञापन (Ads) */}
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('ADS')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeSubTab === 'ADS'
+                  ? 'bg-[#D97706] text-white shadow-md'
+                  : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+              }`}
+            >
+              <FileText className={`w-4 h-4 ${activeSubTab === 'ADS' ? 'text-white' : 'text-[#D97706]'}`} />
+              <span>विवाह विज्ञापन</span>
+              {advertisements.filter(a => a.status === 'APPROVED').length > 0 && (
+                <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-bold ${
+                  activeSubTab === 'ADS' ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-stone-800 text-amber-900 dark:text-amber-300'
+                }`}>
+                  {advertisements.filter(a => a.status === 'APPROVED').length}
+                </span>
+              )}
+            </button>
+
+            {/* Dropdown 2: Verification, Privacy & Settings, Support */}
+            <div className="relative" ref={settingsMenuRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSettingsMenuOpen(!isSettingsMenuOpen);
+                  setIsUserFeaturesMenuOpen(false);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  isSettingsActive
+                    ? 'bg-[#D97706] text-white shadow-md'
+                    : isSettingsMenuOpen
+                    ? 'bg-amber-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100'
+                    : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+                }`}
+                title="प्रमाणीकरण, गोपनीयता र सहायता केन्द्र"
+              >
+                <Lock className={`w-4 h-4 ${isSettingsActive ? 'text-white' : 'text-[#D97706]'}`} />
+                <span>{activeSettingFeature ? activeSettingFeature.label : 'सहयोग एवं सेटिङ'}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isSettingsMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isSettingsMenuOpen && (
+                <div className="absolute right-0 sm:right-auto sm:left-0 mt-1.5 w-56 bg-white dark:bg-[#1E1B18] rounded-2xl shadow-2xl border border-amber-200/80 dark:border-stone-700 p-1.5 z-50 animate-in fade-in slide-in-from-top-1">
+                  {settingsSupportTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeSubTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveSubTab(tab.id);
+                          setIsSettingsMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-amber-500/15 text-amber-900 dark:text-amber-200 font-extrabold'
+                            : 'hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-[#D97706]' : 'text-stone-500 dark:text-stone-400'}`} />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 5. Supervisor / Admin Tab (if authorized) */}
+            {rbacSession && (
+              rbacSession.role === 'SUPER_ADMIN' || 
+              rbacSession.role === 'STORE_ADMIN' || 
+              rbacSession.role === 'MARRIAGE_MODERATOR' ||
+              rbacSession.permissions?.includes('*') ||
+              rbacSession.permissions?.includes('marriage.profiles.verify')
+            ) && (
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('ADMIN')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  activeSubTab === 'ADMIN'
+                    ? 'bg-[#D97706] text-white shadow-md'
+                    : 'hover:bg-amber-100/60 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+                }`}
+              >
+                <Shield className={`w-4 h-4 ${activeSubTab === 'ADMIN' ? 'text-white' : 'text-[#D97706]'}`} />
+                <span>विवाह Supervisor</span>
+              </button>
+            )}
           </div>
 
           {/* Mobile Navigation Header Dropdown Button */}

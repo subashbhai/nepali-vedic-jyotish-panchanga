@@ -29,6 +29,7 @@ import PatrikaErrorBoundary from './components/PatrikaErrorBoundary';
 import { setAppContextGetter } from './utils/errorLogger';
 import { useAppUpdateNotifier } from './utils/useAppUpdateNotifier';
 import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
+import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
 
 const KundaliView = lazy(() => import('./components/KundaliView').then((m) => ({ default: m.KundaliView })));
 const PatrikaView = lazy(() => import('./components/PatrikaView').then((m) => ({ default: m.PatrikaView })));
@@ -134,6 +135,20 @@ export default function App() {
   const [activePatrikaSubTab, setActivePatrikaSubTab] = useState<any>('china');
   const [editingProfile, setEditingProfile] = useState<BirthDetails | null>(null);
   const [settings, setSettingsState] = useState<ApplicationSettings>(getStoredSettings());
+  const [isApkPromptModalOpen, setIsApkPromptModalOpen] = useState(false);
+
+  // Automatically trigger APK download prompt modal when opened with ?action=download-apk or ?download=apk (e.g. from QR scan)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('action') === 'download-apk' || urlParams.get('download') === 'apk') {
+        setIsApkPromptModalOpen(true);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Sync browser Back/Forward navigation with activeModule
   useEffect(() => {
@@ -634,7 +649,8 @@ export default function App() {
 
   // Sync Theme Mode
   useEffect(() => {
-    if (settings.themeMode === 'dark') {
+    const isDark = settings.themeMode === 'dark';
+    if (isDark) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
@@ -653,10 +669,17 @@ export default function App() {
   }, []);
 
   const handleToggleTheme = () => {
-    const nextTheme = settings.themeMode === 'dark' ? 'light' : 'dark';
-    const updated = { ...settings, themeMode: nextTheme as 'light' | 'dark' };
+    const isCurrentlyDark = document.documentElement.classList.contains('dark') || settings.themeMode === 'dark';
+    const nextTheme: 'light' | 'dark' = isCurrentlyDark ? 'light' : 'dark';
+    const updated: ApplicationSettings = { ...settings, themeMode: nextTheme };
     setSettingsState(updated);
     saveSettings(updated);
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    window.dispatchEvent(new CustomEvent('theme-mode-changed', { detail: { themeMode: nextTheme } }));
   };
 
   const handleSaveProfile = (newProfile: BirthDetails) => {
@@ -1753,6 +1776,12 @@ export default function App() {
 
         {/* Offline indicator banner when network is disconnected */}
         <OfflineIndicator />
+
+        {/* Mobile QR Scan APK Download Prompt Modal ("Download App?" Popup with Yes/No) */}
+        <ApkDownloadPromptModal
+          isOpen={isApkPromptModalOpen}
+          onClose={() => setIsApkPromptModalOpen(false)}
+        />
       </Suspense>
     </div>
   );

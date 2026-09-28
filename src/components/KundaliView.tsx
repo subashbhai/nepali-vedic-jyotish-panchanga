@@ -507,7 +507,7 @@ export const KundaliView: React.FC<KundaliViewProps> = ({
             </div>
 
             {/* Block 3 (RHS): जन्मकालीन पञ्चाङ्ग (कुण्डलीको दायाँ) */}
-            <div className="w-full">
+            <div className="w-full space-y-4 flex flex-col">
               <PanchangaPanel
                 panchanga={effectivePanchanga}
                 profile={profile}
