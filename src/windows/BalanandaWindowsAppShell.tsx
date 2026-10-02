@@ -58,7 +58,7 @@ export const BalanandaWindowsAppShell: React.FC<BalanandaWindowsAppShellProps> =
     setFloorPlan(fp);
   }, [activeProjectId]);
 
-  const vastuAnalysis = analyzeVastuFloorPlan(floorPlan.placements || []);
+  const vastuAnalysis = analyzeVastuFloorPlan(floorPlan?.placements || []);
 
   const birthProfiles = getAllBirthProfiles();
   const activeProfile = birthProfiles[0];
@@ -225,7 +225,7 @@ export const BalanandaWindowsAppShell: React.FC<BalanandaWindowsAppShellProps> =
           </div>
 
           <div className="text-[11px] text-stone-400 shrink-0 hidden md:block">
-            सक्रिय: <strong>{activeProject.projectName}</strong> ({activeProject.ownerName})
+            सक्रिय: <strong>{activeProject?.projectName || 'वास्तु प्रोजेक्ट'}</strong> ({activeProject?.ownerName || 'गृहस्वामी'})
           </div>
         </div>
       )}
@@ -269,7 +269,7 @@ export const BalanandaWindowsAppShell: React.FC<BalanandaWindowsAppShellProps> =
             {activeVastuTab === 'FLOOR_PLAN' && (
               <WindowsVastuFloorPlanEditor
                 floorPlan={floorPlan}
-                projectName={activeProject.projectName}
+                projectName={activeProject?.projectName || 'वास्तु प्रोजेक्ट'}
                 onUpdateFloorPlan={(up) => setFloorPlan(up)}
                 onNavigateToAnalysis={() => setActiveVastuTab('ANALYSIS')}
               />
@@ -278,15 +278,15 @@ export const BalanandaWindowsAppShell: React.FC<BalanandaWindowsAppShellProps> =
             {activeVastuTab === 'ANALYSIS' && (
               <WindowsVastuAnalysisView
                 analysis={vastuAnalysis}
-                projectName={activeProject.projectName}
+                projectName={activeProject?.projectName || 'वास्तु प्रोजेक्ट'}
                 onNavigateToReport={() => setActiveVastuTab('REPORT')}
               />
             )}
 
             {activeVastuTab === 'REPORT' && (
               <WindowsVastuReportView
-                project={activeProject}
-                placements={floorPlan.placements || []}
+                project={activeProject || vastuProjects[0]}
+                placements={floorPlan?.placements || []}
                 analysis={vastuAnalysis}
               />
             )}
