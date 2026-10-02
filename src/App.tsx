@@ -496,13 +496,8 @@ export default function App() {
     }
   }, [rbacSession, isFullyUnlocked, activeTab]);
 
-  // Function to enter full Jyotish workspace
+  // Function to enter full Jyotish workspace (Free to explore)
   const enterJyotishModule = () => {
-    if (!isFullyUnlocked) {
-      setLockedFeatureName('ज्योतिष');
-      setIsClientPurchaseLeadModalOpen(true);
-      return;
-    }
     // startModuleTransition: React लाई blink नगरी background मा Jyotish render गर्न भन्छ
     startModuleTransition(() => {
       setActiveModule('JYOTISH');
@@ -518,7 +513,7 @@ export default function App() {
     startModuleTransition(() => {
       setActiveModule('MAIN');
       if (activeTab === 'jyotishi') {
-        setActiveTab(isFullyUnlocked ? 'dashboard' : 'yajaman');
+        setActiveTab('dashboard');
       }
     });
     if (window.location.hash === '#jyotish') {
@@ -967,8 +962,8 @@ export default function App() {
     };
   }, []);
 
-  // If JYOTISH module is active, render full-screen workspace with no main dropdowns
-  if (activeModule === 'JYOTISH' && rbacSession && isFullyUnlocked) {
+  // If JYOTISH module is active, render full-screen workspace with no main dropdowns (free to explore)
+  if (activeModule === 'JYOTISH') {
     return (
       <div className="min-h-screen bg-[#FAF7F2] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] font-sans selection:bg-amber-200 selection:text-amber-950 transition-colors duration-200 flex flex-col">
         {/* Jyotish module: Suspense fallback invisible हुन्छ — blinking/flash हुँदैन */}
@@ -1097,11 +1092,6 @@ export default function App() {
           }}
           profiles={profiles}
           onOpenVastuModal={(subTab) => {
-            if (!isFullyUnlocked) {
-              setLockedFeatureName('वास्तुशास्त्र');
-              setIsClientPurchaseLeadModalOpen(true);
-              return;
-            }
             if (subTab) {
               setVastuSubTab(subTab as VastuSubTab);
             }
@@ -1109,7 +1099,7 @@ export default function App() {
           }}
           onTabChange={(tab, subTab) => {
             const resolvedTab = (tab as string) === 'patro' ? 'calendar' : tab;
-            const isPublicTab = ['dashboard', 'panchanga', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolvedTab);
+            const isPublicTab = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolvedTab);
 
             if (!rbacSession && !isPublicTab) {
               setIsRBACAuthModalOpen(true);
@@ -1231,7 +1221,7 @@ export default function App() {
               hasFullAccess={isFullyUnlocked}
               onNavigate={(tab) => {
                 const resolved = (tab as string) === 'patro' ? 'calendar' : tab;
-                const isPublic = ['dashboard', 'panchanga', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolved);
+                const isPublic = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolved);
                 if (!rbacSession && !isPublic) {
                   setIsRBACAuthModalOpen(true);
                   return;
