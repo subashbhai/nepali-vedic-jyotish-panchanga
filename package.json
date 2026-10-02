@@ -80,20 +80,25 @@
       ],
       "icon": "public/favicon.ico"
     },
+    "nsis": {
+      "artifactName": "nepali-vedic-jyotish-panchanga-setup-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "बालानन्द वैदिक ज्योतिष तथा वास्तु सेवा"
+    },
+    "portable": {
+      "artifactName": "nepali-vedic-jyotish-panchanga-${version}.${ext}"
+    },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
       "icon": "public/logo.png",
-      "category": "public.app-category.lifestyle"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "बालानन्द वैदिक ज्योतिष तथा वास्तु सेवा"
+      "category": "public.app-category.lifestyle",
+      "artifactName": "nepali-vedic-jyotish-panchanga-${version}.${ext}"
     }
   }
 }
