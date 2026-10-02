@@ -23,7 +23,19 @@ import {
   Zap,
   Bell,
   RefreshCw,
-  HeartHandshake
+  HeartHandshake,
+  Globe,
+  Sliders,
+  Sparkles,
+  Lock,
+  Megaphone,
+  Send,
+  Key,
+  ChevronRight,
+  Settings,
+  Newspaper,
+  Compass,
+  Building2
 } from 'lucide-react';
 import { formatNPRCurrency } from '../../../db/subscriptionStore';
 
@@ -83,7 +95,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
       title: 'भुक्तानी प्रमाणीकरण बाँकी',
       count: stats.pendingPayments,
       type: 'payment',
-      tab: 'payments',
+      tab: 'finance',
       desc: `${stats.pendingPayments} eSewa र बैंक ट्रान्सफर भुक्तानी स्वीकृतिका लागि पर्खाइमा छन्।`,
       urgency: 'high'
     },
@@ -134,6 +146,135 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
     }
   ].filter(a => a.count > 0);
 
+  // 6 Command Center Blocks
+  const commandBlocks = [
+    {
+      id: 'block_pages_services',
+      number: '१',
+      titleNepali: 'पृष्ठ तथा सेवा पूर्ण नियन्त्रण',
+      titleEnglish: 'Pages, Services & Content Control',
+      badge: 'केन्द्रीय स्विच',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      description: '१२ वटा पृष्ठहरूको स्थिति, ८ वटा सेवाहरूको बुकिङ/शुल्क, आपतकालीन ब्यानर र विज्ञापन पूर्ण नियन्त्रण।',
+      icon: Sliders,
+      mainTab: 'pages_services',
+      mainActionLabel: 'स्विचबोर्ड खोल्नुहोस्',
+      gradient: 'from-amber-950/40 via-stone-900 to-stone-900',
+      borderColor: 'border-amber-500/40 hover:border-amber-400',
+      iconColor: 'text-amber-400 bg-amber-500/15',
+      subLinks: [
+        { tab: 'pages_services', label: 'पृष्ठ/सेवा स्विचबोर्ड' },
+        { tab: 'samachar_editor', label: 'समाचार तथा लेख' },
+        { tab: 'advertisement', label: 'विज्ञापन (AdSense)' }
+      ]
+    },
+    {
+      id: 'block_vedic_portals',
+      number: '२',
+      titleNepali: 'वैदिक मञ्च तथा सेवा बुकिङ',
+      titleEnglish: 'Vedic Portals, Bookings & Store',
+      badge: stats.pendingVivah ? `${stats.pendingVivah} पेन्डिङ` : 'सक्रिय',
+      badgeColor: stats.pendingVivah ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      description: 'विवाह मञ्च (Matrimony) विज्ञापन समीक्षा, ज्योतिषी/पुरोहित सेवा बुकिङ, कुण्डली पत्रिका र वैदिक पसल।',
+      icon: HeartHandshake,
+      mainTab: 'vivah_portal',
+      mainActionLabel: 'विवाह मञ्च नियन्त्रण',
+      gradient: 'from-rose-950/40 via-stone-900 to-stone-900',
+      borderColor: 'border-rose-500/30 hover:border-rose-400',
+      iconColor: 'text-rose-400 bg-rose-500/15',
+      subLinks: [
+        { tab: 'vivah_portal', label: 'विवाह मञ्च ब्याकइन्ड' },
+        { tab: 'bookings', label: 'सेवा बुकिङहरू' },
+        { tab: 'patrika', label: 'कुण्डली तथा पत्रिका' },
+        { tab: 'store_pos', label: 'वैदिक पसल & POS' }
+      ]
+    },
+    {
+      id: 'block_users_experts',
+      number: '३',
+      titleNepali: 'प्रयोगकर्ता तथा विशेषज्ञ व्यवस्थापन',
+      titleEnglish: 'Users, Experts & RBAC Security',
+      badge: stats.pendingExperts ? `${stats.pendingExperts} स्वीकृति बाँकी` : `${stats.totalUsers} प्रयोगकर्ता`,
+      badgeColor: stats.pendingExperts ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+      description: 'ज्योतिषी, पुरोहित तथा वास्तुविद्हरूको आवेदन स्वीकृति, यजमान प्रोफाइल, RBAC भूमिका र म्याजिक लिङ्क।',
+      icon: Users,
+      mainTab: 'users',
+      mainActionLabel: 'प्रयोगकर्ता कक्ष खोल्नुहोस्',
+      gradient: 'from-blue-950/40 via-stone-900 to-stone-900',
+      borderColor: 'border-blue-500/30 hover:border-blue-400',
+      iconColor: 'text-blue-400 bg-blue-500/15',
+      subLinks: [
+        { tab: 'users', label: 'सबै प्रयोगकर्ताहरू' },
+        { tab: 'experts', label: 'विशेषज्ञ स्वीकृति' },
+        { tab: 'yajaman', label: 'यजमान प्रोफाइल' },
+        { tab: 'rbac', label: 'भूमिका & अधिकार' },
+        { tab: 'role_magic_links', label: 'म्याजिक लिङ्क' }
+      ]
+    },
+    {
+      id: 'block_finance',
+      number: '४',
+      titleNepali: 'आर्थिक, खरिद स्वीकृति तथा सदस्यता',
+      titleEnglish: 'Finance, Subscriptions & Approvals',
+      badge: stats.pendingPurchases ? `${stats.pendingPurchases} खरिद पेन्डिङ` : 'NPR ' + formatNPRCurrency(stats.todayRevenue),
+      badgeColor: stats.pendingPurchases ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      description: 'सफ्टवेयर खरिद स्वीकृति तथा लाइसेन्स, eSewa भुक्तानी प्रमाणीकरण र विशेषज्ञ वार्षिक सदस्यता नवीकरण।',
+      icon: CreditCard,
+      mainTab: 'client_approvals',
+      mainActionLabel: 'सफ्टवेयर खरिद स्वीकृति',
+      gradient: 'from-emerald-950/40 via-stone-900 to-stone-900',
+      borderColor: 'border-emerald-500/30 hover:border-emerald-400',
+      iconColor: 'text-emerald-400 bg-emerald-500/15',
+      subLinks: [
+        { tab: 'client_approvals', label: 'सफ्टवेयर खरिद स्वीकृति' },
+        { tab: 'finance', label: 'भुक्तानी प्रमाणीकरण' },
+        { tab: 'memberships', label: 'सदस्यता व्यवस्थापन' }
+      ]
+    },
+    {
+      id: 'block_communication',
+      number: '५',
+      titleNepali: 'सञ्चार, WhatsApp र प्रसारण',
+      titleEnglish: 'WhatsApp Dispatch & Push Broadcast',
+      badge: 'दैनिक बिहान ७ बजे',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      description: 'दैनिक बिहान ७ बजे ग्राहकहरूलाई WhatsApp पञ्चाङ्ग प्रेषण, लक्षित पुश सूचना तथा लोकेसन रेडियस मनिटर।',
+      icon: Send,
+      mainTab: 'daily_whatsapp',
+      mainActionLabel: 'WhatsApp प्रेषण प्रबन्धक',
+      gradient: 'from-teal-950/40 via-stone-900 to-stone-900',
+      borderColor: 'border-teal-500/30 hover:border-teal-400',
+      iconColor: 'text-teal-400 bg-teal-500/15',
+      subLinks: [
+        { tab: 'daily_whatsapp', label: 'WhatsApp दैनिक प्रेषक' },
+        { tab: 'targeted_push', label: 'लक्षित पुश सूचना' },
+        { tab: 'notifications', label: 'सूचना ब्रोडकास्ट' },
+        { tab: 'geo_monitor', label: 'लोकेसन रेडियस' }
+      ]
+    },
+    {
+      id: 'block_system_settings',
+      number: '६',
+      titleNepali: 'प्रणाली सेटिङ्स, सुरक्षा र ब्याकअप',
+      titleEnglish: 'System Settings, Security & Backup',
+      badge: '१००% सुरक्षित',
+      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+      description: 'संस्थागत प्रोफाइल र सम्पर्क, कमिसन दरहरू, सुरक्षा तथा अडिट लग र सम्पूर्ण डाटा ब्याकअप/रिस्टोर।',
+      icon: Settings,
+      mainTab: 'settings',
+      mainActionLabel: 'प्रणाली सेटिङ्स खोल्नुहोस्',
+      gradient: 'from-purple-950/40 via-stone-900 to-stone-900',
+      borderColor: 'border-purple-500/30 hover:border-purple-400',
+      iconColor: 'text-purple-400 bg-purple-500/15',
+      subLinks: [
+        { tab: 'settings', label: 'प्रणाली सेटिङ्स' },
+        { tab: 'security_audit', label: 'सुरक्षा अडिट लग' },
+        { tab: 'reports', label: 'प्रतिवेदनहरू' },
+        { tab: 'backup', label: 'डाटा ब्याकअप' }
+      ]
+    }
+  ];
+
   const kpiCards = [
     { id: 'totalUsers', label: 'जम्मा प्रयोगकर्ता', value: stats.totalUsers, icon: Users, tab: 'users', color: 'from-blue-600 to-indigo-700' },
     { id: 'totalYajaman', label: 'जम्मा यजमान/ग्राहक', value: stats.totalYajaman, icon: UserCheck, tab: 'yajaman', color: 'from-emerald-600 to-teal-700' },
@@ -142,7 +283,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
     { id: 'activeExperts', label: 'सक्रिय विशेषज्ञ', value: stats.activeExperts, icon: CheckCircle2, tab: 'experts', color: 'from-green-600 to-emerald-700' },
     { id: 'pendingBookings', label: 'बाँकी बुकिङहरू', value: stats.pendingBookings, icon: Calendar, tab: 'bookings', color: 'from-amber-600 to-yellow-600' },
     { id: 'todayBookings', label: 'आजका बुकिङहरू', value: stats.todayBookings, icon: Clock, tab: 'bookings', color: 'from-cyan-600 to-blue-700' },
-    { id: 'pendingPayments', label: 'प्रमाणीकरण बाँकी भुक्तानी', value: stats.pendingPayments, icon: CreditCard, tab: 'payments', color: 'from-rose-600 to-red-700', badge: stats.pendingPayments > 0 ? 'Review' : null },
+    { id: 'pendingPayments', label: 'प्रमाणीकरण बाँकी भुक्तानी', value: stats.pendingPayments, icon: CreditCard, tab: 'finance', color: 'from-rose-600 to-red-700', badge: stats.pendingPayments > 0 ? 'Review' : null },
     { id: 'todayRevenue', label: 'आजको कुल आम्दानी', value: formatNPRCurrency(stats.todayRevenue), icon: DollarSign, tab: 'finance', color: 'from-emerald-500 to-green-600' },
     { id: 'monthlyRevenue', label: 'यस महिनाको आम्दानी', value: formatNPRCurrency(stats.monthlyRevenue), icon: TrendingUp, tab: 'finance', color: 'from-teal-600 to-cyan-700' },
     { id: 'activeMemberships', label: 'सक्रिय सदस्यता', value: stats.activeMemberships, icon: Crown, tab: 'memberships', color: 'from-indigo-600 to-blue-700' },
@@ -165,32 +306,41 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
   ];
 
   return (
-    <div className="space-[#2A2421] space-y-6">
+    <div className="space-y-6 text-stone-100">
       {/* Top Welcome & Refresh Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-stone-900/90 border border-stone-800 p-4 rounded-2xl backdrop-blur-md">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-stone-900 via-stone-900/90 to-amber-950/30 border border-stone-800 p-5 rounded-3xl backdrop-blur-md shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-ping" />
-            <h2 className="text-xl font-bold text-stone-100 font-serif">
+          <div className="flex items-center gap-2.5">
+            <span className="w-3 h-3 bg-emerald-500 rounded-full animate-ping" />
+            <h2 className="text-xl md:text-2xl font-bold text-white font-serif tracking-wide">
               केन्द्रीय कमान्ड कक्ष — मुख्य प्रशासक ओभरभ्यु
             </h2>
           </div>
-          <p className="text-xs text-stone-400 mt-1">
-            सम्पूर्ण बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा प्रणालीको वास्तविक समय (Real-time) स्थिति र कार्यसम्पादन।
+          <p className="text-xs text-stone-300 mt-1 max-w-2xl">
+            बालानन्द वैदिक ज्योतिष, पञ्चाङ्ग, वास्तु तथा कर्मकाण्ड प्रणालीको ६ वटा मुख्य ब्लकहरूबाट सम्पूर्ण पृष्ठ, सेवा, प्रयोगकर्ता र कारोबारको प्रत्यक्ष नियन्त्रण।
           </p>
         </div>
-        <button
-          onClick={onRefresh}
-          className="flex items-center gap-2 px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30 text-xs font-bold transition-all cursor-pointer"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>डाटा रिफ्रेस गर्नुहोस्</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigateTab('pages_services')}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black rounded-xl text-xs shadow-md transition-all cursor-pointer"
+          >
+            <Sliders className="w-4 h-4" />
+            <span>पृष्ठ & सेवा स्विचबोर्ड</span>
+          </button>
+          <button
+            onClick={onRefresh}
+            className="flex items-center gap-2 px-3.5 py-2 bg-stone-800 hover:bg-stone-700 text-amber-300 rounded-xl border border-stone-700 text-xs font-bold transition-all cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>रिफ्रेस</span>
+          </button>
+        </div>
       </div>
 
       {/* REAL-TIME ADMIN ALERT CENTER */}
       {criticalAlerts.length > 0 && (
-        <div className="bg-rose-950/40 border border-rose-800/60 rounded-2xl p-4 shadow-lg">
+        <div className="bg-rose-950/40 border border-rose-800/60 rounded-3xl p-5 shadow-lg">
           <div className="flex items-center justify-between border-b border-rose-800/40 pb-3 mb-3">
             <div className="flex items-center gap-2 text-rose-400 font-bold text-sm">
               <ShieldAlert className="w-5 h-5 animate-bounce" />
@@ -201,12 +351,12 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {criticalAlerts.map(alert => (
               <div
                 key={alert.id}
                 onClick={() => onNavigateTab(alert.tab)}
-                className="bg-stone-900/80 hover:bg-stone-900 border border-rose-900/50 hover:border-rose-500/60 p-3.5 rounded-xl cursor-pointer transition-all flex flex-col justify-between group shadow-sm"
+                className="bg-stone-900/80 hover:bg-stone-900 border border-rose-900/50 hover:border-rose-500/60 p-3.5 rounded-2xl cursor-pointer transition-all flex flex-col justify-between group shadow-sm"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
@@ -231,6 +381,85 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
         </div>
       )}
 
+      {/* ============================================================== */}
+      {/* 🏛️ BLOCK-WISE COMMAND HUB (६ वटा मुख्य नियन्त्रण ब्लकहरू)     */}
+      {/* ============================================================== */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-white font-serif flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-amber-400" />
+              <span>केन्द्रीय कमान्ड ब्लकहरू (Block-Wise Master Hub)</span>
+            </h3>
+            <p className="text-xs text-stone-400">
+              प्रणालीका सम्पूर्ण कार्यहरू ६ वटा प्रमुख ब्लकमा विभाजित — जुन खण्डमा काम गर्नुपर्ने हो, सीधै प्रवेश गर्नुहोस्।
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {commandBlocks.map(block => {
+            const Icon = block.icon;
+            return (
+              <div
+                key={block.id}
+                className={`bg-gradient-to-br ${block.gradient} border ${block.borderColor} rounded-3xl p-5 shadow-lg transition-all flex flex-col justify-between group space-y-4 hover:shadow-2xl`}
+              >
+                <div className="space-y-3">
+                  {/* Top Bar: Icon + Number + Badge */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${block.iconColor}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider">ब्लक {block.number}</span>
+                        <h4 className="font-bold text-sm text-white font-serif group-hover:text-amber-300 transition-colors leading-tight">
+                          {block.titleNepali}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${block.badgeColor}`}>
+                      {block.badge}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-stone-300/90 leading-relaxed min-h-[36px]">
+                    {block.description}
+                  </p>
+
+                  {/* Sub-links pills */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {block.subLinks.map(link => (
+                      <button
+                        key={link.tab}
+                        onClick={() => onNavigateTab(link.tab)}
+                        className="px-2.5 py-1 bg-stone-950/80 hover:bg-stone-800 text-[11px] text-stone-300 hover:text-white rounded-xl border border-stone-800/90 transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <span>{link.label}</span>
+                        <ChevronRight className="w-2.5 h-2.5 text-stone-500" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Main Action Button */}
+                <div className="pt-3 border-t border-stone-800/80">
+                  <button
+                    onClick={() => onNavigateTab(block.mainTab)}
+                    className="w-full py-2.5 px-3 bg-stone-950 hover:bg-amber-500 hover:text-stone-950 text-amber-300 rounded-2xl text-xs font-bold transition-all border border-stone-800 hover:border-amber-400 flex items-center justify-center gap-2 cursor-pointer shadow-sm group-hover:shadow"
+                  >
+                    <span>{block.mainActionLabel}</span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* KPI METRICS GRID */}
       <div>
         <h3 className="text-sm font-bold text-stone-300 mb-3 flex items-center gap-2">
@@ -238,7 +467,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
           <span>मुख्य कार्यसम्पादन सूचकहरू (KPI Summary Cards)</span>
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {kpiCards.map(card => {
             const Icon = card.icon;
             return (
@@ -248,21 +477,21 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
                 className="bg-stone-900/90 hover:bg-stone-800/90 border border-stone-800 hover:border-amber-500/40 rounded-2xl p-3.5 cursor-pointer transition-all shadow-md group relative overflow-hidden"
               >
                 <div className="flex items-start justify-between mb-2">
-                  <div className={`p-2.5 rounded-xl bg-gradient-to-br ${card.color} text-white shadow-md`}>
-                    <Icon className="w-5 h-5" />
+                  <div className={`p-2 rounded-xl bg-gradient-to-br ${card.color} text-white shadow-md`}>
+                    <Icon className="w-4 h-4" />
                   </div>
                   {card.badge && (
-                    <span className="bg-amber-500 text-stone-950 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+                    <span className="bg-amber-500 text-stone-950 text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider shadow">
                       {card.badge}
                     </span>
                   )}
                 </div>
 
-                <div className="mt-2">
-                  <p className="text-xl sm:text-2xl font-black text-stone-100 font-mono tracking-tight group-hover:text-amber-300 transition-colors">
+                <div className="mt-1">
+                  <p className="text-lg sm:text-xl font-black text-stone-100 font-mono tracking-tight group-hover:text-amber-300 transition-colors">
                     {card.value}
                   </p>
-                  <p className="text-xs font-medium text-stone-400 mt-0.5 truncate">
+                  <p className="text-[11px] font-medium text-stone-400 mt-0.5 truncate">
                     {card.label}
                   </p>
                 </div>
@@ -275,7 +504,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
       </div>
 
       {/* SYSTEM HEALTH MONITORING */}
-      <div className="bg-stone-900/80 border border-stone-800 rounded-2xl p-4 shadow-md">
+      <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-5 shadow-md">
         <div className="flex items-center justify-between border-b border-stone-800 pb-3 mb-3">
           <div className="flex items-center gap-2 text-stone-200 font-bold text-sm">
             <Server className="w-4 h-4 text-emerald-400" />
@@ -289,7 +518,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {systemHealth.map((sh, idx) => (
-            <div key={idx} className="bg-stone-950/60 border border-stone-800/80 rounded-xl p-3 flex items-center justify-between">
+            <div key={idx} className="bg-stone-950/60 border border-stone-800/80 rounded-2xl p-3 flex items-center justify-between">
               <div className="space-y-0.5">
                 <p className="text-xs font-bold text-stone-200">{sh.name}</p>
                 <p className="text-[10px] text-stone-500 font-mono">{sh.type}</p>

@@ -76,6 +76,9 @@ const TransitNotificationCenterModal = lazy(() => import('./components/TransitNo
 const DailyWhatsAppDispatchManager = lazy(() => import('./components/admin/DailyWhatsAppDispatchManager').then((m) => ({ default: m.DailyWhatsAppDispatchManager })));
 import { DailyWhatsAppReminderBanner } from './components/common/DailyWhatsAppReminderBanner';
 import { AdvertisementBanner } from './components/common/AdvertisementBanner';
+import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBanner';
+import { PageMaintenanceView } from './components/common/PageMaintenanceView';
+import { getStoredPageServiceConfig } from './db/pageServiceControlStore';
 
 import { 
   BirthDetails, 
@@ -139,6 +142,21 @@ export default function App() {
 
   // useTransition: Jyotish module switch लाई non-urgent render बनाउँछ → blinking बन्द हुन्छ
   const [, startModuleTransition] = useTransition();
+
+  // Super Admin Page & Service Master Control Configuration
+  const [pageServiceConfig, setPageServiceConfig] = useState(getStoredPageServiceConfig);
+
+  useEffect(() => {
+    const handlePageServiceUpdate = () => {
+      setPageServiceConfig(getStoredPageServiceConfig());
+    };
+    window.addEventListener('page-service-control-updated', handlePageServiceUpdate);
+    return () => window.removeEventListener('page-service-control-updated', handlePageServiceUpdate);
+  }, []);
+
+  const currentPageControl = useMemo(() => {
+    return pageServiceConfig.pages?.find(p => p.tabKey === activeTab);
+  }, [pageServiceConfig, activeTab]);
 
   // Automatically trigger APK download prompt modal when opened with ?action=download-apk or ?download=apk (e.g. from QR scan)
   useEffect(() => {
@@ -1136,9 +1154,18 @@ export default function App() {
         />
       </div>
 
+      {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
+      <GlobalSiteNoticeBanner onNavigateTab={(tab) => setActiveTab(tab as any)} />
+
       {/* Main Container */}
       <main className="max-w-[1700px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6 flex-1 w-full flex flex-col min-h-0">
-          {!rbacSession && !['dashboard', 'panchanga', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(activeTab) ? (
+          {currentPageControl?.status === 'maintenance' && !rbacSession ? (
+            <PageMaintenanceView
+              pageTitle={currentPageControl.titleNepali}
+              maintenanceMessage={currentPageControl.maintenanceMessage}
+              onGoHome={() => setActiveTab('dashboard')}
+            />
+          ) : !rbacSession && !['dashboard', 'panchanga', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(activeTab) ? (
             <VedicLoginGateView
               onOpenSignIn={() => setIsRBACAuthModalOpen(true)}
               onOpenSignUp={() => setIsRBACAuthModalOpen(true)}

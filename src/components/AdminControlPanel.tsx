@@ -20,11 +20,13 @@ export const AdminControlPanel: React.FC<{
     initialTab === 'admin_roles' ? 'rbac' :
     initialTab === 'pricing' ? 'settings' :
     initialTab === 'members' ? 'memberships' :
+    initialTab === 'services' || initialTab === 'pages' ? 'pages_services' :
     (initialTab || 'overview');
 
   return (
     <SuperAdminControlCenter
       onClose={onClosePanel}
+      onNavigateApp={onNavigateApp}
       initialTab={mappedTab}
       profiles={profiles}
       todayPanchanga={todayPanchanga}
