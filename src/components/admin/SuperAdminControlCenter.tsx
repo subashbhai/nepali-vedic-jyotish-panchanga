@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -9,6 +9,7 @@ import {
   Search,
   Command,
   ChevronRight,
+  ChevronDown,
   Menu,
   X,
   RefreshCw,
@@ -35,7 +36,14 @@ import {
   CreditCard,
   Send,
   HeartHandshake,
-  Megaphone
+  Megaphone,
+  Sliders,
+  Globe,
+  Briefcase,
+  Layers,
+  Sparkles,
+  ExternalLink,
+  ChevronLeft
 } from 'lucide-react';
 
 import {
@@ -85,6 +93,7 @@ import { INITIAL_DEMO_PRODUCTS } from '../../db/vedicStore';
 import { Booking, BookingStatus } from '../../types/yajamanTypes';
 
 import { AdminOverviewSection } from './sections/AdminOverviewSection';
+import { AdminPageServiceControlSection } from './sections/AdminPageServiceControlSection';
 import { AdminUserManagementSection } from './sections/AdminUserManagementSection';
 import { AdminRbacSection } from './sections/AdminRbacSection';
 import { AdminExpertSection } from './sections/AdminExpertSection';
@@ -116,6 +125,7 @@ import {
 
 interface SuperAdminControlCenterProps {
   onClose?: () => void;
+  onNavigateApp?: (tab: string) => void;
   initialTab?: string;
   profiles?: BirthDetails[];
   todayPanchanga?: PanchangaData;
@@ -175,6 +185,7 @@ function resolveInitialAdminSession(): AdminSession | null {
 
 export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = ({
   onClose,
+  onNavigateApp,
   initialTab = 'overview',
   profiles = [],
   todayPanchanga,
@@ -194,6 +205,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [sidebarFilter, setSidebarFilter] = useState('');
 
   // Keep session and activeTab in sync with props
   useEffect(() => {
@@ -487,51 +499,122 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     totalVivahProfiles: totalVivahProfiles
   };
 
-  const navItems = [
-    { id: 'overview', label: 'ओभरभ्यु', icon: Activity, badge: (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) > 0 ? (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) : null },
-    { id: 'vivah_portal', label: 'विवाह मञ्च ब्याकइन्ड (Matrimony)', icon: HeartHandshake, badge: vivahPendingCount > 0 ? `${vivahPendingCount} पेन्डिङ` : null },
-    { id: 'client_approvals', label: 'सफ्टवेयर खरिद स्वीकृति', icon: CreditCard, badge: pendingPurchasesCount > 0 ? `${pendingPurchasesCount} पेन्डिङ` : null },
-    { id: 'targeted_push', label: 'लक्षित पुश सूचना (Broadcasting)', icon: Send },
-    { id: 'role_magic_links', label: 'सक्रिय म्याजिक लिङ्क (Direct Access)', icon: Key, badge: 'नयाँ' },
-    { id: 'samachar_editor', label: 'समाचार तथा लेख', icon: Newspaper, badge: 'अपडेट' },
-    { id: 'advertisement', label: 'विज्ञापन तथा AdSense', icon: Megaphone, badge: 'व्यवस्थापन' },
-    { id: 'daily_whatsapp', label: 'दैनिक ७ बजे WhatsApp', icon: MessageSquare, badge: '७ AM' },
-    { id: 'users', label: 'प्रयोगकर्ताहरू', icon: Users },
-    { id: 'rbac', label: 'भूमिका र अधिकार', icon: ShieldCheck },
-    { id: 'experts', label: 'विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
-    { id: 'yajaman', label: 'यजमान प्रोफाइल', icon: UserCheck },
-    { id: 'bookings', label: 'सेवा बुकिङ', icon: Calendar, badge: pendingBookingsCount > 0 ? pendingBookingsCount : null },
-    { id: 'geo_monitor', label: 'लोकेसन रेडियस', icon: MapPin },
-    { id: 'finance', label: 'भुक्तानी प्रमाणीकरण', icon: DollarSign, badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
-    { id: 'memberships', label: 'सदस्यता', icon: Crown },
-    { id: 'patrika', label: 'केन्द्रीय कुण्डली तथा पत्रिका', icon: FileText },
-    { id: 'store_pos', label: 'वैदिक पसल र POS', icon: ShoppingBag },
-    { id: 'notifications', label: 'सूचना ब्रोडकास्ट', icon: Bell },
-    { id: 'reports', label: 'प्रतिवेदनहरू', icon: TrendingUp },
-    { id: 'security_audit', label: 'सुरक्षा र अडिट', icon: Lock },
-    { id: 'settings', label: 'प्रणाली सेटिङ्स', icon: Settings },
-    { id: 'backup', label: 'डाटा ब्याकअप', icon: Database },
+  // 7 Structured Block Groups
+  const blockGroups = [
+    {
+      id: 'block_1',
+      title: 'ब्लक १: कमान्ड र अवलोकन',
+      items: [
+        { id: 'overview', label: 'केन्द्रीय ओभरभ्यु', icon: Activity, badge: (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) > 0 ? (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) : null }
+      ]
+    },
+    {
+      id: 'block_2',
+      title: 'ब्लक २: सम्पूर्ण पृष्ठ तथा सेवा नियन्त्रण',
+      items: [
+        { id: 'pages_services', label: 'पृष्ठ & सेवा पूर्ण नियन्त्रण', icon: Sliders, badge: 'स्विचबोर्ड' },
+        { id: 'samachar_editor', label: 'समाचार तथा धर्म लेख', icon: Newspaper },
+        { id: 'advertisement', label: 'विज्ञापन (AdSense & Banners)', icon: Megaphone }
+      ]
+    },
+    {
+      id: 'block_3',
+      title: 'ब्लक ३: वैदिक मञ्च तथा सेवाहरू',
+      items: [
+        { id: 'vivah_portal', label: 'विवाह मञ्च ब्याकइन्ड', icon: HeartHandshake, badge: vivahPendingCount > 0 ? `${vivahPendingCount}` : null },
+        { id: 'bookings', label: 'सेवा बुकिङ व्यवस्थापन', icon: Calendar, badge: pendingBookingsCount > 0 ? pendingBookingsCount : null },
+        { id: 'patrika', label: 'केन्द्रीय कुण्डली & पत्रिका', icon: FileText },
+        { id: 'store_pos', label: 'वैदिक पसल र POS काउन्टर', icon: ShoppingBag }
+      ]
+    },
+    {
+      id: 'block_4',
+      title: 'ब्लक ४: प्रयोगकर्ता र विशेषज्ञ',
+      items: [
+        { id: 'users', label: 'प्रयोगकर्ता व्यवस्थापन', icon: Users },
+        { id: 'experts', label: 'प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
+        { id: 'yajaman', label: 'यजमान ग्राहक प्रोफाइल', icon: UserCheck },
+        { id: 'rbac', label: 'भूमिका र अधिकार (RBAC)', icon: ShieldCheck },
+        { id: 'role_magic_links', label: 'सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
+      ]
+    },
+    {
+      id: 'block_5',
+      title: 'ब्लक ५: आर्थिक तथा सदस्यता',
+      items: [
+        { id: 'client_approvals', label: 'सफ्टवेयर खरिद स्वीकृति', icon: CreditCard, badge: pendingPurchasesCount > 0 ? `${pendingPurchasesCount}` : null },
+        { id: 'finance', label: 'भुक्तानी प्रमाणीकरण (eSewa)', icon: DollarSign, badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
+        { id: 'memberships', label: 'सदस्यता योजना & नवीकरण', icon: Crown }
+      ]
+    },
+    {
+      id: 'block_6',
+      title: 'ब्लक ६: सञ्चार र प्रसारण',
+      items: [
+        { id: 'daily_whatsapp', label: 'दैनिक बिहान ७ बजे WhatsApp', icon: MessageSquare, badge: '७ AM' },
+        { id: 'targeted_push', label: 'लक्षित पुश सूचना (Broadcasting)', icon: Send },
+        { id: 'notifications', label: 'प्रणाली सूचना ब्रोडकास्ट', icon: Bell },
+        { id: 'geo_monitor', label: 'लोकेसन रेडियस मनिटर', icon: MapPin }
+      ]
+    },
+    {
+      id: 'block_7',
+      title: 'ब्लक ७: सेटिङ्स, सुरक्षा र ब्याकअप',
+      items: [
+        { id: 'settings', label: 'प्रणाली र संस्थागत सेटिङ्स', icon: Settings },
+        { id: 'security_audit', label: 'सुरक्षा र अडिट लग', icon: Lock },
+        { id: 'reports', label: 'विश्लेषणात्मक प्रतिवेदन', icon: TrendingUp },
+        { id: 'backup', label: 'डाटा ब्याकअप & रिस्टोर', icon: Database }
+      ]
+    }
   ];
+
+  // Flat list of all items for search
+  const allNavItems = useMemo(() => {
+    return blockGroups.flatMap(bg => bg.items);
+  }, [blockGroups]);
+
+  // Current Active Item Label
+  const currentActiveItem = allNavItems.find(i => i.id === activeTab) || { label: 'कमान्ड कक्ष', icon: Activity };
+  const CurrentIcon = currentActiveItem.icon;
+
+  // Filtered block groups based on sidebar search
+  const filteredBlockGroups = useMemo(() => {
+    if (!sidebarFilter.trim()) return blockGroups;
+    const q = sidebarFilter.toLowerCase();
+    return blockGroups
+      .map(bg => {
+        const filteredItems = bg.items.filter(
+          i => i.label.toLowerCase().includes(q) || i.id.toLowerCase().includes(q)
+        );
+        return { ...bg, items: filteredItems };
+      })
+      .filter(bg => bg.items.length > 0);
+  }, [blockGroups, sidebarFilter]);
 
   return (
     <div className="h-screen bg-[#0C0A09] text-stone-100 flex flex-col font-sans overflow-hidden">
       {/* Top Header Command Bar */}
-      <header className="shrink-0 bg-stone-900/90 border-b border-stone-800 z-40 backdrop-blur-md px-4 py-2.5 flex items-center justify-between gap-3">
+      <header className="shrink-0 bg-stone-900/95 border-b border-stone-800 z-40 backdrop-blur-md px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsSidebarOpen(prev => !prev)}
             className="md:hidden p-2 text-stone-300 hover:text-white bg-stone-800 rounded-xl"
+            title="मेनु खोल्नुहोस्"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-amber-500 rounded-xl flex items-center justify-center font-bold text-stone-950 shadow">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center font-bold text-stone-950 shadow-md ring-2 ring-amber-400/30">
               ॐ
             </div>
             <div>
-              <h1 className="font-bold text-sm text-stone-100 font-serif leading-tight">SUPER ADMIN COMMAND CENTER</h1>
-              <p className="text-[10px] text-amber-400 font-mono">बालानन्द केन्द्रीय नियन्त्रण कक्ष</p>
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-sm text-white font-serif leading-tight">SUPER ADMIN COMMAND CENTER</h1>
+                <span className="hidden sm:inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <p className="text-[10px] text-amber-400 font-mono">बालानन्द केन्द्रीय नियन्त्रण कक्ष • ७ वटा ब्लकहरू</p>
             </div>
           </div>
         </div>
@@ -539,20 +622,31 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
         {/* Command Palette Trigger */}
         <button
           onClick={() => setIsCommandPaletteOpen(true)}
-          className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-stone-950 border border-stone-800 hover:border-amber-500/50 rounded-xl text-stone-400 text-xs transition-all cursor-pointer"
+          className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-stone-950 border border-stone-800 hover:border-amber-500/50 rounded-2xl text-stone-400 text-xs transition-all cursor-pointer shadow-inner"
         >
           <Search className="w-3.5 h-3.5 text-stone-500" />
-          <span>त्वरित खोज वा कमान्ड...</span>
+          <span>त्वरित कमान्ड वा मोड्युल खोज्नुहोस्...</span>
           <kbd className="bg-stone-800 px-1.5 py-0.5 text-[10px] rounded text-stone-300 font-mono ml-2">Ctrl+K</kbd>
         </button>
 
         {/* Right Info */}
-        <div className="flex items-center gap-3">
-          <span className="hidden lg:inline text-xs font-mono font-bold text-amber-400 bg-amber-950/60 px-2.5 py-1 rounded-lg border border-amber-800">
+        <div className="flex items-center gap-2.5">
+          <span className="hidden lg:inline text-xs font-mono font-bold text-amber-400 bg-amber-950/60 px-3 py-1 rounded-xl border border-amber-800/80 shadow-xs">
             {timeString || '२०८१'}
           </span>
 
-          <div className="flex items-center gap-2 border-l border-stone-800 pl-3">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-stone-700"
+              title="सामान्य प्रयोगकर्ता एपमा फर्कनुहोस्"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>एपमा फर्किनुहोस्</span>
+            </button>
+          )}
+
+          <div className="flex items-center gap-2 border-l border-stone-800 pl-2.5">
             <div className="text-right hidden sm:block">
               <p className="text-xs font-bold text-stone-200">{session.fullName}</p>
               <p className="text-[10px] text-amber-400 font-mono">{session.roleNameNepali}</p>
@@ -560,8 +654,8 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
 
             <button
               onClick={handleLogout}
-              className="p-2 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded-xl border border-rose-800 text-xs font-bold transition-all cursor-pointer"
-              title="लगआउट"
+              className="p-2 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded-xl border border-rose-800 text-xs font-bold transition-all cursor-pointer shadow-sm"
+              title="कमान्ड कक्षबाट लगआउट"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -571,51 +665,94 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
 
       {/* Main Workspace Layout */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left Sidebar */}
-        <aside className={`fixed md:static inset-y-0 left-0 z-30 w-64 shrink-0 h-full bg-stone-900/95 border-r border-stone-800 flex flex-col justify-between overflow-hidden transition-transform duration-200 ${
+        {/* Left Block-Wise Categorized Sidebar */}
+        <aside className={`fixed md:static inset-y-0 left-0 z-30 w-72 shrink-0 h-full bg-stone-900/95 border-r border-stone-800 flex flex-col justify-between overflow-hidden transition-transform duration-200 shadow-xl ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}>
-          <div className="p-3 space-y-1 overflow-y-auto flex-1 min-h-0">
-            <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider px-3 py-1">नियन्त्रण मोड्युलहरू</p>
-
-            {navItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
+          {/* Sidebar Search Bar */}
+          <div className="p-3 border-b border-stone-800/80 shrink-0">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-stone-500" />
+              <input
+                type="text"
+                placeholder="मोड्युल खोज्नुहोस्..."
+                value={sidebarFilter}
+                onChange={(e) => setSidebarFilter(e.target.value)}
+                className="w-full bg-stone-950 border border-stone-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500/60"
+              />
+              {sidebarFilter && (
                 <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-amber-500 text-stone-950 font-extrabold shadow-md'
-                      : 'text-stone-300 hover:bg-stone-800 hover:text-white'
-                  }`}
+                  onClick={() => setSidebarFilter('')}
+                  className="absolute right-2.5 top-2 text-stone-500 hover:text-stone-300 text-xs"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.label}</span>
-                  </div>
-
-                  {item.badge && (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      isActive ? 'bg-stone-950 text-amber-400' : 'bg-red-600 text-white animate-pulse'
-                    }`}>
-                      {item.badge}
-                    </span>
-                  )}
+                  ✕
                 </button>
-              );
-            })}
+              )}
+            </div>
           </div>
 
-          <div className="p-3 border-t border-stone-800 text-center shrink-0">
+          {/* Grouped Modules */}
+          <div className="p-2.5 space-y-4 overflow-y-auto flex-1 min-h-0">
+            {filteredBlockGroups.map(block => (
+              <div key={block.id} className="space-y-1">
+                <p className="text-[10px] font-bold text-amber-400/80 uppercase tracking-wider px-2.5 py-0.5">
+                  {block.title}
+                </p>
+
+                <div className="space-y-0.5">
+                  {block.items.map(item => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setActiveTab(item.id);
+                          setIsSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-black shadow-md'
+                            : 'text-stone-300 hover:bg-stone-800/90 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-stone-950' : 'text-amber-400/80'}`} />
+                          <span className="truncate">{item.label}</span>
+                        </div>
+
+                        {item.badge && (
+                          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full shrink-0 ml-1.5 ${
+                            isActive
+                              ? 'bg-stone-950 text-amber-300 shadow-xs'
+                              : 'bg-red-600 text-white animate-pulse'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sidebar Footer */}
+          <div className="p-3 border-t border-stone-800 text-center shrink-0 space-y-2 bg-stone-950/40">
+            <button
+              onClick={() => setActiveTab('pages_services')}
+              className="w-full py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 rounded-xl text-xs font-bold transition-colors border border-amber-500/30 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>पृष्ठ & सेवा स्विचबोर्ड</span>
+            </button>
+
             {onClose && (
               <button
                 onClick={onClose}
-                className="w-full py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl text-xs font-bold cursor-pointer"
+                className="w-full py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
               >
                 सामान्य एपमा फर्किनुहोस्
               </button>
@@ -624,10 +761,44 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
         </aside>
 
         {/* Center Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0C0A09] h-full">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0C0A09] h-full flex flex-col justify-between">
+          <div className="max-w-7xl mx-auto w-full space-y-4">
+            {/* Breadcrumb & Quick Switcher Bar */}
+            <div className="flex items-center justify-between bg-stone-900/60 border border-stone-800/80 px-4 py-2 rounded-2xl text-xs backdrop-blur-xs">
+              <div className="flex items-center gap-2 text-stone-400">
+                <span className="text-stone-500">कमान्ड कक्ष</span>
+                <ChevronRight className="w-3.5 h-3.5 text-stone-600" />
+                <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                  <CurrentIcon className="w-3.5 h-3.5" />
+                  <span>{currentActiveItem.label}</span>
+                </div>
+              </div>
+
+              {/* Direct Open App Link if available */}
+              {onNavigateApp && (
+                <button
+                  onClick={() => onNavigateApp('dashboard')}
+                  className="text-[11px] text-stone-400 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer font-medium"
+                  title="एपको गृहपृष्ठ खोल्नुहोस्"
+                >
+                  <span>एप पूर्वावलोकन</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Tab Views */}
             {activeTab === 'overview' && (
               <AdminOverviewSection stats={stats} onNavigateTab={(t) => setActiveTab(t)} onRefresh={loadAllData} />
+            )}
+            {activeTab === 'pages_services' && (
+              <AdminPageServiceControlSection
+                onNavigateAppPage={(tab) => {
+                  if (onNavigateApp) onNavigateApp(tab);
+                  else if (onClose) onClose();
+                }}
+                onRefreshParent={loadAllData}
+              />
             )}
             {activeTab === 'vivah_portal' && (
               <AdminVivahSection onRefreshParent={loadAllData} />
@@ -699,38 +870,50 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       {/* COMMAND PALETTE MODAL (Ctrl+K) */}
       {isCommandPaletteOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center pt-20 p-4">
-          <div className="bg-stone-900 border border-amber-500/40 rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3">
+          <div className="bg-stone-900 border border-amber-500/40 rounded-3xl max-w-lg w-full p-5 shadow-2xl space-y-4">
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
+              <Search className="w-4 h-4 absolute left-3.5 top-3 text-stone-500" />
               <input
                 type="text"
                 autoFocus
                 placeholder="कमान्ड वा मोड्युल खोज्नुहोस्..."
                 value={commandQuery}
                 onChange={(e) => setCommandQuery(e.target.value)}
-                className="w-full bg-stone-950 border border-stone-800 rounded-xl pl-9 pr-3 py-2.5 text-xs text-stone-100 outline-none focus:border-amber-500"
+                className="w-full bg-stone-950 border border-stone-800 rounded-2xl pl-10 pr-3 py-2.5 text-xs text-stone-100 outline-none focus:border-amber-500"
               />
             </div>
 
-            <div className="space-y-1 text-xs">
-              <p className="text-[10px] font-bold text-stone-500 uppercase px-2">त्वरित सर्टकटहरू</p>
-              {navItems.filter(i => i.label.includes(commandQuery) || commandQuery === '').map(i => (
-                <button
-                  key={i.id}
-                  onClick={() => {
-                    setActiveTab(i.id);
-                    setIsCommandPaletteOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-stone-800 text-stone-200 flex items-center justify-between cursor-pointer"
-                >
-                  <span>{i.label}</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-stone-500" />
-                </button>
-              ))}
+            <div className="space-y-1 text-xs max-h-80 overflow-y-auto pr-1">
+              <p className="text-[10px] font-bold text-stone-500 uppercase px-2 py-1">उपलब्ध मोड्युलहरू</p>
+              {allNavItems.filter(i => i.label.toLowerCase().includes(commandQuery.toLowerCase()) || commandQuery === '').map(i => {
+                const ItemIcon = i.icon;
+                return (
+                  <button
+                    key={i.id}
+                    onClick={() => {
+                      setActiveTab(i.id);
+                      setIsCommandPaletteOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-stone-800 text-stone-200 flex items-center justify-between cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <ItemIcon className="w-4 h-4 text-amber-400" />
+                      <span>{i.label}</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-stone-500" />
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-stone-800">
-              <button onClick={() => setIsCommandPaletteOpen(false)} className="px-3 py-1 bg-stone-800 text-stone-300 rounded-lg text-xs">रद्द</button>
+            <div className="flex justify-between items-center pt-3 border-t border-stone-800 text-[11px] text-stone-500">
+              <span>ESC थिचेर बन्द गर्नुहोस्</span>
+              <button
+                onClick={() => setIsCommandPaletteOpen(false)}
+                className="px-3 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl text-xs font-bold"
+              >
+                बन्द गर्नुहोस्
+              </button>
             </div>
           </div>
         </div>

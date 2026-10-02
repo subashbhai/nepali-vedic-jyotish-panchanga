@@ -1,4 +1,4 @@
-﻿import React, { memo, useState, useRef, useEffect } from 'react';
+import React, { memo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home, 
@@ -57,6 +57,7 @@ import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
+import { getStoredPageServiceConfig } from '../db/pageServiceControlStore';
 
 // Public menus visible on the first screen before login
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
@@ -443,11 +444,24 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     }
   };
 
+  const [pageServiceCfg, setPageServiceCfg] = useState(getStoredPageServiceConfig);
+
+  useEffect(() => {
+    const handleCfg = () => setPageServiceCfg(getStoredPageServiceConfig());
+    window.addEventListener('page-service-control-updated', handleCfg);
+    return () => window.removeEventListener('page-service-control-updated', handleCfg);
+  }, []);
+
+  const hiddenNavKeys = useMemo(() => {
+    return new Set(pageServiceCfg.pages.filter(p => p.hideInNavigation).map(p => p.tabKey));
+  }, [pageServiceCfg]);
+
   // When not logged in: only show first screen public menus (गृहपृष्ठ, पञ्चाङ्ग, पात्रो, समाचार, मिति रूपान्तरण, संस्था प्रोफाइल)
-  // When logged in: show all menus
-  const visibleNavItems = rbacSession
+  // When logged in: show all menus (except pages hidden by Super Admin)
+  const baseNavItems = rbacSession
     ? MAIN_NAV_ITEMS
     : MAIN_NAV_ITEMS.filter((item) => PUBLIC_UNAUTH_NAV_IDS.has(item.id));
+  const visibleNavItems = baseNavItems.filter((item) => !hiddenNavKeys.has(item.id));
 
   return (
     <nav className="text-[#2D241E] dark:text-stone-100 transition-colors">
