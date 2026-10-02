@@ -8,9 +8,8 @@ import {
   Calendar,
   Compass
 } from 'lucide-react';
-import { BirthDetails } from '../../types/astrology';
+import { BirthDetails, VivahMilanResult } from '../../types/astrology';
 import { calculateMobileKundaliMatch } from '../services/mobileAstrologyService';
-import { AshtakootaResult } from '../../utils/vivahEngine';
 
 export const MobileMatchingView: React.FC = () => {
   // Sample Boy & Girl details
@@ -18,27 +17,35 @@ export const MobileMatchingView: React.FC = () => {
     id: 'boy_01',
     name: 'रामचन्द्र शर्मा',
     gender: 'male',
-    dateOfBirth: '1996-03-12',
-    timeOfBirth: '07:15',
-    placeOfBirth: 'काठमाडौं, नेपाल',
-    latitude: 27.7172,
-    longitude: 85.3240,
-    timezone: 5.75
+    dateAD: '1996-03-12',
+    dateBS: '२०५२ फागुन २९',
+    time: '07:15',
+    location: {
+      name: 'काठमाडौं, नेपाल',
+      latitude: 27.7172,
+      longitude: 85.3240,
+      timeZone: 5.75,
+      country: 'नेपाल'
+    }
   });
 
   const [girl, setGirl] = useState<BirthDetails>({
     id: 'girl_01',
     name: 'सीता कुमारी पौडेल',
     gender: 'female',
-    dateOfBirth: '1998-07-25',
-    timeOfBirth: '11:40',
-    placeOfBirth: 'ललितपुर, नेपाल',
-    latitude: 27.6667,
-    longitude: 85.3167,
-    timezone: 5.75
+    dateAD: '1998-07-25',
+    dateBS: '२०५५ श्रावण ०९',
+    time: '11:40',
+    location: {
+      name: 'ललितपुर, नेपाल',
+      latitude: 27.6667,
+      longitude: 85.3167,
+      timeZone: 5.75,
+      country: 'नेपाल'
+    }
   });
 
-  const [result, setResult] = useState<AshtakootaResult | null>(() => {
+  const [result, setResult] = useState<VivahMilanResult | null>(() => {
     try {
       return calculateMobileKundaliMatch(boy, girl);
     } catch {
@@ -87,14 +94,14 @@ export const MobileMatchingView: React.FC = () => {
           />
           <input
             type="date"
-            value={boy.dateOfBirth}
-            onChange={(e) => setBoy({ ...boy, dateOfBirth: e.target.value })}
+            value={boy.dateAD}
+            onChange={(e) => setBoy({ ...boy, dateAD: e.target.value })}
             className="w-full bg-stone-950 border border-stone-800 rounded-lg p-1 text-[11px] text-stone-300"
           />
           <input
             type="time"
-            value={boy.timeOfBirth}
-            onChange={(e) => setBoy({ ...boy, timeOfBirth: e.target.value })}
+            value={boy.time}
+            onChange={(e) => setBoy({ ...boy, time: e.target.value })}
             className="w-full bg-stone-950 border border-stone-800 rounded-lg p-1 text-[11px] text-stone-300"
           />
         </div>
@@ -114,14 +121,14 @@ export const MobileMatchingView: React.FC = () => {
           />
           <input
             type="date"
-            value={girl.dateOfBirth}
-            onChange={(e) => setGirl({ ...girl, dateOfBirth: e.target.value })}
+            value={girl.dateAD}
+            onChange={(e) => setGirl({ ...girl, dateAD: e.target.value })}
             className="w-full bg-stone-950 border border-stone-800 rounded-lg p-1 text-[11px] text-stone-300"
           />
           <input
             type="time"
-            value={girl.timeOfBirth}
-            onChange={(e) => setGirl({ ...girl, timeOfBirth: e.target.value })}
+            value={girl.time}
+            onChange={(e) => setGirl({ ...girl, time: e.target.value })}
             className="w-full bg-stone-950 border border-stone-800 rounded-lg p-1 text-[11px] text-stone-300"
           />
         </div>
@@ -159,7 +166,7 @@ export const MobileMatchingView: React.FC = () => {
                   : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
               }`}>
                 {result.totalScore >= 18 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                <span>{result.verdict || (result.totalScore >= 18 ? 'विवाहको लागि शुभ' : 'मध्यम / शान्ति आवश्यक')}</span>
+                <span>{result.overallCompatibility || (result.totalScore >= 18 ? 'विवाहको लागि शुभ' : 'मध्यम / शान्ति आवश्यक')}</span>
               </span>
               <p className="text-[10px] text-stone-400 mt-1">१८ गुण भन्दा माथि शुभ मानिन्छ</p>
             </div>
@@ -171,15 +178,15 @@ export const MobileMatchingView: React.FC = () => {
               अष्टकूट गुण विवरण (८ मुख्य अङ्गहरू):
             </span>
             <div className="bg-stone-950 rounded-xl border border-stone-800 divide-y divide-stone-800/60 text-xs">
-              {result.kootas?.map((k, idx) => (
+              {result.ashtakoot?.map((k, idx) => (
                 <div key={idx} className="p-2.5 flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-stone-200">{k.name}</span>
-                    <span className="text-[10px] text-stone-500 block">{k.description}</span>
+                    <span className="font-bold text-stone-200">{k.kootNepali || k.kootName}</span>
+                    <span className="text-[10px] text-stone-500 block">{k.descriptionNepali}</span>
                   </div>
                   <div className="text-right">
                     <span className="font-bold text-amber-300">
-                      {k.obtained} / {k.max}
+                      {k.obtainedPoints} / {k.maxPoints}
                     </span>
                   </div>
                 </div>

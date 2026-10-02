@@ -20,7 +20,8 @@ import {
 import { 
   DEFAULT_DIRECT_DOWNLOADS, 
   triggerDirectBrowserDownload, 
-  checkLatestRelease 
+  checkLatestRelease,
+  getApkDirectDownloadUrl
 } from '../utils/appVersionManager';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { ApkDownloadPromptModal } from './common/ApkDownloadPromptModal';
@@ -98,7 +99,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
         setDownloadUrls((prev) => ({
           windowsSetup: setupAsset || prev.windowsSetup,
           windowsPortable: portableAsset || prev.windowsPortable,
-          androidApk: apkAsset || prev.androidApk,
+          androidApk: apkAsset || getApkDirectDownloadUrl(),
           macDmg: dmgAsset || prev.macDmg,
           macZip: zipAsset || prev.macZip,
         }));
@@ -384,8 +385,9 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      const targetApk = downloadUrls.androidApk || getApkDirectDownloadUrl();
                       handleStartDownload(
-                        downloadUrls.androidApk,
+                        targetApk,
                         'nepali-vedic-jyotish-panchanga.apk',
                         'Android APK (.apk)'
                       );

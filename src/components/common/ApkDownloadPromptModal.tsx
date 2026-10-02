@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   FileCheck
 } from 'lucide-react';
-import { triggerDirectBrowserDownload, DEFAULT_DIRECT_DOWNLOADS } from '../../utils/appVersionManager';
+import { triggerDirectBrowserDownload, DEFAULT_DIRECT_DOWNLOADS, getApkDirectDownloadUrl } from '../../utils/appVersionManager';
 
 interface ApkDownloadPromptModalProps {
   isOpen: boolean;
@@ -22,7 +22,7 @@ interface ApkDownloadPromptModalProps {
 export const ApkDownloadPromptModal: React.FC<ApkDownloadPromptModalProps> = ({
   isOpen,
   onClose,
-  apkUrl = DEFAULT_DIRECT_DOWNLOADS.androidApk,
+  apkUrl,
   apkVersion = '१.०.२',
 }) => {
   const [downloadState, setDownloadState] = useState<'prompt' | 'downloading' | 'completed'>('prompt');
@@ -31,7 +31,8 @@ export const ApkDownloadPromptModal: React.FC<ApkDownloadPromptModalProps> = ({
 
   const handleConfirmDownload = () => {
     setDownloadState('downloading');
-    triggerDirectBrowserDownload(apkUrl, 'nepali-vedic-jyotish-panchanga.apk');
+    const targetUrl = apkUrl || getApkDirectDownloadUrl();
+    triggerDirectBrowserDownload(targetUrl, 'nepali-vedic-jyotish-panchanga.apk');
     setTimeout(() => {
       setDownloadState('completed');
     }, 1500);

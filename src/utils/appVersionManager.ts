@@ -38,13 +38,33 @@ export const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO_OWNER}
 export const GITHUB_ALL_RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;
 
 /**
+ * Resolves the full URL to the direct downloadable APK file on current origin and subpath
+ * Perfectly compatible with GitHub Pages (https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/downloads/...)
+ */
+export function getApkDirectDownloadUrl(): string {
+  if (typeof window === 'undefined') return './downloads/nepali-vedic-jyotish-panchanga.apk';
+  const origin = window.location.origin;
+  const pathname = window.location.pathname;
+
+  // On GitHub Pages (https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/...)
+  if (pathname.includes('/nepali-vedic-jyotish-panchanga')) {
+    return `${origin}/nepali-vedic-jyotish-panchanga/downloads/nepali-vedic-jyotish-panchanga.apk`;
+  }
+
+  const basePath = pathname.endsWith('/') 
+    ? pathname 
+    : pathname.substring(0, pathname.lastIndexOf('/') + 1);
+  return `${origin}${basePath}downloads/nepali-vedic-jyotish-panchanga.apk`;
+}
+
+/**
  * Hardened direct download links to the most recent published binaries on GitHub
  * Automatically triggers browser download manager without opening GitHub repo tabs
  */
 export const DEFAULT_DIRECT_DOWNLOADS = {
   windowsSetup: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-setup-1.0.0.exe',
   windowsPortable: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0.exe',
-  androidApk: '/downloads/nepali-vedic-jyotish-panchanga.apk',
+  androidApk: typeof window !== 'undefined' ? getApkDirectDownloadUrl() : './downloads/nepali-vedic-jyotish-panchanga.apk',
   macDmg: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0.dmg',
   macZip: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0-arm64-mac.zip',
 };
@@ -122,6 +142,12 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
             size: 143654912,
             platform: 'mac',
           },
+          {
+            name: 'nepali-vedic-jyotish-panchanga.apk',
+            downloadUrl: getApkDirectDownloadUrl(),
+            size: 29420663,
+            platform: 'android',
+          },
         ]
       };
     }
@@ -170,7 +196,23 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
           size: 143654912,
           platform: 'mac',
         },
+        {
+          name: 'nepali-vedic-jyotish-panchanga.apk',
+          downloadUrl: getApkDirectDownloadUrl(),
+          size: 29420663,
+          platform: 'android',
+        },
       ];
+    }
+
+    // Ensure Android APK is always included even if GitHub release only had Windows/Mac assets
+    if (!assets.some(a => a.platform === 'android')) {
+      assets.push({
+        name: 'nepali-vedic-jyotish-panchanga.apk',
+        downloadUrl: getApkDirectDownloadUrl(),
+        size: 29420663,
+        platform: 'android',
+      });
     }
 
     // Target release must be the release that contains real downloadable assets
