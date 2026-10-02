@@ -141,6 +141,11 @@ export const DashaView: React.FC<DashaViewProps> = ({
 
   // Print Report Handler
   const handlePrint = () => {
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
+      return;
+    }
     printElement('printable-dasha-report');
   };
 

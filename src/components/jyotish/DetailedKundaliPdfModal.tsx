@@ -102,8 +102,9 @@ export const DetailedKundaliPdfModal: React.FC<DetailedKundaliPdfModalProps> = (
   };
 
   const handleExportPDF = async () => {
-    if (!canUserPrintDocuments('kundali')) {
-      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { docType: 'kundali' } }));
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
       return;
     }
     try {
@@ -129,8 +130,9 @@ export const DetailedKundaliPdfModal: React.FC<DetailedKundaliPdfModalProps> = (
   };
 
   const handlePrint = () => {
-    if (!canUserPrintDocuments('kundali')) {
-      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { docType: 'kundali' } }));
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
       return;
     }
     printElement('detailed-kundali-pdf-document-preview');
