@@ -80,7 +80,6 @@ const OrgProfileView = lazy(() => import('./components/profile/OrgProfileView').
 const TransitNotificationCenterModal = lazy(() => import('./components/TransitNotificationCenterModal').then((m) => ({ default: m.TransitNotificationCenterModal })));
 const DailyWhatsAppDispatchManager = lazy(() => import('./components/admin/DailyWhatsAppDispatchManager').then((m) => ({ default: m.DailyWhatsAppDispatchManager })));
 import { DailyWhatsAppReminderBanner } from './components/common/DailyWhatsAppReminderBanner';
-import { AdvertisementBanner } from './components/common/AdvertisementBanner';
 import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBanner';
 import { PageMaintenanceView } from './components/common/PageMaintenanceView';
 import { getStoredPageServiceConfig } from './db/pageServiceControlStore';
@@ -1277,16 +1276,6 @@ export default function App() {
             />
           ) : (
             <>
-              {/* Advertisement Banner — website मा मात्र, Jyotish र Vastu बाहेक सबै pages मा */}
-              {!['jyotishi', 'kundali', 'faladesh', 'dasha', 'gochar', 'muhurta',
-                  'prashna', 'ankajyotish', 'kpjyotish', 'neemajyotish',
-                  'vastu', 'vastu_compass', 'vastu_mandala', 'vastu_audit'].includes(activeTab) && (
-                <AdvertisementBanner
-                  contactPhone="९७६४४००५३३"
-                  contactEmail={orgProfile?.email || 'suwashdmk@gmail.com'}
-                />
-              )}
-
               <Suspense fallback={
                 <div className="flex flex-col items-center justify-center p-12 space-y-3 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/60 dark:border-stone-800 shadow-sm animate-pulse flex-1">
                   <div className="w-10 h-10 border-4 border-[#D97706] border-t-transparent rounded-full animate-spin" />

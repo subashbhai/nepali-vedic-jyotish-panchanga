@@ -237,7 +237,6 @@ export const MAIN_NAV_ITEMS: Array<{
   { id: 'panchanga', labelNepali: 'पञ्चाङ्ग', icon: Clock },
   { id: 'jyotishi', labelNepali: 'ज्योतिष सेवा', icon: Sparkles, isJyotishWorkspace: true, highlight: true },
   { id: 'vastu', labelNepali: 'वास्तु सेवा', icon: Compass, highlight: true },
-  { id: 'sewa', labelNepali: 'सेवाहरू', icon: Briefcase, hasSubmenu: true },
   { id: 'vivah', labelNepali: 'विवाह', icon: HeartHandshake },
   { id: 'samachar', labelNepali: 'समाचार', icon: Newspaper },
   { id: 'kharedi', labelNepali: 'पसल', icon: ShoppingBag },

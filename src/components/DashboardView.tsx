@@ -30,7 +30,6 @@ import {
   Clock,
   Newspaper,
   ChevronRight,
-  Megaphone,
   MessageCircle,
   Copy,
   Check,
@@ -493,117 +492,7 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
       {/* Today's Vedic Insight Widget - Automated Daily Auspicious Suggestions & Rahukaal/Choghadiya Alerts */}
       <VedicInsightWidget panchanga={todayPanchanga} onNavigate={onNavigate} />
 
-      {/* Official Commercial Advertisement & Promotion Hero Banner */}
-      <div className="bg-gradient-to-r from-[#1E140E] via-[#2F1D0F] to-[#120A05] text-white rounded-2xl p-5 sm:p-6 shadow-lg relative overflow-hidden border-2 border-amber-500/50 shrink-0">
-        {/* Subtle background ornamentation */}
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#F59E0B_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-        <div className="absolute -top-12 -right-12 w-72 h-36 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 -left-10 w-60 h-28 bg-orange-600/15 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
-          <div className="space-y-3 text-center lg:text-left flex-1 min-w-0">
-            {/* Top Badges */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
-              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500/25 to-amber-600/20 border border-amber-400/50 px-3 py-1 rounded-full text-amber-300 text-xs font-extrabold tracking-wide shadow-sm">
-                <Megaphone className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
-                <span>व्यावसायिक विज्ञापन तथा प्रायोजन स्थान</span>
-              </div>
-              <span className="inline-flex items-center gap-1 bg-stone-800/80 border border-stone-700/80 px-2.5 py-1 rounded-full text-[11px] text-amber-200/80 font-medium">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>नेपालकै आधिकारिक वैदिक तथा पञ्चाङ्ग प्लेटफर्म</span>
-              </span>
-            </div>
-
-            {/* Main Headline */}
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold font-serif text-amber-100 tracking-wide leading-tight">
-              विज्ञापनको लागि सम्पर्क :{' '}
-              <a
-                href="tel:9764400533"
-                className="text-amber-300 hover:text-amber-200 underline decoration-amber-400/60 font-black tracking-wider transition-colors inline-block"
-              >
-                ९७६४४००५३३
-              </a>
-            </h1>
-
-            {/* Description Paragraph */}
-            <p className="text-xs sm:text-sm text-stone-300 leading-relaxed max-w-2xl">
-              यस लोकप्रिय नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग पोर्टलमा तपाईंको व्यवसाय, ब्राण्ड, धार्मिक संघसंस्था वा सेवाको आधिकारिक विज्ञापन तथा प्रवर्द्धन गरी लाखौँ श्रद्धालु तथा पञ्चाङ्ग प्रेमीहरूमाझ सहजै पुग्नुहोस्।
-            </p>
-
-            {/* Contact Actions & CTAs */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 pt-1 text-xs">
-              <a
-                href="tel:9764400533"
-                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 px-4 py-2 rounded-xl font-black shadow-md transition-all active:scale-95 cursor-pointer"
-                title="सिधै फोन कल गर्नुहोस्"
-              >
-                <Phone className="w-3.5 h-3.5 text-stone-950" />
-                <span>कल गर्नुहोस् : ९७६४४००५३३</span>
-              </a>
-
-              <a
-                href={`https://api.whatsapp.com/send?phone=9779764400533&text=${encodeURIComponent('नमस्ते, म बालानन्द पञ्चाङ्ग पोर्टलमा विज्ञापन प्रकाशन तथा प्रायोजन सम्बन्धी जानकारी लिन चाहन्छु।')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/30 px-3.5 py-2 rounded-xl font-bold shadow-md transition-all active:scale-95 cursor-pointer"
-                title="WhatsApp मा कुराकानी गर्नुहोस्"
-              >
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-200" />
-                <span>WhatsApp च्याट</span>
-              </a>
-
-              <a
-                href={`mailto:${orgProfile.email || 'suwashdmk@gmail.com'}?subject=${encodeURIComponent('विज्ञापन प्रकाशन सम्बन्धी सोधपुछ')}&body=${encodeURIComponent('नमस्ते, म बालानन्द पञ्चाङ्ग पोर्टलमा विज्ञापन प्रकाशन सम्बन्धी सोधपुछ गर्न चाहन्छु।')}`}
-                className="flex items-center gap-1.5 bg-stone-800/80 hover:bg-stone-700/80 border border-stone-700 text-amber-200 px-3 py-2 rounded-xl font-medium transition-colors cursor-pointer"
-                title="ईमेल पठाउनुहोस्"
-              >
-                <Mail className="w-3.5 h-3.5 text-amber-400" />
-                <span>{orgProfile.email || 'suwashdmk@gmail.com'}</span>
-              </a>
-            </div>
-          </div>
-
-          {/* Right Section: Main Ad Banner / Visiting Card Creative Box */}
-          <div className="w-full lg:w-72 h-40 bg-stone-900/90 rounded-2xl overflow-hidden border-2 border-amber-500/50 shadow-xl shrink-0 relative group">
-            {orgProfile.mainPhotoUrl ? (
-              <>
-                <img
-                  src={getAssetUrl(orgProfile.mainPhotoUrl)}
-                  alt="विज्ञापन ब्यानर"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-xs text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1">
-                  <Megaphone className="w-2.5 h-2.5" />
-                  <span>विज्ञापन स्थान (Ad Space)</span>
-                </div>
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-2">
-                  <button
-                    onClick={onOpenOrgProfile}
-                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 text-xs font-black rounded-lg shadow-md cursor-pointer transition-all active:scale-95"
-                  >
-                    विज्ञापन ब्यानर सम्पादन
-                  </button>
-                  <span className="text-[10px] text-stone-300">क्लिक गरी नयाँ ब्यानर राख्नुहोस्</span>
-                </div>
-              </>
-            ) : (
-              <div 
-                onClick={onOpenOrgProfile}
-                className="w-full h-full flex flex-col items-center justify-center p-3 text-center cursor-pointer bg-gradient-to-br from-stone-900 to-stone-950 hover:bg-stone-850 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center mb-1.5">
-                  <Megaphone className="w-5 h-5 text-amber-400 animate-pulse" />
-                </div>
-                <span className="text-xs font-bold text-amber-200">यहाँ तपाईंको विज्ञापन ब्यानर रहनेछ</span>
-                <span className="text-[10px] text-stone-400 mt-0.5">साइज: 1200x600 वा भिजिटिङ कार्ड</span>
-                <span className="mt-2 px-2.5 py-0.5 bg-amber-500/20 group-hover:bg-amber-500/40 text-amber-300 text-[11px] font-semibold rounded-md border border-amber-400/30 transition-all">
-                  ब्यानर अपलोड गर्नुहोस्
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Today's Panchanga Grid & Active Profile Card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
