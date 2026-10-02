@@ -34,7 +34,8 @@ import {
   Newspaper,
   CreditCard,
   Send,
-  HeartHandshake
+  HeartHandshake,
+  Megaphone
 } from 'lucide-react';
 
 import {
@@ -104,6 +105,7 @@ import { AdminRoleMagicLinksSection } from './sections/AdminRoleMagicLinksSectio
 import { AdminClientApprovalsSection } from './sections/AdminClientApprovalsSection';
 import { AdminTargetedPushNotificationSection } from './sections/AdminTargetedPushNotificationSection';
 import { AdminVivahSection } from './sections/AdminVivahSection';
+import { AdminAdvertisementSection } from './sections/AdminAdvertisementSection';
 import { getStoredClientLeads, ClientLead } from '../../db/clientLeadStore';
 import {
   getStoredVivahProfiles,
@@ -492,6 +494,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     { id: 'targeted_push', label: 'लक्षित पुश सूचना (Broadcasting)', icon: Send },
     { id: 'role_magic_links', label: 'सक्रिय म्याजिक लिङ्क (Direct Access)', icon: Key, badge: 'नयाँ' },
     { id: 'samachar_editor', label: 'समाचार तथा लेख', icon: Newspaper, badge: 'अपडेट' },
+    { id: 'advertisement', label: 'विज्ञापन तथा AdSense', icon: Megaphone, badge: 'व्यवस्थापन' },
     { id: 'daily_whatsapp', label: 'दैनिक ७ बजे WhatsApp', icon: MessageSquare, badge: '७ AM' },
     { id: 'users', label: 'प्रयोगकर्ताहरू', icon: Users },
     { id: 'rbac', label: 'भूमिका र अधिकार', icon: ShieldCheck },
@@ -640,6 +643,9 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
             )}
             {activeTab === 'samachar_editor' && (
               <AdminSamacharSection orgName={orgProfile?.name} />
+            )}
+            {activeTab === 'advertisement' && (
+              <AdminAdvertisementSection />
             )}
             {activeTab === 'daily_whatsapp' && (
               <DailyWhatsAppDispatchManager

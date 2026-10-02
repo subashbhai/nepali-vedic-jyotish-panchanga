@@ -19,17 +19,38 @@
     <!-- Google AdSense: website मा मात्र लोड हुन्छ, Electron desktop app मा लोड हुँदैन -->
     <script>
       (function() {
+        if (typeof window === 'undefined') return;
         // Electron desktop app मा AdSense नलोड गर्ने
-        if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.isDesktop) {
+        if (window.electronAPI && window.electronAPI.isDesktop) {
           return;
         }
-        var s = document.createElement('script');
-        s.async = true;
-        s.crossOrigin = 'anonymous';
-        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1955279955732879';
-        s.setAttribute('data-ad-client', 'ca-pub-1955279955732879');
-        document.head.appendChild(s);
-        window.__adsenseLoaded = true;
+
+        try {
+          var clientId = 'ca-pub-1955279955732879';
+          var raw = localStorage.getItem('balananda_advertisement_config_v2');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.adsense) {
+              if (parsed.adsense.enabled === false) {
+                return; // AdSense disabled by SuperAdmin
+              }
+              if (parsed.adsense.clientId && parsed.adsense.clientId.trim()) {
+                clientId = parsed.adsense.clientId.trim();
+              }
+            }
+          }
+
+          var s = document.createElement('script');
+          s.async = true;
+          s.crossOrigin = 'anonymous';
+          s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + encodeURIComponent(clientId);
+          s.setAttribute('data-ad-client', clientId);
+          s.setAttribute('data-adsense-injected', 'true');
+          document.head.appendChild(s);
+          window.__adsenseLoaded = true;
+        } catch (e) {
+          // silently handle
+        }
       })();
     </script>
   </head>
