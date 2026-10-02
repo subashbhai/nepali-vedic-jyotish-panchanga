@@ -508,15 +508,17 @@ function getKetuHousePhala(house: number): {
 // Master Article Generator for each of the 9 Grahas
 // ----------------------------------------------------------------------------
 export function generateLiveGrahaGocharNews(
-  transitPlanets: PlanetPosition[],
-  todayBS: string,
-  todayAD: string
+  transitPlanets: PlanetPosition[] = [],
+  todayBS: string = 'आज',
+  todayAD: string = 'today'
 ): GrahaGocharNewsArticle[] {
+  const safePlanets = Array.isArray(transitPlanets) ? transitPlanets : [];
   const planetList: PlanetName[] = ['सूर्य', 'चन्द्र', 'मंगल', 'बुध', 'गुरु', 'शुक्र', 'शनि', 'राहु', 'केतु'];
   const articles: GrahaGocharNewsArticle[] = [];
 
   planetList.forEach((pName, index) => {
-    const planetPos = transitPlanets.find((p) => p.name === pName) || transitPlanets[index] || {
+    const foundPlanet = safePlanets.find((p) => p && p.name === pName) || safePlanets[index];
+    const planetPos = foundPlanet || {
       id: pName,
       name: pName,
       englishName: pName,
@@ -539,11 +541,11 @@ export function generateLiveGrahaGocharNews(
       dignity: 'समराशि'
     };
 
-    const currentRashiId = planetPos.rashiId;
-    const currentRashiName = planetPos.rashiName;
-    const degreeStr = planetPos.formattedDegree || `${toDevanagariNumerals(planetPos.degree)}° ${toDevanagariNumerals(planetPos.minutes)}'`;
-    const nakshatra = planetPos.nakshatraName;
-    const pada = planetPos.pada;
+    const currentRashiId = typeof planetPos.rashiId === 'number' ? planetPos.rashiId : 1;
+    const currentRashiName = planetPos.rashiName || RASHI_DATA[currentRashiId - 1]?.name || 'मेष';
+    const degreeStr = planetPos.formattedDegree || `${toDevanagariNumerals(planetPos.degree ?? 15)}° ${toDevanagariNumerals(planetPos.minutes ?? 0)}'`;
+    const nakshatra = planetPos.nakshatraName || 'अश्विनी';
+    const pada = typeof planetPos.pada === 'number' ? planetPos.pada : 1;
     const nakshatraLord = planetPos.nakshatraLord || 'देवता';
     const isRetrograde = !!planetPos.isRetrograde;
     const isCombust = !!planetPos.isCombust;

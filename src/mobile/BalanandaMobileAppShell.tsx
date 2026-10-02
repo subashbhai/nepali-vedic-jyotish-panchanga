@@ -46,6 +46,7 @@ import { MobileConsultationView } from './views/MobileConsultationView';
 import { MobileReportsView } from './views/MobileReportsView';
 import { MobileProfileView } from './views/MobileProfileView';
 import { MobileAuthModal } from './views/MobileAuthModal';
+import { DeviceUpdateNotificationBanner } from '../components/common/DeviceUpdateNotificationBanner';
 
 export const BalanandaMobileAppShell: React.FC<{
   onExitToWeb?: () => void;
@@ -123,6 +124,9 @@ export const BalanandaMobileAppShell: React.FC<{
 
   return (
     <div className="min-h-screen bg-[#0E0A08] text-stone-100 flex flex-col font-sans select-none overflow-x-hidden">
+      {/* ── Direct Device Auto-Update Notification Banner ── */}
+      <DeviceUpdateNotificationBanner />
+
       {/* ── 1. Dedicated Mobile App Bar (Top Navigation) ── */}
       <header className="sticky top-0 z-40 bg-[#1A0F0A]/95 border-b border-amber-500/30 backdrop-blur-md px-3 py-2 flex items-center justify-between gap-2 shadow-lg">
         <div className="flex items-center gap-2 min-w-0">
