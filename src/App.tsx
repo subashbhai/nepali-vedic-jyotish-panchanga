@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTr
 import { Header } from './components/Header';
 import { Navigation, NavTab, TabTransition, NORMAL_USER_ALLOWED_TABS, PUBLIC_UNAUTH_NAV_IDS } from './components/Navigation';
 import { DashboardView } from './components/DashboardView';
+import { SamacharView } from './components/SamacharView';
 import { DailyHoroscopeAlertBanner } from './components/DailyHoroscopeAlertBanner';
 import { getActiveRBACSession, clearRBACSession, RBACSession } from './db/rbacStore';
 import { RBACAuthModal } from './components/auth/RBACAuthModal';
@@ -64,7 +65,6 @@ const AnkaJyotishView = lazy(() => import('./components/AnkaJyotishView').then((
 const KPJyotishView = lazy(() => import('./components/KPJyotishView').then((m) => ({ default: m.KPJyotishView })));
 const NeemaJyotishView = lazy(() => import('./components/NeemaJyotishView').then((m) => ({ default: m.NeemaJyotishView })));
 const NepaliCalendarView = lazy(() => import('./components/NepaliCalendarView').then((m) => ({ default: m.NepaliCalendarView })));
-const SamacharView = lazy(() => import('./components/SamacharView').then((m) => ({ default: m.SamacharView })));
 const HelpView = lazy(() => import('./components/HelpView').then((m) => ({ default: m.HelpView })));
 const DailyHoroscopeView = lazy(() => import('./components/DailyHoroscopeView').then((m) => ({ default: m.DailyHoroscopeView })));
 const KnowledgeBaseView = lazy(() => import('./components/KnowledgeBaseView').then((m) => ({ default: m.KnowledgeBaseView })));
@@ -1577,21 +1577,30 @@ export default function App() {
           )}
 
           {activeTab === 'samachar' && (
-            <SamacharView
-              todayTransitPlanets={todayTransitPlanets}
-              todayPanchanga={todayPanchanga}
-              todayAD={todayAD}
-              todayBS={todayBS}
-              onOpenAdminEditor={() => {
-                if (!rbacSession) {
-                  setIsRBACAuthModalOpen(true);
-                  return;
-                }
-                setAdminInitialTab('samachar_editor');
-                setActiveTab('admin_control');
+            <PatrikaErrorBoundary
+              fallbackTitle="समाचार तथा गोचर खण्ड लोड गर्न समस्या भयो"
+              appStateContext={{
+                activeTab: 'samachar',
+                todayBS,
+                todayAD,
               }}
-              onNavigateTab={(tab) => setActiveTab(tab as any)}
-            />
+            >
+              <SamacharView
+                todayTransitPlanets={todayTransitPlanets}
+                todayPanchanga={todayPanchanga}
+                todayAD={todayAD}
+                todayBS={todayBS}
+                onOpenAdminEditor={() => {
+                  if (!rbacSession) {
+                    setIsRBACAuthModalOpen(true);
+                    return;
+                  }
+                  setAdminInitialTab('samachar_editor');
+                  setActiveTab('admin_control');
+                }}
+                onNavigateTab={(tab) => setActiveTab(tab as any)}
+              />
+            </PatrikaErrorBoundary>
           )}
 
           {activeTab === 'date_converter' && (
