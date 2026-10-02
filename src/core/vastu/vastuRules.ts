@@ -15,7 +15,7 @@ export interface RoomDirectionRule {
   rating: RoomRating;
   points: number; // 0 to 10
   remarksNepali: string;
-  traditionalInterpretation: string;
+  traditionalInterpretation?: string;
   suggestedRemedyNepali?: string;
 }
 

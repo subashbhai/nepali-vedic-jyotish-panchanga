@@ -31,8 +31,10 @@ import { useAppUpdateNotifier } from './utils/useAppUpdateNotifier';
 import { printElement } from './utils/pdfGenerator';
 import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
 import { isMobileApp, isDesktopApp } from './utils/appVersionManager';
-import { BalanandaMobileAppShell } from './mobile/BalanandaMobileAppShell';
-import { BalanandaWindowsAppShell } from './windows/BalanandaWindowsAppShell';
+import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
+
+const BalanandaMobileAppShell = lazy(() => import('./mobile/BalanandaMobileAppShell').then((m) => ({ default: m.BalanandaMobileAppShell })));
+const BalanandaWindowsAppShell = lazy(() => import('./windows/BalanandaWindowsAppShell').then((m) => ({ default: m.BalanandaWindowsAppShell })));
 
 const KundaliView = lazy(() => import('./components/KundaliView').then((m) => ({ default: m.KundaliView })));
 const PatrikaView = lazy(() => import('./components/PatrikaView').then((m) => ({ default: m.PatrikaView })));
@@ -1022,42 +1024,46 @@ export default function App() {
   // Dedicated Windows Offline Application (Windows Desktop Mode / Electron) — Strictly JYOTISH + VASTU ONLY
   if (isWindowsDesktopMode) {
     return (
-      <BalanandaWindowsAppShell
-        onExitToWeb={() => {
-          localStorage.removeItem('balananda_force_windows_app_shell');
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('app');
-            url.searchParams.delete('mode');
-            window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
-          } catch {
-            // ignore
-          }
-          setIsWindowsDesktopMode(false);
-          window.dispatchEvent(new CustomEvent('windows-mode-changed'));
-        }}
-      />
+      <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center font-serif text-amber-800">बालानन्द विन्डोज एप लोड हुँदैछ...</div>}>
+        <BalanandaWindowsAppShell
+          onExitToWeb={() => {
+            localStorage.removeItem('balananda_force_windows_app_shell');
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('app');
+              url.searchParams.delete('mode');
+              window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+            } catch {
+              // ignore
+            }
+            setIsWindowsDesktopMode(false);
+            window.dispatchEvent(new CustomEvent('windows-mode-changed'));
+          }}
+        />
+      </Suspense>
     );
   }
 
   // Dedicated Mobile Application (Android/iOS & Mobile Mode) — Strictly JYOTISH SERVICES ONLY
   if (isMobileMode) {
     return (
-      <BalanandaMobileAppShell
-        onExitToWeb={() => {
-          localStorage.removeItem('balananda_force_mobile_app_shell');
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('app');
-            url.searchParams.delete('mode');
-            window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
-          } catch {
-            // ignore
-          }
-          setIsMobileMode(false);
-          window.dispatchEvent(new CustomEvent('mobile-mode-changed'));
-        }}
-      />
+      <Suspense fallback={<div className="min-h-screen bg-[#0E0A08] flex items-center justify-center font-serif text-amber-400">बालानन्द मोबाइल एप लोड हुँदैछ...</div>}>
+        <BalanandaMobileAppShell
+          onExitToWeb={() => {
+            localStorage.removeItem('balananda_force_mobile_app_shell');
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('app');
+              url.searchParams.delete('mode');
+              window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+            } catch {
+              // ignore
+            }
+            setIsMobileMode(false);
+            window.dispatchEvent(new CustomEvent('mobile-mode-changed'));
+          }}
+        />
+      </Suspense>
     );
   }
 

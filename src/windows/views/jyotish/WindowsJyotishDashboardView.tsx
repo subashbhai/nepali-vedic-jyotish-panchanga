@@ -30,7 +30,6 @@ import {
 } from '../../../mobile/services/mobileAstrologyService';
 import { KundaliChart } from '../../../components/KundaliChart';
 import { calculatePanchanga } from '../../../utils/panchangaEngine';
-import { calculateAshtakootaMatch } from '../../../utils/vivahEngine';
 
 interface WindowsJyotishDashboardViewProps {
   activeTab: WindowsJyotishTab;
@@ -68,6 +67,7 @@ export const WindowsJyotishDashboardView: React.FC<WindowsJyotishDashboardViewPr
       gender: (activeProfile.gender as any) || 'MALE',
       location: {
         name: activeProfile.placeOfBirth,
+        country: 'Nepal',
         latitude: activeProfile.latitude,
         longitude: activeProfile.longitude,
         timeZone: activeProfile.timezone,
@@ -267,19 +267,19 @@ export const WindowsJyotishDashboardView: React.FC<WindowsJyotishDashboardViewPr
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-center text-xs">
                 <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700">
                   <span className="text-[10px] text-stone-400 block">लग्न राशि</span>
-                  <strong className="text-stone-900 dark:text-stone-100">{kundali.lagna.rashi}</strong>
+                  <strong className="text-stone-900 dark:text-stone-100">{kundali.lagna.rashiName}</strong>
                 </div>
                 <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700">
                   <span className="text-[10px] text-stone-400 block">चन्द्र राशि</span>
-                  <strong className="text-stone-900 dark:text-stone-100">{kundali.moonPlanet?.rashi || 'मेष'}</strong>
+                  <strong className="text-stone-900 dark:text-stone-100">{kundali.moonPlanet?.rashiName || 'मेष'}</strong>
                 </div>
                 <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700">
                   <span className="text-[10px] text-stone-400 block">जन्म नक्षत्र</span>
-                  <strong className="text-stone-900 dark:text-stone-100">{kundali.moonPlanet?.nakshatra || 'रोहिणी'}</strong>
+                  <strong className="text-stone-900 dark:text-stone-100">{kundali.moonPlanet?.nakshatraName || 'रोहिणी'}</strong>
                 </div>
                 <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700">
                   <span className="text-[10px] text-stone-400 block">चरण / पाद</span>
-                  <strong className="text-stone-900 dark:text-stone-100">{kundali.moonPlanet?.nakshatraPada || 1} पाद</strong>
+                  <strong className="text-stone-900 dark:text-stone-100">{kundali.moonPlanet?.pada || 1} पाद</strong>
                 </div>
               </div>
             )}
@@ -306,7 +306,7 @@ export const WindowsJyotishDashboardView: React.FC<WindowsJyotishDashboardViewPr
                   {kundali?.planets.map((pl) => (
                     <tr key={pl.name} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/30">
                       <td className="py-2 font-bold text-stone-900 dark:text-stone-100">
-                        {pl.nameNepali}
+                        {pl.name}
                       </td>
                       <td className="py-2 text-stone-600 dark:text-stone-400">
                         {pl.rashiName}
@@ -315,7 +315,7 @@ export const WindowsJyotishDashboardView: React.FC<WindowsJyotishDashboardViewPr
                         {Math.floor(pl.degree)}° {Math.floor((pl.degree % 1) * 60)}'
                       </td>
                       <td className="py-2 font-mono font-bold text-amber-700 dark:text-amber-400">
-                        {pl.house}
+                        {pl.bhava}
                       </td>
                       <td className="py-2 text-[10px]">
                         {pl.isRetrograde ? (
@@ -406,11 +406,13 @@ export const WindowsJyotishDashboardView: React.FC<WindowsJyotishDashboardViewPr
             <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-stone-800 border border-amber-200/50 space-y-1">
               <span className="text-[10px] text-stone-500 block">तिथि</span>
               <strong className="text-sm text-stone-900 dark:text-stone-100 block">{todayPanchanga.tithi?.name || 'शुक्ल नवमी'}</strong>
-              <span className="text-[10px] text-stone-400">{todayPanchanga.paksha || 'शुक्ल पक्ष'}</span>
+              <span className="text-[10px] text-stone-400">{todayPanchanga.tithi?.paksha || 'शुक्ल पक्ष'}</span>
             </div>
             <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-stone-800 border border-amber-200/50 space-y-1">
               <span className="text-[10px] text-stone-500 block">वार (Day)</span>
-              <strong className="text-sm text-stone-900 dark:text-stone-100 block">{todayPanchanga.vaar || 'शुक्रवार'}</strong>
+              <strong className="text-sm text-stone-900 dark:text-stone-100 block">
+                {typeof todayPanchanga.vaar === 'string' ? todayPanchanga.vaar : todayPanchanga.dayNameNepali || (todayPanchanga.vaar as any)?.name || 'शुक्रवार'}
+              </strong>
               <span className="text-[10px] text-stone-400">स्वामी: शुक्र</span>
             </div>
             <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-stone-800 border border-amber-200/50 space-y-1">
