@@ -31,7 +31,7 @@ export interface ElectronUpdaterStatus {
   total?: number;
 }
 
-export const CURRENT_APP_VERSION = '1.0.2';
+export const CURRENT_APP_VERSION = '1.0.3';
 export const GITHUB_REPO_OWNER = 'subashbhai';
 export const GITHUB_REPO_NAME = 'nepali-vedic-jyotish-panchanga';
 export const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/latest`;
@@ -42,19 +42,19 @@ export const GITHUB_ALL_RELEASES_API_URL = `https://api.github.com/repos/${GITHU
  * Perfectly compatible with GitHub Pages (https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/downloads/...)
  */
 export function getApkDirectDownloadUrl(): string {
-  if (typeof window === 'undefined') return './downloads/nepali-vedic-jyotish-panchanga.apk';
+  if (typeof window === 'undefined') return './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.3';
   const origin = window.location.origin;
   const pathname = window.location.pathname;
 
   // On GitHub Pages (https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/...)
   if (pathname.includes('/nepali-vedic-jyotish-panchanga')) {
-    return `${origin}/nepali-vedic-jyotish-panchanga/downloads/nepali-vedic-jyotish-panchanga.apk`;
+    return `${origin}/nepali-vedic-jyotish-panchanga/downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.3`;
   }
 
   const basePath = pathname.endsWith('/') 
     ? pathname 
     : pathname.substring(0, pathname.lastIndexOf('/') + 1);
-  return `${origin}${basePath}downloads/nepali-vedic-jyotish-panchanga.apk`;
+  return `${origin}${basePath}downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.3`;
 }
 
 /**
@@ -62,11 +62,11 @@ export function getApkDirectDownloadUrl(): string {
  * Automatically triggers browser download manager without opening GitHub repo tabs
  */
 export const DEFAULT_DIRECT_DOWNLOADS = {
-  windowsSetup: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-setup-1.0.0.exe',
-  windowsPortable: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0.exe',
-  androidApk: typeof window !== 'undefined' ? getApkDirectDownloadUrl() : './downloads/nepali-vedic-jyotish-panchanga.apk',
-  macDmg: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0.dmg',
-  macZip: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.0/nepali-vedic-jyotish-panchanga-1.0.0-arm64-mac.zip',
+  windowsSetup: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.3/nepali-vedic-jyotish-panchanga-setup-1.0.3.exe`,
+  windowsPortable: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.3/nepali-vedic-jyotish-panchanga-1.0.3.exe`,
+  androidApk: typeof window !== 'undefined' ? getApkDirectDownloadUrl() : './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.3',
+  macDmg: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.3/nepali-vedic-jyotish-panchanga-1.0.3.dmg`,
+  macZip: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.3/nepali-vedic-jyotish-panchanga-1.0.3-arm64-mac.zip`,
 };
 
 /**
@@ -152,13 +152,14 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
       };
     }
 
-    // Find the latest release that actually has uploaded .exe binaries
-    const releaseWithExe = releasesList.find((r: any) =>
-      Array.isArray(r.assets) && r.assets.some((a: any) => typeof a.name === 'string' && a.name.endsWith('.exe'))
-    ) || releasesList[0];
+    // Prioritize the absolute latest release tag from GitHub
+    const latestRelease = releasesList[0] || {};
+    const remoteTag = latestRelease.tag_name || latestRelease.name || CURRENT_APP_VERSION;
+    const cleanTag = remoteTag.startsWith('v') ? remoteTag : `v${remoteTag}`;
+    const cleanNum = cleanTag.replace(/^v/i, '');
 
-    const rawAssets: any[] = Array.isArray(releaseWithExe.assets) && releaseWithExe.assets.length > 0 
-      ? releaseWithExe.assets 
+    const rawAssets: any[] = Array.isArray(latestRelease.assets) && latestRelease.assets.length > 0 
+      ? latestRelease.assets 
       : [];
 
     let assets: RemoteReleaseInfo['assets'] = rawAssets.map((asset: any) => {
@@ -176,58 +177,39 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
       };
     });
 
-    if (assets.length === 0) {
-      assets = [
-        {
-          name: 'nepali-vedic-jyotish-panchanga-setup-1.0.0.exe',
-          downloadUrl: DEFAULT_DIRECT_DOWNLOADS.windowsSetup,
-          size: 137773998,
-          platform: 'windows',
-        },
-        {
-          name: 'nepali-vedic-jyotish-panchanga-1.0.0.exe',
-          downloadUrl: DEFAULT_DIRECT_DOWNLOADS.windowsPortable,
-          size: 104857600,
-          platform: 'windows',
-        },
-        {
-          name: 'nepali-vedic-jyotish-panchanga-1.0.0.dmg',
-          downloadUrl: DEFAULT_DIRECT_DOWNLOADS.macDmg,
-          size: 143654912,
-          platform: 'mac',
-        },
-        {
-          name: 'nepali-vedic-jyotish-panchanga.apk',
-          downloadUrl: getApkDirectDownloadUrl(),
-          size: 29420663,
-          platform: 'android',
-        },
-      ];
+    // If latest release tag assets are not yet attached, configure download URLs targeting this version
+    if (!assets.some(a => a.platform === 'windows')) {
+      assets.push({
+        name: `nepali-vedic-jyotish-panchanga-setup-${cleanNum}.exe`,
+        downloadUrl: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/${cleanTag}/nepali-vedic-jyotish-panchanga-setup-${cleanNum}.exe`,
+        size: 137773998,
+        platform: 'windows',
+      });
+      assets.push({
+        name: `nepali-vedic-jyotish-panchanga-${cleanNum}.exe`,
+        downloadUrl: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/${cleanTag}/nepali-vedic-jyotish-panchanga-${cleanNum}.exe`,
+        size: 104857600,
+        platform: 'windows',
+      });
     }
 
-    // Ensure Android APK is always included even if GitHub release only had Windows/Mac assets
     if (!assets.some(a => a.platform === 'android')) {
       assets.push({
         name: 'nepali-vedic-jyotish-panchanga.apk',
         downloadUrl: getApkDirectDownloadUrl(),
-        size: 29420663,
+        size: 27800663,
         platform: 'android',
       });
     }
 
-    // Target release must be the release that contains real downloadable assets
-    const activeRelease = releaseWithExe;
-    const remoteTag = activeRelease.tag_name || activeRelease.name || CURRENT_APP_VERSION;
-    
-    // Only flag hasUpdate if the release with real assets is actually newer than current
     const hasUpdate = isNewerVersion(remoteTag, CURRENT_APP_VERSION);
     const winExeAsset = assets.find(a => a.platform === 'windows')?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.windowsSetup;
 
     return {
       version: remoteTag,
-      releaseName: activeRelease.name || `संस्करण ${remoteTag}`,
-      publishedAt: activeRelease.published_at || new Date().toISOString(),
-      releaseNotes: activeRelease.body || 'नयाँ सुधार र गतिशीलता थप गरिएको छ।',
+      releaseName: latestRelease.name || `संस्करण ${remoteTag}`,
+      publishedAt: latestRelease.published_at || new Date().toISOString(),
+      releaseNotes: latestRelease.body || 'नयाँ सुधार, मोबाइल मेनु र कार्यसम्पादन थप गरिएको छ।',
       downloadUrl: winExeAsset,
       hasUpdate,
       assets

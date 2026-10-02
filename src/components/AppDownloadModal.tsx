@@ -21,7 +21,8 @@ import {
   DEFAULT_DIRECT_DOWNLOADS, 
   triggerDirectBrowserDownload, 
   checkLatestRelease,
-  getApkDirectDownloadUrl
+  getApkDirectDownloadUrl,
+  CURRENT_APP_VERSION
 } from '../utils/appVersionManager';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { ApkDownloadPromptModal } from './common/ApkDownloadPromptModal';
@@ -38,7 +39,7 @@ interface AppDownloadModalProps {
 export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
   isOpen,
   onClose,
-  currentVersion = 'v1.0.0',
+  currentVersion = `v${CURRENT_APP_VERSION}`,
   initialTab = 'WINDOWS',
 }) => {
   const [activeTab, setActiveTab] = useState<PlatformTab>(initialTab);

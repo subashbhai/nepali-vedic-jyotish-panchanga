@@ -81,6 +81,7 @@ const TransitNotificationCenterModal = lazy(() => import('./components/TransitNo
 const DailyWhatsAppDispatchManager = lazy(() => import('./components/admin/DailyWhatsAppDispatchManager').then((m) => ({ default: m.DailyWhatsAppDispatchManager })));
 import { DailyWhatsAppReminderBanner } from './components/common/DailyWhatsAppReminderBanner';
 import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBanner';
+import { DeviceUpdateNotificationBanner } from './components/common/DeviceUpdateNotificationBanner';
 import { PageMaintenanceView } from './components/common/PageMaintenanceView';
 import { getStoredPageServiceConfig } from './db/pageServiceControlStore';
 
@@ -1247,6 +1248,9 @@ export default function App() {
           }} 
         />
       </div>
+
+      {/* Global Device Auto-Update Notification Banner (Instant 1-Click Update for Mobile & Desktop) */}
+      <DeviceUpdateNotificationBanner />
 
       {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
       <GlobalSiteNoticeBanner onNavigateTab={(tab) => setActiveTab(tab as any)} />

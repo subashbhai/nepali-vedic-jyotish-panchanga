@@ -28,6 +28,7 @@ import {
   saveFloorPlan
 } from './db/windowsSecureStore';
 import { analyzeVastuFloorPlan } from '../core/vastu/vastuAnalysis';
+import { DeviceUpdateNotificationBanner } from '../components/common/DeviceUpdateNotificationBanner';
 
 interface BalanandaWindowsAppShellProps {
   onExitToWeb?: () => void;
@@ -65,6 +66,8 @@ export const BalanandaWindowsAppShell: React.FC<BalanandaWindowsAppShellProps> =
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#121110] text-stone-900 dark:text-stone-100 flex flex-col font-sans select-none antialiased">
+      {/* ── Direct Device Auto-Update Notification Banner ── */}
+      <DeviceUpdateNotificationBanner />
       
       {/* ============================================================== */}
       {/* 1. TOP WINDOWS DESKTOP APP HEADER BAR                           */}
