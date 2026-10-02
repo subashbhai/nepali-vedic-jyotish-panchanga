@@ -315,6 +315,15 @@ export const DEFAULT_GLOBAL_NOTICE: GlobalNoticeConfig = {
   dismissible: true
 };
 
+function getTodayBSString(): string {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    return convertADToBS(today).formattedBS;
+  } catch {
+    return '२०८१';
+  }
+}
+
 export function getStoredPageServiceConfig(): PageServiceMasterConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -330,11 +339,15 @@ export function getStoredPageServiceConfig(): PageServiceMasterConfig {
         return found ? { ...ds, ...found } : ds;
       });
 
+      const safeLastUpdated = typeof parsed.lastUpdatedBS === 'string'
+        ? parsed.lastUpdatedBS
+        : (parsed.lastUpdatedBS?.formattedBS || getTodayBSString());
+
       return {
         pages: mergedPages,
         services: mergedServices,
         globalNotice: parsed.globalNotice || DEFAULT_GLOBAL_NOTICE,
-        lastUpdatedBS: parsed.lastUpdatedBS || convertADToBS(new Date()),
+        lastUpdatedBS: safeLastUpdated,
         updatedBy: parsed.updatedBy || 'Super Admin'
       };
     }
@@ -346,14 +359,14 @@ export function getStoredPageServiceConfig(): PageServiceMasterConfig {
     pages: DEFAULT_PAGES,
     services: DEFAULT_SERVICES,
     globalNotice: DEFAULT_GLOBAL_NOTICE,
-    lastUpdatedBS: convertADToBS(new Date()),
+    lastUpdatedBS: getTodayBSString(),
     updatedBy: 'System Default'
   };
 }
 
 export function savePageServiceConfig(config: PageServiceMasterConfig): void {
   try {
-    config.lastUpdatedBS = convertADToBS(new Date());
+    config.lastUpdatedBS = getTodayBSString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     window.dispatchEvent(new CustomEvent('page-service-control-updated', { detail: config }));
   } catch (e) {
@@ -413,7 +426,7 @@ export function resetPageServiceConfigToDefault(): PageServiceMasterConfig {
     pages: DEFAULT_PAGES,
     services: DEFAULT_SERVICES,
     globalNotice: DEFAULT_GLOBAL_NOTICE,
-    lastUpdatedBS: convertADToBS(new Date()),
+    lastUpdatedBS: getTodayBSString(),
     updatedBy: 'Super Admin Reset'
   };
   savePageServiceConfig(defaults);

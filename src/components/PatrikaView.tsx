@@ -53,6 +53,7 @@ import { DynamicPatrikaDocument } from './DynamicPatrikaDocument';
 import { GaneshaHeaderCenter } from './GaneshaHeaderCenter';
 import { CheenaQuickEditModal } from './CheenaQuickEditModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
+import { canUserPrintDocuments } from '../db/subscriptionStore';
 
 interface PatrikaViewProps {
   profile: BirthDetails;
@@ -204,6 +205,12 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
 
   // Handle Print Action
   const handlePrint = () => {
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
+      return;
+    }
+
     // Record Patrika Print Log
     const record = {
       jatakId: profile.id,
@@ -223,6 +230,12 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
   // Handle PDF Export
   const handlePDFExport = async () => {
     setShowDownloadDropdown(false);
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
+      return;
+    }
+
     setIsExportingPDF(true);
     setDownloadStatus('PDF प्रतिवेदन तयार हुँदैछ, कृपया केही सेकेन्ड पर्खनुहोस्...');
     try {
@@ -245,6 +258,12 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
   // Handle PNG Export
   const handlePNGExport = async () => {
     setShowDownloadDropdown(false);
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
+      return;
+    }
+
     setDownloadStatus('PNG तस्बिर तयार हुँदैछ...');
     try {
       const fileName = `${activeSubTab}_${profile.name}_${panchanga.dateBS.replace(/\s+/g, '_')}.png`;

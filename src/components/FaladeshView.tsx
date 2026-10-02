@@ -25,7 +25,8 @@ import {
   MessageSquare,
   Search,
   Check,
-  Plus
+  Plus,
+  Lock
 } from 'lucide-react';
 import { 
   BirthDetails, 
@@ -106,12 +107,18 @@ export const FaladeshView: React.FC<FaladeshViewProps> = ({
   };
 
   const handlePrint = () => {
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
+      return;
+    }
     printElement('printable-faladesh-report');
   };
 
   const handleDownloadPDF = () => {
-    if (!canUserPrintDocuments('kundali')) {
-      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { docType: 'kundali' } }));
+    const check = canUserPrintDocuments('kundali');
+    if (!check.allowed) {
+      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType: 'kundali' } }));
       return;
     }
     exportFaladeshPDF(report);
@@ -295,7 +302,13 @@ export const FaladeshView: React.FC<FaladeshViewProps> = ({
             }`}
           >
             <FileText className="w-4 h-4 text-[#D97706]" />
-            <span>प्रतिवेदन र टिप्पणी (Report)</span>
+            <span>पूर्ण फलादेश प्रतिवेदन (Report)</span>
+            {!canUserPrintDocuments('kundali').allowed && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 font-bold border border-amber-500/30 flex items-center gap-0.5">
+                <Lock className="w-2.5 h-2.5" />
+                प्रिन्ट
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -862,6 +875,30 @@ export const FaladeshView: React.FC<FaladeshViewProps> = ({
               संस्करण {report.engineVersion}
             </span>
           </div>
+
+          {!canUserPrintDocuments('kundali').allowed && (
+            <div className="p-4 bg-gradient-to-r from-amber-500/10 via-red-500/10 to-amber-500/10 border-2 border-dashed border-amber-600/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-700 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-[#7A1C1C] dark:text-amber-400">पूर्ण फलादेश प्रतिवेदन प्रिन्ट तथा आधिकारिक निर्यात</h4>
+                  <p className="text-xs text-stone-600 dark:text-stone-400">
+                    सम्पूर्ण जीवन विश्लेषण, दशा महादशा र ज्योतिषी सिफारिससहितको पूर्ण प्रिन्ट प्रतिवेदन डाउनलोड गर्न पूर्ण सदस्यता वा परीक्षण आवश्यक पर्दछ।
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-subscription-purchase-modal'))}
+                className="px-4 py-2 bg-gradient-to-r from-[#7A1C1C] to-[#9B2C2C] text-white text-xs font-bold rounded-xl shadow-md hover:brightness-110 shrink-0 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>पूर्ण संस्करण खरिद / अनलक</span>
+              </button>
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="block text-xs font-bold text-[#2D241E] dark:text-stone-200">

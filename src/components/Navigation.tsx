@@ -1,4 +1,4 @@
-import React, { memo, useState, useRef, useEffect } from 'react';
+import React, { memo, useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home, 
@@ -59,14 +59,17 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
 import { getStoredPageServiceConfig } from '../db/pageServiceControlStore';
 
-// Public menus visible on the first screen before login
+// Public menus visible on the first screen before login (Jyotish & Vastu are free to use)
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
   'dashboard',
   'panchanga',
+  'jyotishi',
+  'vastu',
   'sewa',
   'vivah',
   'calendar',
   'samachar',
+  'kharedi',
   'date_converter',
   'org_profile',
 ]);
@@ -74,6 +77,8 @@ export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
 export const NORMAL_USER_ALLOWED_TABS = new Set<NavTab>([
   'dashboard',
   'panchanga',
+  'jyotishi',
+  'vastu',
   'sewa',
   'calendar',
   'samachar',
@@ -229,12 +234,14 @@ export const MAIN_NAV_ITEMS: Array<{
   hasSubmenu?: boolean;
 }> = [
   { id: 'dashboard', labelNepali: 'गृहपृष्ठ', icon: Home },
-  { id: 'panchanga', labelNepali: 'पञ्चाङ्ग', icon: Clock, highlight: true },
-  { id: 'sewa', labelNepali: 'सेवाहरू', icon: Briefcase, highlight: true, hasSubmenu: true },
-  { id: 'vivah', labelNepali: 'विवाह', icon: HeartHandshake, highlight: true },
-  { id: 'samachar', labelNepali: 'समाचार', icon: Newspaper, highlight: true },
-  { id: 'kharedi', labelNepali: 'वैदिक पसल', icon: ShoppingBag },
-  { id: 'org_profile', labelNepali: 'संस्था प्रोफाइल', icon: Building2, highlight: true },
+  { id: 'panchanga', labelNepali: 'पञ्चाङ्ग', icon: Clock },
+  { id: 'jyotishi', labelNepali: 'ज्योतिष सेवा', icon: Sparkles, isJyotishWorkspace: true, highlight: true },
+  { id: 'vastu', labelNepali: 'वास्तु सेवा', icon: Compass, highlight: true },
+  { id: 'sewa', labelNepali: 'सेवाहरू', icon: Briefcase, hasSubmenu: true },
+  { id: 'vivah', labelNepali: 'विवाह', icon: HeartHandshake },
+  { id: 'samachar', labelNepali: 'समाचार', icon: Newspaper },
+  { id: 'kharedi', labelNepali: 'पसल', icon: ShoppingBag },
+  { id: 'org_profile', labelNepali: 'संस्था', icon: Building2 },
 ];
 
 export const ANYA_FALADESH_ITEMS: Array<{
@@ -477,20 +484,23 @@ export const Navigation: React.FC<NavigationProps> = memo(({
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Main Navigation Items */}
-        <div className="hidden sm:flex items-center gap-1 sm:gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5">
+        {/* Main Navigation Items - Compact Single Line Layout */}
+        <div className="hidden sm:flex items-center gap-0.5 md:gap-1 lg:gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5">
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isSewa = item.id === 'sewa';
-            const isAnyaBranchActive = ['prashna', 'ankajyotish', 'kpjyotish', 'neemajyotish'].includes(activeTab);
-            const isSewaActive = activeTab === 'sewa' || activeModule === 'JYOTISH' || activeTab === 'jyotishi' || activeTab === 'vastu' || isAnyaBranchActive;
-            const isActive = isSewa
-              ? isSewaActive
+            const isJyotishi = item.id === 'jyotishi';
+            const isVastu = item.id === 'vastu';
+
+            const isActive = isJyotishi
+              ? (activeModule === 'JYOTISH' || activeTab === 'jyotishi')
+              : isVastu
+              ? activeTab === 'vastu'
+              : isSewa
+              ? activeTab === 'sewa'
               : activeTab === item.id && activeModule === 'MAIN';
 
-            const isTabAllowed = !rbacSession
-              ? PUBLIC_UNAUTH_NAV_IDS.has(item.id)
-              : (isFullyUnlocked || NORMAL_USER_ALLOWED_TABS.has(item.id));
+            const isTabAllowed = true; // Jyotish, Vastu and all main items are free to explore
 
             if (isSewa) {
               return (
@@ -501,16 +511,16 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={toggleSewaMenu}
-                    className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
-                      isSewaActive
+                    className={`relative flex items-center gap-1 px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-xl font-bold text-[11px] sm:text-[11.5px] lg:text-[12.5px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
+                      isActive
                         ? 'text-amber-300 ring-2 ring-amber-500/50 shadow-md border-transparent bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515]'
                         : isSewaMenuOpen
                         ? 'bg-amber-100 dark:bg-stone-800 text-[#7A1C1C] dark:text-amber-400 border-amber-300 dark:border-stone-700 shadow-2xs'
-                        : 'bg-gradient-to-r from-amber-600/15 via-red-600/10 to-amber-700/15 hover:from-amber-600/25 hover:to-red-600/20 text-[#7A1C1C] dark:text-amber-300 border-amber-400/60 dark:border-amber-700/80 shadow-xs'
+                        : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
                     }`}
-                    title="वैदिक सेवाहरू: ज्योतिष तथा वास्तुशास्त्र"
+                    title="वैदिक सेवाहरू: पुरोहित, विवाह र कन्सल्टिङ"
                   >
-                    {isSewaActive && (
+                    {isActive && (
                       <motion.div
                         layoutId="mainNavActivePill"
                         className="absolute inset-0 rounded-xl pointer-events-none bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515] border border-[#7A1C1C]"
@@ -522,17 +532,11 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       />
                     )}
 
-                    <span className="relative z-10 flex items-center gap-1 sm:gap-1.5">
-                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse" />
+                    <span className="relative z-10 flex items-center gap-1">
+                      <Icon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                       <span>{item.labelNepali}</span>
-                      {!isFullyUnlocked && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500 text-stone-950 text-[10px] font-black border border-amber-300 shadow-2xs animate-pulse">
-                          <Lock className="w-2.5 h-2.5 text-stone-950" />
-                          <span>खरिद</span>
-                        </span>
-                      )}
                       <ChevronDown
-                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                        className={`w-3 h-3 transition-transform duration-200 ${
                           isSewaMenuOpen ? 'rotate-180 text-amber-400' : 'opacity-70'
                         }`}
                       />
@@ -543,11 +547,17 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             }
 
             const handleTabClick = () => {
-              // Vastu click: immediately open purchase modal if not unlocked
-              if (item.id === 'vastu' && !isFullyUnlocked) {
-                if (onOpenPurchaseModal) {
-                  onOpenPurchaseModal(item.labelNepali);
+              if (isJyotishi) {
+                if (onEnterJyotish) {
+                  onEnterJyotish();
+                } else {
+                  onTabChange('jyotishi');
                 }
+                return;
+              }
+
+              if (isVastu) {
+                onTabChange('vastu');
                 return;
               }
 
@@ -558,20 +568,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 return;
               }
 
-              if (!isTabAllowed) {
-                if (onOpenPurchaseModal) {
-                  onOpenPurchaseModal(item.labelNepali);
-                }
-                return;
-              }
-
-              if (item.id === 'vastu') {
-                if (onOpenVastuModal) {
-                  onOpenVastuModal('project');
-                } else {
-                  onTabChange('vastu');
-                }
-              } else if (item.id === 'settings' && onOpenSettingsModal) {
+              if (item.id === 'settings' && onOpenSettingsModal) {
                 onOpenSettingsModal('astro');
               } else {
                 onTabChange(item.id);
@@ -585,12 +582,12 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={handleTabClick}
-                  className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
+                  className={`relative flex items-center gap-1 px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-xl font-bold text-[11px] sm:text-[11.5px] lg:text-[12.5px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
                     isActive
                       ? 'text-white ring-2 ring-[#7A1C1C]/30 shadow-md border-transparent'
                       : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
                   }`}
-                  title={!isTabAllowed ? `${item.labelNepali} - पूर्ण सफ्टवेयर अधिकार (Full Access) आवश्यक` : item.labelNepali}
+                  title={item.labelNepali}
                 >
                   {/* Animated active pill using Framer Motion layoutId */}
                   {isActive && (
@@ -605,29 +602,15 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     />
                   )}
 
-                  <span className="relative z-10 flex items-center gap-1 sm:gap-1.5">
+                  <span className="relative z-10 flex items-center gap-1">
                     <Icon
-                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
+                      className={`w-3.5 h-3.5 shrink-0 ${
                         isActive
                           ? 'text-amber-300'
                           : 'text-[#7A1C1C] dark:text-amber-400'
                       }`}
                     />
                     <span>{item.labelNepali}</span>
-
-                    {/* If locked for normal user, show lock badge */}
-                    {((!isTabAllowed) || (item.id === 'vastu' && !isFullyUnlocked)) && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500 text-stone-950 text-[10px] font-black border border-amber-300 shadow-2xs ml-0.5 animate-pulse">
-                        <Lock className="w-2.5 h-2.5 text-stone-950" />
-                        <span>खरिद</span>
-                      </span>
-                    )}
-
-                    {item.id === 'vastu' && isTabAllowed && (
-                      <span className="hidden sm:inline-flex items-center text-[9px] bg-amber-400/30 dark:bg-amber-500/20 text-stone-800 dark:text-amber-300 px-1.5 py-0.5 rounded font-mono font-medium ml-0.5 border border-amber-400/40">
-                        विन्डो
-                      </span>
-                    )}
                   </span>
                 </motion.button>
               </React.Fragment>
@@ -1461,7 +1444,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 type="button"
                 onClick={() => {
                   setIsMobileDrawerOpen(false);
-                  if (!isFullyUnlocked) { if (onOpenPurchaseModal) onOpenPurchaseModal('ज्योतिष'); return; }
                   if (onEnterJyotish) onEnterJyotish(); else onTabChange('jyotishi');
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors cursor-pointer ${
@@ -1470,7 +1452,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               >
                 <Sparkles className={`w-4 h-4 shrink-0 ${activeModule === 'JYOTISH' ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
                 <span className="flex-1 text-left">ज्योतिष कार्यक्षेत्र</span>
-                {!isFullyUnlocked && <Lock className="w-3 h-3 text-amber-500 shrink-0" />}
                 <ChevronRight className={`w-3 h-3 shrink-0 ${activeModule === 'JYOTISH' ? 'text-amber-300' : 'text-stone-400'}`} />
               </button>
 
@@ -1495,14 +1476,12 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 type="button"
                 onClick={() => {
                   setIsMobileDrawerOpen(false);
-                  if (!isFullyUnlocked) { if (onOpenPurchaseModal) onOpenPurchaseModal('वास्तुशास्त्र'); return; }
                   if (onOpenVastuModal) onOpenVastuModal('project'); else onTabChange('vastu');
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-emerald-50 dark:hover:bg-stone-800 transition-colors"
               >
                 <Compass className="w-4 h-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
                 <span className="flex-1 text-left">वास्तुशास्त्र</span>
-                {!isFullyUnlocked && <Lock className="w-3 h-3 text-amber-500 shrink-0" />}
                 <ChevronRight className="w-3 h-3 shrink-0 text-stone-400" />
               </button>
 
@@ -1512,7 +1491,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   <button key={vi.id} type="button"
                     onClick={() => {
                       setIsMobileDrawerOpen(false);
-                      if (!isFullyUnlocked && onOpenPurchaseModal) { onOpenPurchaseModal(vi.labelNepali); return; }
                       if (onOpenVastuModal) onOpenVastuModal(vi.id);
                     }}
                     className="w-full flex items-center gap-3 pl-10 pr-4 py-2.5 text-xs font-semibold cursor-pointer text-stone-600 dark:text-stone-400 hover:bg-emerald-50 dark:hover:bg-stone-800 transition-colors border-b border-stone-50 dark:border-stone-800/30"
