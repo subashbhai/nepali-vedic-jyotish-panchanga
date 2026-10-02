@@ -30,24 +30,18 @@ export function registerServiceWorker() {
     return;
   }
 
-  // In production only, register the offline service worker
+  // In production: let vite-plugin-pwa's registerSW.js handle registration with relative path (./sw.js)
+  // Clean up any stale root-scoped service worker on GitHub Pages or custom sub-paths
   try {
-    window.addEventListener('load', () => {
-      try {
-        navigator.serviceWorker
-          .register('/sw.js', { scope: '/' })
-          .then((registration) => {
-            console.log('ServiceWorker registered in production:', registration.scope);
-          })
-          .catch(() => {
-            // Silently ignore registration error in sandboxed preview iframe
-          });
-      } catch (err) {
-        // Silently ignore
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const reg of registrations) {
+        // If a service worker is registered with root scope on a subpath, remove it
+        if (reg.scope === window.location.origin + '/' && window.location.pathname.length > 1) {
+          reg.unregister();
+        }
       }
-    });
-  } catch (err) {
-    // Silently ignore
+    }).catch(() => {});
+  } catch {
+    // silently ignore
   }
 }
-

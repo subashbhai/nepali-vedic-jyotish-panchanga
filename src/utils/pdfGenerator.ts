@@ -547,7 +547,7 @@ export async function generatePDFFileFromElement(
   pageSize: 'a4' | 'a5' | 'letter' = 'a4',
   autoDownload: boolean = true
 ): Promise<{ success: boolean; file?: File; blob?: Blob; error?: string }> {
-  const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan')) ? 'kundali' : 'general';
+  const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')) ? 'kundali' : 'general';
   const check = canUserPrintDocuments(docType);
   if (!check.allowed) {
     if (typeof window !== 'undefined') {
@@ -649,7 +649,7 @@ export async function generatePNGFileFromElement(
 ): Promise<{ success: boolean; file?: File; blob?: Blob; error?: string }> {
   const docType = elementId.includes('vastu')
     ? 'vastu'
-    : elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan')
+    : elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')
     ? 'kundali'
     : 'general';
   const check = canUserPrintDocuments(docType);
@@ -802,7 +802,7 @@ export async function exportMergedProfilesPDF(
 }
 
 export function printElement(elementId: string) {
-  const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan')) ? 'kundali' : 'general';
+  const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')) ? 'kundali' : 'general';
   const check = canUserPrintDocuments(docType);
   if (!check.allowed) {
     if (typeof window !== 'undefined') {

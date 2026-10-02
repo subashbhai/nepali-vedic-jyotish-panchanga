@@ -10,7 +10,7 @@ export const AdminControlPanel: React.FC<{
   todayPanchanga?: PanchangaData;
   orgProfile?: OrganizationProfile;
   transitPlanets?: PlanetPosition[];
-}> = ({ onClosePanel, initialTab, profiles, todayPanchanga, orgProfile, transitPlanets }) => {
+}> = ({ onClosePanel, onNavigateApp, initialTab, profiles, todayPanchanga, orgProfile, transitPlanets }) => {
   const mappedTab =
     initialTab === 'dashboard' ? 'overview' :
     initialTab === 'samachar' || initialTab === 'samachar_editor' ? 'samachar_editor' :

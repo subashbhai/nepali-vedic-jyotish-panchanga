@@ -892,15 +892,6 @@ export function isTrialEligible(): boolean {
 export function canUserPrintDocuments(docType?: 'kundali' | 'vastu' | 'general'): { allowed: boolean; reasonNepali: string } {
   if (typeof window === 'undefined') return { allowed: true, reasonNepali: '' };
 
-  // Always permit local development and testing
-  if (
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.protocol === 'file:')
-  ) {
-    return { allowed: true, reasonNepali: '' };
-  }
 
   // 1. Direct Software Full Access License Key
   if (isSoftwareFullAccessUnlocked()) {
