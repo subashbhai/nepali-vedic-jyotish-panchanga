@@ -59,22 +59,30 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
 
   // Obtain Live Astronomical Positions
   const livePlanets: PlanetPosition[] = useMemo(() => {
-    if (propTransitPlanets && propTransitPlanets.length >= 9) {
+    if (Array.isArray(propTransitPlanets) && propTransitPlanets.length >= 9) {
       return propTransitPlanets;
     }
     // Fallback: Compute real-time ephemeris using AstroCache
     try {
       const calc = getCachedAstroCalculation(activeTodayAD, '06:00', 27.7172, 85.3240, 5.75);
-      return calc.planets;
+      if (calc?.planets && calc.planets.length >= 9) {
+        return calc.planets;
+      }
     } catch (e) {
-      console.error('Failed to compute live planets for Samachar:', e);
-      return propTransitPlanets || [];
+      console.warn('Failed to compute live planets for Samachar fallback:', e);
     }
+    return Array.isArray(propTransitPlanets) ? propTransitPlanets : [];
   }, [propTransitPlanets, activeTodayAD]);
 
   // Generate 9 Live Planetary News Articles
   const liveArticles: GrahaGocharNewsArticle[] = useMemo(() => {
-    return generateLiveGrahaGocharNews(livePlanets, activeTodayBS, activeTodayAD);
+    try {
+      const arts = generateLiveGrahaGocharNews(livePlanets, activeTodayBS, activeTodayAD);
+      return Array.isArray(arts) ? arts : [];
+    } catch (err) {
+      console.error('Error generating live articles in SamacharView:', err);
+      return [];
+    }
   }, [livePlanets, activeTodayBS, activeTodayAD]);
 
   // View States
@@ -88,30 +96,56 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
 
   // Filtered Articles for 9 Planets View
   const filteredArticles = useMemo(() => {
+    if (!Array.isArray(liveArticles)) return [];
     return liveArticles.filter((art) => {
+      if (!art) return false;
       const matchesPlanet = selectedPlanetFilter === 'all' || art.planet === selectedPlanetFilter;
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q ||
-        art.title.toLowerCase().includes(q) ||
-        art.headline.toLowerCase().includes(q) ||
-        art.leadSummary.toLowerCase().includes(q) ||
-        art.planet.toLowerCase().includes(q) ||
-        art.currentRashi.toLowerCase().includes(q) ||
-        art.nakshatra.toLowerCase().includes(q) ||
-        art.rashiImpacts.some(ri => ri.rashiName.toLowerCase().includes(q) || ri.summary.toLowerCase().includes(q));
+        art.title?.toLowerCase()?.includes(q) ||
+        art.headline?.toLowerCase()?.includes(q) ||
+        art.leadSummary?.toLowerCase()?.includes(q) ||
+        art.planet?.toLowerCase()?.includes(q) ||
+        art.currentRashi?.toLowerCase()?.includes(q) ||
+        art.nakshatra?.toLowerCase()?.includes(q) ||
+        (Array.isArray(art.rashiImpacts) && art.rashiImpacts.some(ri => ri?.rashiName?.toLowerCase()?.includes(q) || ri?.summary?.toLowerCase()?.includes(q)));
 
-      return matchesPlanet && matchesSearch;
+      return Boolean(matchesPlanet && matchesSearch);
     });
   }, [liveArticles, selectedPlanetFilter, searchQuery]);
 
   // Breaking / Featured Planet (e.g., Sun, Moon or Saturn)
   const breakingArticle = useMemo(() => {
-    return liveArticles.find((a) => a.planet === 'सूर्य') || liveArticles[0];
+    if (!Array.isArray(liveArticles) || liveArticles.length === 0) return null;
+    return liveArticles.find((a) => a && a.planet === 'सूर्य') || liveArticles[0] || null;
   }, [liveArticles]);
 
   // Consolidated 12-Rashi Report for the selected sign
   const consolidatedReport = useMemo(() => {
-    return getConsolidatedRashiTransitForecast(selectedRashiId, livePlanets);
+    try {
+      return getConsolidatedRashiTransitForecast(selectedRashiId, livePlanets);
+    } catch (err) {
+      console.error('Failed to get consolidated report:', err);
+      const safeId = typeof selectedRashiId === 'number' && selectedRashiId >= 1 && selectedRashiId <= 12 ? selectedRashiId : 1;
+      const fallbackRashi = RASHI_DATA[safeId - 1] || RASHI_DATA[0];
+      return {
+        rashiId: safeId,
+        rashiName: fallbackRashi.name,
+        symbol: fallbackRashi.symbol,
+        element: fallbackRashi.element,
+        lord: fallbackRashi.lord,
+        overallScorePercent: 70,
+        overallNature: 'अनुकूल' as const,
+        favorablePlanets: [],
+        challengingPlanets: [],
+        sadeSatiOrDhaiyyaStatus: 'कुनै साढेसाती वा ढैय्या छैन',
+        primaryRemedy: `${fallbackRashi.lord} मन्त्रको नियमित जप र आज बिहान सूर्यलाई अर्घ्य दिनुहोस्।`,
+        dailyAdvice: 'महत्त्वपूर्ण निर्णय लिँदा शुभ समय र अनुभवी व्यक्तिको राय लिनुहोस्।',
+        luckyColor: 'पहेँलो',
+        luckyNumber: '१, ९',
+        luckyDirection: 'पूर्व',
+      };
+    }
   }, [selectedRashiId, livePlanets]);
 
   // Handlers
@@ -370,11 +404,11 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                   <div className="pt-2 flex flex-wrap gap-2 text-xs">
                     <div className="bg-emerald-950/80 border border-emerald-700/60 px-2.5 py-1 rounded-lg text-emerald-200 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      <strong>विशेष लाभ:</strong> {breakingArticle.beneficiaryRashis.slice(0, 4).join(', ')}
+                      <strong>विशेष लाभ:</strong> {breakingArticle.beneficiaryRashis?.slice(0, 4)?.join(', ') || 'सबै राशि'}
                     </div>
                     <div className="bg-rose-950/80 border border-rose-700/60 px-2.5 py-1 rounded-lg text-rose-200 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                      <strong>सतर्कता:</strong> {breakingArticle.cautionaryRashis.slice(0, 3).join(', ')}
+                      <strong>सतर्कता:</strong> {breakingArticle.cautionaryRashis?.slice(0, 3)?.join(', ') || 'सामान्य'}
                     </div>
                   </div>
                 </div>
@@ -455,11 +489,11 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                     <div className="space-y-1.5 pt-2 border-t border-stone-100 dark:border-stone-800 text-[11px]">
                       <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400 font-medium">
                         <span>✨ विशेष शुभ:</span>
-                        <span className="font-bold">{art.beneficiaryRashis.slice(0, 3).join(', ')}</span>
+                        <span className="font-bold">{art.beneficiaryRashis?.slice(0, 3)?.join(', ') || 'सबै'}</span>
                       </div>
                       <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 font-medium">
                         <span>⚠️ सावधानी:</span>
-                        <span className="font-bold">{art.cautionaryRashis.slice(0, 3).join(', ')}</span>
+                        <span className="font-bold">{art.cautionaryRashis?.slice(0, 3)?.join(', ') || 'सामान्य'}</span>
                       </div>
                     </div>
 
@@ -833,7 +867,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
 
                 {/* 12 Rashi Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedArticle.rashiImpacts
+                  {(selectedArticle.rashiImpacts || [])
                     .filter((ri) => modalRashiFilter === 'all' || ri.rashiId === modalRashiFilter)
                     .map((ri) => (
                       <div 

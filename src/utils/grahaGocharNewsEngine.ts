@@ -829,17 +829,20 @@ export function generateLiveGrahaGocharNews(
 // ----------------------------------------------------------------------------
 export function getConsolidatedRashiTransitForecast(
   targetRashiId: number,
-  transitPlanets: PlanetPosition[]
+  transitPlanets: PlanetPosition[] = []
 ): ConsolidatedRashiReport {
-  const rashi = RASHI_DATA.find((r) => r.id === targetRashiId) || RASHI_DATA[0];
-  const allArticles = generateLiveGrahaGocharNews(transitPlanets, 'आज', 'today');
+  const safeTargetId = typeof targetRashiId === 'number' && targetRashiId >= 1 && targetRashiId <= 12 ? targetRashiId : 1;
+  const safePlanets = Array.isArray(transitPlanets) ? transitPlanets : [];
+  const rashi = RASHI_DATA.find((r) => r.id === safeTargetId) || RASHI_DATA[0];
+  const allArticles = generateLiveGrahaGocharNews(safePlanets, 'आज', 'today');
 
   const favorablePlanets: ConsolidatedRashiReport['favorablePlanets'] = [];
   const challengingPlanets: ConsolidatedRashiReport['challengingPlanets'] = [];
   let favorableCount = 0;
 
   allArticles.forEach((art) => {
-    const impact = art.rashiImpacts.find((i) => i.rashiId === targetRashiId);
+    if (!art?.rashiImpacts) return;
+    const impact = art.rashiImpacts.find((i) => i.rashiId === safeTargetId);
     if (!impact) return;
 
     if (impact.impactType === 'अत्यन्त शुभ' || impact.impactType === 'शुभ') {
@@ -866,12 +869,12 @@ export function getConsolidatedRashiTransitForecast(
   else if (score <= 45) overallNature = 'सावधानीपूर्ण';
 
   // Check Saturn Sade Sati / Dhaiyya for this sign
-  const shani = transitPlanets.find((p) => p.name === 'शनि');
+  const shani = safePlanets.find((p) => p && p.name === 'शनि');
   let sadeSatiOrDhaiyyaStatus = 'कुनै साढेसाती वा ढैय्या छैन';
-  if (shani) {
-    const houseFromRashi = ((shani.rashiId - targetRashiId + 12) % 12) + 1;
+  if (shani && typeof shani.rashiId === 'number') {
+    const houseFromRashi = ((shani.rashiId - safeTargetId + 12) % 12) + 1;
     if (houseFromRashi === 12) sadeSatiOrDhaiyyaStatus = 'शनिको साढेसाती सुरु (१२औँ भावको प्रथम चरण)';
-    else if (houseFromRashi === 1) sadeSatiOrDhaiyyaStatus = 'शनिको साढेसाती शिखर (१लौँ भावको द्वितीय चरण)';
+    else if (houseFromRashi === 1) sadeSatiOrDhaiyyaStatus = 'शनिको साढेसाती शिखर (१औँ भावको द्वितीय चरण)';
     else if (houseFromRashi === 2) sadeSatiOrDhaiyyaStatus = 'शनिको साढेसाती अन्तिम (२औँ भावको तृतीय चरण)';
     else if (houseFromRashi === 4) sadeSatiOrDhaiyyaStatus = 'कण्टक शनिको ढैय्या (चौथो भावको २.५ वर्ष)';
     else if (houseFromRashi === 8) sadeSatiOrDhaiyyaStatus = 'अष्टम शनिको ढैय्या (आठौँ भावको २.५ वर्ष)';
