@@ -14,7 +14,9 @@ import {
   Plus,
   X,
   Layers,
-  ArrowLeft
+  ArrowLeft,
+  Menu,
+  Globe
 } from 'lucide-react';
 import {
   MobileTab,
@@ -56,6 +58,7 @@ export const BalanandaMobileAppShell: React.FC<{
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
   const [isQuickActionWheelOpen, setIsQuickActionWheelOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Synchronize state when profiles or session change
   const refreshUserData = () => {
@@ -63,6 +66,18 @@ export const BalanandaMobileAppShell: React.FC<{
     setActiveProfile(getActiveMobileBirthProfile());
     setAllProfiles(getMobileBirthProfiles());
   };
+
+  // Lock body scroll when mobile scroll-down menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     const handleAuthChange = () => refreshUserData();
@@ -109,19 +124,34 @@ export const BalanandaMobileAppShell: React.FC<{
   return (
     <div className="min-h-screen bg-[#0E0A08] text-stone-100 flex flex-col font-sans select-none overflow-x-hidden">
       {/* ── 1. Dedicated Mobile App Bar (Top Navigation) ── */}
-      <header className="sticky top-0 z-40 bg-[#1A0F0A]/95 border-b border-amber-500/30 backdrop-blur-md px-3.5 py-2.5 flex items-center justify-between gap-2 shadow-lg">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <header className="sticky top-0 z-40 bg-[#1A0F0A]/95 border-b border-amber-500/30 backdrop-blur-md px-3 py-2 flex items-center justify-between gap-2 shadow-lg">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Hamburger Menu Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className={`p-1.5 rounded-xl border transition-all cursor-pointer shrink-0 ${
+              isMobileMenuOpen
+                ? 'bg-amber-500 text-stone-950 border-amber-400 ring-2 ring-amber-400/40 shadow-xs'
+                : 'bg-stone-900/80 hover:bg-stone-800 text-amber-400 border-amber-500/30 active:scale-95'
+            }`}
+            aria-label={isMobileMenuOpen ? 'मेनु बन्द गर्नुहोस्' : 'मेनु खोल्नुहोस्'}
+            title="मुख्य मेनु खोल्नुहोस्"
+          >
+            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+
           {currentTab !== 'home' ? (
             <button
               type="button"
               onClick={() => setCurrentTab('home')}
-              className="p-1.5 -ml-1 text-amber-400 hover:text-amber-300 rounded-xl bg-stone-900/60 border border-stone-800 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 text-amber-400 hover:text-amber-300 rounded-xl bg-stone-900/60 border border-stone-800 transition-colors cursor-pointer shrink-0"
               title="गृहपृष्ठमा फर्कनुहोस्"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
           ) : (
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-stone-950 font-black text-sm shadow-md shrink-0">
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-stone-950 font-black text-xs shadow-md shrink-0">
               ॐ
             </div>
           )}
@@ -162,6 +192,229 @@ export const BalanandaMobileAppShell: React.FC<{
           </button>
         </div>
       </header>
+
+      {/* ── Scroll-Down Main Menu for Mobile App ── */}
+      {isMobileMenuOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 animate-in fade-in duration-200"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          {/* Top-Down Scrollable Sheet Container */}
+          <div className="fixed top-0 left-0 right-0 max-h-[90vh] bg-[#160D08] border-b-4 border-amber-500 rounded-b-3xl shadow-2xl z-50 flex flex-col overflow-hidden animate-in slide-in-from-top duration-300 ease-out">
+            {/* Header with Title and Close Button */}
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-stone-900 via-amber-950 to-stone-900 border-b border-amber-500/30 text-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-stone-950 font-serif font-black flex items-center justify-center text-sm shadow-xs">
+                  ॐ
+                </div>
+                <div>
+                  <h2 className="font-bold text-sm font-serif text-amber-100 flex items-center gap-1.5 leading-tight">
+                    <span>बालानन्द ज्योतिष मेनु</span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  </h2>
+                  <p className="text-[10px] text-amber-400/80 leading-tight">
+                    नेपाली वैदिक ज्योतिष तथा व्यक्तिगत सेवा
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="w-8 h-8 rounded-xl bg-stone-800 text-stone-300 hover:text-white flex items-center justify-center cursor-pointer border border-stone-700 active:scale-95 transition-transform"
+                aria-label="मेनु बन्द गर्नुहोस्"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Active Status & Scroll Hint Bar */}
+            <div className="px-4 py-2 bg-stone-950/90 border-b border-stone-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-[11px] text-stone-400">सक्रिय सेवा:</span>
+                <span className="text-[11px] font-bold text-amber-300 bg-stone-900 px-2 py-0.5 rounded-lg border border-amber-500/30 truncate">
+                  {tabTitles[currentTab].title}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/25 shrink-0">
+                तल स्क्रोल गर्नुहोस् ↓
+              </span>
+            </div>
+
+            {/* Scrollable Content Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-3.5 space-y-3.5 [scrollbar-width:thin]">
+
+              {/* ⚡ द्रुत पहुँच (4 Cards Grid) */}
+              <div>
+                <p className="text-[10px] font-black text-amber-400/80 uppercase tracking-wider mb-1.5 px-1">
+                  ⚡ द्रुत पहुँच (Quick Access)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentTab('home');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      currentTab === 'home'
+                        ? 'bg-amber-500 text-stone-950 font-bold border-amber-400'
+                        : 'bg-stone-900 border-stone-800 text-stone-200 hover:border-amber-500/40'
+                    }`}
+                  >
+                    <Home className="w-4 h-4 shrink-0" />
+                    <span className="text-xs truncate">गृहपृष्ठ</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentTab('kundali');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      currentTab === 'kundali'
+                        ? 'bg-amber-500 text-stone-950 font-bold border-amber-400'
+                        : 'bg-stone-900 border-stone-800 text-stone-200 hover:border-amber-500/40'
+                    }`}
+                  >
+                    <Compass className="w-4 h-4 shrink-0" />
+                    <span className="text-xs truncate">जन्म कुण्डली</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentTab('horoscope');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      currentTab === 'horoscope'
+                        ? 'bg-amber-500 text-stone-950 font-bold border-amber-400'
+                        : 'bg-stone-900 border-stone-800 text-stone-200 hover:border-amber-500/40'
+                    }`}
+                  >
+                    <Star className="w-4 h-4 shrink-0" />
+                    <span className="text-xs truncate">दैनिक राशिफल</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentTab('panchanga');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      currentTab === 'panchanga'
+                        ? 'bg-amber-500 text-stone-950 font-bold border-amber-400'
+                        : 'bg-stone-900 border-stone-800 text-stone-200 hover:border-amber-500/40'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4 shrink-0" />
+                    <span className="text-xs truncate">दैनिक पञ्चाङ्ग</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 🔮 सम्पूर्ण ज्योतिष सेवाहरू (All 9 tabs with detailed cards) */}
+              <div>
+                <p className="text-[10px] font-black text-amber-400/80 uppercase tracking-wider mb-1.5 px-1">
+                  🔮 सम्पूर्ण ज्योतिष सेवाहरू
+                </p>
+                <div className="bg-stone-900/90 rounded-2xl border border-stone-800 overflow-hidden divide-y divide-stone-800/80">
+                  {[
+                    { id: 'home', label: 'गृहपृष्ठ ड्यासबोर्ड', sub: 'आजको पञ्चाङ्ग, राशिफल तथा मुख्य सेवाहरू', icon: Home },
+                    { id: 'kundali', label: 'जन्म कुण्डली तथा फलादेश', sub: 'लग्न, नवांश, विंशोत्तरी दशा तथा ग्रह स्थिति', icon: Compass },
+                    { id: 'horoscope', label: 'दैनिक राशिफल', sub: '१२ राशिको फलादेश तथा शुभ समय', icon: Star },
+                    { id: 'panchanga', label: 'दैनिक पञ्चाङ्ग', sub: 'तिथि, वार, नक्षत्र, योग, करण र मुहूर्त', icon: Calendar },
+                    { id: 'transit', label: 'ग्रह गोचर चक्र', sub: '९ ग्रहको प्रत्यक्ष खगोलीय राशि भ्रमण', icon: Activity },
+                    { id: 'matching', label: 'विवाह मिलान ३६ गुण', sub: 'अष्टकूट मिलान, मङ्गल दोष तथा गुण फल', icon: Heart },
+                    { id: 'consultation', label: 'ज्योतिषी परामर्श', sub: 'वरिष्ठ वैदिक ज्योतिषाचार्यसँग अडियो/भिडियो', icon: UserCheck },
+                    { id: 'reports', label: 'ज्योतिष प्रतिवेदन PDF', sub: 'आधिकारिक संस्थागत कुण्डली मुद्रण तथा डाउनलोड', icon: FileText },
+                    { id: 'profile', label: 'मेरो प्रोफाइल तथा जन्म विवरणहरू', sub: 'खाता, जन्म विवरण व्यवस्थापन र सेटिङ', icon: User },
+                  ].map((mItem) => {
+                    const MIcon = mItem.icon;
+                    const isCur = currentTab === mItem.id;
+                    return (
+                      <button
+                        key={mItem.id}
+                        type="button"
+                        onClick={() => {
+                          setCurrentTab(mItem.id as MobileTab);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`w-full p-3 flex items-center gap-3 text-left transition-colors cursor-pointer ${
+                          isCur
+                            ? 'bg-amber-500/20 text-amber-200'
+                            : 'text-stone-300 hover:bg-stone-800 active:bg-stone-850'
+                        }`}
+                      >
+                        <div
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                            isCur
+                              ? 'bg-amber-500 text-stone-950 font-bold'
+                              : 'bg-stone-800 text-amber-400'
+                          }`}
+                        >
+                          <MIcon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-bold block truncate">{mItem.label}</span>
+                          <span className="text-[10px] text-stone-400 block truncate">{mItem.sub}</span>
+                        </div>
+                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${isCur ? 'text-amber-400' : 'text-stone-600'}`} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 👤 सक्रिय कुण्डली कार्ड */}
+              <div className="p-3 bg-stone-900 rounded-2xl border border-stone-800 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs font-bold text-stone-100 truncate">{activeProfile.name}</span>
+                  </div>
+                  <span className="text-[10px] text-stone-400 block truncate">
+                    {activeProfile.relationLabelNepali} • {activeProfile.dateOfBirth} ({activeProfile.placeOfBirth.split(',')[0]})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsProfileSheetOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-300 text-[11px] font-bold border border-stone-700 shrink-0 cursor-pointer"
+                >
+                  फेर्नुहोस्
+                </button>
+              </div>
+
+              {/* 🌐 मुख्य वेबसाइट / डेस्कटप मोडमा जानुहोस् */}
+              {onExitToWeb && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onExitToWeb();
+                  }}
+                  className="w-full p-2.5 bg-stone-900 hover:bg-stone-800 text-stone-300 text-xs font-bold rounded-xl border border-stone-800 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <Globe className="w-4 h-4 text-blue-400" />
+                  <span>मुख्य वेबसाइट / पूर्ण डेस्कटप प्रणालीमा जानुहोस्</span>
+                </button>
+              )}
+
+              <div className="h-6" />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── 2. Mobile Main Scroll Container (Strict Jyotish Content Only) ── */}
       <main className="flex-1 w-full max-w-lg mx-auto p-3.5 sm:p-4 overflow-y-auto">
