@@ -238,11 +238,21 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
   }
 }
 
-/**
- * Detects if app is running in Desktop environment (Electron)
- */
 export function isDesktopApp(): boolean {
-  return typeof window !== 'undefined' && Boolean((window as any).electronAPI?.isDesktop);
+  if (typeof window === 'undefined') return false;
+  const isElectron = Boolean((window as any).electronAPI?.isDesktop);
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const isDesktopQuery = 
+      searchParams.get('app') === 'windows' || 
+      searchParams.get('mode') === 'windows' || 
+      searchParams.get('app') === 'desktop' || 
+      searchParams.get('mode') === 'desktop';
+    const isStoredDesktop = localStorage.getItem('balananda_force_windows_app_shell') === 'true';
+    return isElectron || isDesktopQuery || isStoredDesktop;
+  } catch {
+    return isElectron;
+  }
 }
 
 /**

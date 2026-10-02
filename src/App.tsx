@@ -30,9 +30,9 @@ import { setAppContextGetter } from './utils/errorLogger';
 import { useAppUpdateNotifier } from './utils/useAppUpdateNotifier';
 import { printElement } from './utils/pdfGenerator';
 import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
-import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
-import { isMobileApp } from './utils/appVersionManager';
+import { isMobileApp, isDesktopApp } from './utils/appVersionManager';
 import { BalanandaMobileAppShell } from './mobile/BalanandaMobileAppShell';
+import { BalanandaWindowsAppShell } from './windows/BalanandaWindowsAppShell';
 
 const KundaliView = lazy(() => import('./components/KundaliView').then((m) => ({ default: m.KundaliView })));
 const PatrikaView = lazy(() => import('./components/PatrikaView').then((m) => ({ default: m.PatrikaView })));
@@ -143,17 +143,21 @@ export default function App() {
   const [settings, setSettingsState] = useState<ApplicationSettings>(getStoredSettings());
   const [isApkPromptModalOpen, setIsApkPromptModalOpen] = useState(false);
   const [isMobileMode, setIsMobileMode] = useState<boolean>(() => isMobileApp());
+  const [isWindowsDesktopMode, setIsWindowsDesktopMode] = useState<boolean>(() => isDesktopApp());
 
-  // Listen to mobile-mode events or URL changes
+  // Listen to platform-mode events or URL changes (Mobile & Windows Desktop)
   useEffect(() => {
-    const handleMobileModeChange = () => {
+    const handlePlatformModeChange = () => {
       setIsMobileMode(isMobileApp());
+      setIsWindowsDesktopMode(isDesktopApp());
     };
-    window.addEventListener('popstate', handleMobileModeChange);
-    window.addEventListener('mobile-mode-changed', handleMobileModeChange);
+    window.addEventListener('popstate', handlePlatformModeChange);
+    window.addEventListener('mobile-mode-changed', handlePlatformModeChange);
+    window.addEventListener('windows-mode-changed', handlePlatformModeChange);
     return () => {
-      window.removeEventListener('popstate', handleMobileModeChange);
-      window.removeEventListener('mobile-mode-changed', handleMobileModeChange);
+      window.removeEventListener('popstate', handlePlatformModeChange);
+      window.removeEventListener('mobile-mode-changed', handlePlatformModeChange);
+      window.removeEventListener('windows-mode-changed', handlePlatformModeChange);
     };
   }, []);
 
@@ -1014,6 +1018,27 @@ export default function App() {
       window.removeEventListener('navigate-tab', handleNavigateTabEvent);
     };
   }, []);
+
+  // Dedicated Windows Offline Application (Windows Desktop Mode / Electron) — Strictly JYOTISH + VASTU ONLY
+  if (isWindowsDesktopMode) {
+    return (
+      <BalanandaWindowsAppShell
+        onExitToWeb={() => {
+          localStorage.removeItem('balananda_force_windows_app_shell');
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('app');
+            url.searchParams.delete('mode');
+            window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+          } catch {
+            // ignore
+          }
+          setIsWindowsDesktopMode(false);
+          window.dispatchEvent(new CustomEvent('windows-mode-changed'));
+        }}
+      />
+    );
+  }
 
   // Dedicated Mobile Application (Android/iOS & Mobile Mode) — Strictly JYOTISH SERVICES ONLY
   if (isMobileMode) {
