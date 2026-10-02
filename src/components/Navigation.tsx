@@ -437,6 +437,18 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     };
   }, [isSewaMenuOpen]);
 
+  // Lock body scroll when mobile scroll-down menu is open
+  useEffect(() => {
+    if (isMobileDrawerOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileDrawerOpen]);
+
   const handle3DayTrialClick = () => {
     if (is3DayTrialActive()) {
       if (onOpenPurchaseModal) {
@@ -476,11 +488,16 @@ export const Navigation: React.FC<NavigationProps> = memo(({
         {/* ☰ Mobile Hamburger Button — only on small screens */}
         <button
           type="button"
-          onClick={() => setIsMobileDrawerOpen(true)}
-          className="sm:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100/80 dark:bg-stone-800/80 border border-[#E6E0D5] dark:border-stone-700 text-[#7A1C1C] dark:text-amber-400 shadow-xs shrink-0 cursor-pointer"
-          aria-label="मेनु खोल्नुहोस्"
+          onClick={() => setIsMobileDrawerOpen((prev) => !prev)}
+          className={`sm:hidden flex items-center justify-center w-9 h-9 rounded-xl border shadow-xs shrink-0 cursor-pointer transition-all duration-150 ${
+            isMobileDrawerOpen
+              ? 'bg-[#7A1C1C] text-amber-300 border-[#5C1515] ring-2 ring-amber-400/40'
+              : 'bg-stone-100/90 dark:bg-stone-800/90 border-[#E6E0D5] dark:border-stone-700 text-[#7A1C1C] dark:text-amber-400 active:scale-95'
+          }`}
+          aria-label={isMobileDrawerOpen ? 'मेनु बन्द गर्नुहोस्' : 'मेनु खोल्नुहोस्'}
+          aria-expanded={isMobileDrawerOpen}
         >
-          <Menu className="w-5 h-5" />
+          {isMobileDrawerOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
 
         {/* Main Navigation Items - Compact Single Line Layout */}
@@ -1363,198 +1380,533 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       )}
 
       {/* ================================================================= */}
-      {/* MOBILE LEFT DRAWER — visible only on small screens                 */}
+      {/* MOBILE TOP-DOWN SCROLLABLE MAIN MENU (स्क्रोल-डाउन मुख्य मेनु)    */}
       {/* ================================================================= */}
       {isMobileDrawerOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop with subtle blur */}
           <div
-            className="fixed inset-0 bg-black/50 z-[9990] sm:hidden"
+            className="fixed inset-0 bg-black/65 backdrop-blur-xs z-[9990] sm:hidden animate-in fade-in duration-200"
             onClick={() => setIsMobileDrawerOpen(false)}
           />
 
-          {/* Drawer Panel */}
-          <div className="fixed top-0 left-0 h-full w-[82vw] max-w-xs bg-white dark:bg-stone-900 z-[9995] shadow-2xl sm:hidden flex flex-col overflow-hidden animate-in slide-in-from-left duration-200">
+          {/* Top-Down Scrollable Sheet Container */}
+          <div className="fixed top-0 left-0 right-0 max-h-[92vh] bg-white dark:bg-stone-900 z-[9995] shadow-2xl sm:hidden flex flex-col rounded-b-3xl border-b-4 border-amber-500 animate-in slide-in-from-top duration-300 ease-out overflow-hidden">
 
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#7A1C1C] to-[#9B2C2C] text-white shrink-0">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-300" />
-                <span className="font-bold text-sm font-serif">नेपाली वैदिक पञ्चाङ्ग</span>
+            {/* Menu Header with Om emblem and Close button */}
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#7A1C1C] via-[#931F1F] to-[#5C1515] text-white shrink-0 shadow-md">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-stone-950 font-serif font-black flex items-center justify-center text-sm shadow-xs">
+                  ॐ
+                </div>
+                <div>
+                  <h2 className="font-bold text-sm font-serif leading-tight text-amber-100 flex items-center gap-1.5">
+                    <span>नेपाली वैदिक पञ्चाङ्ग</span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  </h2>
+                  <p className="text-[10px] text-amber-300/85 leading-tight">
+                    सम्पूर्ण मुख्य मेनु तथा वैदिक सेवाहरू
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/15 hover:bg-white/25 cursor-pointer"
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white cursor-pointer transition-transform border border-white/20"
+                aria-label="मेनु बन्द गर्नुहोस्"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Active indicator bar */}
-            <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/50 shrink-0">
-              <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">हाल सक्रिय</p>
-              <p className="text-xs font-bold text-[#7A1C1C] dark:text-amber-300">
-                {MAIN_NAV_ITEMS.find(i => i.id === activeTab)?.labelNepali || activeTab}
-              </p>
+            {/* Active Indicator & Scroll Hint Bar */}
+            <div className="px-4 py-2 bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 dark:from-stone-900 dark:via-stone-850 dark:to-stone-900 border-b border-amber-200/80 dark:border-stone-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300 truncate">
+                  हाल सक्रिय:
+                </span>
+                <span className="text-[11px] font-bold text-[#7A1C1C] dark:text-amber-300 bg-amber-200/70 dark:bg-stone-800 px-2 py-0.5 rounded-lg truncate border border-amber-300/60 dark:border-stone-700">
+                  {MAIN_NAV_ITEMS.find((i) => i.id === activeTab)?.labelNepali || activeTab}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-400 shrink-0 bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-300/60">
+                तल स्क्रोल गर्नुहोस् ↓
+              </span>
             </div>
 
             {/* Scrollable Menu Content */}
-            <div className="flex-1 overflow-y-auto py-2">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 space-y-3.5 [scrollbar-width:thin]">
 
-              {/* MAIN MENUS */}
-              <div className="px-4 pt-2 pb-1">
-                <p className="text-[10px] font-black text-stone-400 dark:text-stone-500 uppercase tracking-widest">मुख्य मेनु</p>
-              </div>
-              {visibleNavItems.filter(i => i.id !== 'sewa').map((item) => {
-                const MIcon = item.icon;
-                const mIsActive = activeTab === item.id && activeModule === 'MAIN';
-                const mIsAllowed = !rbacSession
-                  ? PUBLIC_UNAUTH_NAV_IDS.has(item.id)
-                  : (isFullyUnlocked || NORMAL_USER_ALLOWED_TABS.has(item.id));
-                return (
+              {/* ── SECTION 0: द्रुत पहुँच (Quick Access 2x2 Grid) ── */}
+              <div>
+                <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
+                  ⚡ द्रुत पहुँच (Quick Access)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
                   <button
-                    key={item.id}
                     type="button"
                     onClick={() => {
                       setIsMobileDrawerOpen(false);
-                      if (!rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(item.id)) { if (onOpenAuthModal) onOpenAuthModal(); return; }
-                      if (!mIsAllowed) { if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali); return; }
-                      onTabChange(item.id);
+                      onTabChange('dashboard');
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors cursor-pointer border-b border-stone-50 dark:border-stone-800/40 ${
-                      mIsActive ? 'bg-[#7A1C1C] text-white' : 'text-stone-800 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-stone-800'
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      activeTab === 'dashboard' && activeModule === 'MAIN'
+                        ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
                     }`}
                   >
-                    <MIcon className={`w-4 h-4 shrink-0 ${mIsActive ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
-                    <span className="flex-1 text-left">{item.labelNepali}</span>
-                    {!mIsAllowed && <Lock className="w-3 h-3 text-amber-500 shrink-0" />}
-                    {mIsActive && <ChevronRight className="w-3 h-3 text-amber-300 shrink-0" />}
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <Home className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold block truncate">गृहपृष्ठ</span>
+                      <span className="text-[10px] opacity-75 block truncate">ड्यासबोर्ड</span>
+                    </div>
                   </button>
-                );
-              })}
 
-              {/* VEDIC SERVICES */}
-              <div className="px-4 pt-3 pb-1 mt-1 border-t border-stone-100 dark:border-stone-800">
-                <p className="text-[10px] font-black text-stone-400 dark:text-stone-500 uppercase tracking-widest">वैदिक सेवाहरू</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMobileDrawerOpen(false);
-                  if (onEnterJyotish) onEnterJyotish(); else onTabChange('jyotishi');
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors cursor-pointer ${
-                  activeModule === 'JYOTISH' ? 'bg-[#7A1C1C] text-white' : 'text-stone-800 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-stone-800'
-                }`}
-              >
-                <Sparkles className={`w-4 h-4 shrink-0 ${activeModule === 'JYOTISH' ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
-                <span className="flex-1 text-left">ज्योतिष कार्यक्षेत्र</span>
-                <ChevronRight className={`w-3 h-3 shrink-0 ${activeModule === 'JYOTISH' ? 'text-amber-300' : 'text-stone-400'}`} />
-              </button>
-
-              {ANYA_FALADESH_ITEMS.map((sub) => {
-                const SIcon = sub.icon;
-                const sActive = activeTab === sub.id;
-                return (
-                  <button key={sub.id} type="button"
-                    onClick={() => { setIsMobileDrawerOpen(false); onTabChange(sub.id); }}
-                    className={`w-full flex items-center gap-3 pl-10 pr-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer border-b border-stone-50 dark:border-stone-800/30 ${
-                      sActive ? 'bg-amber-100 dark:bg-amber-950/40 text-[#7A1C1C]' : 'text-stone-600 dark:text-stone-400 hover:bg-amber-50 dark:hover:bg-stone-800'
-                    }`}
-                  >
-                    <SIcon className="w-3.5 h-3.5 shrink-0 text-[#7A1C1C] dark:text-amber-500" />
-                    <span className="flex-1 text-left">{sub.labelNepali}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-bold">{sub.badge}</span>
-                  </button>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMobileDrawerOpen(false);
-                  if (onOpenVastuModal) onOpenVastuModal('project'); else onTabChange('vastu');
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-emerald-50 dark:hover:bg-stone-800 transition-colors"
-              >
-                <Compass className="w-4 h-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
-                <span className="flex-1 text-left">वास्तुशास्त्र</span>
-                <ChevronRight className="w-3 h-3 shrink-0 text-stone-400" />
-              </button>
-
-              {VASTU_SUBMENU_ITEMS.slice(0, 4).map((vi) => {
-                const VI = vi.icon;
-                return (
-                  <button key={vi.id} type="button"
+                  <button
+                    type="button"
                     onClick={() => {
                       setIsMobileDrawerOpen(false);
-                      if (onOpenVastuModal) onOpenVastuModal(vi.id);
+                      onTabChange('panchanga');
                     }}
-                    className="w-full flex items-center gap-3 pl-10 pr-4 py-2.5 text-xs font-semibold cursor-pointer text-stone-600 dark:text-stone-400 hover:bg-emerald-50 dark:hover:bg-stone-800 transition-colors border-b border-stone-50 dark:border-stone-800/30"
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      activeTab === 'panchanga' && activeModule === 'MAIN'
+                        ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                    }`}
                   >
-                    <VI className="w-3.5 h-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
-                    <span className="flex-1 text-left">{vi.labelNepali}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 font-bold">{vi.badge}</span>
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold block truncate">पञ्चाङ्ग</span>
+                      <span className="text-[10px] opacity-75 block truncate">दैनिक तिथि/मुहूर्त</span>
+                    </div>
                   </button>
-                );
-              })}
 
-              {/* OTHER SECTION */}
-              <div className="px-4 pt-3 pb-1 mt-1 border-t border-stone-100 dark:border-stone-800">
-                <p className="text-[10px] font-black text-stone-400 dark:text-stone-500 uppercase tracking-widest">अन्य</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (onEnterJyotish) onEnterJyotish();
+                      else onTabChange('jyotishi');
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      activeModule === 'JYOTISH' || activeTab === 'jyotishi'
+                        ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-red-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold block truncate">ज्योतिष सेवा</span>
+                      <span className="text-[10px] opacity-75 block truncate">कुण्डली/फलादेश</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      onTabChange('vastu');
+                    }}
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                      activeTab === 'vastu'
+                        ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-emerald-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <Compass className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold block truncate">वास्तु सेवा</span>
+                      <span className="text-[10px] opacity-75 block truncate">कम्पास/अडिट</span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
-              <button type="button"
-                onClick={() => { setIsMobileDrawerOpen(false); if (onOpenSettingsModal) onOpenSettingsModal('astro'); }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
-              >
-                <Settings className="w-4 h-4 shrink-0 text-[#7A1C1C] dark:text-amber-400" />
-                <span className="flex-1 text-left">सेटिङ</span>
-              </button>
+              {/* ── SECTION 1: मुख्य मेनु (Main Menus List) ── */}
+              <div>
+                <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
+                  📌 मुख्य मेनु (Main Navigation)
+                </p>
+                <div className="bg-stone-50/90 dark:bg-stone-850/80 rounded-2xl border border-stone-200/80 dark:border-stone-800 overflow-hidden divide-y divide-stone-200/50 dark:divide-stone-800/60 shadow-2xs">
+                  {visibleNavItems
+                    .filter((i) => i.id !== 'sewa')
+                    .map((item) => {
+                      const MIcon = item.icon;
+                      const isJyotishi = item.id === 'jyotishi';
+                      const isVastu = item.id === 'vastu';
+                      const mIsActive = isJyotishi
+                        ? activeModule === 'JYOTISH' || activeTab === 'jyotishi'
+                        : isVastu
+                        ? activeTab === 'vastu'
+                        : activeTab === item.id && activeModule === 'MAIN';
+                      const mIsAllowed = !rbacSession
+                        ? PUBLIC_UNAUTH_NAV_IDS.has(item.id)
+                        : (isFullyUnlocked || NORMAL_USER_ALLOWED_TABS.has(item.id));
 
-              <button type="button"
-                onClick={() => { setIsMobileDrawerOpen(false); onTabChange('help'); }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
-              >
-                <HelpCircle className="w-4 h-4 shrink-0 text-[#7A1C1C] dark:text-amber-400" />
-                <span className="flex-1 text-left">मद्दत / सहायता</span>
-              </button>
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setIsMobileDrawerOpen(false);
+                            if (isJyotishi) {
+                              if (onEnterJyotish) onEnterJyotish();
+                              else onTabChange('jyotishi');
+                              return;
+                            }
+                            if (isVastu) {
+                              onTabChange('vastu');
+                              return;
+                            }
+                            if (!rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(item.id)) {
+                              if (onOpenAuthModal) onOpenAuthModal();
+                              return;
+                            }
+                            if (!mIsAllowed) {
+                              if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali);
+                              return;
+                            }
+                            onTabChange(item.id);
+                          }}
+                          className={`w-full flex items-center gap-3 px-3.5 py-3 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                            mIsActive
+                              ? 'bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white shadow-xs'
+                              : 'text-stone-800 dark:text-stone-200 hover:bg-amber-50/70 dark:hover:bg-stone-800 active:bg-amber-100'
+                          }`}
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                              mIsActive
+                                ? 'bg-white/20 text-amber-300'
+                                : 'bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400'
+                            }`}
+                          >
+                            <MIcon className="w-4 h-4" />
+                          </div>
+                          <span className="flex-1 text-left">{item.labelNepali}</span>
+                          {!mIsAllowed && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                          <ChevronRight
+                            className={`w-3.5 h-3.5 shrink-0 ${
+                              mIsActive ? 'text-amber-300' : 'text-stone-400'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
 
-              {!isInstalled && !isDesktopApp() && (
-                <button type="button"
-                  onClick={() => { setIsMobileDrawerOpen(false); setDownloadModalPlatform('ANDROID'); setIsDownloadModalOpen(true); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-stone-800 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
-                >
-                  <Download className="w-4 h-4 shrink-0 text-[#7A1C1C] dark:text-amber-400" />
-                  <span className="flex-1 text-left">एप डाउनलोड</span>
-                </button>
-              )}
-
-              {rbacSession ? (
-                onLogoutRBAC && rbacSession.role !== 'CUSTOMER' && (
-                  <button type="button"
-                    onClick={() => { setIsMobileDrawerOpen(false); onLogoutRBAC(); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-stone-800 transition-colors"
+              {/* ── SECTION 2: वैदिक ज्योतिष सेवा (Vedic Astrology Suite) ── */}
+              <div>
+                <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1.5 px-1 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>वैदिक ज्योतिष सेवा (Vedic Jyotish Suite)</span>
+                </p>
+                <div className="bg-gradient-to-br from-amber-500/10 via-red-500/5 to-amber-500/10 dark:bg-stone-850/90 rounded-2xl border border-amber-400/50 p-2.5 space-y-2 shadow-2xs">
+                  {/* Big Prominent Action Card */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (onEnterJyotish) onEnterJyotish();
+                      else onTabChange('jyotishi');
+                    }}
+                    className="w-full text-left p-3 rounded-xl border border-amber-500/60 bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white flex items-center justify-between group shadow-sm cursor-pointer active:scale-98 transition-all"
                   >
-                    <LogOut className="w-4 h-4 shrink-0" />
-                    <span className="flex-1 text-left">लगआउट</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-white/20 text-amber-300 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-xs sm:text-sm block">
+                          मुख्य ज्योतिष कार्यक्षेत्र
+                        </span>
+                        <p className="text-[10px] text-amber-200/90 truncate">
+                          बृहत् जन्मकुण्डली, फलादेश, दशा, गोचर
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 shrink-0">
+                      प्रवेश ↗
+                    </span>
                   </button>
-                )
-              ) : (
-                onOpenAuthModal && (
-                  <button type="button"
-                    onClick={() => { setIsMobileDrawerOpen(false); onOpenAuthModal(); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold cursor-pointer text-[#7A1C1C] dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-stone-800 transition-colors"
-                  >
-                    <LogIn className="w-4 h-4 shrink-0" />
-                    <span className="flex-1 text-left">साइन इन / लगइन</span>
-                  </button>
-                )
-              )}
 
-              <div className="h-8" />
+                  {/* Other Faladesh & Astrology tools */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    {ANYA_FALADESH_ITEMS.map((sub) => {
+                      const SIcon = sub.icon;
+                      const sActive = activeTab === sub.id;
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => {
+                            setIsMobileDrawerOpen(false);
+                            onTabChange(sub.id);
+                          }}
+                          className={`p-2 rounded-xl text-left border flex items-center gap-2 transition-all cursor-pointer ${
+                            sActive
+                              ? 'bg-amber-500/20 border-amber-500 text-[#7A1C1C] dark:text-amber-300 font-bold'
+                              : 'bg-white/80 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-amber-400'
+                          }`}
+                        >
+                          <div className="w-6 h-6 rounded-md bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <SIcon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[11px] font-semibold block truncate">
+                              {sub.labelNepali}
+                            </span>
+                            <span className="text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                              {sub.badge}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── SECTION 3: वास्तुशास्त्र सेवा (Vastu Suite) ── */}
+              <div>
+                <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1.5 px-1 flex items-center gap-1">
+                  <Compass className="w-3 h-3" />
+                  <span>वास्तुशास्त्र सेवा (Vastu Shastra Suite)</span>
+                </p>
+                <div className="bg-emerald-500/10 dark:bg-stone-850/90 rounded-2xl border border-emerald-400/50 p-2.5 space-y-2 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (onOpenVastuModal) onOpenVastuModal('project');
+                      else onTabChange('vastu');
+                    }}
+                    className="w-full text-left p-3 rounded-xl border border-emerald-600/60 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex items-center justify-between group shadow-sm cursor-pointer active:scale-98 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-white/20 text-emerald-300 flex items-center justify-center shrink-0">
+                        <Compass className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-xs sm:text-sm block">
+                          वास्तुशास्त्र मुख्य कक्ष
+                        </span>
+                        <p className="text-[10px] text-emerald-200/90 truncate">
+                          डिजिटल कम्पास, मण्डल, पञ्चतत्त्व, अडिट
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-400 text-stone-950 shrink-0">
+                      प्रवेश ↗
+                    </span>
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    {VASTU_SUBMENU_ITEMS.slice(0, 4).map((vi) => {
+                      const VI = vi.icon;
+                      return (
+                        <button
+                          key={vi.id}
+                          type="button"
+                          onClick={() => {
+                            setIsMobileDrawerOpen(false);
+                            if (onOpenVastuModal) onOpenVastuModal(vi.id);
+                            else onTabChange('vastu');
+                          }}
+                          className="p-2 rounded-xl text-left border bg-white/80 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-emerald-400 flex items-center gap-2 transition-all cursor-pointer"
+                        >
+                          <div className="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <VI className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[11px] font-semibold block truncate">
+                              {vi.labelNepali}
+                            </span>
+                            <span className="text-[9px] text-emerald-700 dark:text-emerald-400 font-medium">
+                              {vi.badge}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── SECTION 4: उपकरण, सेटिङ तथा डाउनलोड (Tools & Downloads) ── */}
+              <div>
+                <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
+                  ⚙️ प्रणाली, सेटिङ तथा डाउनलोड
+                </p>
+                <div className="bg-stone-50/90 dark:bg-stone-850/80 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-2 space-y-1">
+                  {!isInstalled && !isDesktopApp() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        setDownloadModalPlatform('ANDROID');
+                        setIsDownloadModalOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-emerald-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <Download className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block">📲 कम्प्युटर तथा मोबाइल एप डाउनलोड</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400">Windows .exe र Android .apk</span>
+                      </div>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (onOpenSettingsModal) onOpenSettingsModal('astro');
+                    }}
+                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <Settings className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold block">⚙️ प्रणाली तथा ज्योतिष गणना सेटिङ</span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400">अयनांश, ग्रह गणना र स्थान</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (onOpenSettingsModal) onOpenSettingsModal('letterhead');
+                    }}
+                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold block">📋 लेटरहेड ब्यानर सेटिङ</span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400">आफ्नो नाम, लोगो र ब्यानर</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      if (onOpenThemeModal) onOpenThemeModal();
+                    }}
+                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/15 text-purple-700 dark:text-purple-400 flex items-center justify-center shrink-0">
+                      <Palette className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold block">🎨 सफ्टवेयर थिम र रङ्ग</span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400">५ वैदिक रङ्ग तथा पृष्ठभूमि</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      setIsCloudSyncModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-emerald-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <CloudCheck className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold block">☁️ क्लाउड सिंक तथा ब्याकअप</span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400">डेटा सुरक्षित भण्डारण</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      onTabChange('help');
+                    }}
+                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <HelpCircle className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold block">❓ मद्दत, ट्यूटोरियल तथा FAQ</span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400">सफ्टवेयर प्रयोग विधि</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* ── SECTION 5: प्रयोगकर्ता खाता (User Authentication) ── */}
+              <div>
+                <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
+                  👤 प्रयोगकर्ता खाता (User Account)
+                </p>
+                {rbacSession ? (
+                  <div className="p-3 bg-amber-50/80 dark:bg-stone-800/80 rounded-2xl border border-amber-200 dark:border-stone-700 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 truncate">
+                          {rbacSession.fullName}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[#7A1C1C] dark:text-amber-400 font-bold block truncate">
+                        {rbacSession.roleNameNepali}
+                      </span>
+                    </div>
+                    {onLogoutRBAC && rbacSession.role !== 'CUSTOMER' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileDrawerOpen(false);
+                          onLogoutRBAC();
+                        }}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>लगआउट</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  onOpenAuthModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onOpenAuthModal();
+                      }}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98 transition-transform"
+                    >
+                      <LogIn className="w-4 h-4 text-amber-300" />
+                      <span>साइन इन / लगइन गर्नुहोस्</span>
+                    </button>
+                  )
+                )}
+              </div>
+
+              {/* Extra Bottom Cushion */}
+              <div className="h-6" />
             </div>
           </div>
         </>
