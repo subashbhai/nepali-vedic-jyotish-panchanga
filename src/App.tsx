@@ -28,8 +28,11 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import PatrikaErrorBoundary from './components/PatrikaErrorBoundary';
 import { setAppContextGetter } from './utils/errorLogger';
 import { useAppUpdateNotifier } from './utils/useAppUpdateNotifier';
+import { printElement } from './utils/pdfGenerator';
 import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
 import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
+import { isMobileApp } from './utils/appVersionManager';
+import { BalanandaMobileAppShell } from './mobile/BalanandaMobileAppShell';
 
 const KundaliView = lazy(() => import('./components/KundaliView').then((m) => ({ default: m.KundaliView })));
 const PatrikaView = lazy(() => import('./components/PatrikaView').then((m) => ({ default: m.PatrikaView })));
@@ -139,6 +142,20 @@ export default function App() {
   const [editingProfile, setEditingProfile] = useState<BirthDetails | null>(null);
   const [settings, setSettingsState] = useState<ApplicationSettings>(getStoredSettings());
   const [isApkPromptModalOpen, setIsApkPromptModalOpen] = useState(false);
+  const [isMobileMode, setIsMobileMode] = useState<boolean>(() => isMobileApp());
+
+  // Listen to mobile-mode events or URL changes
+  useEffect(() => {
+    const handleMobileModeChange = () => {
+      setIsMobileMode(isMobileApp());
+    };
+    window.addEventListener('popstate', handleMobileModeChange);
+    window.addEventListener('mobile-mode-changed', handleMobileModeChange);
+    return () => {
+      window.removeEventListener('popstate', handleMobileModeChange);
+      window.removeEventListener('mobile-mode-changed', handleMobileModeChange);
+    };
+  }, []);
 
   // useTransition: Jyotish module switch लाई non-urgent render बनाउँछ → blinking बन्द हुन्छ
   const [, startModuleTransition] = useTransition();
@@ -453,16 +470,52 @@ export default function App() {
     });
   }, [rbacSession?.userId]);
 
-  // Global window.print and beforeprint interception to protect Kundali and Vastu map printing during trial
+  // Global window.print and beforeprint interception to protect and isolate report printing
   useEffect(() => {
     const originalPrint = window.print;
     window.print = () => {
+      // 1. If currently inside isolated print mount, let browser print natively
+      if (document.body.classList.contains('is-printing-report')) {
+        originalPrint.call(window);
+        return;
+      }
+
       const docType = (activeTab === 'vastu') ? 'vastu' : (activeTab === 'jyotishi' || activeTab === 'dashboard' || activeTab === 'patrika' || activeTab === 'kundali' || activeTab === 'dasha' || activeTab === 'faladesh') ? 'kundali' : 'general';
       const check = canUserPrintDocuments(docType);
       if (!check.allowed) {
         window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
         return;
       }
+
+      // 2. Identify if any active printable report is currently in the DOM
+      const targetCandidates = [
+        'detailed-kundali-pdf-document-preview',
+        'print_preview_printable_area',
+        'patrika_printable_document_area',
+        'printable-faladesh-report',
+        'printable-dasha-report',
+        'vastu-single-page-report',
+        'printable-receipt',
+        'aarje-printable-report',
+        'daily-panchanga-printable-card',
+        'printable-kundali-document',
+        'graha-faladesh-printable-area',
+        'planet-popup-printable-area',
+        'yoga-breakdown-printable-area',
+        'yoga-shadbala-printable-report'
+      ];
+
+      for (const id of targetCandidates) {
+        const el = document.getElementById(id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.height > 0 || el.offsetParent !== null) {
+            printElement(id);
+            return;
+          }
+        }
+      }
+
       originalPrint.call(window);
     };
 
@@ -961,6 +1014,27 @@ export default function App() {
       window.removeEventListener('navigate-tab', handleNavigateTabEvent);
     };
   }, []);
+
+  // Dedicated Mobile Application (Android/iOS & Mobile Mode) — Strictly JYOTISH SERVICES ONLY
+  if (isMobileMode) {
+    return (
+      <BalanandaMobileAppShell
+        onExitToWeb={() => {
+          localStorage.removeItem('balananda_force_mobile_app_shell');
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('app');
+            url.searchParams.delete('mode');
+            window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+          } catch {
+            // ignore
+          }
+          setIsMobileMode(false);
+          window.dispatchEvent(new CustomEvent('mobile-mode-changed'));
+        }}
+      />
+    );
+  }
 
   // If JYOTISH module is active, render full-screen workspace with no main dropdowns (free to explore)
   if (activeModule === 'JYOTISH') {

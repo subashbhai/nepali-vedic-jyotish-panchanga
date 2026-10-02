@@ -49,7 +49,7 @@ import { VastuPlannerModule } from '../vastuPlanner/VastuPlannerModule';
 import { canUserPrintDocuments } from '../db/subscriptionStore';
 import { VastuSinglePageReport } from './vastu/VastuSinglePageReport';
 import { JyotishVastuLicenseHeader } from './common/JyotishVastuLicenseHeader';
-import { sanitizeCloneForCanvas } from '../utils/pdfGenerator';
+import { sanitizeCloneForCanvas, printElement } from '../utils/pdfGenerator';
 
 interface VastuViewProps {
   orgProfile?: OrganizationProfile;
@@ -352,93 +352,7 @@ export const VastuView: React.FC<VastuViewProps> = ({
   }, [isVastuDownloadOpen, isReportSectionDownloadOpen, isVastuShareOpen, isReportSectionShareOpen]);
 
   const executeVastuSinglePagePrint = () => {
-    const docEl = document.getElementById('vastu-single-page-report');
-    if (!docEl) {
-      window.print();
-      return;
-    }
-
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const pri = iframe.contentWindow;
-    if (!pri) {
-      window.print();
-      document.body.removeChild(iframe);
-      return;
-    }
-
-    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map((tag) => tag.outerHTML)
-      .join('\n');
-
-    pri.document.open();
-    pri.document.write(`
-      <!DOCTYPE html>
-      <html lang="ne">
-        <head>
-          <meta charset="utf-8" />
-          <title>वास्तु प्रतिवेदन - ${currentProject.projectName}</title>
-          ${styleTags}
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 0;
-            }
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background-color: #FFFDF9 !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-              overflow: hidden !important;
-              width: 210mm !important;
-              height: 296mm !important;
-            }
-            #vastu-single-page-report {
-              width: 210mm !important;
-              max-width: 210mm !important;
-              height: 296mm !important;
-              max-height: 296mm !important;
-              margin: 0 auto !important;
-              box-shadow: none !important;
-              page-break-after: avoid !important;
-              break-after: avoid !important;
-              page-break-inside: avoid !important;
-              break-inside: avoid !important;
-            }
-            .no-print { display: none !important; }
-          </style>
-        </head>
-        <body>
-          ${docEl.outerHTML}
-        </body>
-      </html>
-    `);
-    pri.document.close();
-
-    setTimeout(() => {
-      try {
-        pri.focus();
-        pri.print();
-      } catch (err) {
-        console.error('Print iframe failed, falling back to window.print():', err);
-        window.print();
-      } finally {
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        }, 1500);
-      }
-    }, 400);
+    printElement('vastu-single-page-report');
   };
 
   const handlePrint = () => {

@@ -351,11 +351,11 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                   <Smartphone className="w-7 h-7" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-base text-stone-900 dark:text-stone-100">
-                    Android का लागि मोबाइल एप (APK तथा Instant App)
+                  <h4 className="font-bold text-base text-stone-900 dark:text-stone-100 font-serif">
+                    बालानन्द वैदिक ज्योतिष सेवा — Android मोबाइल एप
                   </h4>
                   <p className="text-xs text-stone-500">
-                    Android 8.0 देखि Android 15+ समर्थित • १००% अफलाइन पञ्चाङ्ग र कुण्डली
+                    नेपाली वैदिक ज्योतिष तथा व्यक्तिगत ज्योतिष सेवा (Jyotish Services Only) • Android 8.0 देखि 15+
                   </p>
                 </div>
               </div>
@@ -465,6 +465,19 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-0.5 justify-center sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem('balananda_force_mobile_app_shell', 'true');
+                        window.dispatchEvent(new CustomEvent('mobile-mode-changed'));
+                        onClose();
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-[11px] shadow-sm flex items-center gap-1.5 transition-transform hover:scale-102 cursor-pointer"
+                    >
+                      <span>📱</span>
+                      <span>मोबाइल एप प्रत्यक्ष चलाएर हेर्नुहोस् (Live Preview)</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setIsPromptPreviewOpen(true)}
@@ -621,6 +634,21 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                 <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-emerald-900 dark:text-emerald-300 text-[11px] font-medium flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>आईफोनको होम स्क्रिनमा सिधै एप बन्नेछ र अफलाइनमा पनि चल्नेछ।</span>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('balananda_force_mobile_app_shell', 'true');
+                      window.dispatchEvent(new CustomEvent('mobile-mode-changed'));
+                      onClose();
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-transform hover:scale-102 cursor-pointer"
+                  >
+                    <span>📱</span>
+                    <span>आईफोन / आईप्याडमा मोबाइल एप प्रत्यक्ष चलाएर हेर्नुहोस् (Live Preview)</span>
+                  </button>
                 </div>
               </div>
             </div>

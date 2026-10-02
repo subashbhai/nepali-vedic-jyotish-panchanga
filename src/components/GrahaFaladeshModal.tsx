@@ -31,6 +31,7 @@ import {
 } from '../utils/advancedGrahaEngine';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
 import { ClassicalShlokaCard } from './ClassicalShlokaCard';
+import { printElement } from '../utils/pdfGenerator';
 
 export interface GrahaFaladeshModalProps {
   planet: PlanetPosition;
@@ -69,12 +70,13 @@ export const GrahaFaladeshModal: React.FC<GrahaFaladeshModalProps> = ({
   );
 
   const handlePrint = () => {
-    window.print();
+    printElement('graha-faladesh-printable-area');
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-fadeIn">
       <div 
+        id="graha-faladesh-printable-area"
         className="bg-[#FFFDF9] dark:bg-stone-900 w-full sm:max-w-3xl max-h-[92vh] sm:max-h-[88vh] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 flex flex-col overflow-hidden transition-all text-[#2D241E] dark:text-stone-100"
         onClick={(e) => e.stopPropagation()}
       >

@@ -1,0 +1,476 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Compass,
+  Home,
+  Star,
+  Calendar,
+  User,
+  Heart,
+  Activity,
+  UserCheck,
+  FileText,
+  Sparkles,
+  ChevronRight,
+  Plus,
+  X,
+  Layers,
+  ArrowLeft
+} from 'lucide-react';
+import {
+  MobileTab,
+  MobileUserProfile,
+  MobileBirthProfile
+} from './types/mobileJyotishTypes';
+import {
+  getMobileUserSession,
+  getActiveMobileBirthProfile,
+  getMobileBirthProfiles,
+  setActiveMobileBirthProfile
+} from './db/mobileAuthStore';
+import {
+  getCalculatedMobileKundali,
+  getMobileDailyPanchanga,
+  getMobileRashiHoroscope
+} from './services/mobileAstrologyService';
+
+// Sub Views
+import { MobileHomeView } from './views/MobileHomeView';
+import { MobileKundaliView } from './views/MobileKundaliView';
+import { MobileHoroscopeView } from './views/MobileHoroscopeView';
+import { MobilePanchangaView } from './views/MobilePanchangaView';
+import { MobileTransitView } from './views/MobileTransitView';
+import { MobileMatchingView } from './views/MobileMatchingView';
+import { MobileConsultationView } from './views/MobileConsultationView';
+import { MobileReportsView } from './views/MobileReportsView';
+import { MobileProfileView } from './views/MobileProfileView';
+import { MobileAuthModal } from './views/MobileAuthModal';
+
+export const BalanandaMobileAppShell: React.FC<{
+  onExitToWeb?: () => void;
+}> = ({ onExitToWeb }) => {
+  const [currentTab, setCurrentTab] = useState<MobileTab>('home');
+  const [user, setUser] = useState<MobileUserProfile | null>(getMobileUserSession);
+  const [activeProfile, setActiveProfile] = useState<MobileBirthProfile>(getActiveMobileBirthProfile);
+  const [allProfiles, setAllProfiles] = useState<MobileBirthProfile[]>(getMobileBirthProfiles);
+
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
+  const [isQuickActionWheelOpen, setIsQuickActionWheelOpen] = useState(false);
+
+  // Synchronize state when profiles or session change
+  const refreshUserData = () => {
+    setUser(getMobileUserSession());
+    setActiveProfile(getActiveMobileBirthProfile());
+    setAllProfiles(getMobileBirthProfiles());
+  };
+
+  useEffect(() => {
+    const handleAuthChange = () => refreshUserData();
+    const handleProfilesChange = () => refreshUserData();
+
+    window.addEventListener('balananda_mobile_auth_state_changed', handleAuthChange);
+    window.addEventListener('balananda_mobile_profiles_changed', handleProfilesChange);
+
+    return () => {
+      window.removeEventListener('balananda_mobile_auth_state_changed', handleAuthChange);
+      window.removeEventListener('balananda_mobile_profiles_changed', handleProfilesChange);
+    };
+  }, []);
+
+  // Calculated Core Astrology Data for active birth profile
+  const kundaliData = useMemo(() => {
+    return getCalculatedMobileKundali(activeProfile);
+  }, [activeProfile]);
+
+  // Daily Panchanga for mobile
+  const dailyPanchanga = useMemo(() => {
+    return getMobileDailyPanchanga();
+  }, []);
+
+  // Daily Horoscope for active profile's Moon Sign or default
+  const dailyHoroscope = useMemo(() => {
+    const moonRashiId = kundaliData.moonPlanet?.rashiId || 1;
+    return getMobileRashiHoroscope(moonRashiId);
+  }, [kundaliData]);
+
+  // Tab Titles Map
+  const tabTitles: Record<MobileTab, { title: string; subtitle: string }> = {
+    home: { title: 'बालानन्द वैदिक ज्योतिष सेवा', subtitle: 'नेपाली वैदिक ज्योतिष तथा व्यक्तिगत ज्योतिष सेवा' },
+    kundali: { title: 'जन्म कुण्डली तथा फलादेश', subtitle: 'लग्न, नवांश, ग्रहस्थिति र विंशोत्तरी दशा' },
+    horoscope: { title: 'दैनिक राशिफल', subtitle: '१२ राशिको फलादेश तथा शुभ समय' },
+    panchanga: { title: 'दैनिक पञ्चाङ्ग', subtitle: 'तिथि, वार, नक्षत्र र शुभ मुहूर्त' },
+    transit: { title: 'ग्रह गोचर चक्र', subtitle: '९ ग्रहको प्रत्यक्ष खगोलीय स्थिति' },
+    matching: { title: 'विवाह मिलान', subtitle: 'अष्टकूट ३६ गुण तथा मङ्गल दोष' },
+    consultation: { title: 'ज्योतिषी परामर्श', subtitle: 'वरिष्ठ वैदिक ज्योतिषाचार्यसँग संवाद' },
+    reports: { title: 'ज्योतिष प्रतिवेदन', subtitle: 'आधिकारिक कुण्डली PDF डाउनलोड' },
+    profile: { title: 'मेरो प्रोफाइल', subtitle: 'प्रयोगकर्ता खाता तथा जन्म विवरणहरू' }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0E0A08] text-stone-100 flex flex-col font-sans select-none overflow-x-hidden">
+      {/* ── 1. Dedicated Mobile App Bar (Top Navigation) ── */}
+      <header className="sticky top-0 z-40 bg-[#1A0F0A]/95 border-b border-amber-500/30 backdrop-blur-md px-3.5 py-2.5 flex items-center justify-between gap-2 shadow-lg">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {currentTab !== 'home' ? (
+            <button
+              type="button"
+              onClick={() => setCurrentTab('home')}
+              className="p-1.5 -ml-1 text-amber-400 hover:text-amber-300 rounded-xl bg-stone-900/60 border border-stone-800 transition-colors cursor-pointer shrink-0"
+              title="गृहपृष्ठमा फर्कनुहोस्"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-stone-950 font-black text-sm shadow-md shrink-0">
+              ॐ
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <h1 className="text-xs sm:text-sm font-bold text-amber-100 font-serif truncate leading-tight">
+              {tabTitles[currentTab].title}
+            </h1>
+            <p className="text-[10px] text-amber-400/80 truncate leading-tight">
+              {tabTitles[currentTab].subtitle}
+            </p>
+          </div>
+        </div>
+
+        {/* Right Action Icons: Active Profile Pill + User Button */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsProfileSheetOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1 bg-stone-900 hover:bg-stone-800 border border-stone-800 hover:border-amber-500/50 rounded-full text-stone-300 text-[10.5px] font-bold transition-colors cursor-pointer"
+            title="सक्रिय कुण्डली फेर्नुहोस्"
+          >
+            <Compass className="w-3 h-3 text-amber-400" />
+            <span className="max-w-[70px] truncate">{activeProfile.name.split(' ')[0]}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentTab('profile')}
+            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-colors cursor-pointer ${
+              currentTab === 'profile'
+                ? 'bg-amber-500 text-stone-950'
+                : 'bg-stone-800 text-amber-300 border border-amber-500/30'
+            }`}
+            title="प्रोफाइल तथा खाता"
+          >
+            {user?.fullName ? user.fullName[0] : 'सु'}
+          </button>
+        </div>
+      </header>
+
+      {/* ── 2. Mobile Main Scroll Container (Strict Jyotish Content Only) ── */}
+      <main className="flex-1 w-full max-w-lg mx-auto p-3.5 sm:p-4 overflow-y-auto">
+        {currentTab === 'home' && (
+          <MobileHomeView
+            user={user}
+            activeProfile={activeProfile}
+            panchanga={dailyPanchanga}
+            horoscope={dailyHoroscope}
+            onNavigateTab={(t) => setCurrentTab(t)}
+            onOpenProfileSelector={() => setIsProfileSheetOpen(true)}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+          />
+        )}
+
+        {currentTab === 'kundali' && (
+          <MobileKundaliView
+            profile={activeProfile}
+            kundaliData={kundaliData}
+          />
+        )}
+
+        {currentTab === 'horoscope' && (
+          <MobileHoroscopeView
+            initialRashiId={kundaliData.moonPlanet?.rashiId || 1}
+          />
+        )}
+
+        {currentTab === 'panchanga' && (
+          <MobilePanchangaView
+            panchanga={dailyPanchanga}
+          />
+        )}
+
+        {currentTab === 'transit' && (
+          <MobileTransitView
+            profile={activeProfile}
+          />
+        )}
+
+        {currentTab === 'matching' && (
+          <MobileMatchingView />
+        )}
+
+        {currentTab === 'consultation' && (
+          <MobileConsultationView
+            user={user}
+          />
+        )}
+
+        {currentTab === 'reports' && (
+          <MobileReportsView
+            profile={activeProfile}
+            kundaliData={kundaliData}
+            panchanga={dailyPanchanga}
+          />
+        )}
+
+        {currentTab === 'profile' && (
+          <MobileProfileView
+            user={user}
+            activeProfile={activeProfile}
+            onRefreshProfiles={refreshUserData}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onExitToWeb={onExitToWeb}
+          />
+        )}
+      </main>
+
+      {/* ── 3. Quick Action Floating Wheel Sheet (Center Action Menu) ── */}
+      {isQuickActionWheelOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-end justify-center p-3 animate-in fade-in duration-150">
+          <div className="bg-stone-900 border border-amber-500/50 rounded-3xl p-4 w-full max-w-sm space-y-3 shadow-2xl animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-stone-800">
+              <span className="font-bold text-xs text-amber-300 font-serif flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>त्वरित ज्योतिषीय सेवाहरू</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsQuickActionWheelOpen(false)}
+                className="p-1 text-stone-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentTab('matching');
+                  setIsQuickActionWheelOpen(false);
+                }}
+                className="p-3 bg-stone-950 rounded-2xl border border-stone-800 text-left hover:border-rose-500/40 transition-colors flex items-center gap-2.5 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0">
+                  <Heart className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-stone-100 block">विवाह मिलान</span>
+                  <span className="text-[10px] text-stone-400">३६ गुण गणना</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentTab('transit');
+                  setIsQuickActionWheelOpen(false);
+                }}
+                className="p-3 bg-stone-950 rounded-2xl border border-stone-800 text-left hover:border-blue-500/40 transition-colors flex items-center gap-2.5 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center shrink-0">
+                  <Activity className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-stone-100 block">ग्रह गोचर चक्र</span>
+                  <span className="text-[10px] text-stone-400">वर्तमान ९ ग्रह</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentTab('consultation');
+                  setIsQuickActionWheelOpen(false);
+                }}
+                className="p-3 bg-stone-950 rounded-2xl border border-stone-800 text-left hover:border-amber-500/40 transition-colors flex items-center gap-2.5 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-stone-100 block">ज्योतिषी परामर्श</span>
+                  <span className="text-[10px] text-stone-400">अडियो/भिडियो कल</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentTab('reports');
+                  setIsQuickActionWheelOpen(false);
+                }}
+                className="p-3 bg-stone-950 rounded-2xl border border-stone-800 text-left hover:border-orange-500/40 transition-colors flex items-center gap-2.5 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-xl bg-orange-500/20 text-orange-300 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-stone-100 block">प्रतिवेदन PDF</span>
+                  <span className="text-[10px] text-stone-400">मुद्रण तथा डाउनलोड</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 4. Profile Selector Bottom Sheet ── */}
+      {isProfileSheetOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-end justify-center p-3 animate-in fade-in duration-150">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-4 w-full max-w-sm space-y-3 shadow-2xl animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-stone-800">
+              <span className="font-bold text-xs text-stone-200 font-serif flex items-center gap-1.5">
+                <Compass className="w-3.5 h-3.5 text-amber-400" />
+                <span>सक्रिय जन्म विवरण छान्नुहोस्</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsProfileSheetOpen(false)}
+                className="p-1 text-stone-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1.5 max-h-60 overflow-y-auto">
+              {allProfiles.map(p => {
+                const isCur = p.id === activeProfile.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveMobileBirthProfile(p.id);
+                      refreshUserData();
+                      setIsProfileSheetOpen(false);
+                    }}
+                    className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                      isCur
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-200'
+                        : 'bg-stone-950 border-stone-800 text-stone-300 hover:border-stone-700'
+                    }`}
+                  >
+                    <div>
+                      <span className="font-bold text-xs block">{p.name}</span>
+                      <span className="text-[10px] text-stone-400">
+                        {p.relationLabelNepali} • {p.dateOfBirth} ({p.placeOfBirth.split(',')[0]})
+                      </span>
+                    </div>
+                    {isCur && (
+                      <span className="text-[10px] bg-amber-500 text-stone-950 font-black px-2 py-0.5 rounded-full">
+                        सक्रिय
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsProfileSheetOpen(false);
+                setCurrentTab('profile');
+              }}
+              className="w-full py-2 bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>नयाँ जन्म विवरण थप्नुहोस्</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 5. Dedicated Mobile Bottom Navigation Bar (5 Core Touch Tabs) ── */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#160D08]/98 border-t border-amber-500/30 backdrop-blur-lg px-2 py-1.5 shadow-2xl">
+        <div className="max-w-md mx-auto flex items-center justify-around relative">
+          {/* Tab 1: Home */}
+          <button
+            type="button"
+            onClick={() => setCurrentTab('home')}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'home'
+                ? 'text-amber-400 font-black'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Home className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">गृहपृष्ठ</span>
+          </button>
+
+          {/* Tab 2: Kundali */}
+          <button
+            type="button"
+            onClick={() => setCurrentTab('kundali')}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'kundali'
+                ? 'text-amber-400 font-black'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Compass className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">कुण्डली</span>
+          </button>
+
+          {/* Center Floating Quick Action Button (Chakra / Sparkle) */}
+          <div className="relative -top-4">
+            <button
+              type="button"
+              onClick={() => setIsQuickActionWheelOpen(prev => !prev)}
+              className="w-13 h-13 rounded-full bg-gradient-to-tr from-amber-500 via-amber-600 to-orange-600 text-stone-950 flex items-center justify-center shadow-xl ring-4 ring-[#160D08] hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+              title="द्रुत ज्योतिष सेवा"
+            >
+              <Sparkles className="w-6 h-6 text-stone-950 stroke-[2.5]" />
+            </button>
+          </div>
+
+          {/* Tab 3: Horoscope */}
+          <button
+            type="button"
+            onClick={() => setCurrentTab('horoscope')}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'horoscope'
+                ? 'text-amber-400 font-black'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Star className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">राशिफल</span>
+          </button>
+
+          {/* Tab 4: Panchanga */}
+          <button
+            type="button"
+            onClick={() => setCurrentTab('panchanga')}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'panchanga'
+                ? 'text-amber-400 font-black'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Calendar className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">पञ्चाङ्ग</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* ── 6. Mobile Auth Modal ── */}
+      <MobileAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={(u) => {
+          setUser(u);
+          setIsAuthModalOpen(false);
+        }}
+      />
+    </div>
+  );
+};

@@ -3,6 +3,7 @@ import { PaymentRecord, UserSubscriptionAccount, toNepaliDigits } from '../db/su
 import { OrganizationProfile } from '../types/astrology';
 import { Printer, Download, CheckCircle2, ShieldCheck, X } from 'lucide-react';
 import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
+import { printElement } from '../utils/pdfGenerator';
 
 interface ReceiptPrintModalProps {
   isOpen: boolean;
@@ -61,7 +62,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    printElement('printable-receipt');
   };
 
   return (

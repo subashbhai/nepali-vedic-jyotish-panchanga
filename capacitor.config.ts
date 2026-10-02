@@ -7,7 +7,7 @@ interface CapacitorConfig {
 
 const config: CapacitorConfig = {
   appId: 'com.balananda.jyotish',
-  appName: 'नेपाली वैदिक ज्योतिष',
+  appName: 'बालानन्द वैदिक ज्योतिष सेवा',
   webDir: 'dist'
 };
 
