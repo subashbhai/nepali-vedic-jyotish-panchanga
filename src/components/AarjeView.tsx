@@ -70,6 +70,7 @@ import { analyzeAarjeQuery, getAllAarjeRules, AARJE_ENGINE_VERSION } from '../ut
 import { toDevanagariNumerals, convertADToBS } from '../utils/nepaliCalendar';
 import { GaneshaHeaderCenter } from './GaneshaHeaderCenter';
 import { OmBorderFrame } from './CheenaDocument';
+import { printElement } from '../utils/pdfGenerator';
 
 interface AarjeViewProps {
   profiles: BirthDetails[];
@@ -934,7 +935,7 @@ export const AarjeView: React.FC<AarjeViewProps> = ({
                 </button>
 
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => printElement('aarje-printable-report')}
                   className="bg-red-800 hover:bg-red-900 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
@@ -944,6 +945,7 @@ export const AarjeView: React.FC<AarjeViewProps> = ({
             </div>
 
             {/* PRINTABLE REPORT DOCUMENT */}
+            <div id="aarje-printable-report">
             <OmBorderFrame>
               <div className="bg-[#FFFDF7] text-stone-900 p-4 sm:p-8 space-y-6 font-serif max-w-4xl mx-auto leading-relaxed print:p-2">
                 
@@ -1191,6 +1193,7 @@ export const AarjeView: React.FC<AarjeViewProps> = ({
 
               </div>
             </OmBorderFrame>
+            </div>
           </div>
         )}
 

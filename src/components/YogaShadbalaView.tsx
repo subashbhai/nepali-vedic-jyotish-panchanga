@@ -35,6 +35,7 @@ import { executeSharedAstrologyCore, SHARED_DATABASE_DEFINITION } from '../utils
 import { BPHSShlokaSidePanel, ShlokaViewTarget } from './BPHSShlokaSidePanel';
 import { BPHSShlokaTooltip } from './BPHSShlokaTooltip';
 import { getBPHSYogaShloka } from '../utils/brihatParasharaDatabase';
+import { printElement } from '../utils/pdfGenerator';
 
 interface YogaShadbalaViewProps {
   lagna: LagnaInfo;
@@ -74,11 +75,11 @@ export const YogaShadbalaView: React.FC<YogaShadbalaViewProps> = ({
     : yogas.filter((y) => y.category === yogaCategoryFilter);
 
   const handlePrintReport = () => {
-    window.print();
+    printElement('yoga-shadbala-printable-report');
   };
 
   return (
-    <div className="space-y-6">
+    <div id="yoga-shadbala-printable-report" className="space-y-6">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-amber-950 via-amber-900 to-orange-950 rounded-3xl border border-amber-700/60 p-6 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>

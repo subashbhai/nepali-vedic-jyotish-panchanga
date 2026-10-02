@@ -41,6 +41,7 @@ import { toDevanagariNumerals, convertADToBS } from '../utils/nepaliCalendar';
 import { computeTibetanBirthChart, TibetanBirthChartData } from '../core/tibetan/tibetanBirthChartEngine';
 import { calculateTibetanCompatibility } from '../core/tibetan/tibetanCompatibilityEngine';
 import { CLASSICAL_TIBETAN_BOOKS, TIBETAN_CANONICAL_RULES } from '../core/rules/sources/tibetan/tibetanSourceRegistry';
+import { printElement } from '../utils/pdfGenerator';
 
 // Visual Charts
 import { TibetanBirthMandalaChart } from './tibetan/charts/TibetanBirthMandalaChart';
@@ -295,8 +296,8 @@ export const NeemaJyotishView: React.FC<NeemaJyotishViewProps> = ({
               )}
 
               <button
-                onClick={() => window.print()}
-                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1.5 transition-colors border border-white/20"
+                onClick={() => printElement('neemajyotish-printable-report')}
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1.5 transition-colors border border-white/20 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5 text-amber-200" />
                 प्रिन्ट
@@ -396,7 +397,7 @@ export const NeemaJyotishView: React.FC<NeemaJyotishViewProps> = ({
       </div>
 
       {/* Main Tab Content Area */}
-      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 flex-1 w-full">
+      <main id="neemajyotish-printable-report" className="max-w-7xl mx-auto px-4 py-6 sm:px-6 flex-1 w-full">
         {/* TAB 1: OVERVIEW & MANDALA */}
         {activeTab === 'overview' && (
           <div className="flex flex-col gap-6">

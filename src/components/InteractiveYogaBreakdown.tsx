@@ -32,6 +32,7 @@ import {
 } from '../types/yogaDoshaTypes';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
 import { getHouseLord, SIGN_LORDS } from '../utils/planetaryRelationshipEngine';
+import { printElement } from '../utils/pdfGenerator';
 
 interface InteractiveYogaBreakdownProps {
   yogas: DetailedYogaResult[];
@@ -886,7 +887,10 @@ export const InteractiveYogaBreakdown: React.FC<InteractiveYogaBreakdownProps> =
       {/* 4. FULLSCREEN / MODAL VIEW */}
       {isModalOpen && currentYoga && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-xs overflow-y-auto animate-fadeIn">
-          <div className="bg-[#FAF8F5] dark:bg-stone-900 border-2 border-amber-500 rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+          <div 
+            id="yoga-breakdown-printable-area"
+            className="bg-[#FAF8F5] dark:bg-stone-900 border-2 border-amber-500 rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+          >
             {/* Modal Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-900 via-amber-950 to-stone-950 text-white flex items-center justify-between border-b border-amber-700">
               <div className="flex items-center gap-2.5">
@@ -905,7 +909,7 @@ export const InteractiveYogaBreakdown: React.FC<InteractiveYogaBreakdownProps> =
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => printElement('yoga-breakdown-printable-area')}
                   className="p-2 bg-stone-800/80 hover:bg-stone-700 text-stone-200 rounded-xl text-xs transition cursor-pointer"
                   title="प्रिन्ट गर्नुहोस्"
                 >

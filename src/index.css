@@ -73,43 +73,76 @@ tfoot {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm 12mm 12mm;
+    margin: 8mm 10mm 10mm 10mm;
   }
 
   html, body {
-    background-color: #FFFDF7 !important;
+    background-color: #ffffff !important;
     color: #1c1917 !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 210mm !important;
+    width: 100% !important;
     counter-reset: page;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
 
-  /* Hide all non-printable UI elements */
+  /* 🌟 1. MASTER ISOLATION: When is-printing-report is active on body,
+     HIDE ALL OTHER ELEMENTS ON THE WEBSITE COMPLETELY! */
+  body.is-printing-report > *:not(#balananda-isolated-print-mount) {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body.is-printing-report #balananda-isolated-print-mount {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body.is-printing-report #balananda-isolated-print-mount * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* 🌟 2. HIDE ALL APPLICATION UI CHROME (Buttons, Navbar, Sidebar, Toolbars, Dropdowns) */
   nav,
   header:not(.printable-header),
   footer:not(.printable-footer),
   aside,
   .no-print,
+  .print\:hidden,
   button,
   input,
   select,
   textarea,
   .search-bar,
-  .modal-overlay,
   .action-bar,
   .sidebar,
   .dashboard-header,
-  .sticky,
-  [role="dialog"] {
+  .sticky {
     display: none !important;
   }
 
+  /* Modal overlays: transparent background in print */
+  .modal-overlay,
+  .modal-backdrop {
+    background: transparent !important;
+  }
+
   /* Printable Page Containers */
-  .printable-page {
+  .printable-page, .print-page {
     counter-increment: page;
     page-break-after: always !important;
     break-after: page !important;
@@ -117,13 +150,16 @@ tfoot {
     break-inside: avoid !important;
     width: 100% !important;
     max-width: 210mm !important;
-    height: 275mm !important;
-    min-height: 275mm !important;
     margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
     background: #FFFDF7 !important;
     box-sizing: border-box !important;
+  }
+
+  .printable-page:last-child, .print-page:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   .page-number-css::after {
@@ -138,9 +174,14 @@ tfoot {
 
   /* Printable Document Container in Print */
   #patrika_printable_document_area,
+  #detailed-kundali-pdf-document-preview,
+  #print_preview_printable_area,
   #printable-faladesh-report,
   #printable-kundali-document,
   #printable-dasha-report,
+  #vastu-single-page-report,
+  #printable-receipt,
+  #aarje-printable-report,
   .printable-document {
     width: 100% !important;
     margin: 0 !important;

@@ -817,89 +817,62 @@ export function printElement(elementId: string) {
     return;
   }
 
-  // Create an invisible iframe for isolated printing
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  document.body.appendChild(iframe);
-
-  const pri = iframe.contentWindow;
-  if (!pri) {
-    console.error('Failed to access print iframe window');
-    if (document.body.contains(iframe)) document.body.removeChild(iframe);
-    return;
+  // Remove existing mount if already present
+  const existingMount = document.getElementById('balananda-isolated-print-mount');
+  if (existingMount) {
+    existingMount.remove();
   }
 
-  // Extract all stylesheets and style blocks from current document
-  const stylesheets = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-    .map((el) => el.outerHTML)
-    .join('\n');
+  // Create isolated print mount attached directly to body
+  const mount = document.createElement('div');
+  mount.id = 'balananda-isolated-print-mount';
 
-  pri.document.open();
-  pri.document.write(`
-    <!DOCTYPE html>
-    <html lang="ne">
-      <head>
-        <meta charset="utf-8" />
-        <title>नेपाली वैदिक ज्योतिष प्रतिवेदन</title>
-        ${stylesheets}
-        <style>
-          @page {
-            size: A4 portrait;
-            margin: 0;
-          }
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background-color: #ffffff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            color-adjust: exact !important;
-          }
-          .no-print, button, input, select, textarea {
-            display: none !important;
-          }
-          .printable-page, .print-page {
-            page-break-after: always !important;
-            break-after: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            margin: 0 auto !important;
-            box-shadow: none !important;
-          }
-          .printable-page:last-child, .print-page:last-child {
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-container">
-          ${element.innerHTML}
-        </div>
-      </body>
-    </html>
-  `);
-  pri.document.close();
+  // Deep clone the report element
+  const clone = element.cloneNode(true) as HTMLElement;
 
+  // Preserve and replicate canvas bitmap data if any
+  const originalCanvases = element.querySelectorAll('canvas');
+  const cloneCanvases = clone.querySelectorAll('canvas');
+  originalCanvases.forEach((orig, idx) => {
+    const dest = cloneCanvases[idx];
+    if (dest) {
+      dest.width = orig.width;
+      dest.height = orig.height;
+      const ctx = dest.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(orig, 0, 0);
+      }
+    }
+  });
+
+  mount.appendChild(clone);
+  document.body.appendChild(mount);
+  document.body.classList.add('is-printing-report');
+
+  let cleanedUp = false;
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    document.body.classList.remove('is-printing-report');
+    if (document.body.contains(mount)) {
+      document.body.removeChild(mount);
+    }
+    window.removeEventListener('afterprint', cleanup);
+  };
+
+  window.addEventListener('afterprint', cleanup);
+
+  // Short delay to allow browser to lay out the cloned DOM before print dialog
   setTimeout(() => {
     try {
-      pri.focus();
-      pri.print();
+      window.print();
     } catch (err) {
-      console.error('Print iframe error:', err);
-    } finally {
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 1500);
+      console.error('window.print error:', err);
+      cleanup();
     }
-  }, 400);
+    // Safety cleanup in case user closes dialog without afterprint firing
+    setTimeout(cleanup, 3000);
+  }, 120);
 }
 
 export async function exportFaladeshPDF(reportData: any): Promise<boolean> {

@@ -204,6 +204,27 @@ export function isDesktopApp(): boolean {
 }
 
 /**
+ * Detects if app is running in dedicated Mobile environment (Capacitor Android/iOS or mobile mode URL)
+ */
+export function isMobileApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  const isCap = Boolean((window as any).Capacitor?.isNative);
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const isMobileQuery = searchParams.get('app') === 'mobile' || searchParams.get('mode') === 'mobile';
+    const isStoredMobile = localStorage.getItem('balananda_force_mobile_app_shell') === 'true';
+    return isCap || isMobileQuery || isStoredMobile;
+  } catch {
+    return isCap;
+  }
+}
+
+export function isCapacitorNative(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean((window as any).Capacitor?.isNative);
+}
+
+/**
  * Formats file size in MB
  */
 export function formatFileSize(bytes: number): string {

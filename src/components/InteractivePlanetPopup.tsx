@@ -23,6 +23,7 @@ import {
   BirthDetails 
 } from '../types/astrology';
 import { analyzeGraha } from '../astrology/interpretation/faladeshEngine';
+import { printElement } from '../utils/pdfGenerator';
 import { GrahaAnalysis } from '../astrology/interpretation/types';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
 import { ClassicalShlokaCard } from './ClassicalShlokaCard';
@@ -56,7 +57,7 @@ export const InteractivePlanetPopup: React.FC<InteractivePlanetPopupProps> = ({
   const analysis: GrahaAnalysis = analyzeGraha(planet, lagna, allPlanets, dasha);
 
   const handlePrint = () => {
-    window.print();
+    printElement('planet-popup-printable-area');
   };
 
   return (
@@ -65,6 +66,7 @@ export const InteractivePlanetPopup: React.FC<InteractivePlanetPopupProps> = ({
       onClick={onClose}
     >
       <div 
+        id="planet-popup-printable-area"
         className="bg-[#FFFDF9] dark:bg-stone-900 w-full sm:max-w-3xl max-h-[92vh] sm:max-h-[88vh] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 flex flex-col overflow-hidden transition-all text-[#2D241E] dark:text-stone-100"
         onClick={(e) => e.stopPropagation()}
       >
