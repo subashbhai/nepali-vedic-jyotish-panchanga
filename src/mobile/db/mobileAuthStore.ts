@@ -9,7 +9,9 @@ import {
   MobileConsultationBooking,
   OTPVerificationSession
 } from '../types/mobileJyotishTypes';
-import { DEFAULT_PROFILES } from '../../types/astrology';
+import { DEFAULT_PROFILES } from '../../db/profileStore';
+
+export type { MobileUserProfile, MobileBirthProfile };
 
 const STORAGE_KEY_MOBILE_USER = 'balananda_mobile_user_session_v1';
 const STORAGE_KEY_MOBILE_PROFILES = 'balananda_mobile_birth_profiles_v1';
@@ -36,12 +38,19 @@ export const DEFAULT_MOBILE_PROFILES: MobileBirthProfile[] = [
     id: 'profile_self_01',
     name: 'सुवास शर्मा (मेरो)',
     gender: 'male',
+    dateAD: '1995-04-14',
+    dateBS: '२०५२ बैशाख ०१',
+    time: '06:30',
     dateOfBirth: '1995-04-14',
     timeOfBirth: '06:30',
     placeOfBirth: 'काठमाडौं, नेपाल',
-    latitude: 27.7172,
-    longitude: 85.3240,
-    timezone: 5.75,
+    location: {
+      name: 'काठमाडौं, नेपाल',
+      latitude: 27.7172,
+      longitude: 85.3240,
+      timeZone: 5.75,
+      country: 'नेपाल'
+    },
     relation: 'self',
     relationLabelNepali: 'आफ्नो (Self)',
     isDefault: true,
@@ -51,12 +60,19 @@ export const DEFAULT_MOBILE_PROFILES: MobileBirthProfile[] = [
     id: 'profile_fam_01',
     name: 'पार्वती शर्मा',
     gender: 'female',
+    dateAD: '1998-08-20',
+    dateBS: '२०५५ भाद्र ०४',
+    time: '14:15',
     dateOfBirth: '1998-08-20',
     timeOfBirth: '14:15',
     placeOfBirth: 'पोखरा, नेपाल',
-    latitude: 28.2096,
-    longitude: 83.9856,
-    timezone: 5.75,
+    location: {
+      name: 'पोखरा, नेपाल',
+      latitude: 28.2096,
+      longitude: 83.9856,
+      timeZone: 5.75,
+      country: 'नेपाल'
+    },
     relation: 'spouse',
     relationLabelNepali: 'जीवनसाथी (Spouse)',
     isDefault: false

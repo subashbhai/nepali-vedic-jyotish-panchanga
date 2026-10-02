@@ -54,8 +54,8 @@ export const MobileReportsView: React.FC<{
 
             <div class="box">
               <h3>व्यक्तिगत विवरण (Jatak Profile)</h3>
-              <p><strong>नाम:</strong> ${profile.name} &nbsp;|&nbsp; <strong>जन्म मिति:</strong> ${profile.dateOfBirth} &nbsp;|&nbsp; <strong>समय:</strong> ${profile.timeOfBirth}</p>
-              <p><strong>स्थान:</strong> ${profile.placeOfBirth} &nbsp;|&nbsp; <strong>जन्म लग्न:</strong> ${kundaliData.lagna?.rashiName || 'मेष'} (${kundaliData.lagna?.formattedDegree || '००°००'})</p>
+              <p><strong>नाम:</strong> ${profile.name} &nbsp;|&nbsp; <strong>जन्म मिति:</strong> ${profile.dateBS || profile.dateAD || profile.dateOfBirth} &nbsp;|&nbsp; <strong>समय:</strong> ${profile.time || profile.timeOfBirth}</p>
+              <p><strong>स्थान:</strong> ${profile.location?.name || profile.placeOfBirth || 'नेपाल'} &nbsp;|&nbsp; <strong>जन्म लग्न:</strong> ${kundaliData.lagna?.rashiName || 'मेष'} (${kundaliData.lagna?.formattedDegree || '००°००'})</p>
             </div>
 
             <div class="box">

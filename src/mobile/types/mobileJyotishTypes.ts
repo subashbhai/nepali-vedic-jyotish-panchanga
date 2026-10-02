@@ -36,6 +36,9 @@ export interface MobileBirthProfile extends BirthDetails {
   relationLabelNepali: string;
   isDefault?: boolean;
   notes?: string;
+  dateOfBirth?: string;
+  timeOfBirth?: string;
+  placeOfBirth?: string;
 }
 
 export interface MobileConsultationBooking {

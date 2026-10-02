@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { MobileBirthProfile } from '../types/mobileJyotishTypes';
 import { MobileKundaliPayload } from '../services/mobileAstrologyService';
-import { NorthIndianChart } from '../../components/NorthIndianChart';
+import { KundaliChart } from '../../components/KundaliChart';
 
 interface MobileKundaliViewProps {
   profile: MobileBirthProfile;
@@ -44,7 +44,7 @@ export const MobileKundaliView: React.FC<MobileKundaliViewProps> = ({
             </h2>
           </div>
           <p className="text-[11px] text-stone-400 mt-0.5">
-            {profile.dateOfBirth} • {profile.timeOfBirth} • {profile.placeOfBirth}
+            {profile.dateBS || profile.dateAD} • {profile.time} • {profile.location?.name || profile.placeOfBirth || 'काठमाडौं, नेपाल'}
           </p>
         </div>
 
@@ -143,9 +143,11 @@ export const MobileKundaliView: React.FC<MobileKundaliViewProps> = ({
           {/* North Indian Diamond Chart */}
           <div className="bg-stone-950 p-2 rounded-2xl border border-amber-500/30 shadow-xl flex items-center justify-center overflow-hidden">
             <div className="w-full max-w-[340px] aspect-square">
-              <NorthIndianChart
-                chartData={currentChart}
-                title={`${selectedVarga === 'D1' ? 'लग्न' : selectedVarga === 'D9' ? 'नवांश' : 'दशांश'} कुण्डली`}
+              <KundaliChart
+                houses={currentChart?.houses}
+                lagna={lagna}
+                planets={planets}
+                chartTitle={`${selectedVarga === 'D1' ? 'लग्न' : selectedVarga === 'D9' ? 'नवांश' : 'दशांश'} कुण्डली`}
               />
             </div>
           </div>

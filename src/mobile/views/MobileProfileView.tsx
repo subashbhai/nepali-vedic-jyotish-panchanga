@@ -84,12 +84,18 @@ export const MobileProfileView: React.FC<{
       id: `prof_${Date.now()}`,
       name: name.trim(),
       gender,
+      dateAD: dateOfBirth,
+      time: timeOfBirth,
       dateOfBirth,
       timeOfBirth,
       placeOfBirth,
-      latitude: 27.7172,
-      longitude: 85.3240,
-      timezone: 5.75,
+      location: {
+        name: placeOfBirth || 'काठमाडौं, नेपाल',
+        latitude: 27.7172,
+        longitude: 85.3240,
+        timeZone: 5.75,
+        country: 'नेपाल'
+      },
       relation,
       relationLabelNepali: relationLabels[relation],
       isDefault: false
@@ -197,11 +203,11 @@ export const MobileProfileView: React.FC<{
                       )}
                     </div>
                     <p className="text-[11px] text-stone-400">
-                      जन्म: {p.dateOfBirth} • {p.timeOfBirth}
+                      जन्म: {p.dateBS || p.dateAD || p.dateOfBirth} • {p.time || p.timeOfBirth}
                     </p>
                     <p className="text-[10px] text-stone-500 flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-stone-400" />
-                      <span>{p.placeOfBirth}</span>
+                      <span>{p.location?.name || p.placeOfBirth || 'नेपाल'}</span>
                     </p>
                   </div>
 

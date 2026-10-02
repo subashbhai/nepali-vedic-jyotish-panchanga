@@ -12,6 +12,22 @@ import {
 import { PanchangaData } from '../../types/astrology';
 
 export const MobilePanchangaView: React.FC<{ panchanga: PanchangaData }> = ({ panchanga }) => {
+  const abhijitStr = panchanga.abhijitMuhurta
+    ? `${panchanga.abhijitMuhurta.start} - ${panchanga.abhijitMuhurta.end}`
+    : '११:३८ - १२:२६';
+
+  const rahuStr = panchanga.rahuKaal
+    ? `${panchanga.rahuKaal.start} - ${panchanga.rahuKaal.end}`
+    : '०१:३० - ०३:००';
+
+  const yamaStr = panchanga.yamaganda
+    ? `${panchanga.yamaganda.start} - ${panchanga.yamaganda.end}`
+    : '११:४५ - ०१:१५';
+
+  const guliStr = panchanga.gulika
+    ? `${panchanga.gulika.start} - ${panchanga.gulika.end}`
+    : '०२:१५ - ०३:४५';
+
   return (
     <div className="space-y-4 pb-20">
       {/* 1. Date Header */}
@@ -22,10 +38,10 @@ export const MobilePanchangaView: React.FC<{ panchanga: PanchangaData }> = ({ pa
             <span>दैनिक वैदिक पञ्चाङ्ग</span>
           </h2>
           <p className="text-xs text-amber-300 font-bold mt-1">
-            {panchanga.formattedDateBS || panchanga.dateBS}
+            {panchanga.dateBS || panchanga.dateAD}
           </p>
           <p className="text-[10px] text-stone-400 font-mono">
-            {panchanga.dateAD} • {panchanga.location?.name || 'काठमाडौं, नेपाल'}
+            {panchanga.dateAD} • काठमाडौं, नेपाल
           </p>
         </div>
 
@@ -169,7 +185,7 @@ export const MobilePanchangaView: React.FC<{ panchanga: PanchangaData }> = ({ pa
               <span>अभिजित् मुहूर्त (सर्वोत्तम)</span>
             </span>
             <span className="font-mono font-bold text-stone-100 text-xs block">
-              {panchanga.abhijitMuhurta || '११:३८ - १२:२६'}
+              {abhijitStr}
             </span>
           </div>
 
@@ -179,21 +195,21 @@ export const MobilePanchangaView: React.FC<{ panchanga: PanchangaData }> = ({ pa
               <span>राहुकाल (वर्जित)</span>
             </span>
             <span className="font-mono font-bold text-stone-100 text-xs block">
-              {panchanga.rahukaal || '०१:३० - ०३:००'}
+              {rahuStr}
             </span>
           </div>
 
           <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800">
             <span className="text-[10px] text-stone-400 block">यमघण्ट काल:</span>
             <span className="font-mono font-bold text-stone-200 text-[11px]">
-              {panchanga.yamaghanta || '११:४५ - ०१:१५'}
+              {yamaStr}
             </span>
           </div>
 
           <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800">
             <span className="text-[10px] text-stone-400 block">गुलिक काल:</span>
             <span className="font-mono font-bold text-stone-200 text-[11px]">
-              {panchanga.gulika || '०२:१५ - ०३:४५'}
+              {guliStr}
             </span>
           </div>
         </div>

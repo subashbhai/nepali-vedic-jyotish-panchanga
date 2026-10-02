@@ -58,7 +58,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
                 {activeProfile.name}
               </h2>
               <p className="text-[10px] text-stone-400 font-mono truncate">
-                {activeProfile.placeOfBirth} • {activeProfile.dateOfBirth}
+                {activeProfile.location?.name || activeProfile.placeOfBirth || 'काठमाडौं, नेपाल'} • {activeProfile.dateBS || activeProfile.dateAD}
               </p>
             </div>
           </div>
@@ -80,7 +80,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
           <div className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-amber-400" />
             <span className="font-bold text-stone-200">
-              {panchanga.formattedDateBS || panchanga.dateBS}
+              {panchanga.dateBS || panchanga.dateAD}
             </span>
           </div>
           <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-800">
@@ -99,7 +99,9 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
           </div>
           <div className="bg-stone-950/70 p-2 rounded-xl border border-stone-800/80">
             <span className="text-stone-400 text-[10px] block">राहुकाल</span>
-            <span className="font-bold text-rose-300 text-[10px]">{panchanga.rahukaal || '०१:३०-०३:००'}</span>
+            <span className="font-bold text-rose-300 text-[10px]">
+              {panchanga.rahuKaal ? `${panchanga.rahuKaal.start}-${panchanga.rahuKaal.end}` : '०१:३०-०३:००'}
+            </span>
           </div>
         </div>
       </div>
