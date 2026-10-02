@@ -57,7 +57,7 @@
   },
   "build": {
     "appId": "com.balananda.jyotish",
-    "productName": "नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग",
+    "productName": "बालानन्द वैदिक ज्योतिष तथा वास्तु सेवा",
     "electronVersion": "35.0.0",
     "directories": {
       "output": "dist_electron"
@@ -93,7 +93,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "नेपाली वैदिक ज्योतिष"
+      "shortcutName": "बालानन्द वैदिक ज्योतिष तथा वास्तु सेवा"
     }
   }
 }

@@ -1,0 +1,301 @@
+/**
+ * Vastu Core — Zones & Panchamahabhuta Module
+ * Zone classifications, five elements (Panchamahabhuta), deities, and planetary rulerships
+ */
+
+import { VastuPrimaryDirection, VASTU_PRIMARY_DIRECTIONS, VastuDirectionInfo } from './vastuDirections';
+
+export type Panchamahabhuta = 'जल' | 'अग्नि' | 'पृथ्वी' | 'वायु' | 'आकाश';
+
+export interface PanchamahabhutaInfo {
+  element: Panchamahabhuta;
+  nameEnglish: string;
+  primaryZone: VastuPrimaryDirection[];
+  color: string;
+  shape: string;
+  nature: string;
+  associatedOrgan: string;
+  friendlyElements: Panchamahabhuta[];
+  enemyElements: Panchamahabhuta[];
+  traditionalDescription: string;
+}
+
+export const PANCHAMAHABHUTA_DATA: Record<Panchamahabhuta, PanchamahabhutaInfo> = {
+  जल: {
+    element: 'जल',
+    nameEnglish: 'Water (Jala Tattva)',
+    primaryZone: ['NE', 'N'],
+    color: 'नीलो, सेतो, जल रङ्ग',
+    shape: 'लहरदार, गोलाकार',
+    nature: 'शीतल, प्रवाहशील, शान्त, शुद्धिकारक',
+    associatedOrgan: 'मृगौला, रक्तसञ्चार, मानसिक शान्ति',
+    friendlyElements: ['वायु', 'आकाश'],
+    enemyElements: ['अग्नि', 'पृथ्वी'],
+    traditionalDescription: 'ज्ञान, विवेक, आर्थिक प्रवाह र वंशवृद्धिको आधारभूत तत्व।',
+  },
+  अग्नि: {
+    element: 'अग्नि',
+    nameEnglish: 'Fire (Agni Tattva)',
+    primaryZone: ['SE', 'S'],
+    color: 'रातो, सुन्तला, गुलाबी',
+    shape: 'त्रिकोणाकार',
+    nature: 'उष्ण, तेजिलो, सक्रिय, रूपान्तरणकारी',
+    associatedOrgan: 'पाचन प्रणाली, आँखा, मुटु',
+    friendlyElements: ['वायु', 'पृथ्वी'],
+    enemyElements: ['जल'],
+    traditionalDescription: 'ऊर्जा, उत्साह, पाचन, भौतिक प्रगति र सामर्थ्यको प्रतीक।',
+  },
+  पृथ्वी: {
+    element: 'पृथ्वी',
+    nameEnglish: 'Earth (Prithvi Tattva)',
+    primaryZone: ['SW'],
+    color: 'पहेँलो, माटोको रङ्ग, खैरो',
+    shape: 'वर्गाकार (Square)',
+    nature: 'भारी, स्थिर, सहनशील, धारक',
+    associatedOrgan: 'हड्डी, मांसपेशी, स्थिरता',
+    friendlyElements: ['अग्नि', 'आकाश'],
+    enemyElements: ['जल', 'वायु'],
+    traditionalDescription: 'घरको जग, स्थिरता, पारिवारिक सम्बन्ध, दीर्घायु र धन सञ्चय।',
+  },
+  वायु: {
+    element: 'वायु',
+    nameEnglish: 'Air (Vayu Tattva)',
+    primaryZone: ['NW', 'E', 'W'],
+    color: 'हल्का हरियो, खैरो, सेतो',
+    shape: 'गोलाकार, चञ्चल',
+    nature: 'गतिशील, परिवर्तनशील, हलुङ्गो',
+    associatedOrgan: 'श्वासप्रश्वास, स्नायु प्रणाली',
+    friendlyElements: ['जल', 'अग्नि'],
+    enemyElements: ['पृथ्वी'],
+    traditionalDescription: 'सञ्चार, सामाजिक सम्बन्ध, व्यापारिक सहकार्य र गतिशीलता।',
+  },
+  आकाश: {
+    element: 'आकाश',
+    nameEnglish: 'Space / Ether (Akasha Tattva)',
+    primaryZone: ['CENTER'],
+    color: 'पारदर्शी, शुद्ध सेतो, हल्का सुनौलो',
+    shape: 'निराकार, अनन्त',
+    nature: 'सर्वव्यापी, हलुङ्गो, सूक्ष्म, पवित्र',
+    associatedOrgan: 'आन्तरिक चेतना, कान, ध्वनि',
+    friendlyElements: ['जल', 'अग्नि', 'पृथ्वी', 'वायु'],
+    enemyElements: [],
+    traditionalDescription: 'सम्पूर्ण घरको खुला प्राण, चेतना र आध्यात्मिक शक्तिको मूल केन्द्र।',
+  },
+};
+
+export interface DetailedVastuZone extends VastuDirectionInfo {
+  favorableColors: string[];
+  unfavorableColors: string[];
+  bestUsages: string[];
+  avoidUsages: string[];
+  doshaImpact: string;
+  traditionalRemedies: string[];
+}
+
+export const DETAILED_VASTU_ZONES: DetailedVastuZone[] = [
+  {
+    code: 'NE',
+    nameNepali: 'उत्तर-पूर्व (ईशान कोण)',
+    nameSanskrit: 'ईशान कोण',
+    nameEnglish: 'North-East',
+    angleDegree: 45,
+    degreeRange: '२२.५° - ६७.५°',
+    deity: 'ईशान / शिव',
+    guardianLord: 'ईशान महादेव',
+    rulingPlanet: 'बृहस्पति (गुरु)',
+    element: 'जल',
+    symbolicMeaning: 'ज्ञान, बुद्धि, सत्वगुण र दिव्य आशीर्वादको द्वार।',
+    favorableColors: ['हल्का नीलो', 'सेतो', 'हल्का पहेँलो'],
+    unfavorableColors: ['गाढा रातो', 'कालो'],
+    bestUsages: ['पूजा कोठा', 'ध्यान कक्ष', 'अध्ययन कक्ष', 'खुल्ला आँगन', 'भूमिगत जल स्रोत'],
+    avoidUsages: ['शौचालय', 'भान्सा कोठा', 'भारी भर्याङ', 'फोहोरमैला', 'भारी सामान'],
+    doshaImpact: 'मानसिक अशान्ति, टाउको दुखाइ, निर्णय क्षमतामा ह्रास, सन्तान सुखमा बाधा।',
+    traditionalRemedies: [
+      'ईशान कोणलाई सधैँ सफा, खुला, हलुङ्गो र उज्यालो राख्नुहोस्।',
+      'तामाको कलशमा गङ्गाजल वा सफा जल भरेर ईशान कुनामा स्थापना गर्नुहोस्।',
+      'बृहस्पति यन्त्र वा श्रीयन्त्र स्थापना गर्नुहोस्।',
+      'अनावश्यक भारी सामान तुरुन्त हटाई सेतो वा हल्का नीलो रङ्ग लगाउनुहोस्।',
+    ],
+  },
+  {
+    code: 'E',
+    nameNepali: 'पूर्व (इन्द्र दिशा)',
+    nameSanskrit: 'पूर्व दिशा',
+    nameEnglish: 'East',
+    angleDegree: 90,
+    degreeRange: '६७.५° - ११२.५°',
+    deity: 'इन्द्र देव / सूर्य',
+    guardianLord: 'इन्द्र',
+    rulingPlanet: 'सूर्य',
+    element: 'वायु',
+    symbolicMeaning: 'मान-सम्मान, सामाजिक सम्बन्ध, सरकारी कृपा र आरोग्य।',
+    favorableColors: ['हल्का हरियो', 'सेतो', 'हल्का सुन्तला'],
+    unfavorableColors: ['कालो', 'गाढा खैरो'],
+    bestUsages: ['मुख्य प्रवेशद्वार', 'बैठक कोठा (Living Room)', 'बरण्डा', 'अध्ययन कक्ष'],
+    avoidUsages: ['शौचालय', 'अग्लो पर्खाल जसले बिहानी घाम छेक्छ', 'भारी भण्डार कक्ष'],
+    doshaImpact: 'सामाजिक मान-सम्मानमा कमी, आँखा वा मुटु सम्बन्धी समस्या, पितासँग मनमुटाव।',
+    traditionalRemedies: [
+      'पूर्वतर्फका झ्याल र ढोका बिहान खुला राखी बिहानी सूर्यको प्रकाश भित्रिन दिनुहोस्।',
+      'पूर्व भित्तामा तामाको सूर्यदेव प्रतीक वा गायत्री मन्त्र फ्रेम राख्नुहोस्।',
+      'तुलसीको मठ पूर्व वा उत्तर-पूर्वमा स्थापना गरी नित्य जल चढाउनुहोस्।',
+    ],
+  },
+  {
+    code: 'SE',
+    nameNepali: 'दक्षिण-पूर्व (आग्नेय कोण)',
+    nameSanskrit: 'आग्नेय कोण',
+    nameEnglish: 'South-East',
+    angleDegree: 135,
+    degreeRange: '११२.५° - १५७.५°',
+    deity: 'अग्नि देव',
+    guardianLord: 'अग्नि',
+    rulingPlanet: 'शुक्र',
+    element: 'अग्नि',
+    symbolicMeaning: 'उर्जा, उत्साह, नगद धन, विलासिता र पाचन शक्ति।',
+    favorableColors: ['सुन्तला', 'हल्का रातो', 'गुलाबी', 'हल्का पहेँलो'],
+    unfavorableColors: ['गाढा नीलो', 'कालो'],
+    bestUsages: ['भान्सा कोठा (Kitchen)', 'बिजुली मिटर / इन्भर्टर', 'हिटर / जेनेरेटर'],
+    avoidUsages: ['पानीको ट्याङ्की / इनार', 'शयन कक्ष', 'पूजा कोठा', 'मुख्य ढोका'],
+    doshaImpact: 'गृहिणीको स्वास्थ्यमा समस्या, भान्सामा दुर्घटनाको भय, अनावश्यक खर्च र ऋण।',
+    traditionalRemedies: [
+      'भान्सा कोठामा खाना बनाउँदा पूर्वतर्फ फर्किने गरी ग्यास चुलो राख्नुहोस्।',
+      'आग्नेय कोणमा सानो रातो वा सुन्तला रङ्गको बत्ती निरन्तर बाल्नुहोस्।',
+      'शुक्र यन्त्र वा तामाको पिरामिड स्थापना गर्नुहोस्।',
+    ],
+  },
+  {
+    code: 'S',
+    nameNepali: 'दक्षिण (यम दिशा)',
+    nameSanskrit: 'दक्षिण दिशा',
+    nameEnglish: 'South',
+    angleDegree: 180,
+    degreeRange: '१५७.५° - २०२.५°',
+    deity: 'यमराज / धर्मराज',
+    guardianLord: 'यम',
+    rulingPlanet: 'मङ्गल',
+    element: 'अग्नि',
+    symbolicMeaning: 'स्थिरता, ख्याति, शौर्य र कानुनी विजय।',
+    favorableColors: ['रातो', 'खैरो', 'पहेँलो'],
+    unfavorableColors: ['नीलो', 'हरियो'],
+    bestUsages: ['शयन कक्ष', 'भारी सामान भण्डार', 'भर्याङ'],
+    avoidUsages: ['मुख्य पानीको स्रोत', 'पूजा कोठा', 'गहिरो खाल्डो'],
+    doshaImpact: 'कानुनी झमेला, मानसिक अशान्ति, रक्तचाप सम्बन्धी समस्या।',
+    traditionalRemedies: [
+      'दक्षिण दिशाको भाग उत्तरभन्दा अग्लो र गह्रुङ्गो बनाउनुहोस्।',
+      'दक्षिण भित्तामा मङ्गल यन्त्र वा हनुमान जीको चित्र स्थापना गर्नुहोस्।',
+    ],
+  },
+  {
+    code: 'SW',
+    nameNepali: 'दक्षिण-पश्चिम (नैऋत्य कोण)',
+    nameSanskrit: 'नैऋत्य कोण',
+    nameEnglish: 'South-West',
+    angleDegree: 225,
+    degreeRange: '२०२.५° - २४७.५°',
+    deity: 'नैऋति / पितृ देव',
+    guardianLord: 'निरृति',
+    rulingPlanet: 'राहु',
+    element: 'पृथ्वी',
+    symbolicMeaning: 'घरको प्रमुख स्थायित्व, गृहस्वामीको अधिकार, निर्णय शक्ति।',
+    favorableColors: ['पहेँलो', 'माटोको रङ्ग', 'गाढा खैरो'],
+    unfavorableColors: ['नीलो', 'सेतो', 'हरियो'],
+    bestUsages: ['घरमूलीको मुख्य शयन कक्ष (Master Bedroom)', 'भारी सेफ / दराज', 'भारी भण्डार'],
+    avoidUsages: ['मुख्य प्रवेशद्वार', 'शौचालय', 'भूमिगत पानीको ट्याङ्की', 'पूजा कोठा'],
+    doshaImpact: 'गृहस्वामीको अधिकार कमजोर हुनु, अकाल भय, आर्थिक नोक्सानी, अस्थिरता।',
+    traditionalRemedies: [
+      'नैऋत्य कोणलाई घरको सबैभन्दा अग्लो, भारी र बन्द भाग बनाउनुहोस्।',
+      'राहु यन्त्र वा पञ्चधातु पिरामिड स्थापना गरी स्थिरता ल्याउनुहोस्।',
+      'नैऋत्यमा भूमिगत खाल्डो भए तत्काल पुरेई माटो भर्नुहोस्।',
+    ],
+  },
+  {
+    code: 'W',
+    nameNepali: 'पश्चिम (वरुण दिशा)',
+    nameSanskrit: 'पश्चिम दिशा',
+    nameEnglish: 'West',
+    angleDegree: 270,
+    degreeRange: '२४७.५° - २९२.५°',
+    deity: 'वरुण देव',
+    guardianLord: 'वरुण',
+    rulingPlanet: 'शनि',
+    element: 'वायु',
+    symbolicMeaning: 'लाभ, उपलब्धि, व्यवसायिक प्रतिफल र सन्तोष।',
+    favorableColors: ['सेतो', 'हल्का नीलो', 'ग्रे'],
+    unfavorableColors: ['रातो', 'सुन्तला'],
+    bestUsages: ['भोजन कक्ष (Dining Room)', 'अध्ययन कक्ष', 'बालबालिकाको कोठा', 'माथिल्लो पानी ट्याङ्की'],
+    avoidUsages: ['भूमिगत खाल्डो', 'पूजा कोठा'],
+    doshaImpact: 'व्यापारमा घाटा, काममा ढिलासुस्ती, जोर्नी दुखाइ।',
+    traditionalRemedies: [
+      'पश्चिममा भोजन कक्ष राखी पश्चिम वा पूर्व फर्केर भोजन गर्नुहोस्।',
+      'शनि यन्त्र वा धातुको विन्ड चाइम स्थापना गर्नुहोस्।',
+    ],
+  },
+  {
+    code: 'NW',
+    nameNepali: 'उत्तर-पश्चिम (वायव्य कोण)',
+    nameSanskrit: 'वायव्य कोण',
+    nameEnglish: 'North-West',
+    angleDegree: 315,
+    degreeRange: '२९२.५° - ३३७.५°',
+    deity: 'वायु देव',
+    guardianLord: 'पवन',
+    rulingPlanet: 'चन्द्रमा',
+    element: 'वायु',
+    symbolicMeaning: 'सम्बन्ध, पाहुना सत्कार, गतिशीलता, सहयोग र सामाजिक सम्पर्क।',
+    favorableColors: ['सेतो', 'क्रिम', 'हल्का हरियो'],
+    unfavorableColors: ['रातो', 'गाढा पहेँलो'],
+    bestUsages: ['अतिथि कक्ष (Guest Room)', 'अविवाहित कन्याको कोठा', 'अन्न भण्डार', 'पार्किङ', 'शौचालय'],
+    avoidUsages: ['घरमूलीको शयन कक्ष', 'भारी सामान स्थायी राख्ने ठाउँ'],
+    doshaImpact: 'मानसिक चञ्चलता, अनिद्रा, छिमेकी वा साथीभाइसँग विवाद।',
+    traditionalRemedies: [
+      'वायव्य कोणमा चन्द्र यन्त्र वा सेतो मोती/स्फटिक राख्नुहोस्।',
+      'पाहुना कक्ष वायव्यमा राखी सम्बन्ध सुमधुर बनाउनुहोस्।',
+    ],
+  },
+  {
+    code: 'N',
+    nameNepali: 'उत्तर (कुबेर दिशा)',
+    nameSanskrit: 'उत्तर दिशा',
+    nameEnglish: 'North',
+    angleDegree: 0,
+    degreeRange: '३३७.५° - २२.५°',
+    deity: 'कुबेर / सोम',
+    guardianLord: 'कुबेर',
+    rulingPlanet: 'बुध',
+    element: 'जल',
+    symbolicMeaning: 'धन सम्पत्ति, नयाँ व्यवसायिक अवसर, करियर वृद्धि र सफलता।',
+    favorableColors: ['हल्का हरियो', 'हल्का नीलो', 'सेतो'],
+    unfavorableColors: ['रातो', 'गाढा पहेँलो'],
+    bestUsages: ['मुख्य प्रवेशद्वार', 'नगद दराज / तिजोरी', 'कार्यालय / बैठक कक्ष', 'खुल्ला ठाउँ'],
+    avoidUsages: ['शौचालय', 'भारी भर्याङ', 'फोहोरमैला संकलन'],
+    doshaImpact: 'आर्थिक अवरोध, आम्दानीका नयाँ स्रोत बन्द हुनु, ऋणको समस्या।',
+    traditionalRemedies: [
+      'उत्तर भित्तामा कुबेर यन्त्र वा लक्ष्मी-कुबेरको तस्बिर राख्नुहोस्।',
+      'नगद दराज उत्तर भित्तामा राखी दक्षिणतर्फबाट उत्तर खुल्ने बनाउनुहोस्।',
+      'उत्तर भाग सधैँ खुला, सफा र हल्का राख्नुहोस्।',
+    ],
+  },
+  {
+    code: 'CENTER',
+    nameNepali: 'ब्रह्मस्थान (घरको केन्द्र भाग)',
+    nameSanskrit: 'ब्रह्मस्थान / नाभिकेन्द्र',
+    nameEnglish: 'Center (Brahmasthan)',
+    angleDegree: 0,
+    degreeRange: 'केन्द्र भाग',
+    deity: 'ब्रह्मा जी',
+    guardianLord: 'ब्रह्मा',
+    rulingPlanet: 'सर्वग्रह समन्वय',
+    element: 'आकाश',
+    symbolicMeaning: 'घरको प्राणवायु, ऊर्जा सञ्चारको मुटु, शान्ति र एकता।',
+    favorableColors: ['सेतो', 'हल्का पहेँलो', 'पारदर्शी'],
+    unfavorableColors: ['कालो', 'गाढा रातो'],
+    bestUsages: ['खुल्ला आँगन / हल', 'हल्का बत्ती', 'परिवार मिलन केन्द्र'],
+    avoidUsages: ['खम्बा (Pillar)', 'भर्याङ', 'शौचालय', 'भान्सा', 'भारी पर्खाल'],
+    doshaImpact: 'घरका सदस्यहरूबीच भारी कलह, सबै कार्यमा अवरोध, प्राणशक्तिको क्षय।',
+    traditionalRemedies: [
+      'ब्रह्मस्थानलाई पूर्ण रूपमा खुला, सफा, उज्यालो र भारमुक्त राख्नुहोस्।',
+      'यदि ब्रह्मस्थानमा खम्बा वा पर्खाल परेको छ भने चारै दिशामा तामाको पिरामिड स्थापना गर्नुहोस्।',
+      'दैनिक बिहान ब्रह्मस्थानमा घण्टी वा शङ्ख बजाई सकारात्मक कम्पन पैदा गर्नुहोस्।',
+    ],
+  },
+];

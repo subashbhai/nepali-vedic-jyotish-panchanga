@@ -334,12 +334,27 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                 </div>
               </div>
 
-              {/* Live update notice */}
-              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800/60 flex items-start gap-2.5 text-xs text-amber-950 dark:text-amber-200">
-                <RefreshCw className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-spin-slow" />
-                <div>
-                  <strong>स्वचालित लाइभ अपडेट:</strong> तपाईंले एप चलाइरहँदा नयाँ सुधार वा सुविधाहरू थपिएमा एपले स्वतः पहिचान गरी कम्प्युटरमै नयाँ संस्करण अपडेट गरिदिनेछ।
+              {/* Live update notice & Live Preview Button */}
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 dark:text-amber-200">
+                <div className="flex items-start gap-2.5">
+                  <RefreshCw className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-spin-slow" />
+                  <div>
+                    <strong>स्वचालित लाइभ अपडेट:</strong> नयाँ सुधार वा सुविधाहरू थपिएमा एपले स्वतः पहिचान गरी कम्प्युटरमै नयाँ संस्करण अपडेट गरिदिनेछ।
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem('balananda_force_windows_app_shell', 'true');
+                    window.dispatchEvent(new CustomEvent('windows-mode-changed'));
+                    onClose();
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-xs flex items-center justify-center gap-1.5 shrink-0 transition-transform hover:scale-102 cursor-pointer"
+                >
+                  <span>💻</span>
+                  <span>Windows एप प्रत्यक्ष अनुभव गर्नुहोस् (Live Preview)</span>
+                </button>
               </div>
             </div>
           )}
