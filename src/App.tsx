@@ -393,9 +393,8 @@ export default function App() {
             setActiveTab('kharedi');
           } else if (magicRole === 'MARRIAGE_MODERATOR') {
             setActiveTab('vivah');
-          } else if (magicRole === 'NEWS_EDITOR') {
-            setAdminInitialTab('samachar_editor');
-            setActiveTab('admin_control');
+          } else if (magicRole === 'NEWS_EDITOR' || validated.session.role === 'NEWS_EDITOR') {
+            setActiveTab('samachar');
           }
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
@@ -411,9 +410,8 @@ export default function App() {
         setActiveTab('kharedi');
       } else if (portal === 'vivah_mod') {
         setActiveTab('vivah');
-      } else if (portal === 'samachar_editor') {
-        setAdminInitialTab('samachar_editor');
-        setActiveTab('admin_control');
+      } else if (portal === 'samachar_editor' || portal === 'news_editor') {
+        setActiveTab('samachar');
       } else if (portal === 'superadmin') {
         setActiveTab('admin_control');
       }
@@ -694,31 +692,20 @@ export default function App() {
           userId: 'editor-' + Date.now(),
           username: editorRecord.recipientName || 'समाचार सम्पादक',
           fullName: editorRecord.recipientName || 'समाचार सम्पादक',
-          role: 'SUPER_ADMIN',
-          roleNameNepali: 'समाचार सम्पादक (सक्रिय लिङ्क)',
+          role: 'NEWS_EDITOR',
+          roleNameNepali: 'समाचार सम्पादक (News Editor)',
           status: 'active',
-          permissions: ['ALL', 'NEWS_EDITOR', 'CREATE_SAMACHAR', 'EDIT_SAMACHAR', 'PUBLISH_SAMACHAR'],
+          permissions: ['news.view', 'news.create', 'news.edit', 'news.delete', 'news.publish', 'news.breaking', 'news.analytics'],
           createdAtISO: editorRecord.issuedAt,
           lastActivityISO: new Date().toISOString(),
         };
         setRbacSession(magicSession);
-        setHasFullAccess(true);
+        try {
+          localStorage.setItem('balananda_rbac_active_session_v1', JSON.stringify(magicSession));
+        } catch {}
 
-        // Also establish active AdminSession so SuperAdminControlCenter opens immediately without login wall
-        const adminSessionData: AdminSession = {
-          adminId: 'magic-admin-' + Date.now(),
-          username: editorRecord.recipientName || 'editor',
-          fullName: editorRecord.recipientName || 'समाचार सम्पादक',
-          role: 'super_admin',
-          roleNameNepali: 'समाचार सम्पादक (सक्रिय लिङ्क)',
-          permissions: ['manage_users', 'system_config', 'samachar_editor'],
-          loginTimeISO: new Date().toISOString(),
-          lastActivityISO: new Date().toISOString(),
-        };
-        setAdminSession(adminSessionData);
-
-        setAdminInitialTab('samachar_editor');
-        setActiveTab('admin_control');
+        setActiveTab('samachar');
+        window.history.replaceState({}, document.title, window.location.pathname);
       } else {
         alert(validation.messageNepali || 'सक्रिय लिङ्क अमान्य वा म्याद सकिएको छ।');
       }

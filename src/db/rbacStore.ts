@@ -2,7 +2,7 @@ import { convertADToBS } from '../utils/nepaliCalendar';
 import { verifyPassword } from '../utils/cryptoUtils';
 import { BirthDetails } from '../types/astrology';
 
-export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR';
+export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
 
 export type AccountStatus = 'active' | 'pending' | 'rejected' | 'suspended' | 'disabled';
 
@@ -134,6 +134,15 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, string[]> = {
     'marriage.requests.moderate',
     'marriage.audit.view',
     'audit.view'
+  ],
+  NEWS_EDITOR: [
+    'news.view',
+    'news.create',
+    'news.edit',
+    'news.delete',
+    'news.publish',
+    'news.breaking',
+    'news.analytics'
   ],
   POS_STAFF: [
     'store.view',
@@ -287,6 +296,7 @@ export function getRoleLabelNepali(role: SystemRole): string {
     case 'SUPER_ADMIN': return 'Super Admin';
     case 'MARRIAGE_USER': return 'विवाह सेवाग्राही (Marriage Member)';
     case 'MARRIAGE_MODERATOR': return 'विवाह सुपरभाइजर (Marriage Moderator)';
+    case 'NEWS_EDITOR': return 'समाचार सम्पादक (News Editor)';
     default: return 'उपभोक्ता';
   }
 }
@@ -304,6 +314,7 @@ export function generateNextCustomerId(role: SystemRole): string {
   if (role === 'SUPER_ADMIN') prefix = 'ADM';
   if (role === 'MARRIAGE_USER') prefix = 'MRG';
   if (role === 'MARRIAGE_MODERATOR') prefix = 'MMD';
+  if (role === 'NEWS_EDITOR') prefix = 'NWS';
 
   return `BAL-${prefix}-${yearBS}-${padCount}`;
 }
