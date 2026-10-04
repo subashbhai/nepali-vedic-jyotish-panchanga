@@ -41,7 +41,6 @@ interface SamacharViewProps {
   todayPanchanga?: PanchangaData;
   todayAD?: string;
   todayBS?: string;
-  onOpenAdminEditor?: () => void;
   onNavigateTab?: (tab: string) => void;
 }
 
@@ -50,7 +49,6 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
   todayPanchanga: propPanchanga,
   todayAD: propTodayAD,
   todayBS: propTodayBS,
-  onOpenAdminEditor,
   onNavigateTab
 }) => {
   // Current Date Fallback
@@ -221,21 +219,6 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
               </span>
             </div>
           </div>
-
-          {/* Admin Editor Button */}
-          {onOpenAdminEditor && (
-            <div className="shrink-0 self-start md:self-center">
-              <button
-                type="button"
-                onClick={onOpenAdminEditor}
-                className="flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold px-4 py-2.5 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer text-xs sm:text-sm"
-                title="समाचार सम्पादन तथा थप व्यवस्थापन"
-              >
-                <ShieldCheck className="w-4 h-4 text-[#7A1C1C]" />
-                <span>सम्पादक ड्यासबोर्ड</span>
-              </button>
-            </div>
-          )}
         </div>
       </div>
 

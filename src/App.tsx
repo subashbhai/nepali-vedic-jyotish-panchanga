@@ -50,6 +50,7 @@ import type { VastuSubTab } from './components/VastuView';
 const VastuModalWindow = lazy(() => import('./components/VastuModalWindow').then((m) => ({ default: m.VastuModalWindow })));
 const VivahMilanView = lazy(() => import('./components/VivahMilanView').then((m) => ({ default: m.VivahMilanView })));
 const AdminVivahSection = lazy(() => import('./components/admin/sections/AdminVivahSection').then((m) => ({ default: m.AdminVivahSection })));
+const NewsEditorDashboard = lazy(() => import('./components/admin/sections/NewsEditorDashboard').then((m) => ({ default: m.NewsEditorDashboard })));
 const VivahMainView = lazy(() => import('./components/vivah/VivahMainView').then((m) => ({ default: m.VivahMainView })));
 const SanskarDocsView = lazy(() => import('./components/SanskarDocsView').then((m) => ({ default: m.SanskarDocsView })));
 const VastuView = lazy(() => import('./components/VastuView').then((m) => ({ default: m.VastuView })));
@@ -1301,22 +1302,56 @@ export default function App() {
           </main>
         </div>
       ) : isNewsEditorSession ? (
-        <Suspense fallback={
-          <div className="min-h-screen bg-[#0C0A09] flex flex-col items-center justify-center p-12 space-y-3 text-amber-500">
-            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-semibold">समाचार तथा लेख सम्पादक लोड हुँदैछ...</span>
-          </div>
-        }>
-          <AdminControlPanel
-            onClosePanel={handleLogoutRBAC}
-            onNavigateApp={(tab) => {}}
-            initialTab="samachar_editor"
-            profiles={profiles}
-            todayPanchanga={todayPanchanga}
-            orgProfile={orgProfile}
-            transitPlanets={todayTransitPlanets}
-          />
-        </Suspense>
+        <div className="min-h-screen bg-[#FDFCF8] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] flex flex-col">
+          {/* Isolated News Editor Workstation Header */}
+          <header className="sticky top-0 z-50 bg-stone-900 text-white px-4 py-3 border-b border-stone-800 shadow-md flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-stone-950 font-black flex items-center justify-center text-lg shadow-sm">
+                📰
+              </div>
+              <div>
+                <h1 className="font-bold text-sm sm:text-base font-serif text-amber-200">
+                  समाचार तथा लेख सम्पादक ड्यासबोर्ड
+                </h1>
+                <p className="text-[11px] text-stone-400">
+                  बालानन्द वैदिक पञ्चाङ्ग, चाडपर्व, खगोल तथा ज्योतिष समाचार व्यवस्थापन
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <div className="hidden sm:flex items-center gap-2 bg-stone-800 px-3 py-1.5 rounded-xl border border-stone-700 text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-stone-300">सम्पादक:</span>
+                <strong className="text-amber-300">{rbacSession?.fullName || rbacSession?.username || 'समाचार सम्पादक'}</strong>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleTheme}
+                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
+                title="Theme Toggle"
+              >
+                {settings.theme === 'dark' ? '☀️' : '🌙'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogoutRBAC}
+                className="px-3.5 py-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="सत्र बन्द गर्नुहोस्"
+              >
+                <span>सत्र बन्द / Logout</span>
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-1 p-3 sm:p-5 max-w-[1700px] w-full mx-auto">
+            <Suspense fallback={<div className="p-12 text-center text-xs text-amber-600 font-bold animate-pulse">समाचार तथा लेख सम्पादक ड्यासबोर्ड लोड हुँदैछ...</div>}>
+              <NewsEditorDashboard orgName={orgProfile.name} isStandalone={true} onRefreshParent={() => {}} />
+            </Suspense>
+          </main>
+        </div>
       ) : activeTab === 'admin_control' ? (
         <Suspense fallback={
           <div className="min-h-screen bg-[#0C0A09] flex flex-col items-center justify-center p-12 space-y-3 text-amber-500">
@@ -1786,14 +1821,6 @@ export default function App() {
                 todayPanchanga={todayPanchanga}
                 todayAD={todayAD}
                 todayBS={todayBS}
-                onOpenAdminEditor={() => {
-                  if (!rbacSession) {
-                    setIsRBACAuthModalOpen(true);
-                    return;
-                  }
-                  setAdminInitialTab('samachar_editor');
-                  setActiveTab('admin_control');
-                }}
                 onNavigateTab={(tab) => setActiveTab(tab as any)}
               />
             </PatrikaErrorBoundary>
