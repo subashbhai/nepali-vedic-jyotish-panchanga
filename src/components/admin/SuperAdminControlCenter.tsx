@@ -109,7 +109,7 @@ import { AdminSettingsSection } from './sections/AdminSettingsSection';
 import { AdminSecurityAuditSection } from './sections/AdminSecurityAuditSection';
 import { AdminReportSection } from './sections/AdminReportSection';
 import { AdminBackupSection } from './sections/AdminBackupSection';
-import { AdminSamacharSection } from './sections/AdminSamacharSection';
+import { NewsEditorDashboard } from './sections/NewsEditorDashboard';
 import { AdminRoleMagicLinksSection } from './sections/AdminRoleMagicLinksSection';
 import { AdminClientApprovalsSection } from './sections/AdminClientApprovalsSection';
 import { AdminTargetedPushNotificationSection } from './sections/AdminTargetedPushNotificationSection';
@@ -143,6 +143,11 @@ function resolveInitialAdminSession(): AdminSession | null {
       const rbac = JSON.parse(rawRbac);
       if (
         rbac &&
+        rbac.role !== 'NEWS_EDITOR' &&
+        rbac.role !== 'POS_STAFF' &&
+        rbac.role !== 'STORE_ADMIN' &&
+        rbac.role !== 'MARRIAGE_MODERATOR' &&
+        rbac.role !== 'CUSTOMER' &&
         (rbac.role === 'SUPER_ADMIN' ||
          rbac.role === 'ADMIN' ||
          rbac.permissions?.includes('all') ||
@@ -813,7 +818,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
               <AdminRoleMagicLinksSection />
             )}
             {activeTab === 'samachar_editor' && (
-              <AdminSamacharSection orgName={orgProfile?.name} />
+              <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
             )}
             {activeTab === 'advertisement' && (
               <AdminAdvertisementSection />

@@ -174,7 +174,7 @@ export function validateRoleMagicToken(token: string): {
       permissions = ['marriage.admin', 'marriage.approve', 'marriage.view_all'];
       break;
     case 'NEWS_EDITOR':
-      systemRole = 'SUPER_ADMIN';
+      systemRole = 'NEWS_EDITOR';
       permissions = ['NEWS_EDITOR', 'CREATE_SAMACHAR', 'EDIT_SAMACHAR', 'PUBLISH_SAMACHAR'];
       break;
   }
