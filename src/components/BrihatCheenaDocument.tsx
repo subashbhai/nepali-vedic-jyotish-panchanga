@@ -92,13 +92,18 @@ export const GreenOmBorderFrame: React.FC<{
 
   return (
     <div
-      className={`brihat-cheena-page printable-page a4-preview-container relative bg-[#FFFDF5] text-stone-900 border-4 border-[#166534] p-1.5 sm:p-2.5 my-4 print:my-0 font-serif shadow-xl print:shadow-none box-border flex flex-col justify-between ${className}`}
+      className={`brihat-cheena-page printable-page a4-preview-container relative bg-[#FFFDF5] text-stone-900 border-4 border-[#166534] p-1.5 sm:p-2.5 my-4 print:my-0 font-serif shadow-xl print:shadow-none box-border flex flex-col justify-between overflow-hidden ${className}`}
       style={{
         width: '210mm',
-        minHeight: '297mm',
+        height: '297mm',
+        maxHeight: '297mm',
+        maxWidth: '210mm',
+        margin: '0 auto',
         boxSizing: 'border-box',
-        pageBreakAfter: 'always',
+        pageBreakAfter: pageNumber === totalPages ? 'auto' : 'always',
         pageBreakInside: 'avoid',
+        breakInside: 'avoid',
+        breakAfter: pageNumber === totalPages ? 'auto' : 'page',
       }}
     >
       {/* Outer Om Top Row (Green) */}
@@ -108,7 +113,7 @@ export const GreenOmBorderFrame: React.FC<{
         ))}
       </div>
 
-      <div className="flex flex-1 my-0.5">
+      <div className="flex flex-1 my-0.5 min-h-0">
         {/* Outer Om Left Column (Green) */}
         <div className="flex flex-col justify-between items-center text-[#166534] text-xs sm:text-sm font-black py-1 pr-1 select-none w-5 leading-none shrink-0">
           {omArraySide.map((_, i) => (
@@ -117,8 +122,8 @@ export const GreenOmBorderFrame: React.FC<{
         </div>
 
         {/* Inner Double Hairline Frame */}
-        <div className="flex-1 border-2 border-[#166534] p-0.5 bg-amber-50/20 flex flex-col justify-between">
-          <div className="border border-[#d97706]/60 p-2 sm:p-3.5 bg-[#FFFDF7] flex-1 flex flex-col justify-between relative shadow-2xs">
+        <div className="flex-1 border-2 border-[#166534] p-0.5 bg-amber-50/20 flex flex-col justify-between overflow-hidden">
+          <div className="border border-[#d97706]/60 p-2 sm:p-3 bg-[#FFFDF7] flex-1 flex flex-col justify-between relative shadow-2xs overflow-hidden">
             
             {/* Corner Ornamental Swastik / Om Symbols */}
             <div className="absolute top-1 left-1.5 text-[11px] text-[#166534] font-bold select-none pointer-events-none">
@@ -135,21 +140,19 @@ export const GreenOmBorderFrame: React.FC<{
             </div>
 
             {/* Page Body Content */}
-            <main className="flex-1 flex flex-col justify-between pt-1">
+            <main className="flex-1 flex flex-col justify-between pt-0.5 overflow-hidden">
               {children}
             </main>
 
-            {/* Standardized Bottom Footer */}
-            <footer className="pt-1.5 border-t border-[#166534]/50 mt-2 flex items-center justify-between text-[9.5px] text-stone-600 shrink-0">
+            {/* Minimal Continuous Scroll Page Counter (Ensures smooth seam when glued) */}
+            <footer className="pt-1 border-t border-[#166534]/30 mt-1 flex items-center justify-between text-[8.5px] text-stone-500 shrink-0">
               <div>
-                <span className="font-semibold text-stone-800">
-                  {orgProfile.name || 'ज्योतिष अनुसन्धान केन्द्र'}
+                <span className="font-medium text-stone-600">
+                  {pageNumber === 1 ? (orgProfile.name || '॥ श्री जन्मपत्रिका ॥') : '॥ शुभम् ॥'}
                 </span>
-                <span className="text-stone-400 mx-1">|</span>
-                <span>{orgProfile.address || 'नेपाल'}</span>
               </div>
 
-              <div className="italic text-[#166534] font-semibold">
+              <div className="italic text-[#166534] font-semibold text-[8px]">
                 ॥ धर्मो रक्षति रक्षितः ॥
               </div>
 

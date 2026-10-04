@@ -34,6 +34,9 @@ export const JyotishVastuLicenseHeader: React.FC<JyotishVastuLicenseHeaderProps>
   onOpenPurchase,
   className = ''
 }) => {
+  // Hide this block for now as per user request
+  return null;
+
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {

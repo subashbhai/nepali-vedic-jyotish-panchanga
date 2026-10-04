@@ -519,13 +519,8 @@ export const JyotishMainView: React.FC<JyotishMainViewProps> = memo(({
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
       />
 
-      {/* Dedicated Demo, Name, and Duration Status Bar for Jyotish */}
-      <div className="max-w-[1700px] mx-auto px-2 sm:px-4 pt-3">
-        <JyotishVastuLicenseHeader
-          moduleName="ज्योतिष कार्यक्षेत्र"
-          onOpenPurchase={onOpenPurchaseModal}
-        />
-      </div>
+      {/* Dedicated Demo, Name, and Duration Status Bar for Jyotish (Hidden as requested) */}
+
 
       {/* 3. Main Workspace Body Layout */}
       {activeSidebarTab === 'workspace' ? (
