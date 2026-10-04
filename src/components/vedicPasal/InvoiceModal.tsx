@@ -1,6 +1,7 @@
 import React from 'react';
 import { StoreOrder } from '../../types/vedicStoreTypes';
 import { X, Printer, Download, CheckCircle, ShieldCheck, Sparkles } from 'lucide-react';
+import { printElement } from '../../utils/pdfGenerator';
 
 interface InvoiceModalProps {
   order: StoreOrder | null;
@@ -12,7 +13,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
   if (!isOpen || !order) return null;
 
   const handlePrint = () => {
-    window.print();
+    printElement('printable-store-invoice');
   };
 
   return (
@@ -31,16 +32,16 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
             <button
               type="button"
               onClick={handlePrint}
-              className="px-3 py-1.5 bg-[#D97706] text-white rounded-xl text-xs font-bold hover:bg-[#B45309] flex items-center gap-1.5 shadow-sm"
+              className="px-3 py-1.5 bg-[#D97706] text-white rounded-xl text-xs font-bold hover:bg-[#B45309] flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
             >
               <Printer className="w-4 h-4" />
-              <span>Print / Download PDF</span>
+              <span>रसिद छाप्नुहोस् (Print Receipt)</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-600"
+              className="p-1.5 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-600 hover:bg-stone-300 dark:hover:bg-stone-700 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -48,7 +49,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
         </div>
 
         {/* Invoice Printable Sheet */}
-        <div className="p-6 sm:p-8 space-y-6 print:p-6 print:text-black">
+        <div id="printable-store-invoice" className="p-6 sm:p-8 space-y-6 bg-white dark:bg-[#1C1917] text-[#2D241E] dark:text-stone-100 print:bg-white print:text-black print:p-6 print:m-0 print:border-none">
           {/* Store Brand Header */}
           <div className="flex items-start justify-between pb-6 border-b border-stone-200 dark:border-stone-800">
             <div>
