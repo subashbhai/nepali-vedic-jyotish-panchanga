@@ -241,6 +241,28 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
     }
   }, [selectedRashiId, livePlanets]);
 
+  // Festival Countdown Badge Formatter
+  const getFestivalCountdownBadge = (publishedAtBS: string, todayBS: string) => {
+    try {
+      const pubDigits = publishedAtBS.replace(/[०-९]/g, d => '०१२३४५६७८९'.indexOf(d).toString());
+      const todDigits = todayBS.replace(/[०-९]/g, d => '०१२३४५६७८९'.indexOf(d).toString());
+      const [py, pm, pd] = pubDigits.split('-').map(Number);
+      const [ty, tm, td] = todDigits.split('-').map(Number);
+      if (!isNaN(py) && !isNaN(pm) && !isNaN(pd) && !isNaN(ty) && !isNaN(tm) && !isNaN(td)) {
+        const pTotal = py * 365 + pm * 30 + pd;
+        const tTotal = ty * 365 + tm * 30 + td;
+        const diff = pTotal - tTotal;
+        if (diff === 0) return 'आज पर्वको दिन!';
+        if (diff === 1) return 'भोलि मुख्य पर्व!';
+        if (diff > 1) return `अब ${toDevanagariNumerals(diff)} दिन बाँकी`;
+        if (diff < 0) return 'पर्व सम्पन्न';
+      }
+    } catch {
+      // fallback
+    }
+    return 'चाडपर्व पूर्वतयारी';
+  };
+
   // Handlers
   const handleOpenGrahaArticle = (art: GrahaGocharNewsArticle) => {
     setSelectedGrahaArticle(art);
@@ -648,12 +670,17 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                             </h4>
                           </div>
                           {art.coverImageUrl && (
-                            <img 
-                              src={art.coverImageUrl} 
-                              alt={art.title} 
-                              onError={(e) => { e.currentTarget.src = festArt?.illustrationUrl || '/assets/festivals/dashain_ghatasthapana.jpg'; }}
-                              className="w-24 h-24 rounded-xl object-cover shrink-0 border border-stone-100 dark:border-stone-800 group-hover:scale-105 transition-transform" 
-                            />
+                            <div className="relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden border border-amber-200 dark:border-stone-800 group-hover:scale-105 transition-transform shadow-xs">
+                              <img 
+                                src={art.coverImageUrl} 
+                                alt={art.title} 
+                                onError={(e) => { e.currentTarget.src = festArt?.illustrationUrl || '/assets/festivals/dashain_ghatasthapana.jpg'; }}
+                                className="w-full h-full object-cover" 
+                              />
+                              <div className="absolute bottom-1 left-1 right-1 bg-black/80 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-1 py-0.5 rounded-md text-center border border-amber-500/40">
+                                {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                              </div>
+                            </div>
                           )}
                         </div>
 
@@ -733,6 +760,11 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                           <span className="absolute top-2 left-2 bg-black/70 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs">
                             {art.categoryNameNepali}
                           </span>
+                          {art.id.startsWith('auto_festival_') && (
+                            <span className="absolute bottom-2 left-2 bg-gradient-to-r from-red-700 to-amber-700 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md border border-white/20">
+                              {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                            </span>
+                          )}
                         </div>
                       )}
 
