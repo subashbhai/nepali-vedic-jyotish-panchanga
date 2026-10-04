@@ -4,6 +4,7 @@
 
 import { PlanetPosition } from '../types/astrology';
 import { generateLiveGrahaGocharNews, GrahaGocharNewsArticle } from '../utils/grahaGocharNewsEngine';
+import { syncAndPruneShastriyaNews } from '../utils/shastriyaNewsEngine';
 
 export type SamacharCategory =
   | 'panchanga'      // पञ्चाङ्ग तथा खगोलीय घटना
@@ -309,25 +310,34 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
 // ----------------------------------------------------------------------------
 // LocalStorage Helper Methods for Samachar Articles
 // ----------------------------------------------------------------------------
-export function getStoredArticles(): SamacharArticle[] {
+export function getStoredArticles(
+  todayBS?: string,
+  todayAD?: string,
+  todayTithiName?: string,
+  todayPaksha?: 'शुक्लपक्ष' | 'कृष्णपक्ष'
+): SamacharArticle[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SAMACHAR);
+    let current: SamacharArticle[] = [];
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_SAMACHAR, JSON.stringify(INITIAL_SAMACHAR_ARTICLES));
-      return INITIAL_SAMACHAR_ARTICLES;
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      // Check if stored items only contain old non-graha samples (e.g. samachar_2083_01)
-      const hasGrahaNews = parsed.some(a => a.id.startsWith('graha_news_'));
-      if (!hasGrahaNews) {
-        // Automatically migrate to new 9-planet live transit articles
-        localStorage.setItem(STORAGE_KEY_SAMACHAR, JSON.stringify(INITIAL_SAMACHAR_ARTICLES));
-        return INITIAL_SAMACHAR_ARTICLES;
+      current = [...INITIAL_SAMACHAR_ARTICLES];
+    } else {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        current = parsed;
+      } else {
+        current = [...INITIAL_SAMACHAR_ARTICLES];
       }
-      return parsed;
     }
-    return INITIAL_SAMACHAR_ARTICLES;
+
+    // Run Shastriya Tithi and 1-Month-Advance Festival Sync & Midnight Auto-Pruning
+    const synced = syncAndPruneShastriyaNews(current, todayBS, todayAD, todayTithiName, todayPaksha);
+    
+    // If article count or contents changed, update localStorage
+    if (JSON.stringify(synced) !== raw) {
+      localStorage.setItem(STORAGE_KEY_SAMACHAR, JSON.stringify(synced));
+    }
+    return synced;
   } catch (e) {
     console.error('Failed to get stored articles:', e);
     return INITIAL_SAMACHAR_ARTICLES;
