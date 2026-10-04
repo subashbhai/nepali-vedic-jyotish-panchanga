@@ -481,7 +481,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                       : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300'
                   }`}
                 >
-                  🎉 १ महिना अगाडिका चाडपर्वहरू
+                  🎉 प्रमुख चाडपर्वहरू
                 </button>
                 <button
                   type="button"
@@ -640,7 +640,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
                   <h3 className="text-lg font-bold font-serif text-stone-900 dark:text-stone-100 flex items-center gap-2">
                     <CalendarDays className="w-5 h-5 text-amber-600" />
-                    <span>आगामी प्रमुख चाडपर्व विशेष समाचार (१ महिना पूर्वतयारी)</span>
+                    <span>प्रमुख चाडपर्व विशेष समाचार</span>
                   </h3>
                 </div>
                 <span className="text-xs text-stone-500 font-medium">
