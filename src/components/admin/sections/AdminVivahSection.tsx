@@ -73,6 +73,7 @@ import {
 } from '../../../constants/vivahConstants';
 import { VivahPhotoUploader } from '../../vivah/VivahPhotoUploader';
 import { VivahDocumentUploader } from '../../vivah/VivahDocumentUploader';
+import { handlePhoneticInputKeyDown } from '../../../utils/nepaliTransliteration';
 
 interface AdminVivahSectionProps {
   onRefreshParent?: () => void;
@@ -716,9 +717,10 @@ export const AdminVivahSection: React.FC<AdminVivahSectionProps> = ({ onRefreshP
                 <Search className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
                 <input
                   type="text"
-                  placeholder="नाम, कोड, जिल्ला, पेशा, जात, गोत्र वा फोन नम्बर खोज्नुहोस्..."
+                  placeholder="नाम, कोड, जिल्ला, पेशा, जात, गोत्र (उदा: shrestha + space)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
                   className="w-full bg-stone-950 border border-stone-800 rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 outline-none focus:border-amber-500 transition-colors"
                 />
               </div>
@@ -1470,9 +1472,10 @@ export const AdminVivahSection: React.FC<AdminVivahSectionProps> = ({ onRefreshP
             </p>
             <textarea
               rows={3}
-              placeholder="अस्वीकार गर्नुको स्पष्ट कारण खुलाउनुहोस्..."
+              placeholder="अस्वीकार गर्नुको स्पष्ट कारण खुलाउनुहोस् (उदा: aupacharik + space)..."
               value={rejectionReasonInput}
               onChange={(e) => setRejectionReasonInput(e.target.value)}
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, rejectionReasonInput, setRejectionReasonInput)}
               className="w-full bg-stone-950 border border-stone-800 rounded-xl p-3 text-xs text-stone-100 outline-none focus:border-amber-500"
             />
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
@@ -1503,9 +1506,10 @@ export const AdminVivahSection: React.FC<AdminVivahSectionProps> = ({ onRefreshP
             </p>
             <textarea
               rows={3}
-              placeholder="उजुरी छानबिन सम्बन्धी निर्णय वा कैफियत लेख्नुहोस्..."
+              placeholder="उजुरी छानबिन सम्बन्धी निर्णय वा कैफियत लेख्नुहोस् (उदा: samadhan + space)..."
               value={reportNotesInput}
               onChange={(e) => setReportNotesInput(e.target.value)}
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, reportNotesInput, setReportNotesInput)}
               className="w-full bg-stone-950 border border-stone-800 rounded-xl p-3 text-xs text-stone-100 outline-none focus:border-amber-500"
             />
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
@@ -1640,6 +1644,7 @@ const ProfileFormModal: React.FC<ProfileFormModalProps> = ({ profile, onClose, o
                   required
                   value={formData.userFullName}
                   onChange={(e) => setFormData({ ...formData, userFullName: e.target.value })}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, formData.userFullName || '', (val) => setFormData((prev) => ({ ...prev, userFullName: val })))}
                   placeholder="उदा. इ. रुपेश के.सी."
                   className="w-full bg-stone-900 border border-stone-800 rounded-xl p-2.5 text-stone-100 outline-none focus:border-amber-500"
                 />
@@ -1651,6 +1656,7 @@ const ProfileFormModal: React.FC<ProfileFormModalProps> = ({ profile, onClose, o
                   type="text"
                   value={formData.displayFirstName}
                   onChange={(e) => setFormData({ ...formData, displayFirstName: e.target.value })}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, formData.displayFirstName || '', (val) => setFormData((prev) => ({ ...prev, displayFirstName: val })))}
                   placeholder="उदा. रुपेश"
                   className="w-full bg-stone-900 border border-stone-800 rounded-xl p-2.5 text-stone-100 outline-none focus:border-amber-500"
                 />
@@ -1748,6 +1754,7 @@ const ProfileFormModal: React.FC<ProfileFormModalProps> = ({ profile, onClose, o
                   type="text"
                   value={formData.birthPlace}
                   onChange={(e) => setFormData({ ...formData, birthPlace: e.target.value })}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, formData.birthPlace || '', (val) => setFormData((prev) => ({ ...prev, birthPlace: val })))}
                   placeholder="उदा. पोखरा, कास्की"
                   className="w-full bg-stone-900 border border-stone-800 rounded-xl p-2.5 text-stone-100 outline-none focus:border-amber-500"
                 />
@@ -1830,6 +1837,7 @@ const ProfileFormModal: React.FC<ProfileFormModalProps> = ({ profile, onClose, o
                   type="text"
                   value={formData.currentDistrict}
                   onChange={(e) => setFormData({ ...formData, currentDistrict: e.target.value })}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, formData.currentDistrict || '', (val) => setFormData((prev) => ({ ...prev, currentDistrict: val })))}
                   placeholder="उदा. काठमाडौँ"
                   className="w-full bg-stone-900 border border-stone-800 rounded-xl p-2.5 text-stone-100 outline-none focus:border-amber-500"
                 />
@@ -1841,6 +1849,7 @@ const ProfileFormModal: React.FC<ProfileFormModalProps> = ({ profile, onClose, o
                   type="text"
                   value={formData.currentProvince}
                   onChange={(e) => setFormData({ ...formData, currentProvince: e.target.value })}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, formData.currentProvince || '', (val) => setFormData((prev) => ({ ...prev, currentProvince: val })))}
                   placeholder="उदा. बागमती प्रदेश"
                   className="w-full bg-stone-900 border border-stone-800 rounded-xl p-2.5 text-stone-100 outline-none focus:border-amber-500"
                 />
@@ -1956,7 +1965,8 @@ const ProfileFormModal: React.FC<ProfileFormModalProps> = ({ profile, onClose, o
                 rows={2}
                 value={formData.aboutMe}
                 onChange={(e) => setFormData({ ...formData, aboutMe: e.target.value })}
-                placeholder="उम्मेदवारको स्वभाव, रुचि र विचार..."
+                onKeyDown={(e) => handlePhoneticInputKeyDown(e, formData.aboutMe || '', (val) => setFormData((prev) => ({ ...prev, aboutMe: val })))}
+                placeholder="उम्मेदवारको स्वभाव, रुचि र विचार (उदा: milansar + space)..."
                 className="w-full bg-stone-900 border border-stone-800 rounded-xl p-2.5 text-stone-100 outline-none focus:border-amber-500"
               />
             </div>
