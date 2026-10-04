@@ -6,6 +6,7 @@ import {
   StoreOrder,
   StoreCategoryKey,
   StoreUserRole,
+  VEDIC_STORE_16_CATEGORIES
 } from '../../types/vedicStoreTypes';
 import {
   getStoredProducts,
@@ -422,30 +423,21 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
               )}
             </div>
 
-            {/* Category Filter Buttons */}
+            {/* 16 Vedic Category Filter Chips */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
-              {[
-                { key: 'all', label: 'सबै' },
-                { key: 'puja_samagri', label: 'पूजा सामग्री' },
-                { key: 'karmakanda', label: 'कर्मकाण्ड' },
-                { key: 'jyotish', label: 'ज्योतिष' },
-                { key: 'vastu', label: 'वास्तु' },
-                { key: 'religious_books', label: 'धार्मिक पुस्तक' },
-                { key: 'puja_package', label: 'पूजा Package' },
-                { key: 'yantra', label: 'यन्त्र' },
-                { key: 'others', label: 'अन्य' },
-              ].map(cat => (
+              {VEDIC_STORE_16_CATEGORIES.map(cat => (
                 <button
                   key={cat.key}
                   type="button"
                   onClick={() => setSelectedCategory(cat.key as StoreCategoryKey)}
-                  className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap border ${
+                  className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap border flex items-center gap-1.5 ${
                     selectedCategory === cat.key
                       ? 'bg-[#D97706] text-white border-[#B45309] shadow-sm'
-                      : 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-[#E6E0D5] dark:border-stone-700 hover:bg-stone-100'
+                      : 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-[#E6E0D5] dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
                   }`}
                 >
-                  {cat.label}
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
                 </button>
               ))}
             </div>
