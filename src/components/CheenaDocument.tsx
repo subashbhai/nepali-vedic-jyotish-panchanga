@@ -128,15 +128,18 @@ export const GreenOmBorderFrame: React.FC<{
 
   return (
     <div
-      className={`print-page printable-page a4-patrika-page relative w-full bg-white text-stone-900 border-2 border-[#166534] p-1.5 sm:p-2.5 my-4 print:my-0 font-serif shadow-lg print:shadow-none box-border flex flex-col justify-between ${className}`}
+      className={`print-page printable-page a4-patrika-page relative w-full bg-white text-stone-900 border-2 border-[#166534] p-1.5 sm:p-2.5 my-4 print:my-0 font-serif shadow-lg print:shadow-none box-border flex flex-col justify-between overflow-hidden ${className}`}
       style={{
         width: '210mm',
-        minHeight: '297mm',
+        height: '297mm',
+        maxHeight: '297mm',
         maxWidth: '210mm',
         margin: '0 auto',
         boxSizing: 'border-box',
         pageBreakAfter: 'always',
         pageBreakInside: 'avoid',
+        breakInside: 'avoid',
+        breakAfter: 'page',
         backgroundColor: '#ffffff',
       }}
     >

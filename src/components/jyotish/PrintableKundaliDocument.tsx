@@ -717,13 +717,6 @@ export const PrintableKundaliDocument: React.FC<PrintableKundaliDocumentProps> =
               <h2 className="text-xs sm:text-sm font-black tracking-wider uppercase font-serif text-[#7A1C1C] mt-0.5">
                 ॥ स्पष्ट निरयन ग्रहस्थिति तालिका तथा विंशोत्तरी महादशा चक्र ॥
               </h2>
-              <div className="text-[9px] text-stone-600 font-medium flex items-center justify-center gap-3 mt-0.5">
-                <span>जातक: <strong>{profile.name}</strong></span>
-                <span>•</span>
-                <span>जन्म मिति: <strong>वि.सं. {toDevanagariNumerals(profile.dateBS || '—')}</strong> ({profile.dateAD})</span>
-                <span>•</span>
-                <span>लग्न: <strong>{lagna.rashiName} ({toDevanagariNumerals(lagna.rashiId)})</strong></span>
-              </div>
             </header>
 
             {/* 2. Full Main Planetary Positions Table (स्पष्ट निरयन ग्रह स्थिति) */}

@@ -566,11 +566,8 @@ export const VastuView: React.FC<VastuViewProps> = ({
   return (
     <div className="min-w-0 max-w-7xl mx-auto px-2 sm:px-4 py-4 space-y-6 text-stone-900 dark:text-stone-100 font-sans">
       
-      {/* Dedicated Demo, Name, and Duration Status Bar for Vastu */}
-      <JyotishVastuLicenseHeader
-        moduleName="वास्तुशास्त्र"
-        onOpenPurchase={onOpenPurchaseModal}
-      />
+      {/* Dedicated Demo, Name, and Duration Status Bar for Vastu (Hidden as requested) */}
+
 
       {/* HEADER BAR */}
       <div className="bg-gradient-to-r from-amber-700 via-red-800 to-amber-900 text-white rounded-2xl p-5 sm:p-6 shadow-md border border-amber-600/30 flex flex-col sm:flex-row items-center justify-between gap-4">

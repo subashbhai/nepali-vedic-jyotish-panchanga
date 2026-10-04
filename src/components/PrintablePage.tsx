@@ -21,8 +21,12 @@ export interface PrintablePageProps {
   showBorderFrame?: boolean;
   /** Watermark Text or Logo in Background */
   watermarkText?: string;
-  /** Page Layout Style Variant */
-  variant?: 'standard' | 'cover' | 'compact' | 'chart';
+  /** Show full letterhead on page 1 only (clean continuous style for subsequent pages) */
+  showHeaderOnFirstPageOnly?: boolean;
+  /** Explicitly toggle header */
+  showHeader?: boolean;
+  /** Explicitly toggle footer */
+  showFooter?: boolean;
   /** Extra CSS Class for the page container */
   className?: string;
   /** Extra CSS Class for the inner content */
@@ -73,6 +77,9 @@ export const PrintablePage: React.FC<PrintablePageProps> = ({
   showBorderFrame = true,
   watermarkText = 'ॐ बालानन्द वैदिक सेवा',
   variant = 'standard',
+  showHeaderOnFirstPageOnly = false,
+  showHeader = true,
+  showFooter = true,
   className = '',
   contentClassName = '',
   children,
@@ -86,12 +93,15 @@ export const PrintablePage: React.FC<PrintablePageProps> = ({
   const formattedTotalPages = totalPages ? toDevanagariNumerals(totalPages) : undefined;
 
   const isCover = variant === 'cover';
+  const isSubsequentPage = (pageNumber !== undefined && pageNumber > 1);
+  const shouldRenderFullHeader = showHeader && !isCover && (!showHeaderOnFirstPageOnly || !isSubsequentPage);
+  const shouldRenderMinimalSectionHeader = showHeader && !isCover && showHeaderOnFirstPageOnly && isSubsequentPage && !!headerTitle;
 
   const innerContent = (
     <div className="flex flex-col h-full justify-between relative z-10 w-full min-h-[267mm]">
       
       {/* ================= DYNAMIC PRINT HEADER ================= */}
-      {!isCover && (
+      {shouldRenderFullHeader ? (
         <header className="printable-header pb-2.5 border-b border-[#D97706]/40 mb-3 shrink-0 flex items-center justify-between gap-3 text-stone-900">
           <div className="flex items-center gap-2.5">
             {showLogo && (
@@ -127,7 +137,18 @@ export const PrintablePage: React.FC<PrintablePageProps> = ({
             </span>
           </div>
         </header>
-      )}
+      ) : shouldRenderMinimalSectionHeader ? (
+        <header className="printable-header pb-1.5 border-b border-[#D97706]/30 mb-2 shrink-0 flex items-center justify-between text-stone-900">
+          <h2 className="text-xs font-bold font-serif text-[#8B1E0F] leading-tight">
+            ॥ {headerTitle} ॥
+          </h2>
+          {headerSubtitle && (
+            <span className="text-[9.5px] text-stone-500 font-serif">
+              {headerSubtitle}
+            </span>
+          )}
+        </header>
+      ) : null}
 
       {/* ================= MAIN CONTENT AREA ================= */}
       <main
@@ -137,34 +158,36 @@ export const PrintablePage: React.FC<PrintablePageProps> = ({
       </main>
 
       {/* ================= DYNAMIC PRINT FOOTER ================= */}
-      <footer className="printable-footer pt-2.5 border-t border-[#D97706]/40 mt-3 shrink-0 flex items-center justify-between text-[10px] text-stone-600 font-serif leading-none">
-        <div>
-          <span className="font-semibold text-stone-800">
-            {footerNote || orgName}
-          </span>
-          <span className="hidden sm:inline text-stone-400 mx-1">|</span>
-          <span className="hidden sm:inline text-stone-500">
-            वैदिक संस्कृति तथा आधुनिक प्रविधिको सङ्गम
-          </span>
-        </div>
-
-        <div className="text-center italic text-stone-500 font-medium">
-          ॥ धर्मो रक्षति रक्षितः ॥
-        </div>
-
-        <div className="font-bold text-[#B45309] text-right">
-          {formattedPageNum ? (
-            <span>
-              पृष्ठ {formattedPageNum}
-              {formattedTotalPages ? ` / ${formattedTotalPages}` : ''}
+      {showFooter && (
+        <footer className="printable-footer pt-2.5 border-t border-[#D97706]/40 mt-3 shrink-0 flex items-center justify-between text-[10px] text-stone-600 font-serif leading-none">
+          <div>
+            <span className="font-semibold text-stone-800">
+              {footerNote || orgName}
             </span>
-          ) : (
-            <span className="print-page-counter">
-              पृष्ठ <span className="page-number-css">1</span>
+            <span className="hidden sm:inline text-stone-400 mx-1">|</span>
+            <span className="hidden sm:inline text-stone-500">
+              वैदिक संस्कृति तथा आधुनिक प्रविधिको सङ्गम
             </span>
-          )}
-        </div>
-      </footer>
+          </div>
+
+          <div className="text-center italic text-stone-500 font-medium">
+            ॥ धर्मो रक्षति रक्षितः ॥
+          </div>
+
+          <div className="font-bold text-[#B45309] text-right">
+            {formattedPageNum ? (
+              <span>
+                पृष्ठ {formattedPageNum}
+                {formattedTotalPages ? ` / ${formattedTotalPages}` : ''}
+              </span>
+            ) : (
+              <span className="print-page-counter">
+                पृष्ठ <span className="page-number-css">1</span>
+              </span>
+            )}
+          </div>
+        </footer>
+      )}
     </div>
   );
 

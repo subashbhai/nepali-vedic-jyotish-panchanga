@@ -678,24 +678,12 @@ export const DetailedKundaliPdfDocument: React.FC<DetailedKundaliPdfDocumentProp
           <div className="absolute bottom-1.5 right-1.5 text-[11px] text-[#B45309] font-bold select-none">卐</div>
 
           <div className="space-y-2">
-            {/* Page 2 Header */}
-            <header className="border-b-2 pb-1.5 text-center" style={{ borderColor: colorTheme === 'monochrome' ? '#52525B' : '#7A1C1C' }}>
-              <div className={`text-[10px] font-bold tracking-widest uppercase flex items-center justify-center gap-2 ${themeHeaderColor}`}>
-                <span>卐</span>
-                <span>॥ श्री नवग्रहेभ्यो नमः ॥ ॐ सूर्याय नमः ॥</span>
-                <span>卐</span>
-              </div>
-              <h2 className={`text-xs sm:text-sm font-black tracking-wider uppercase font-serif mt-0.5 ${themeHeaderColor}`}>
+            {/* Page 2 Clean Continuous Section Title */}
+            <div className="border-b pb-1 text-center" style={{ borderColor: colorTheme === 'monochrome' ? '#52525B' : '#7A1C1C' }}>
+              <h2 className={`text-xs sm:text-sm font-black tracking-wider uppercase font-serif ${themeHeaderColor}`}>
                 ॥ २. स्पष्ट निरयन ग्रहस्थिति, भाव चक्र तथा दृष्टि विश्लेषण ॥
               </h2>
-              <div className="text-[9px] text-stone-600 font-medium flex items-center justify-center gap-3 mt-0.5">
-                <span>जातक: <strong>{profile.name}</strong></span>
-                <span>•</span>
-                <span>जन्म मिति: <strong>वि.सं. {toDevanagariNumerals(profile.dateBS || '—')}</strong> ({profile.dateAD})</span>
-                <span>•</span>
-                <span>लग्न: <strong>{lagna.rashiName} ({toDevanagariNumerals(lagna.rashiId)})</strong></span>
-              </div>
-            </header>
+            </div>
 
             {/* 1. Full Main Planetary Positions Table */}
             <div className="space-y-1">
@@ -900,22 +888,12 @@ export const DetailedKundaliPdfDocument: React.FC<DetailedKundaliPdfDocumentProp
           <div className="absolute bottom-1.5 right-1.5 text-[11px] text-[#B45309] font-bold select-none">卐</div>
 
           <div className="space-y-2">
-            {/* Page 3 Header */}
-            <header className="border-b-2 pb-1.5 text-center" style={{ borderColor: colorTheme === 'monochrome' ? '#52525B' : '#7A1C1C' }}>
-              <div className={`text-[10px] font-bold tracking-widest uppercase flex items-center justify-center gap-2 ${themeHeaderColor}`}>
-                <span>卐</span>
-                <span>॥ श्री कालपुरुषाय नमः ॥ ॐ नमो भगवते वासुदेवाय ॥</span>
-                <span>卐</span>
-              </div>
-              <h2 className={`text-xs sm:text-sm font-black tracking-wider uppercase font-serif mt-0.5 ${themeHeaderColor}`}>
+            {/* Page 3 Clean Continuous Section Title */}
+            <div className="border-b pb-1 text-center" style={{ borderColor: colorTheme === 'monochrome' ? '#52525B' : '#7A1C1C' }}>
+              <h2 className={`text-xs sm:text-sm font-black tracking-wider uppercase font-serif ${themeHeaderColor}`}>
                 ॥ ३. सम्पूर्ण विंशोत्तरी दशा चक्र (१२० वर्ष) तथा अन्तर्दशा विस्तार ॥
               </h2>
-              <div className="text-[9px] text-stone-600 font-medium flex items-center justify-center gap-3 mt-0.5">
-                <span>जातक: <strong>{profile.name}</strong></span>
-                <span>•</span>
-                <span>वर्तमान दशा: <strong className={themeHeaderColor}>{activeMahadasha ? `${activeMahadasha.planet} महादशा` : '—'}</strong></span>
-              </div>
-            </header>
+            </div>
 
             {/* 1. Dasha Balance at Birth */}
             <div className={`border p-2 rounded-lg text-[9px] flex flex-wrap items-center justify-between gap-2 shadow-2xs ${themeBgCard}`}>
