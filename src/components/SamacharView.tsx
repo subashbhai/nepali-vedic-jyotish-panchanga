@@ -47,6 +47,13 @@ import {
   GrahaGocharNewsArticle, 
   RashiTransitImpact 
 } from '../utils/grahaGocharNewsEngine';
+import { mapTithiNameToNumber } from '../utils/shastriyaNewsEngine';
+import { 
+  getDeityPortraitForTithi, 
+  getNepaliFestivalArt, 
+  DeityPortraitInfo, 
+  NepaliFestivalArtInfo 
+} from '../utils/deityAndFestivalArtEngine';
 
 interface SamacharViewProps {
   todayTransitPlanets?: PlanetPosition[];
@@ -500,83 +507,106 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
           </div>
 
           {/* 1. FEATURED: TODAY'S ACTIVE TITHI SPECIAL ARTICLE */}
-          {todayTithiArticle && !searchQuery && selectedCategoryFilter === 'all' && (
-            <div className="bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/40 dark:from-stone-900 dark:via-stone-900/90 dark:to-amber-950/30 rounded-3xl border-2 border-amber-300/80 dark:border-amber-700/60 p-5 sm:p-7 shadow-lg relative overflow-hidden">
-              <div className="flex flex-col lg:flex-row gap-6 items-start justify-between">
-                <div className="space-y-3 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
-                      <Flame className="w-3.5 h-3.5 animate-bounce" />
-                      आजको चालू तिथि विशेष
-                    </span>
-                    <span className="bg-amber-200/80 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-700">
-                      📜 निर्णयसिन्धु / धर्मसिन्धु प्रामाणिक
-                    </span>
-                    <span className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-emerald-600" />
-                      मध्यरात १२ बजे स्वतः नवीकरण हुने
-                    </span>
-                  </div>
+          {todayTithiArticle && !searchQuery && selectedCategoryFilter === 'all' && (() => {
+            const tithiNum = mapTithiNameToNumber(propPanchanga?.tithi?.name || 'प्रतिपदा');
+            const deityInfo = getDeityPortraitForTithi(tithiNum);
 
-                  <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100 leading-snug">
-                    {todayTithiArticle.title}
-                  </h2>
-
-                  <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed line-clamp-3">
-                    {todayTithiArticle.summary}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-stone-600 dark:text-stone-400">
-                    <span className="font-semibold text-amber-900 dark:text-amber-300">
-                      ✍️ {todayTithiArticle.author}
-                    </span>
-                    <span>•</span>
-                    <span>📅 वि.सं. {todayTithiArticle.publishedAtBS}</span>
-                    <span>•</span>
-                    <span>⏱️ {toDevanagariNumerals(todayTithiArticle.readTimeMinutes)} मिनेट अध्ययन</span>
-                    <span>•</span>
-                    <span>👁️ {toDevanagariNumerals(todayTithiArticle.viewsCount)} पाठक</span>
-                  </div>
-
-                  <div className="pt-3 flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenStoredArticle(todayTithiArticle)}
-                      className="px-5 py-2.5 bg-gradient-to-r from-[#7A1C1C] to-[#9B2C2C] hover:from-[#5C1515] hover:to-[#7A1C1C] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer transition-all"
-                    >
-                      <span>पूर्ण शास्त्रीय श्लोक, मन्त्र र कथा पढ्नुहोस्</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleShareStoredWhatsApp(todayTithiArticle)}
-                      className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>ह्वाट्सएपमा सेयर</span>
-                    </button>
-                  </div>
-                </div>
-
-                {todayTithiArticle.coverImageUrl && (
-                  <div className="w-full lg:w-72 h-48 sm:h-56 rounded-2xl overflow-hidden border border-amber-300 dark:border-amber-800 shadow-md shrink-0 relative group cursor-pointer"
-                       onClick={() => handleOpenStoredArticle(todayTithiArticle)}>
-                    <img 
-                      src={todayTithiArticle.coverImageUrl} 
-                      alt={todayTithiArticle.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-[11px] text-amber-200 font-bold bg-black/50 px-2 py-1 rounded-lg backdrop-blur-xs">
-                        शास्त्र: {todayTithiArticle.source || 'निर्णयसिन्धु'}
+            return (
+              <div className="bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/40 dark:from-stone-900 dark:via-stone-900/90 dark:to-amber-950/30 rounded-3xl border-2 border-amber-300/80 dark:border-amber-700/60 p-5 sm:p-7 shadow-lg relative overflow-hidden space-y-4">
+                <div className="flex flex-col lg:flex-row gap-6 items-start justify-between">
+                  <div className="space-y-3 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+                        <Flame className="w-3.5 h-3.5 animate-bounce" />
+                        आजको चालू तिथि विशेष
+                      </span>
+                      <span className="bg-amber-200/80 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-700">
+                        📜 निर्णयसिन्धु / धर्मसिन्धु प्रामाणिक
+                      </span>
+                      <span className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-emerald-600" />
+                        मध्यरात १२ बजे स्वतः नवीकरण हुने
                       </span>
                     </div>
+
+                    <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100 leading-snug">
+                      {todayTithiArticle.title}
+                    </h2>
+
+                    {/* Presiding Deity Emblem Banner */}
+                    <div className="bg-gradient-to-r from-amber-100/90 via-orange-100/60 to-amber-50 dark:from-amber-950/60 dark:via-stone-850 dark:to-stone-900 border border-amber-300 dark:border-amber-800 rounded-2xl p-3.5 flex items-center gap-3.5 shadow-2xs">
+                      <span className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white text-2xl flex items-center justify-center shrink-0 shadow-xs">
+                        {deityInfo.symbol}
+                      </span>
+                      <div className="text-xs space-y-0.5">
+                        <div className="font-bold text-amber-950 dark:text-amber-200 text-xs sm:text-sm">
+                          🕉️ आजको अधिष्ठाता देवता: {deityInfo.deityNameNepali}
+                        </div>
+                        <div className="text-stone-700 dark:text-stone-300 text-[11px] leading-tight">
+                          {deityInfo.deityTitle} — <span className="text-stone-600 dark:text-stone-400">{deityInfo.description}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed line-clamp-2">
+                      {todayTithiArticle.summary}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-stone-600 dark:text-stone-400">
+                      <span className="font-semibold text-amber-900 dark:text-amber-300">
+                        ✍️ {todayTithiArticle.author}
+                      </span>
+                      <span>•</span>
+                      <span>📅 वि.सं. {todayTithiArticle.publishedAtBS}</span>
+                      <span>•</span>
+                      <span>⏱️ {toDevanagariNumerals(todayTithiArticle.readTimeMinutes)} मिनेट अध्ययन</span>
+                      <span>•</span>
+                      <span>👁️ {toDevanagariNumerals(todayTithiArticle.viewsCount)} पाठक</span>
+                    </div>
+
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenStoredArticle(todayTithiArticle)}
+                        className="px-5 py-2.5 bg-gradient-to-r from-[#7A1C1C] to-[#9B2C2C] hover:from-[#5C1515] hover:to-[#7A1C1C] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer transition-all"
+                      >
+                        <span>पूर्ण शास्त्रीय श्लोक, मन्त्र र कथा पढ्नुहोस्</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleShareStoredWhatsApp(todayTithiArticle)}
+                        className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>ह्वाट्सएपमा सेयर</span>
+                      </button>
+                    </div>
                   </div>
-                )}
+
+                  {todayTithiArticle.coverImageUrl && (
+                    <div className="w-full lg:w-72 h-52 sm:h-60 rounded-2xl overflow-hidden border border-amber-300 dark:border-amber-800 shadow-md shrink-0 relative group cursor-pointer"
+                         onClick={() => handleOpenStoredArticle(todayTithiArticle)}>
+                      <img 
+                        src={todayTithiArticle.coverImageUrl} 
+                        alt={todayTithiArticle.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent flex flex-col justify-end p-3">
+                        <span className="text-xs text-amber-300 font-bold">
+                          {deityInfo.deityNameNepali}
+                        </span>
+                        <span className="text-[10px] text-amber-100">
+                          शास्त्र: {todayTithiArticle.source || 'निर्णयसिन्धु'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 2. UPCOMING MAJOR FESTIVALS SECTION (1 MONTH IN ADVANCE) */}
           {upcomingFestivalArticles.length > 0 && selectedCategoryFilter === 'all' && !searchQuery && (
@@ -595,47 +625,69 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {upcomingFestivalArticles.map((art) => (
-                  <div
-                    key={art.id}
-                    onClick={() => handleOpenStoredArticle(art)}
-                    className="bg-white dark:bg-stone-900 rounded-2xl border border-amber-200 dark:border-stone-800 p-4 hover:border-amber-400 dark:hover:border-amber-600 transition-all shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between group"
-                  >
-                    <div className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1 flex-1">
-                          <span className="inline-block bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 font-bold text-[11px] px-2.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                            🎉 चाडपर्व पूर्वतयारी
-                          </span>
-                          <h4 className="font-bold text-sm sm:text-base text-stone-900 dark:text-stone-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors leading-snug">
-                            {art.title}
-                          </h4>
+                {upcomingFestivalArticles.map((art) => {
+                  const festCode = art.id.replace('auto_festival_', '').replace('_2083', '');
+                  const festArt = getNepaliFestivalArt(festCode) || getNepaliFestivalArt(art.slug.replace('festival-', ''));
+
+                  return (
+                    <div
+                      key={art.id}
+                      onClick={() => handleOpenStoredArticle(art)}
+                      className="bg-white dark:bg-stone-900 rounded-2xl border border-amber-200 dark:border-stone-800 p-4 hover:border-amber-400 dark:hover:border-amber-600 transition-all shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between group space-y-3"
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 flex-1">
+                            <span className="inline-block bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 font-bold text-[11px] px-2.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+                              🎉 चाडपर्व पूर्वतयारी
+                            </span>
+                            <h4 className="font-bold text-sm sm:text-base text-stone-900 dark:text-stone-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors leading-snug">
+                              {art.title}
+                            </h4>
+                          </div>
+                          {art.coverImageUrl && (
+                            <img 
+                              src={art.coverImageUrl} 
+                              alt={art.title} 
+                              className="w-24 h-24 rounded-xl object-cover shrink-0 border border-stone-100 dark:border-stone-800 group-hover:scale-105 transition-transform" 
+                            />
+                          )}
                         </div>
-                        {art.coverImageUrl && (
-                          <img 
-                            src={art.coverImageUrl} 
-                            alt={art.title} 
-                            className="w-20 h-20 rounded-xl object-cover shrink-0 border border-stone-100 dark:border-stone-800 group-hover:scale-105 transition-transform" 
-                          />
+
+                        <p className="text-xs text-stone-600 dark:text-stone-400 line-clamp-2 leading-relaxed">
+                          {art.summary}
+                        </p>
+
+                        {/* Traditional Nepali Elements Badge */}
+                        {festArt && (
+                          <div className="bg-amber-50/70 dark:bg-stone-850 p-2.5 rounded-xl border border-amber-100 dark:border-amber-900/40 text-[11px] space-y-1">
+                            <div className="text-amber-900 dark:text-amber-300 font-bold flex items-center gap-1">
+                              <span>🇳🇵 नेपाली परम्परा:</span>
+                              <span className="font-normal text-stone-700 dark:text-stone-300 line-clamp-1">{festArt.celebrationTypeNepali}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {festArt.traditionalElements.slice(0, 4).map((el, i) => (
+                                <span key={i} className="text-[10px] bg-white dark:bg-stone-900 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800/60 font-medium">
+                                  ✓ {el}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
 
-                      <p className="text-xs text-stone-600 dark:text-stone-400 line-clamp-2 leading-relaxed">
-                        {art.summary}
-                      </p>
+                      <div className="pt-2.5 mt-1 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-[11px] text-stone-500">
+                        <span className="font-medium text-amber-800 dark:text-amber-400">
+                          📅 पर्व मिति: वि.सं. {art.publishedAtBS}
+                        </span>
+                        <span className="font-bold text-[#7A1C1C] dark:text-amber-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                          <span>श्लोक र विधि हेर्नुहोस्</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
                     </div>
-
-                    <div className="pt-3 mt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-[11px] text-stone-500">
-                      <span className="font-medium text-amber-800 dark:text-amber-400">
-                        📅 पर्व मिति: वि.सं. {art.publishedAtBS}
-                      </span>
-                      <span className="font-bold text-[#7A1C1C] dark:text-amber-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                        <span>श्लोक र विधि हेर्नुहोस्</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1169,6 +1221,64 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                   />
                 </div>
               )}
+
+              {/* Tithi Presiding Deity Card (If Tithi Article) */}
+              {selectedStoredArticle.id.startsWith('daily_tithi_article_') && (() => {
+                const tNum = mapTithiNameToNumber(propPanchanga?.tithi?.name || 'प्रतिपदा');
+                const dInfo = getDeityPortraitForTithi(tNum);
+                return (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-100/90 via-orange-100/70 to-amber-50 dark:from-amber-950/70 dark:via-stone-850 dark:to-stone-900 border-2 border-amber-300 dark:border-amber-700 shadow-sm space-y-2">
+                    <div className="flex items-center gap-3.5">
+                      <span className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white text-2xl flex items-center justify-center shadow-xs shrink-0">
+                        {dInfo.symbol}
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-sm sm:text-base font-serif text-amber-950 dark:text-amber-200">
+                          🕉️ तिथिका अधिष्ठाता देवता: {dInfo.deityNameNepali}
+                        </h4>
+                        <p className="text-xs text-amber-900 dark:text-amber-300 font-medium">
+                          {dInfo.deityTitle}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed pt-1">
+                      {dInfo.description}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Traditional Nepali Festival Cultural Box (If Festival Article) */}
+              {selectedStoredArticle.id.startsWith('auto_festival_') && (() => {
+                const fCode = selectedStoredArticle.id.replace('auto_festival_', '').replace('_2083', '');
+                const fArt = getNepaliFestivalArt(fCode) || getNepaliFestivalArt(selectedStoredArticle.slug.replace('festival-', ''));
+                if (!fArt) return null;
+                return (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-50 via-amber-50 to-orange-50 dark:from-stone-850 dark:via-stone-900 dark:to-stone-850 border-2 border-amber-300 dark:border-amber-700 shadow-sm space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🇳🇵</span>
+                      <h4 className="font-bold text-sm sm:text-base font-serif text-[#7A1C1C] dark:text-amber-400">
+                        नेपाली मौलिक परम्परा तथा मनाउने विधि: {fArt.festivalName}
+                      </h4>
+                    </div>
+                    <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
+                      {fArt.description}
+                    </p>
+                    <div className="space-y-1.5 pt-1 border-t border-amber-200/60 dark:border-stone-700">
+                      <span className="text-xs font-bold text-amber-900 dark:text-amber-300">
+                        नेपाली परम्परागत पूजन तथा सांस्कृतिक सामग्रीहरू:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {fArt.traditionalElements.map((el, i) => (
+                          <span key={i} className="text-xs bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800/70 font-medium shadow-2xs">
+                            ✓ {el}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Lead Summary */}
               <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-l-4 border-amber-600 rounded-r-2xl font-medium text-xs sm:text-sm text-stone-800 dark:text-stone-200 leading-relaxed">
