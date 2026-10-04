@@ -49,7 +49,7 @@ export interface NewsEditorMagicToken {
   note?: string;
 }
 
-const STORAGE_KEY_SAMACHAR = 'balananda_samachar_articles_v1';
+const STORAGE_KEY_SAMACHAR = 'balananda_samachar_articles_v2';
 const STORAGE_KEY_MAGIC_TOKENS = 'balananda_news_editor_magic_tokens_v1';
 
 export const SAMACHAR_CATEGORY_NAMES: Record<SamacharCategory, string> = {
@@ -82,7 +82,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'वरिष्ठ फलित ज्योतिषी',
-    coverImageUrl: 'https://images.unsplash.com/photo-1538370965046-79c0d6907d47?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/sunday_surya.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -109,7 +109,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'पञ्चाङ्ग खगोलविद्',
-    coverImageUrl: 'https://images.unsplash.com/photo-1532693322450-2cb5c511067d?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/janai_purnima.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -136,7 +136,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'वरिष्ठ फलित ज्योतिषी',
-    coverImageUrl: 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/tuesday_hanuman.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -162,7 +162,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'वरिष्ठ फलित ज्योतिषी',
-    coverImageUrl: 'https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/wednesday_krishna.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -188,7 +188,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'प्रमुख ज्योतिषाचार्य',
-    coverImageUrl: 'https://images.unsplash.com/photo-1614313913007-2b4ae8ce32d6?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/thursday_vishnu.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -214,7 +214,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'वरिष्ठ फलित ज्योतिषी',
-    coverImageUrl: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/friday_lakshmi.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -241,7 +241,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'प्रमुख धर्माधिकारी',
-    coverImageUrl: 'https://images.unsplash.com/photo-1614314107768-6018061b5b72?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/saturday_shani.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -268,7 +268,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'वरिष्ठ फलित ज्योतिषी',
-    coverImageUrl: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/durga_ashtami.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,
@@ -295,7 +295,7 @@ export const INITIAL_SAMACHAR_ARTICLES: SamacharArticle[] = [
     categoryNameNepali: 'ज्योतिष अनुसन्धान',
     author: 'बालानन्द खगोल तथा गोचर अनुसन्धान परिषद',
     authorRole: 'वरिष्ठ फलित ज्योतिषी',
-    coverImageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1000&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/ganesha.jpg',
     publishedAtBS: '२०८३-०५-२५',
     publishedAtAD: '2026-09-10',
     isPublished: true,

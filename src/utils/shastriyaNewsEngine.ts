@@ -62,7 +62,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 यस दिन बिहानै स्नान गरी तामाको भाँडोमा अक्षता र रातो फूल राखेर सूर्य र अग्निको ध्यान गर्दा व्यक्तिले वर्षभरि आरोग्यता र उच्च तेज प्राप्त गर्दछ।`,
     shubhSaitNotes: 'नयाँ घर निर्माणको जग खन्ने, शिलान्यास गर्ने, नयाँ कपडा पहिरिने र पूर्व दिशाको यात्राका लागि प्रतिपदा शुभ मानिन्छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/festivals/tihar_deepawali.jpg'
   },
   2: {
     tithiNumber: 2,
@@ -89,7 +89,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 भ्रातृद्वितीया (भाइटीका) पनि द्वितीया तिथिमा नै पर्दछ। यमराजले आफ्नी बहिनी यमुनाको घरमा गई द्वितीया तिथिमा भोजन ग्रहण गरेका थिए र बहिनीले दिएको दीर्घायुको आशीर्वादका कारण यस तिथिलाई परम पवित्र र सम्बन्ध प्रगाढ बनाउने तिथिका रूपमा पूजा गरिन्छ।`,
     shubhSaitNotes: 'औषधि सेवन सुरु गर्न, नयाँ व्यापार खोल्न, बैंक खाता सञ्चालन गर्न र उत्तरी दिशाको यात्राका लागि द्वितीया उत्तम छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1605335198858-a9f4cba52601?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/brahma.jpg'
   },
   3: {
     tithiNumber: 3,
@@ -121,7 +121,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 यस दिन माता पार्वतीलाई रातो सिन्दूर, चुरा र वस्त्र अर्पण गर्नाले पारिवारिक जीवनमा कहिल्यै दरिद्रता र विछोड नहुने वरदान प्राप्त हुन्छ।`,
     shubhSaitNotes: 'विवाह साइत, नयाँ गरगहना खरिद गर्न, अन्न प्राशन र यात्राका लागि तृतीया अत्यन्त फलदायी मानिन्छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/festivals/haritalika_teej.jpg'
   },
   4: {
     tithiNumber: 4,
@@ -153,7 +153,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 क्रोधित भई शिवगण र भगवान् शिवसँग भएको युद्धमा बालकको शिर छेदन भयो। पार्वतीको विलाप देखेर शिवजीले उत्तर दिशा तर्फ शिर गरी सुतेको हात्तीको शिर ल्याई बालकमा जोडी 'गणेश' नामकरण गर्नुभयो र प्रथम पूज्य हुने वरदान दिनुभयो। चतुर्थी तिथि गणेशजीको प्राकट्य तिथि भएकाले यस दिन संकट निवारणको महापूजा गरिन्छ।`,
     shubhSaitNotes: 'शत्रु पराजय, कानुनी विवाद समाधान र प्रतिस्पर्धात्मक परीक्षाका लागि चतुर्थी उपयुक्त हुन्छ तर सामान्य गृहप्रवेशमा चतुर्थी बार्ने नियम छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1567591414240-e69e388f6153?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/ganesha.jpg'
   },
   5: {
     tithiNumber: 5,
@@ -180,7 +180,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 श्रावण शुक्ल पञ्चमीका दिन नागहरूको पूजा गर्नाले पाताल लोकमा रहेका अनन्त, वासुकी, शेष, पद्म, कम्बल, कर्कोटक, अश्विक, धृतराष्ट्र, शङ्खपाल, कालिया, तक्षक र पिङ्गल नामक १२ प्रमुख नागहरू प्रसन्न भई घरमा सुख-शान्ति प्रदान गर्दछन्।`,
     shubhSaitNotes: 'विद्यारम्भ, अक्षरारम्भ, नयाँ पुस्तक लेखन, व्यापार सुरु गर्न र यात्राका लागि पञ्चमी सर्वोत्तम तिथि हो।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/friday_lakshmi.jpg'
   },
   6: {
     tithiNumber: 6,
@@ -207,7 +207,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 षष्ठी तिथिका दिन भगवान् कार्तिकेयले देवसेनाको सेनापति भई तारकासुर दानवको वध गर्नुभयो। साथै यसै दिन प्रकृतिकी छैटौं अंश षष्ठी देवी (छठि मैया) को पनि विशेष पूजा गरिन्छ जसले सन्तानलाई दीर्घायु र आरोग्यता प्रदान गर्नुहुन्छ।`,
     shubhSaitNotes: 'शिल्पकला, नयाँ वाहन खरिद, युद्ध/कानुनी बहस र निर्माण कार्यका लागि षष्ठी अनुकूल छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/festivals/chhath_parva.jpg'
   },
   7: {
     tithiNumber: 7,
@@ -239,7 +239,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 भगवान् श्रीकृष्णका पुत्र साम्बलाई जब दुर्वासा ऋषिको श्रापले कुष्ठरोग भयो, तब नारदजीको आज्ञाले साम्बले सप्तमी तिथिमा सूर्यदेवको कठोर आराधना गरी चर्मरोगबाट पूर्ण मुक्ति पाएका थिए।`,
     shubhSaitNotes: 'नयाँ सवारी साधन किन्न, यात्रा प्रारम्भ गर्न, नयाँ नोकरी ज्वाइन गर्न र सरकारी काम सुरु गर्न सप्तमी अति शुभ छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1538370965046-79c0d6907d47?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/sunday_surya.jpg'
   },
   8: {
     tithiNumber: 8,
@@ -271,7 +271,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 महाअष्टमीको मध्यरातमा देवीले चण्ड-मुण्ड र रक्तबीज दानवको संहार गर्नुभएको थियो। यसै तिथिमा भगवान् शिवको रौद्र रूप 'कालभैरव' को पनि प्राकट्य भएको थियो। त्यसैले अष्टमी तिथि शक्ति संचय र आत्मरक्षाको महातिथि हो।`,
     shubhSaitNotes: 'रक्षा कवच धारण गर्न, तान्त्रिक शान्ति गर्न, धातु तथा शस्त्र निर्माणका लागि उपयुक्त। सामान्य गृहप्रवेशमा अष्टमी बार्ने नियम छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1601633519888-0f5cb76e27ff?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/durga_ashtami.jpg'
   },
   9: {
     tithiNumber: 9,
@@ -298,7 +298,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 भगवान् शिवले पनि माता सिद्धिदात्रीको अनुकम्पाले नै समस्त अष्टसिद्धिहरू (अणिमा, महिमा, गरिमा, लघिमा, प्राप्ति, प्राकाम्य, ईशित्व, वशित्व) प्राप्त गर्नुभएको थियो र उहाँ 'अर्धनारीश्वर' बन्नुभएको थियो।`,
     shubhSaitNotes: 'हवन गर्न, धार्मिक अनुष्ठान पूर्णाहुति गर्न, अस्त्र-शस्त्र परीक्षण गर्न र नयाँ सवारी साधन सञ्चालनका लागि उत्तम।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/festivals/bibaha_panchami.jpg'
   },
   10: {
     tithiNumber: 10,
@@ -325,7 +325,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 दशमी तिथिका स्वामी दश दिक्पालहरू हुन्। यस दिन इन्द्र, अग्नि, यम, निरृति, वरुण, वायु, कुबेर, ईशान, ब्रह्मा र अनन्तको स्मरण गर्नाले जीवनका हरेक क्षेत्रमा विजय हासिल हुन्छ।`,
     shubhSaitNotes: 'नयाँ उद्योग सुरु गर्न, यात्रा गर्न, विजय अभियान थाल्न र शिक्षा/परीक्षाका लागि दशमी सर्वोत्तम छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/yamaraj.jpg'
   },
   11: {
     tithiNumber: 11,
@@ -357,7 +357,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 जब मुर दैत्यले सुतिरहनुभएका विष्णुलाई मार्न तरबार उठायो, तब भगवान् विष्णुको शरीरबाट दिव्य तेजमयी कन्या प्रकट भइन् र उनले हुंकार मात्रले मुर दैत्यलाई भस्म गरिदिइन्। प्रसन्न भएर विष्णुले ती कन्याको नाम 'एकादशी' राख्नुभयो र एकादशीको व्रत बस्ने मनुष्यले सिधै वैकुण्ठ लोक प्राप्त गर्ने वरदान दिनुभयो।`,
     shubhSaitNotes: 'आध्यात्मिक साधना, मन्त्र दीक्षा, यज्ञ, दान र उपवासका लागि एकादशी सर्वोत्कृष्ट तिथि हो।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/thursday_vishnu.jpg'
   },
   12: {
     tithiNumber: 12,
@@ -384,7 +384,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 सत्ययुगमा राजा अम्बरीषले द्वादशीको पारण समयमा दुर्वासा ऋषिको आगमन हुँदा भगवान् विष्णुको चरणामृत पिएर व्रतको रक्षा गरेका थिए। दुर्वासाको क्रोधबाट भगवान्को सुदर्शन चक्रले राजा अम्बरीषको रक्षा गरेको थियो।`,
     shubhSaitNotes: 'दान गर्न, तीर्थयात्रा सुरु गर्न, विवाह तथा गृहप्रवेशका लागि द्वादशी उत्तम मानिन्छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/festivals/shree_krishna_janmashtami.jpg'
   },
   13: {
     tithiNumber: 13,
@@ -411,7 +411,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 विषको जलन शान्त भएपछि भगवान् शिवले नन्दीमाथि दिव्य आनन्द ताण्डव नृत्य गर्नुभयो। त्यसैले त्रयोदशीको साँझ भगवान् शिवको पूजा गर्नाले समस्त कष्ट र ऋण तत्काल नाश हुन्छ।`,
     shubhSaitNotes: 'नयाँ गरगहना, भाँडावर्तन, सवारी साधन खरिद (धनतेरस) तथा मित्रता गाँस्नका लागि त्रयोदशी अत्यन्त शुभ छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1599824619456-9eff2aa32a93?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/deities/monday_shiva.jpg'
   },
   14: {
     tithiNumber: 14,
@@ -438,7 +438,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 चतुर्दशी तिथिका स्वामी भगवान् रुद्र हुनुहुन्छ। यस दिन उपवास बसी शिवजीलाई बेलपत्र, धतुरो र जल अर्पण गर्नाले करोडौं जन्मका पापहरू भस्म हुन्छन् र मोक्षको ढोका खुल्छ।`,
     shubhSaitNotes: 'शत्रु दमन, तन्त्र साधना र शिव उपासनाका लागि उत्तम। सामान्य शुभ कार्य (विवाह/गृहप्रवेश) मा चतुर्दशी बार्ने शास्त्रीय नियम छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1599824619456-9eff2aa32a93?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/festivals/maha_shivaratri.jpg'
   },
   15: {
     tithiNumber: 15,
@@ -470,7 +470,7 @@ export const SHASTRIYA_TITHI_DATABASE: Record<number, ShastriyaTithiData> = {
 
 औँसी: औँसीका दिन सूर्य र चन्द्रमा एकै राशि र अंशांशमा रहन्छन्। यस दिन पितृलोकका ढोका खुल्ने र पितृहरू आफ्ना सन्तानबाट जल र पिण्डको आशा राख्ने भएकाले पितृ तर्पण गर्दा कुलमा सधैं शान्ति रहन्छ।`,
     shubhSaitNotes: 'सत्यनारायण पूजा, हवन, दान, तीर्थ स्नानका लागि पूर्णिमा सर्वोत्तम छ। औंसी पितृ कर्मका लागि उत्तम छ।',
-    coverImageUrl: 'https://images.unsplash.com/photo-1532693322450-2cb5c511067d?w=1200&auto=format&fit=crop&q=80'
+    coverImageUrl: '/assets/festivals/janai_purnima.jpg'
   }
 };
 
@@ -653,7 +653,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 भगवान् ब्रह्मा, विष्णु र महेश्वरको प्रचण्ड क्रोध र समस्त देवताहरूको तेज पुञ्जबाट भगवती दुर्गाको प्राकट्य भयो। देवताहरूले आ-आफ्ना दिव्य अस्त्रहरू (शिवले त्रिशूल, विष्णुले चक्र, इन्द्रले वज्र, हिमालयले सिंह) देवीलाई अर्पण गरे।
 
 भगवतीले लगातार नौ दिनसम्म दानव सेनाविरुद्ध युद्ध गरी दशौं दिनमा महिषासुरको छातीमा त्रिशूल प्रहार गरी वध गर्नुभयो। त्यसै विजयको खुसियालीमा सत्य, धर्म र मर्यादाको प्रतीकका रूपमा नवरात्र र विजयादशमी मनाउने परम्परा सुरु भएको हो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1601633519888-0f5cb76e27ff?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/dashain_ghatasthapana.jpg',
     tags: ['बडादशैँ', 'घटस्थापना', 'नवरात्र', 'दुर्गा पूजा', 'जमरा', 'टीका साइत']
   },
   {
@@ -682,7 +682,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - पूर्व दिशा फर्केर मान्यजन, मातापिता र गुरुको हातबाट रातो अक्षताको टीका र पहेँलो जमरा लगाई शिरमा आशीर्वाद थाप्ने।
 - दशमीदेखि कोजाग्रत पूर्णिमासम्म आफन्त र मान्यजनकहाँ गई टीका लगाउने परम्परा।`,
     katha: `विजयादशमीका दिन मर्यादा पुरुषोत्तम श्रीरामले दश टाउके रावणमाथि विजय प्राप्त गर्नुभएको थियो र भगवती दुर्गाले महिषासुरको वध गर्नुभएको थियो। असत्यमाथि सत्यको, अन्यायमाथि न्यायको र अन्धकारमाथि प्रकाशको विजय उत्सवका रूपमा यो महान् चाड मनाइन्छ।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/dashain_vijayadashami.jpg',
     tags: ['विजयादशमी', 'दशैं टीका', 'टीका साइत', 'जमरा', 'दशैं आशीर्वाद']
   },
   {
@@ -713,7 +713,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - प्रतिपदा: गोवर्धन पूजा, बलि राजाको पूजा तथा म्हः पूजा।
 - द्वितीया: भाइटीका — दिदीबहिनीले दाजुभाइलाई सप्तरङ्गी टीका र मखमली माला लगाई दीर्घायुको आशीर्वाद दिने।`,
     katha: `समुद्र मन्थनको बेला कार्तिक औँसीको दिन महालक्ष्मीको प्राकट्य भएको थियो। महालक्ष्मीले भगवान् विष्णुलाई पति रूपमा वरण गर्नुभयो। त्यसै रात देवता र मानवहरूले दीप बालेर माता लक्ष्मीको स्वागत गरे, जसबाट दीपावलीको उत्सव सुरु भयो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/tihar_deepawali.jpg',
     tags: ['तिहार', 'यमपञ्चक', 'लक्ष्मीपूजा', 'दीपावली', 'धन्वन्तरि']
   },
   {
@@ -743,7 +743,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - ओखर फोरेर यमदूतहरूको मार्ग रोक्ने।
 - ललाटमा सप्तरङ्गी टीका र गलामा नओइलाउने मखमली तथा सयपत्रीको माला पहिर्याउने।`,
     katha: `कार्तिक शुक्ल द्वितीयाका दिन यमराज आफ्नी बहिनी यमुनाको घरमा पुग्नुभयो। यमुनाले दाजुलाई स्नेहपूर्वक सत्कार गरी सप्तरङ्गी टीका लगाइदिइन् र मिठामिठा परिकार खुवाइन्। यमराजले बहिनीको निस्वार्थ प्रेम देखेर वरदान दिनुभयो— 'आजको दिन बहिनीको हातबाट टीका लगाउने कुनै पनि दाजुभाइको अकाल मृत्यु हुनेछैन।'`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1605335198858-a9f4cba52601?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/tihar_bhaatika.jpg',
     tags: ['भाइटीका', 'यमद्वितीया', 'मखमली माला', 'सप्तरङ्गी टीका', 'यमराज']
   },
   {
@@ -773,7 +773,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - दिन ३ (षष्ठी): सन्ध्याकालीन अर्घ्य (नदी वा तलाउको पानीमा उभिएर अस्ताउँदो सूर्यलाई बाँसको ढाकीमा ठेकुवा, फलफूल र कन्दमूलसहित अर्घ्य दिने)।
 - दिन ४ (सप्तमी): प्रातःकालीन अर्घ्य (उदाउँदो सूर्यलाई अर्घ्य दिएर व्रत समापन / पारण)।`,
     katha: `राजा प्रियव्रत र रानी मालिनीका सन्तान नहुँदा महर्षि कश्यपले पुत्रेष्टि यज्ञ गराए। तर मृत पुत्र जन्मिएपछि राजाले प्राण त्याग्न लाग्दा षष्ठी देवी (छठि माता) प्रकट भई सन्तानको रक्षा गर्नुभयो। त्यसै दिनदेखि कार्तिक शुक्ल षष्ठीमा छठ पर्व मनाउने परम्परा सुरु भएको हो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/chhath_parva.jpg',
     tags: ['छठ पर्व', 'सूर्य षष्ठी', 'नहाय खाय', 'खरना', 'अर्घ्य', 'छठि मैया']
   },
   {
@@ -801,7 +801,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - जनकपुरधाम जानकी मन्दिरमा मटकोर, तिलकोत्सव, स्वयंवर तथा वैवाहिक विधि।
 - घर-घरमा राम-जानकीको युगल मूर्ति स्थापना गरी पूजा र रामचरितमानस पाठ।`,
     katha: `मार्गशीर्ष शुक्ल पञ्चमीका दिन राजा जनकको दरबारमा शिव धनुष तोडेर भगवान् श्रीरामले माता सीतासँग विवाह गर्नुभएको थियो। यस दिन सीतारामको पूजा गर्दा दाम्पत्य जीवनका सबै बाधा हट्छन्।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/bibaha_panchami.jpg',
     tags: ['विवाह पञ्चमी', 'सीताराम विवाह', 'जनकपुरधाम', 'मिथिला', 'जानकी']
   },
   {
@@ -829,7 +829,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - बिहान पवित्र नदी संगम (देवघाट, रिडी, वराहक्षेत्र) मा मकर स्नान गर्ने।
 - तिल, चाकु, घिउ, तरुल र खिचडी पकाई सूर्यदेवलाई अर्पण गरी परिवारसहित खाने।`,
     katha: `भीष्म पितामहले इच्छा मृत्युको वरदान पाएकाले बाणको शय्यामा परेर पनि सूर्यको उत्तरायण नहुन्जेल प्राण त्याग्नुभएन। माघे संक्रान्तिका दिन सूर्य उत्तरायण भएपछि उहाँले देहत्याग गरी मोक्ष प्राप्त गर्नुभयो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1538370965046-79c0d6907d47?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/maghe_sankranti.jpg',
     tags: ['माघे संक्रान्ति', 'मकर संक्रान्ति', 'उत्तरायण', 'घिउ चाकु', 'तरुल']
   },
   {
@@ -858,7 +858,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - मन्दिरमा 'ॐ' वा क, ख, ग लेखाएर विद्यारम्भ गराउने।
 - पुस्तक र संगीतका वाद्यवादनको पूजा गर्ने।`,
     katha: `सृष्टिको प्रारम्भमा ब्रह्माजीले जीवहरूको रचना गरे पनि संसार शान्त र निरस थियो। ब्रह्माजीले आफ्नो कमण्डलुबाट जल छर्केपछि हातमा वीणा, पुस्तक र स्फटिक माला लिएकी देवी सरस्वती प्रकट हुनुभयो। वीणाको झङ्कारले संसारमा वाणी र संगीतको सञ्चार भयो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/deities/friday_lakshmi.jpg',
     tags: ['श्रीपञ्चमी', 'सरस्वती पूजा', 'वसन्त पञ्चमी', 'अक्षरारम्भ', 'विद्यारम्भ']
   },
   {
@@ -888,7 +888,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - तेस्रो प्रहर: शुद्ध घिउले अभिषेक (वामदेव मन्त्र)।
 - चौथो प्रहर: मह र उखुको रसले अभिषेक (सद्योजात मन्त्र)।`,
     katha: `फाल्गुन कृष्ण चतुर्दशीको मध्यरातमा भगवान् शिव ब्रह्मा र विष्णुको अहङ्कार शान्त गर्नका लागि अनन्त ज्योतिर्लिङ्गका रूपमा प्रकट हुनुभएको थियो। साथै यसै दिन भगवान् शिव र माता पार्वतीको दिव्य विवाह सम्पन्न भएको थियो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1599824619456-9eff2aa32a93?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/maha_shivaratri.jpg',
     tags: ['महाशिवरात्रि', 'पशुपतिनाथ', 'रुद्राभिषेक', 'शिव ताण्डव', 'महामृत्युञ्जय']
   },
   {
@@ -917,7 +917,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - पूर्णिमाको रात होलिका दहन गर्ने।
 - पहाडमा पूर्णिमाको दिन र तराईमा भोलिपल्ट अबीर र रङ्ग दलेर होली खेल्ने।`,
     katha: `दैत्यराज हिरण्यकशिपुले आफ्नै छोरा भक्त प्रह्लादलाई मार्नका लागि आगोले नजल्ने वरदान पाएकी आफ्नी बहिनी होलिकाको काखमा प्रह्लादलाई राखी आगो लगाइदियो। भगवान् नारायणको कृपाले होलिका जलेर भस्म भइन् तर प्रह्लाद सकुशल रहे।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/fagu_purnima_holi.jpg',
     tags: ['फागु पूर्णिमा', 'होली', 'होलिका दहन', 'भक्त प्रह्लाद', 'चीर']
   },
   {
@@ -945,7 +945,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - बिहान स्नान गरी श्रीराम, सीता, लक्ष्मण र हनुमानजीको पूजा गर्ने।
 - मध्यान्ह १२:०० बजे भगवान् रामको जन्मोत्सव आरती र पञ्चामृत प्रसाद वितरण।`,
     katha: `चैत्र शुक्ल नवमीका दिन मध्यान्ह कालमा पुनर्वसु नक्षत्र र कर्कट लग्नमा भगवान् विष्णुले दशरथ र कौशल्याको पुत्रका रूपमा श्रीराम अवतार धारण गर्नुभयो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/bibaha_panchami.jpg',
     tags: ['चैते दशैँ', 'रामनवमी', 'श्रीराम', 'वासन्ती नवरात्र', 'अयोध्या']
   },
   {
@@ -977,7 +977,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
     katha: `भगवान् विष्णुले वामन अवतार लिई महादानी असुरराज बलिसँग तीन पाउ भूमि दान माग्नुभयो। दुई पाउमा स्वर्ग र पृथ्वी नापेपछि तेस्रो पाउ बलिको शिरमा राख्नुभयो र उनलाई पातालको राजा बनाउनुभयो। 
 
 दानवराज बलिले भगवान् विष्णुलाई सधैं आफ्नै दरबारमा बस्ने वचनमा बाँधे। वैकुण्ठमा माता लक्ष्मी चिन्तित भई श्रावण पूर्णिमाको दिन पाताल लोक पुग्नुभयो र राजा बलिलाई रक्षासूत्र (राखी) बाँधेर भाइ बनाउनुभयो। उपहार स्वरूप बलिले भगवान् विष्णुलाई मुक्त गरी वैकुण्ठ पठाए। त्यसैले रक्षाबन्धनलाई भाइ-बहिनीको पवित्र सुरक्षा र स्नेहको प्रतीक मानिन्छ।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1514897575457-c4db467cf78e?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/janai_purnima.jpg',
     tags: ['जनैपूर्णिमा', 'रक्षाबन्धन', 'यज्ञोपवीत', 'क्वाँटी', 'सप्तर्षि तर्पण', 'वामन अवतार']
   },
   {
@@ -1006,7 +1006,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - मध्यरात १२:०० बजे भगवान् कृष्णको जन्म हुँदा शंख, घण्ट बजाएर पञ्चामृतले अभिषेक गर्ने।
 - काँक्राको चिरा काटेर नाभि छेदनको प्रतीक बनाउने र माखन-मिश्रीको भोग लगाउने।`,
     katha: `द्वापरयुगमा मथुराका अत्याचारी राजा कंसको कारागारमा भाद्रपद कृष्ण अष्टमीको मध्यरातमा भगवान् विष्णुले देवकीको आठौं सन्तानका रूपमा श्रीकृष्ण अवतार धारण गर्नुभयो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1567591414240-e69e388f6153?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/shree_krishna_janmashtami.jpg',
     tags: ['श्रीकृष्ण जन्माष्टमी', 'रोहिणी नक्षत्र', 'बालकृष्ण', 'मथुरा', 'भगवद्गीता']
   },
   {
@@ -1036,7 +1036,7 @@ export const MAJOR_FESTIVALS_SPEC: MajorFestivalShastriyaSpec[] = [
 - चतुर्थी: गणेश पूजा र पारण।
 - पञ्चमी: ऋषि पञ्चमी — सप्तर्षिको पूजा गरी ३६५ वटा दतिउनले दाँत माँझेर स्नान गर्ने।`,
     katha: `राजा हिमालयले आफ्नी छोरी पार्वतीको विवाह भगवान् विष्णुसँग गरिदिन चाहेपछि सखीहरूले पार्वतीलाई हरण गरी (लुकाएर) घना जंगलमा पुर्याए। त्यहाँ पार्वतीले भाद्र शुक्ल तृतीयाका दिन बालुवाको शिवलिङ्ग बनाई निराहार तपस्या गरेर भगवान् शिवलाई पतिको रूपमा प्राप्त गर्नुभयो।`,
-    coverImageUrl: 'https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?w=1200&auto=format&fit=crop&q=80',
+    coverImageUrl: '/assets/festivals/haritalika_teej.jpg',
     tags: ['हरितालिका तीज', 'दर खाने दिन', 'शिव पार्वती', 'ऋषि पञ्चमी', 'सौभाग्य']
   }
 ];
@@ -1062,11 +1062,27 @@ export function syncAndPruneShastriyaNews(
   // Parse current BS Date: e.g. "२०८३-०६-१८"
   const bsParts = activeTodayBS.replace(/[०-९]/g, (d) => '०१२३४५६७८९'.indexOf(d).toString()).split('-');
   const currentBSYear = parseInt(bsParts[0], 10) || 2083;
-  const currentBSMonth = parseInt(bsParts[1], 10) || 6;
-  const currentBSDay = parseInt(bsParts[2], 10) || 18;
 
-  // 2. Filter out EXPIRED daily tithi articles and past festivals
-  let updatedArticles = existingArticles.filter((art) => {
+  // 2. Filter out EXPIRED daily tithi articles and past festivals, and sanitize any legacy Unsplash images
+  let updatedArticles = existingArticles.map((art) => {
+    // If it contains unsplash or broken external image, replace with proper local asset
+    if (art.coverImageUrl && art.coverImageUrl.includes('images.unsplash.com')) {
+      if (art.id.startsWith('daily_tithi_article_')) {
+        const tNum = mapTithiNameToNumber(todayTithiName);
+        const tData = SHASTRIYA_TITHI_DATABASE[tNum] || SHASTRIYA_TITHI_DATABASE[1];
+        return { ...art, coverImageUrl: tData.coverImageUrl };
+      }
+      if (art.id.startsWith('auto_festival_')) {
+        const fCode = art.id.replace('auto_festival_', '').replace('_2083', '');
+        const match = MAJOR_FESTIVALS_SPEC.find(f => f.code === fCode);
+        if (match) return { ...art, coverImageUrl: match.coverImageUrl };
+      }
+      if (art.id.startsWith('graha_news_')) {
+        return { ...art, coverImageUrl: '/assets/festivals/tihar_deepawali.jpg' };
+      }
+    }
+    return art;
+  }).filter((art) => {
     // If it's a daily tithi auto-article and its date is NOT today's date, auto-delete it!
     if (art.id.startsWith('daily_tithi_article_')) {
       return art.publishedAtBS === activeTodayBS;
@@ -1074,14 +1090,23 @@ export function syncAndPruneShastriyaNews(
     return true;
   });
 
-  // 3. Ensure TODAY's running Tithi article exists and is fresh
+  // 3. Ensure TODAY's running Tithi article exists and has the accurate deity image
   const todayTithiArticleId = `daily_tithi_article_${activeTodayBS.replace(/[^0-9]/g, '_')}`;
-  const hasTodayTithi = updatedArticles.some((a) => a.id === todayTithiArticleId);
+  const tithiIdx = updatedArticles.findIndex((a) => a.id === todayTithiArticleId);
+  const freshTithiArticle = generateTodayTithiShastriyaArticle(todayTithiName, todayPaksha, activeTodayBS, activeTodayAD);
 
-  if (!hasTodayTithi) {
-    const newTithiArticle = generateTodayTithiShastriyaArticle(todayTithiName, todayPaksha, activeTodayBS, activeTodayAD);
-    // Put at top of list
-    updatedArticles.unshift(newTithiArticle);
+  if (tithiIdx >= 0) {
+    // Refresh today's article to guarantee fresh title and local deity image!
+    updatedArticles[tithiIdx] = {
+      ...updatedArticles[tithiIdx],
+      title: freshTithiArticle.title,
+      summary: freshTithiArticle.summary,
+      content: freshTithiArticle.content,
+      coverImageUrl: freshTithiArticle.coverImageUrl
+    };
+  } else {
+    // Insert new tithi article at the top of the list
+    updatedArticles.unshift(freshTithiArticle);
   }
 
   // 4. Scan for Upcoming Major Festivals within 1 Month (30 Days) window using REAL calendar day differences
