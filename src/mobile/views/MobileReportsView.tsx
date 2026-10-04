@@ -10,16 +10,32 @@ import {
 import { MobileBirthProfile } from '../types/mobileJyotishTypes';
 import { MobileKundaliPayload } from '../services/mobileAstrologyService';
 import { PanchangaData } from '../../types/astrology';
+import { canUserPrintDocuments } from '../../db/subscriptionStore';
+import { TrialPrintRestrictionModal } from '../../components/common/TrialPrintRestrictionModal';
 
 export const MobileReportsView: React.FC<{
   profile: MobileBirthProfile;
   kundaliData: MobileKundaliPayload;
   panchanga: PanchangaData;
-}> = ({ profile, kundaliData, panchanga }) => {
+  onOpenPurchaseModal?: () => void;
+}> = ({ profile, kundaliData, panchanga, onOpenPurchaseModal }) => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+  const [isRestrictionModalOpen, setIsRestrictionModalOpen] = useState(false);
+  const [pendingReport, setPendingReport] = useState<{ type: string; title: string } | null>(null);
 
   const handleDownloadReport = (reportType: string, reportTitle: string) => {
+    const printCheck = canUserPrintDocuments('kundali');
+    if (!printCheck.allowed) {
+      setPendingReport({ type: reportType, title: reportTitle });
+      setIsRestrictionModalOpen(true);
+      return;
+    }
+
+    executeDownload(reportType, reportTitle);
+  };
+
+  const executeDownload = (reportType: string, reportTitle: string) => {
     setDownloadingId(reportType);
 
     // Generate HTML print sheet for mobile download / print
@@ -201,6 +217,20 @@ export const MobileReportsView: React.FC<{
           </div>
         ))}
       </div>
+
+      {/* Trial Print / PDF Download Paywall Modal */}
+      <TrialPrintRestrictionModal
+        isOpen={isRestrictionModalOpen}
+        onClose={() => setIsRestrictionModalOpen(false)}
+        documentType="kundali"
+        onOpenPurchase={onOpenPurchaseModal}
+        onUnlockSuccess={() => {
+          setIsRestrictionModalOpen(false);
+          if (pendingReport) {
+            executeDownload(pendingReport.type, pendingReport.title);
+          }
+        }}
+      />
     </div>
   );
 };

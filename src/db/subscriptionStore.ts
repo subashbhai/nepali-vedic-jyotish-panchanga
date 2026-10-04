@@ -898,12 +898,22 @@ export function canUserPrintDocuments(docType?: 'kundali' | 'vastu' | 'general')
     return { allowed: true, reasonNepali: '' };
   }
 
-  // 2. SuperAdmin / StoreAdmin check from active RBAC session
+  // 2. SuperAdmin / Admin check from RBAC or Admin Control session
   try {
     const rbacRaw = localStorage.getItem('balananda_rbac_active_session_v1');
     if (rbacRaw) {
       const session = JSON.parse(rbacRaw);
       if (session.role === 'SUPER_ADMIN' || session.role === 'STORE_ADMIN' || session.role === 'POS_STAFF') {
+        return { allowed: true, reasonNepali: '' };
+      }
+    }
+  } catch {}
+
+  try {
+    const adminRaw = localStorage.getItem('balananda_admin_active_session_v1');
+    if (adminRaw) {
+      const admin = JSON.parse(adminRaw);
+      if (admin && admin.role) {
         return { allowed: true, reasonNepali: '' };
       }
     }
