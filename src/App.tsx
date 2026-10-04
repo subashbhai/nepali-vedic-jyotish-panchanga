@@ -49,6 +49,7 @@ const MuhurtaView = lazy(() => import('./components/MuhurtaView').then((m) => ({
 import type { VastuSubTab } from './components/VastuView';
 const VastuModalWindow = lazy(() => import('./components/VastuModalWindow').then((m) => ({ default: m.VastuModalWindow })));
 const VivahMilanView = lazy(() => import('./components/VivahMilanView').then((m) => ({ default: m.VivahMilanView })));
+const AdminVivahSection = lazy(() => import('./components/admin/sections/AdminVivahSection').then((m) => ({ default: m.AdminVivahSection })));
 const VivahMainView = lazy(() => import('./components/vivah/VivahMainView').then((m) => ({ default: m.VivahMainView })));
 const SanskarDocsView = lazy(() => import('./components/SanskarDocsView').then((m) => ({ default: m.SanskarDocsView })));
 const VastuView = lazy(() => import('./components/VastuView').then((m) => ({ default: m.VastuView })));
@@ -1295,12 +1296,7 @@ export default function App() {
 
           <main className="flex-1 p-3 sm:p-5 max-w-[1700px] w-full mx-auto">
             <Suspense fallback={<div className="p-12 text-center text-xs text-rose-600 font-bold animate-pulse">विवाह सुपरभाइजर ड्यासबोर्ड लोड हुँदैछ...</div>}>
-              <VivahMilanView
-                profiles={profiles}
-                activeProfile={currentProfile}
-                rbacSession={rbacSession}
-                onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
-              />
+              <AdminVivahSection onRefreshParent={() => {}} />
             </Suspense>
           </main>
         </div>
