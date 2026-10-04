@@ -54,10 +54,12 @@ import {
   Camera,
   UploadCloud,
   Link as LinkIcon,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { compressAndResizeImage } from '../../utils/imageUtils';
 import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
+import { PujaSamagriGalleryModal } from './PujaSamagriGalleryModal';
 import { InvoiceModal } from './InvoiceModal';
 
 interface StoreAdminDashboardProps {
@@ -93,6 +95,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isCompressingProductImage, setIsCompressingProductImage] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [isPujaGalleryModalOpen, setIsPujaGalleryModalOpen] = useState(false);
 
   const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1049,39 +1052,57 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                     <ImageIcon className="w-4 h-4 text-[#D97706]" />
                     <span>सामग्रीको फोटो (Product Photo)</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowUrlInput(!showUrlInput)}
-                    className="text-[11px] text-[#D97706] hover:underline flex items-center gap-1 font-medium cursor-pointer"
-                  >
-                    <LinkIcon className="w-3 h-3" />
-                    <span>{showUrlInput ? 'अपलोड मोडमा फर्कनुहोस्' : 'वेब लिङ्क राख्नुहोस्'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsPujaGalleryModalOpen(true)}
+                      className="text-xs bg-gradient-to-r from-[#7A1C1C] to-amber-700 hover:from-[#991B1B] hover:to-amber-600 text-white font-bold px-2.5 py-1 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                      <span>५०+ पूजा ग्यालरीबाट छान्नुहोस्</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowUrlInput(!showUrlInput)}
+                      className="text-[11px] text-[#D97706] hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>{showUrlInput ? 'अपलोड मोड' : 'वेब लिङ्क'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {editingProduct?.imageUrl ? (
-                  <div className="flex items-center gap-3 p-2 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700">
-                    <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-stone-100 dark:bg-stone-900 shrink-0 border border-amber-300/60 shadow-xs">
+                  <div className="flex items-center gap-3 p-2.5 bg-white dark:bg-stone-800 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-xs">
+                    <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-stone-900 shrink-0 border border-amber-400/60 shadow-xs">
                       <img
                         src={editingProduct.imageUrl}
                         alt="Product Preview"
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
-                        फोटो चयन गरिएको छ ✓
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <p className="text-xs font-bold text-green-700 dark:text-green-400 truncate flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> फोटो चयन गरिएको छ ✓
                       </p>
                       <p className="text-[10px] text-stone-500 truncate">
-                        {editingProduct.imageUrl.startsWith('data:') ? 'कम्प्रेस गरिएको स्थानीय फोटो' : editingProduct.imageUrl}
+                        {editingProduct.imageUrl.startsWith('data:') ? 'प्रमाणित वैदिक फोटो / कम्प्रेस्ड तस्विर' : editingProduct.imageUrl}
                       </p>
-                      <div className="flex items-center gap-2 pt-0.5">
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setIsPujaGalleryModalOpen(true)}
+                          className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-[#7A1C1C] dark:text-amber-300 rounded-lg text-[11px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-600" />
+                          <span>ग्यालरीबाट फेर्नुहोस्</span>
+                        </button>
                         <label
                           htmlFor="product-photo-file-input"
-                          className="px-2.5 py-1 bg-amber-100 dark:bg-amber-950/60 text-[#D97706] hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-lg text-[11px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
+                          className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-300 rounded-lg text-[11px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
                         >
                           <Camera className="w-3 h-3" />
-                          <span>फेर्नुहोस्</span>
+                          <span>फाइल अपलोड</span>
                         </label>
                         <button
                           type="button"
@@ -1095,10 +1116,28 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Option 1: Choose from 50+ Puja Gallery */}
+                    <button
+                      type="button"
+                      onClick={() => setIsPujaGalleryModalOpen(true)}
+                      className="border-2 border-amber-500/80 hover:border-amber-600 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-950/40 dark:to-transparent rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-[1.02] shadow-xs group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#7A1C1C] to-amber-600 flex items-center justify-center text-amber-200 mb-2 group-hover:rotate-6 transition-transform shadow-md">
+                        <Sparkles className="w-6 h-6 animate-pulse" />
+                      </div>
+                      <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-amber-100">
+                        ५०+ पूजा सामग्री ग्यालरीबाट छान्नुहोस्
+                      </span>
+                      <span className="text-[10px] text-amber-800 dark:text-amber-300 mt-1 font-medium">
+                        कर्मकाण्ड प्याकेज, हवन, शंख, घ्यू, रुद्राक्ष, ग्रन्थ आदि
+                      </span>
+                    </button>
+
+                    {/* Option 2: Upload from Device / Computer */}
                     <label
                       htmlFor="product-photo-file-input"
-                      className="border-2 border-dashed border-amber-400/60 hover:border-amber-500 bg-amber-50/50 hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all group"
+                      className="border-2 border-dashed border-stone-300 dark:border-stone-700 hover:border-amber-400 bg-white dark:bg-stone-800/60 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all group"
                     >
                       {isCompressingProductImage ? (
                         <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-bold py-2">
@@ -1107,14 +1146,14 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                         </div>
                       ) : (
                         <>
-                          <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-[#D97706] mb-1.5 group-hover:scale-110 transition-transform shadow-xs">
-                            <UploadCloud className="w-5 h-5" />
+                          <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-700 flex items-center justify-center text-stone-600 dark:text-stone-300 mb-2 group-hover:scale-110 transition-transform">
+                            <UploadCloud className="w-6 h-6" />
                           </div>
-                          <span className="font-bold text-xs text-stone-800 dark:text-stone-200">
-                            फोटो अपलोड गर्नुहोस् (Upload Photo)
+                          <span className="font-bold text-xs sm:text-sm text-stone-800 dark:text-stone-200">
+                            कम्प्युटर / मोबाइलबाट अपलोड
                           </span>
-                          <span className="text-[10px] text-stone-500 mt-0.5">
-                            कम्प्युटर वा मोबाइल ग्यालरीबाट (JPG, PNG, WebP) | स्वतः अप्टिमाइज हुनेछ
+                          <span className="text-[10px] text-stone-500 mt-1">
+                            JPG, PNG, WebP फोटो स्वतः अप्टिमाइज हुनेछ
                           </span>
                         </>
                       )}
@@ -1243,6 +1282,19 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
         order={selectedInvoiceOrder}
         isOpen={isInvoiceOpen}
         onClose={() => setIsInvoiceOpen(false)}
+      />
+
+      {/* Puja Samagri 50+ Gallery Modal */}
+      <PujaSamagriGalleryModal
+        isOpen={isPujaGalleryModalOpen}
+        onClose={() => setIsPujaGalleryModalOpen(false)}
+        onSelectImage={(item) => {
+          setEditingProduct(prev => ({
+            ...(prev || {}),
+            imageUrl: item.imageUrl
+          }));
+        }}
+        currentSelectedImageUrl={editingProduct?.imageUrl}
       />
     </div>
   );

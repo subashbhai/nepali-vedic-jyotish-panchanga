@@ -15,9 +15,10 @@ import {
   AuditLog,
   StoreUserRole
 } from '../types/vedicStoreTypes';
+import { PUJA_SAMAGRI_GALLERY_DATABASE } from '../utils/pujaSamagriGalleryEngine';
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'balananda_vedic_products_v1',
+  PRODUCTS: 'balananda_vedic_products_v3',
   ORDERS: 'balananda_vedic_orders_v1',
   COUPONS: 'balananda_vedic_coupons_v1',
   CART: 'balananda_vedic_cart_v1',
@@ -27,6 +28,11 @@ const STORAGE_KEYS = {
   INVENTORY_LOGS: 'balananda_vedic_inventory_logs_v1',
   CASH_REGISTER: 'balananda_vedic_cash_register_v1',
   SALES_RETURNS: 'balananda_vedic_sales_returns_v1',
+};
+
+const getGalleryImg = (id: string, fallbackIdx = 0): string => {
+  const found = PUJA_SAMAGRI_GALLERY_DATABASE.find(i => i.id === id);
+  return found?.imageUrl || PUJA_SAMAGRI_GALLERY_DATABASE[fallbackIdx]?.imageUrl || '';
 };
 
 // 25+ Realistic Demo Products
@@ -68,7 +74,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 4500,
     rating: 4.9,
     reviewsCount: 34,
-    imageUrl: 'https://images.unsplash.com/photo-1609234656388-0ff363383899?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_grihapravesh', 0),
     isActive: true,
     isFeatured: true,
     isPopular: true,
@@ -106,7 +112,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 5200,
     rating: 5.0,
     reviewsCount: 19,
-    imageUrl: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_vivah_kit', 1),
     isActive: true,
     isFeatured: true,
     isPopular: true,
@@ -140,7 +146,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 3100,
     rating: 4.8,
     reviewsCount: 15,
-    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_bartabandha', 2),
     isActive: true,
     isFeatured: true,
   },
@@ -172,7 +178,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 2200,
     rating: 4.9,
     reviewsCount: 42,
-    imageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_rudrabhishek', 3),
     isActive: true,
     isPopular: true,
     isBestSeller: true,
@@ -198,7 +204,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 1000,
     rating: 4.9,
     reviewsCount: 88,
-    imageUrl: 'https://images.unsplash.com/photo-1628102491629-778571d893a3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_himalayan_cow_ghee', 20),
     isActive: true,
     isFeatured: true,
     isBestSeller: true,
@@ -223,7 +229,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 250,
     rating: 4.7,
     reviewsCount: 56,
-    imageUrl: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_kasturi_devdaru_agarbatti', 14),
     isActive: true,
     isNewArrival: true,
   },
@@ -247,7 +253,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 100,
     rating: 4.9,
     reviewsCount: 39,
-    imageUrl: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_bhimseni_camphor', 18),
     isActive: true,
   },
 
@@ -270,7 +276,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 1100,
     rating: 5.0,
     reviewsCount: 27,
-    imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_copper_kalash_panchapatra', 9),
     isActive: true,
     isFeatured: true,
   },
@@ -294,7 +300,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 650,
     rating: 4.8,
     reviewsCount: 31,
-    imageUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_dakshinavarti_shankha', 7),
     isActive: true,
   },
 
@@ -317,7 +323,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 700,
     rating: 5.0,
     reviewsCount: 112,
-    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_bhagavad_gita', 30),
     isActive: true,
     isFeatured: true,
     isPopular: true,
@@ -350,7 +356,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 500,
     rating: 4.9,
     reviewsCount: 64,
-    imageUrl: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_swasthani_brata', 32),
     isActive: true,
     bookDetails: {
       author: 'वेदव्यास रचित (नेपाली संस्करण)',
@@ -380,7 +386,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 620,
     rating: 4.8,
     reviewsCount: 29,
-    imageUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_karmakanda_manjari', 34),
     isActive: true,
     bookDetails: {
       author: 'पं. बालानन्द ज्योतिषाचार्य',
@@ -410,7 +416,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 550,
     rating: 4.9,
     reviewsCount: 33,
-    imageUrl: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_balananda_panchanga_book', 35),
     isActive: true,
     bookDetails: {
       author: 'दैवज्ञ रामदेव (व्याख्या: ज्योतिषाचार्य)',
@@ -440,7 +446,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 180,
     rating: 4.9,
     reviewsCount: 77,
-    imageUrl: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_rudraksha_mala_108', 24),
     isActive: true,
     isFeatured: true,
     isPopular: true,
@@ -465,7 +471,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 25,
     rating: 5.0,
     reviewsCount: 22,
-    imageUrl: 'https://images.unsplash.com/photo-1590595906931-81f04f0cceec?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_ek_mukhi_rudraksha', 29),
     isActive: true,
   },
 
@@ -488,7 +494,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 320,
     rating: 4.8,
     reviewsCount: 38,
-    imageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_sphatik_shriyantra', 25),
     isActive: true,
     isFeatured: true,
   },
@@ -512,7 +518,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 450,
     rating: 4.9,
     reviewsCount: 18,
-    imageUrl: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_navagraha_shanti', 6),
     isActive: true,
   },
 
@@ -535,7 +541,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 550,
     rating: 4.7,
     reviewsCount: 25,
-    imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_vastu_shanti', 7),
     isActive: true,
   },
 
@@ -558,7 +564,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 400,
     rating: 4.8,
     reviewsCount: 17,
-    imageUrl: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_vastu_shanti', 7),
     isActive: true,
   },
 
@@ -581,7 +587,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 680,
     rating: 4.9,
     reviewsCount: 30,
-    imageUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_karmakanda_manjari', 34),
     isActive: true,
     bookDetails: {
       author: 'मण्डन सूत्रधार (अनुवाद: वास्तुविद्)',
@@ -611,7 +617,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 350,
     rating: 5.0,
     reviewsCount: 95,
-    imageUrl: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_balananda_panchanga_book', 35),
     isActive: true,
     isBestSeller: true,
   },
@@ -635,7 +641,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 1000,
     rating: 4.8,
     reviewsCount: 51,
-    imageUrl: 'https://images.unsplash.com/photo-1609234656388-0ff363383899?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_havan_samidha', 10),
     isActive: true,
   },
 
@@ -658,7 +664,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 150,
     rating: 4.9,
     reviewsCount: 44,
-    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_hand_twisted_janeu', 36),
     isActive: true,
   },
 
@@ -681,7 +687,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 1800,
     rating: 5.0,
     reviewsCount: 12,
-    imageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_rudrabhishek', 3),
     isActive: true,
   },
 
@@ -704,7 +710,7 @@ export const INITIAL_DEMO_PRODUCTS: Product[] = [
     weightGram: 280,
     rating: 4.9,
     reviewsCount: 20,
-    imageUrl: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=800&q=80',
+    imageUrl: getGalleryImg('ps_sphatik_shivalinga', 26),
     isActive: true,
   }
 ];
