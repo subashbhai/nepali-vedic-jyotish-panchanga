@@ -49,8 +49,14 @@ import {
   Search,
   Filter,
   Check,
-  Ban
+  Ban,
+  Image as ImageIcon,
+  Camera,
+  UploadCloud,
+  Link as LinkIcon,
+  Loader2
 } from 'lucide-react';
+import { compressAndResizeImage } from '../../utils/imageUtils';
 import { InvoiceModal } from './InvoiceModal';
 
 interface StoreAdminDashboardProps {
@@ -84,6 +90,41 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
   // Product Add/Edit Modal state
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [isCompressingProductImage, setIsCompressingProductImage] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+
+  const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('कृपया फोटो फाइल (JPG, PNG, WebP) मात्र छान्नुहोस्।');
+      return;
+    }
+
+    try {
+      setIsCompressingProductImage(true);
+      const optimizedDataUrl = await compressAndResizeImage(file, 800, 0.85);
+      setEditingProduct(prev => ({
+        ...(prev || {}),
+        imageUrl: optimizedDataUrl
+      }));
+    } catch (err) {
+      console.error('Image compression failed, fallback to reader:', err);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const url = ev.target?.result as string;
+        setEditingProduct(prev => ({
+          ...(prev || {}),
+          imageUrl: url
+        }));
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsCompressingProductImage(false);
+      e.target.value = '';
+    }
+  };
 
   // Coupon Add Modal state
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
@@ -968,26 +1009,133 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-stone-500 mb-1">स्टक परिमाण (Stock Quantity):</label>
-                <input
-                  type="number"
-                  value={editingProduct?.stockQuantity || 0}
-                  onChange={e => setEditingProduct({ ...editingProduct, stockQuantity: Number(e.target.value) })}
-                  className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2 font-mono"
-                />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-stone-500 mb-1">स्टक परिमाण (Stock Quantity):</label>
+                  <input
+                    type="number"
+                    value={editingProduct?.stockQuantity || 0}
+                    onChange={e => setEditingProduct({ ...editingProduct, stockQuantity: Number(e.target.value) })}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-stone-500 mb-1">न्यूनतम स्टक अलर्ट (Min Stock):</label>
+                  <input
+                    type="number"
+                    value={editingProduct?.minStockLevel || 3}
+                    onChange={e => setEditingProduct({ ...editingProduct, minStockLevel: Number(e.target.value) })}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2 font-mono"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-stone-500 mb-1">Image URL:</label>
+              {/* Product Photo Upload Section */}
+              <div className="bg-stone-50 dark:bg-stone-900/80 p-3.5 rounded-2xl border border-amber-200/70 dark:border-stone-700/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-stone-800 dark:text-stone-200">
+                    <ImageIcon className="w-4 h-4 text-[#D97706]" />
+                    <span>सामग्रीको फोटो (Product Photo)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlInput(!showUrlInput)}
+                    className="text-[11px] text-[#D97706] hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                  >
+                    <LinkIcon className="w-3 h-3" />
+                    <span>{showUrlInput ? 'अपलोड मोडमा फर्कनुहोस्' : 'वेब लिङ्क राख्नुहोस्'}</span>
+                  </button>
+                </div>
+
+                {editingProduct?.imageUrl ? (
+                  <div className="flex items-center gap-3 p-2 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700">
+                    <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-stone-100 dark:bg-stone-900 shrink-0 border border-amber-300/60 shadow-xs">
+                      <img
+                        src={editingProduct.imageUrl}
+                        alt="Product Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
+                        फोटो चयन गरिएको छ ✓
+                      </p>
+                      <p className="text-[10px] text-stone-500 truncate">
+                        {editingProduct.imageUrl.startsWith('data:') ? 'कम्प्रेस गरिएको स्थानीय फोटो' : editingProduct.imageUrl}
+                      </p>
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <label
+                          htmlFor="product-photo-file-input"
+                          className="px-2.5 py-1 bg-amber-100 dark:bg-amber-950/60 text-[#D97706] hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-lg text-[11px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
+                        >
+                          <Camera className="w-3 h-3" />
+                          <span>फेर्नुहोस्</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setEditingProduct({ ...editingProduct, imageUrl: '' })}
+                          className="px-2 py-1 bg-red-100 dark:bg-red-950/50 text-red-600 hover:bg-red-200 dark:hover:bg-red-900/60 rounded-lg text-[11px] font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>हटाउनुहोस्</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="product-photo-file-input"
+                      className="border-2 border-dashed border-amber-400/60 hover:border-amber-500 bg-amber-50/50 hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all group"
+                    >
+                      {isCompressingProductImage ? (
+                        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-bold py-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>फोटो कम्प्रेस तथा लोड हुँदैछ...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-[#D97706] mb-1.5 group-hover:scale-110 transition-transform shadow-xs">
+                            <UploadCloud className="w-5 h-5" />
+                          </div>
+                          <span className="font-bold text-xs text-stone-800 dark:text-stone-200">
+                            फोटो अपलोड गर्नुहोस् (Upload Photo)
+                          </span>
+                          <span className="text-[10px] text-stone-500 mt-0.5">
+                            कम्प्युटर वा मोबाइल ग्यालरीबाट (JPG, PNG, WebP) | स्वतः अप्टिमाइज हुनेछ
+                          </span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                )}
+
+                {/* Hidden File Input for Image Selection / Camera */}
                 <input
-                  type="text"
-                  value={editingProduct?.imageUrl || ''}
-                  onChange={e => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2"
+                  id="product-photo-file-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProductImageUpload}
+                  className="hidden"
                 />
+
+                {/* Optional Web URL Input fallback */}
+                {showUrlInput && (
+                  <div className="pt-2 border-t border-stone-200 dark:border-stone-700 animate-fadeIn">
+                    <label className="block text-stone-500 mb-1 text-[11px]">अथवा फोटोको वेब URL लिङ्क पेस्ट गर्नुहोस्:</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={editingProduct?.imageUrl || ''}
+                        onChange={e => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
+                        placeholder="https://images.unsplash.com/..."
+                        className="w-full bg-white dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

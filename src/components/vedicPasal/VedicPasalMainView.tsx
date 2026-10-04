@@ -52,9 +52,10 @@ import {
 interface VedicPasalMainViewProps {
   onNavigateHome?: () => void;
   initialTab?: 'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin';
+  isStandalone?: boolean;
 }
 
-export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNavigateHome, initialTab }) => {
+export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNavigateHome, initialTab, isStandalone }) => {
   // Store Data States
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<StoreOrder[]>([]);
@@ -228,6 +229,34 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
   const recommendedForYou = products.filter(p => p.rating >= 4.9);
 
   const cartTotalBadgeCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+  // Standalone Direct Workstation Mode (POS or Store Admin only)
+  if (isStandalone) {
+    if (activeTab === 'pos') {
+      return (
+        <div className="w-full">
+          <OfflinePOSView products={products} onProductsUpdated={refreshAllData} />
+          <InvoiceModal
+            order={lastCreatedOrder}
+            isOpen={isInvoiceModalOpen}
+            onClose={() => setIsInvoiceModalOpen(false)}
+          />
+        </div>
+      );
+    }
+    if (activeTab === 'admin') {
+      return (
+        <div className="w-full">
+          <StoreAdminDashboard
+            products={products}
+            orders={orders}
+            coupons={coupons}
+            onRefreshData={refreshAllData}
+          />
+        </div>
+      );
+    }
+  }
 
   return (
     <div className="space-y-6">
