@@ -63,9 +63,8 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
   todayBS: propTodayBS,
   onNavigateTab
 }) => {
-  // Current Date Fallback
   const activeTodayAD = propTodayAD || new Date().toISOString().split('T')[0];
-  const activeTodayBS = propTodayBS || '२०८३-०५-२५';
+  const activeTodayBS = propTodayBS || convertADToBS(activeTodayAD).formattedBS;
 
   // Obtain Live Astronomical Positions
   const livePlanets: PlanetPosition[] = useMemo(() => {

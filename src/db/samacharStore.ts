@@ -5,6 +5,7 @@
 import { PlanetPosition } from '../types/astrology';
 import { generateLiveGrahaGocharNews, GrahaGocharNewsArticle } from '../utils/grahaGocharNewsEngine';
 import { syncAndPruneShastriyaNews } from '../utils/shastriyaNewsEngine';
+import { convertADToBS } from '../utils/nepaliCalendar';
 
 export type SamacharCategory =
   | 'panchanga'      // पञ्चाङ्ग तथा खगोलीय घटना
@@ -384,9 +385,8 @@ export function autoSyncLivePlanetaryNews(
     // Preserve all non-graha articles created by the user or editorial team
     const customUserArticles = currentStored.filter((a) => !a.id.startsWith('graha_news_'));
 
-    // 2. Generate 9 live transit articles if planets available
-    const activeBS = todayBS || '२०८३-०५-२५';
     const activeAD = todayAD || new Date().toISOString().split('T')[0];
+    const activeBS = todayBS || convertADToBS(activeAD).formattedBS;
 
     const planetsToUse: PlanetPosition[] = (transitPlanets && transitPlanets.length >= 7)
       ? transitPlanets
