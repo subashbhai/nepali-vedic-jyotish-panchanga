@@ -130,6 +130,19 @@ export const DEFAULT_PAGES: PageControlItem[] = [
     descriptionNepali: 'प्रमाणित ज्योतिषी, पुरोहित र वास्तुविद्हरूको खोजी तथा प्रत्यक्ष बुकिङ।'
   },
   {
+    id: 'page_yajaman',
+    tabKey: 'yajaman',
+    titleNepali: 'यजमान सेवा तथा पुरोहित परामर्श',
+    titleEnglish: 'Yajaman & Purohit Hub',
+    category: 'matrimony',
+    icon: 'Users',
+    status: 'active',
+    accessLevel: 'public',
+    hideInNavigation: false,
+    badge: 'यजमान',
+    descriptionNepali: 'यजमान र पुरोहित, ज्योतिषी बीच प्रत्यक्ष परामर्श, पूजा अनुष्ठान बुकिङ।'
+  },
+  {
     id: 'page_kharedi',
     tabKey: 'kharedi',
     titleNepali: 'वैदिक पसल (Vedic Store / POS)',
