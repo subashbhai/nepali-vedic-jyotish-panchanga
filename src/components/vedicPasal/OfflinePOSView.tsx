@@ -28,6 +28,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { InvoiceModal } from './InvoiceModal';
+import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
 
 interface OfflinePOSViewProps {
   products: Product[];
@@ -294,9 +295,10 @@ export const OfflinePOSView: React.FC<OfflinePOSViewProps> = ({ products, onProd
                 <Search className="w-4 h-4 text-stone-400" />
                 <input
                   type="text"
-                  placeholder="सामग्रीको नाम, बारकोड वा SKU प्रविष्ट गर्नुहोस्..."
+                  placeholder="सामग्रीको नाम, बारकोड वा SKU (उदा: agarbatti + Space)..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
                   className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-mono"
                   autoFocus
                 />
@@ -441,9 +443,10 @@ export const OfflinePOSView: React.FC<OfflinePOSViewProps> = ({ products, onProd
                       <label className="block text-stone-500 mb-0.5 font-bold">ग्राहकको नाम (Customer Name):</label>
                       <input
                         type="text"
-                        placeholder="नाम प्रविष्ट गर्नुहोस्..."
+                        placeholder="नाम प्रविष्ट गर्नुहोस् (उदा: ram bahadur + space)..."
                         value={customerName}
                         onChange={e => setCustomerName(e.target.value)}
+                        onKeyDown={e => handlePhoneticInputKeyDown(e, customerName, setCustomerName)}
                         className="w-full bg-white dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-2.5 py-1.5 text-xs"
                       />
                     </div>

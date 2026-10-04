@@ -57,6 +57,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { compressAndResizeImage } from '../../utils/imageUtils';
+import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
 import { InvoiceModal } from './InvoiceModal';
 
 interface StoreAdminDashboardProps {
@@ -946,11 +947,18 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
             </div>
 
             <div>
-              <label className="block text-stone-500 mb-1">सामग्रीको नेपाली नाम (*):</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-stone-500">सामग्रीको नेपाली नाम (*):</label>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                  ⌨️ Roman मा लेखेर Space थिच्दा नेपाली हुनेछ
+                </span>
+              </div>
               <input
                 type="text"
                 value={editingProduct?.nameNepali || ''}
                 onChange={e => setEditingProduct({ ...editingProduct, nameNepali: e.target.value })}
+                onKeyDown={e => handlePhoneticInputKeyDown(e, editingProduct?.nameNepali || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), nameNepali: val })))}
+                placeholder="उदा: अगरबत्ती / agarbatti (space हान्नुहोस्)"
                 required
                 className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2"
               />
@@ -981,6 +989,8 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                   type="text"
                   value={editingProduct?.unit || 'थान'}
                   onChange={e => setEditingProduct({ ...editingProduct, unit: e.target.value })}
+                  onKeyDown={e => handlePhoneticInputKeyDown(e, editingProduct?.unit || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), unit: val })))}
+                  placeholder="थान / kg / सेट"
                   className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2"
                 />
               </div>
@@ -1140,10 +1150,17 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
             </div>
 
             <div>
-              <label className="block text-stone-500 mb-1">छोटो विवरण (Short Description):</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-stone-500">छोटो विवरण (Short Description):</label>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                  ⌨️ Roman to Nepali (Space bar)
+                </span>
+              </div>
               <textarea
                 value={editingProduct?.shortDescription || ''}
                 onChange={e => setEditingProduct({ ...editingProduct, shortDescription: e.target.value })}
+                onKeyDown={e => handlePhoneticInputKeyDown(e, editingProduct?.shortDescription || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), shortDescription: val })))}
+                placeholder="उदा: पूजाको लागि उपयुक्त सामग्री (roman मा लेखेर space थिच्नुहोस्)"
                 rows={2}
                 className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl p-2"
               />

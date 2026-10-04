@@ -17,54 +17,92 @@ export const CROP_ASPECT_PRESETS: CropAspectPreset[] = [
 ];
 
 /**
+/**
  * Resizes and compresses an image file or base64 string to avoid large storage payloads.
+ * Auto-scales dimension (maxDimension) and optimizes JPEG quality.
  */
 export async function compressAndResizeImage(
   input: File | string,
   maxDimension = 800,
   quality = 0.85
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    // 3-second safety timeout so it never hangs
+    const timer = setTimeout(() => {
+      if (typeof input === 'string') {
+        resolve(input);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve((e.target?.result as string) || '');
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(input);
+      }
+    }, 3000);
+
     const img = new Image();
-    img.crossOrigin = 'anonymous';
 
     const handleLoad = () => {
-      let { width, height } = img;
-      if (width > maxDimension || height > maxDimension) {
-        if (width > height) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
-        } else {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
+      clearTimeout(timer);
+      try {
+        let { width, height } = img;
+        if (width <= 0 || height <= 0) {
+          resolve(img.src);
+          return;
         }
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(img.src);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      } catch (err) {
+        console.warn('Canvas compression error, using raw image src:', err);
+        resolve(img.src);
       }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(typeof input === 'string' ? input : '');
-        return;
-      }
-
-      ctx.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', quality);
-      resolve(dataUrl);
     };
 
-    img.onerror = (err) => reject(err);
+    img.onload = handleLoad;
+    img.onerror = () => {
+      clearTimeout(timer);
+      if (typeof input === 'string') {
+        resolve(input);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve((e.target?.result as string) || '');
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(input);
+      }
+    };
 
     if (typeof input === 'string') {
       img.src = input;
     } else {
       const reader = new FileReader();
       reader.onload = (e) => {
-        img.src = e.target?.result as string;
+        img.src = (e.target?.result as string) || '';
       };
-      reader.onerror = (err) => reject(err);
+      reader.onerror = () => {
+        clearTimeout(timer);
+        resolve('');
+      };
       reader.readAsDataURL(input);
     }
   });
