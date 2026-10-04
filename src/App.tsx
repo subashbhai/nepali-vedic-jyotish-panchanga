@@ -1021,46 +1021,38 @@ export default function App() {
     };
   }, []);
 
-  // Dedicated Windows Offline Application (Windows Desktop Mode / Electron) — Strictly JYOTISH + VASTU ONLY
-  if (isWindowsDesktopMode) {
+  // Optional dedicated mini shells (only if explicitly requested via query param ?view_shell=...)
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const explicitShell = urlParams?.get('view_shell');
+
+  if (explicitShell === 'windows_offline') {
     return (
       <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center font-serif text-amber-800">बालानन्द विन्डोज एप लोड हुँदैछ...</div>}>
         <BalanandaWindowsAppShell
           onExitToWeb={() => {
-            localStorage.removeItem('balananda_force_windows_app_shell');
             try {
               const url = new URL(window.location.href);
-              url.searchParams.delete('app');
-              url.searchParams.delete('mode');
+              url.searchParams.delete('view_shell');
               window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
-            } catch {
-              // ignore
-            }
-            setIsWindowsDesktopMode(false);
-            window.dispatchEvent(new CustomEvent('windows-mode-changed'));
+            } catch {}
+            window.location.reload();
           }}
         />
       </Suspense>
     );
   }
 
-  // Dedicated Mobile Application (Android/iOS & Mobile Mode) — Strictly JYOTISH SERVICES ONLY
-  if (isMobileMode) {
+  if (explicitShell === 'mobile_lite') {
     return (
       <Suspense fallback={<div className="min-h-screen bg-[#0E0A08] flex items-center justify-center font-serif text-amber-400">बालानन्द मोबाइल एप लोड हुँदैछ...</div>}>
         <BalanandaMobileAppShell
           onExitToWeb={() => {
-            localStorage.removeItem('balananda_force_mobile_app_shell');
             try {
               const url = new URL(window.location.href);
-              url.searchParams.delete('app');
-              url.searchParams.delete('mode');
+              url.searchParams.delete('view_shell');
               window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
-            } catch {
-              // ignore
-            }
-            setIsMobileMode(false);
-            window.dispatchEvent(new CustomEvent('mobile-mode-changed'));
+            } catch {}
+            window.location.reload();
           }}
         />
       </Suspense>
