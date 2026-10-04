@@ -724,35 +724,24 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-900 dark:to-stone-900/90 rounded-2xl p-4 sm:p-5 border border-amber-200/80 dark:border-stone-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-900 dark:to-stone-900/90 rounded-2xl p-3.5 sm:p-4 border border-amber-200/80 dark:border-stone-800 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-amber-100 dark:bg-amber-950/60 text-[#7A1C1C] dark:text-amber-400 rounded-2xl">
-                    <Users className="w-6 h-6" />
+                  <div className="p-2.5 bg-amber-100 dark:bg-amber-950/60 text-[#7A1C1C] dark:text-amber-400 rounded-xl">
+                    <Users className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
-                        सामुदायिक वैदिक सेवा पोर्टल (Guest Visitor Mode)
+                      <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100">
+                        सामुदायिक वैदिक सेवा पोर्टल
                       </h3>
                       <span className="text-[10px] bg-amber-200/70 text-amber-900 dark:bg-amber-950 px-2 py-0.5 rounded-full font-bold">
-                        सार्वजनिक खुला फिड
+                        सार्वजनिक मञ्च
                       </span>
                     </div>
-                    <p className="text-xs text-stone-600 dark:text-stone-400 mt-0.5">
-                      धार्मिक पोस्टहरू हेर्न, पूजा सामग्री जान्न र सेयर गर्न खुला छ। Like, Comment वा सेवा Book गर्न लगइन गर्नुहोस्।
+                    <p className="text-[11px] text-stone-600 dark:text-stone-400 mt-0.5">
+                      धार्मिक पोस्टहरू, विधि तथा विशेषज्ञ सेवा विवरणहरू खुला रूपमा अवलोकन गर्नुहोस्।
                     </p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIsAuthModalOpen(true)}
-                    className="px-5 py-2.5 bg-gradient-to-r from-[#7A1C1C] to-[#92400E] hover:brightness-110 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>लगइन वा नयाँ दर्ता</span>
-                  </button>
                 </div>
               </div>
             )}
@@ -780,11 +769,23 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                     type="button"
                     onClick={() => {
                       if (tab.id === 'create_post' && !isAuthenticated) {
-                        triggerLoginGate('सामुदायिक पोस्ट वा सेवा विज्ञापन राख्न पहिले लगइन गर्नुहोस्।', 'नयाँ पोस्ट सिर्जना');
+                        triggerLoginGate('सामुदायिक पोस्ट वा सेवा विवरण प्रकाशित गर्न पहिले लगइन वा दर्ता गर्नुहोस्।', 'नयाँ पोस्ट सिर्जना');
+                        return;
+                      }
+                      if (tab.id === 'book_service' && !isAuthenticated) {
+                        triggerLoginGate('वैदिक सेवा Book गर्न र पुरोहित/ज्योतिषीसँग जोडिन पहिले लगइन वा दर्ता गर्नुहोस्।', 'सेवा बुकिङ');
                         return;
                       }
                       if (tab.id === 'my_bookings' && !isAuthenticated) {
                         triggerLoginGate('तपाईंको बुकिङ र अर्डर स्थिति हेर्न पहिले लगइन गर्नुहोस्।', 'मेरो बुकिङहरू');
+                        return;
+                      }
+                      if (tab.id === 'notifications' && !isAuthenticated) {
+                        triggerLoginGate('तपाईंको सूचनाहरू हेर्न पहिले लगइन गर्नुहोस्।', 'सूचनाहरू');
+                        return;
+                      }
+                      if (tab.id === 'profile' && !isAuthenticated) {
+                        triggerLoginGate('तपाईंको प्रोफाइल हेर्न पहिले लगइन गर्नुहोस्।', 'मेरो प्रोफाइल');
                         return;
                       }
                       setYajamanTab(tab.id as any);
@@ -1019,8 +1020,14 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                       </p>
                       <button
                         type="button"
-                        onClick={() => setYajamanTab('book_service')}
-                        className="mt-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-sm rounded-2xl shadow-lg transition-all flex items-center gap-2"
+                        onClick={() => {
+                          if (!isAuthenticated) {
+                            triggerLoginGate('वैदिक सेवा Book गर्न र विशेषज्ञसँग जोडिन पहिले लगइन वा दर्ता गर्नुहोस्।', 'सेवा बुकिङ');
+                            return;
+                          }
+                          setYajamanTab('book_service');
+                        }}
+                        className="mt-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-sm rounded-2xl shadow-lg transition-all flex items-center gap-2 cursor-pointer"
                       >
                         <Sparkles className="w-4 h-4" />
                         <span>सेवा Book सुरु गर्नुहोस्</span>
@@ -1033,19 +1040,19 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
                       <p className="text-xs text-stone-500 font-semibold">सक्रिय Request</p>
                       <p className="text-2xl font-black text-[#D97706]">
-                        {requests.filter((r) => r.yajamanId === activeYajaman.id && r.status === 'MATCHING').length}
+                        {activeYajaman ? requests.filter((r) => r.yajamanId === activeYajaman.id && r.status === 'MATCHING').length : 0}
                       </p>
                     </div>
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
                       <p className="text-xs text-stone-500 font-semibold">स्वीकृत बुकिङ (Accepted)</p>
                       <p className="text-2xl font-black text-emerald-600">
-                        {bookings.filter((b) => b.yajamanId === activeYajaman.id && b.status === 'ACCEPTED').length}
+                        {activeYajaman ? bookings.filter((b) => b.yajamanId === activeYajaman.id && b.status === 'ACCEPTED').length : 0}
                       </p>
                     </div>
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
                       <p className="text-xs text-stone-500 font-semibold">सम्पन्न सेवाहरू (Completed)</p>
                       <p className="text-2xl font-black text-blue-600">
-                        {bookings.filter((b) => b.yajamanId === activeYajaman.id && b.status === 'COMPLETED').length}
+                        {activeYajaman ? bookings.filter((b) => b.yajamanId === activeYajaman.id && b.status === 'COMPLETED').length : 0}
                       </p>
                     </div>
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
@@ -1067,6 +1074,10 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                         <div
                           key={cat.id}
                           onClick={() => {
+                            if (!isAuthenticated) {
+                              triggerLoginGate(`'${cat.nameNepali}' सेवा Book गर्न र विशेषज्ञसँग जोडिन पहिले लगइन वा दर्ता गर्नुहोस्।`, 'सेवा बुकिङ');
+                              return;
+                            }
                             setSelectedCategory(cat);
                             setCustomServiceType(cat.nameNepali);
                             setYajamanTab('book_service');
@@ -1366,7 +1377,7 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                   </div>
 
                   {/* Active Requests Matching Box */}
-                  {requests.filter((r) => r.yajamanId === activeYajaman.id).map((req) => {
+                  {requests.filter((r) => activeYajaman && r.yajamanId === activeYajaman.id).map((req) => {
                     const matchedProviders = getStoredServiceProviders().filter((p) =>
                       calculateProviderMatchScore(p, req, req.currentRadiusKm).isEligible
                     );
@@ -1497,12 +1508,12 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                       स्वीकृत बुकिङहरू (Accepted & Confirmed Bookings)
                     </h4>
 
-                    {bookings.filter((b) => b.yajamanId === activeYajaman.id).length === 0 ? (
+                    {bookings.filter((b) => activeYajaman && b.yajamanId === activeYajaman.id).length === 0 ? (
                       <div className="p-8 text-center bg-white dark:bg-[#262320] rounded-2xl border border-stone-200 dark:border-stone-800 text-stone-400 text-xs">
                         हाल स्वीकृत भएको कुनै बुकिङ छैन।
                       </div>
                     ) : (
-                      bookings.filter((b) => b.yajamanId === activeYajaman.id).map((b) => (
+                      bookings.filter((b) => activeYajaman && b.yajamanId === activeYajaman.id).map((b) => (
                         <div
                           key={b.id}
                           className="bg-white dark:bg-[#262320] p-5 rounded-3xl border border-amber-200 dark:border-stone-800 shadow-sm space-y-4"
@@ -1666,8 +1677,8 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {filteredProvidersList.map((p) => {
                       const dist = calculateDistanceKm(
-                        activeYajaman.location?.latitude || DEFAULT_NEPAL_LOCATION.latitude,
-                        activeYajaman.location?.longitude || DEFAULT_NEPAL_LOCATION.longitude,
+                        activeYajaman?.location?.latitude || DEFAULT_NEPAL_LOCATION.latitude,
+                        activeYajaman?.location?.longitude || DEFAULT_NEPAL_LOCATION.longitude,
                         p.location.latitude,
                         p.location.longitude
                       );
@@ -1727,11 +1738,15 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                           <button
                             type="button"
                             onClick={() => {
+                              if (!isAuthenticated) {
+                                triggerLoginGate(`${p.fullName} सँग सेवा अनुरोध पठाउन पहिले लगइन वा दर्ता गर्नुहोस्।`, 'सेवा अनुरोध');
+                                return;
+                              }
                               setSelectedCategory(categories[0]);
                               setCustomServiceType(`${p.fullName} को लागि सेवा Book`);
                               setYajamanTab('book_service');
                             }}
-                            className="w-full py-2 bg-gradient-to-r from-[#D97706] to-[#B45309] text-white rounded-xl text-xs font-bold shadow-sm hover:brightness-110"
+                            className="w-full py-2 bg-gradient-to-r from-[#D97706] to-[#B45309] text-white rounded-xl text-xs font-bold shadow-sm hover:brightness-110 cursor-pointer"
                           >
                             सेवा अनुरोध पठाउनुहोस्
                           </button>
@@ -1751,10 +1766,10 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                   </h3>
 
                   <div className="space-y-2">
-                    {notifications.filter((n) => n.recipientId === activeYajaman.id).length === 0 ? (
+                    {notifications.filter((n) => activeYajaman && n.recipientId === activeYajaman.id).length === 0 ? (
                       <p className="text-xs text-stone-400 py-6 text-center">हाल कुनै सूचना छैन।</p>
                     ) : (
-                      notifications.filter((n) => n.recipientId === activeYajaman.id).map((notif) => (
+                      notifications.filter((n) => activeYajaman && n.recipientId === activeYajaman.id).map((notif) => (
                         <div
                           key={notif.id}
                           className="p-3.5 bg-stone-50 dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 space-y-1 text-xs"
@@ -1772,7 +1787,7 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
               )}
 
               {/* Tab 6: Profile */}
-              {yajamanTab === 'profile' && (
+              {yajamanTab === 'profile' && activeYajaman && (
                 <div className="bg-white dark:bg-[#262320] rounded-3xl p-6 border border-amber-200/60 dark:border-stone-800 shadow-sm space-y-4 max-w-xl mx-auto">
                   <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 border-b pb-3">
                     मेरो प्रोफाइल (Yajaman Profile)
