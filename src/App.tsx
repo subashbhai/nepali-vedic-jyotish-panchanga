@@ -1255,7 +1255,7 @@ export default function App() {
               maintenanceMessage={currentPageControl.maintenanceMessage}
               onGoHome={() => setActiveTab('dashboard')}
             />
-          ) : !rbacSession && !['dashboard', 'panchanga', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(activeTab) ? (
+          ) : !rbacSession && !['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(activeTab) ? (
             <VedicLoginGateView
               onOpenSignIn={() => setIsRBACAuthModalOpen(true)}
               onOpenSignUp={() => setIsRBACAuthModalOpen(true)}
@@ -1311,7 +1311,7 @@ export default function App() {
               hasFullAccess={isFullyUnlocked}
               onNavigate={(tab) => {
                 const resolved = (tab as string) === 'patro' ? 'calendar' : tab;
-                const isPublic = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolved);
+                const isPublic = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolved);
                 if (!rbacSession && !isPublic) {
                   setIsRBACAuthModalOpen(true);
                   return;
