@@ -1,6 +1,4 @@
-import { RBACSession, SystemRole } from './rbacStore';
-
-export type MagicLinkRole = 'ADMIN' | 'POS_STAFF' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR' | 'SUPER_ADMIN';
+export type MagicLinkRole = 'ADMIN' | 'STORE_ADMIN' | 'POS_STAFF' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR' | 'SUPER_ADMIN';
 
 export interface RoleMagicTokenRecord {
   token: string;
@@ -12,7 +10,7 @@ export interface RoleMagicTokenRecord {
   expiresAt: string;
   isRevoked: boolean;
   createdBy: string;
-  targetModule: 'pos' | 'vivah' | 'samachar' | 'admin' | 'full';
+  targetModule: 'pos' | 'store_admin' | 'vivah' | 'samachar' | 'admin' | 'full';
 }
 
 const STORAGE_KEY = 'balananda_role_magic_tokens_v1';
@@ -20,7 +18,8 @@ const STORAGE_KEY = 'balananda_role_magic_tokens_v1';
 export function getRoleNameNepaliFromMagicRole(role: MagicLinkRole): string {
   switch (role) {
     case 'ADMIN': return 'प्रशासक (Admin)';
-    case 'POS_STAFF': return 'पसल तथा काउन्टर बिलिङ (POS Staff)';
+    case 'STORE_ADMIN': return 'वैदिक पसल स्टोर एडमिन (Store Admin)';
+    case 'POS_STAFF': return 'काउन्टर तथा POS स्टाफ (POS Staff)';
     case 'MARRIAGE_MODERATOR': return 'विवाह मिलान सुपरभाइजर (Marriage Supervisor)';
     case 'NEWS_EDITOR': return 'समाचार सम्पादक (News Editor)';
     case 'SUPER_ADMIN': return 'सुपर प्रशासक (Super Admin)';
@@ -28,9 +27,10 @@ export function getRoleNameNepaliFromMagicRole(role: MagicLinkRole): string {
   }
 }
 
-export function getTargetModuleFromRole(role: MagicLinkRole): 'pos' | 'vivah' | 'samachar' | 'admin' | 'full' {
+export function getTargetModuleFromRole(role: MagicLinkRole): 'pos' | 'store_admin' | 'vivah' | 'samachar' | 'admin' | 'full' {
   switch (role) {
     case 'POS_STAFF': return 'pos';
+    case 'STORE_ADMIN': return 'store_admin';
     case 'MARRIAGE_MODERATOR': return 'vivah';
     case 'NEWS_EDITOR': return 'samachar';
     case 'ADMIN': return 'admin';
@@ -161,8 +161,9 @@ export function validateRoleMagicToken(token: string): {
       permissions = ['ALL', '*'];
       break;
     case 'ADMIN':
+    case 'STORE_ADMIN':
       systemRole = 'STORE_ADMIN';
-      permissions = ['ALL', 'ADMIN_PORTAL', 'MANAGE_USERS', 'VIEW_REPORTS'];
+      permissions = ['ALL', 'STORE_ADMIN', 'MANAGE_INVENTORY', 'VIEW_ORDERS', 'POS_ACCESS'];
       break;
     case 'POS_STAFF':
       systemRole = 'POS_STAFF';
