@@ -661,12 +661,21 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                     >
                       <div className="space-y-2.5">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1 flex-1">
-                            <span className="inline-block bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 font-bold text-[11px] px-2.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                              🎉 चाडपर्व पूर्वतयारी
-                            </span>
+                          <div className="space-y-1.5 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 font-bold text-[11px] px-2.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+                                🎉 चाडपर्व पूर्वतयारी
+                              </span>
+                              <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-600 to-amber-600 text-white font-extrabold text-[11px] px-2.5 py-0.5 rounded-md shadow-xs">
+                                <Clock className="w-3 h-3 text-amber-200" />
+                                {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                              </span>
+                            </div>
                             <h4 className="font-bold text-sm sm:text-base text-stone-900 dark:text-stone-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors leading-snug">
                               {art.title}
+                              <span className="ml-1.5 inline-block text-red-600 dark:text-amber-400 font-black">
+                                — {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                              </span>
                             </h4>
                           </div>
                           {art.coverImageUrl && (
@@ -1237,6 +1246,11 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
 
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-serif text-stone-900 dark:text-stone-100 leading-snug">
                   {selectedStoredArticle.title}
+                  {selectedStoredArticle.id.startsWith('auto_festival_') && (
+                    <span className="ml-2 inline-block text-red-600 dark:text-amber-400 font-black">
+                      — {getFestivalCountdownBadge(selectedStoredArticle.publishedAtBS, activeTodayBS)}
+                    </span>
+                  )}
                 </h1>
 
                 <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-400 font-medium">
