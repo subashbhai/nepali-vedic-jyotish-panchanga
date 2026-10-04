@@ -259,6 +259,7 @@ export default function App() {
   const [isRBACAuthModalOpen, setIsRBACAuthModalOpen] = useState(false);
   const [isSuperAdminAuthModalOpen, setIsSuperAdminAuthModalOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<string | undefined>(undefined);
+  const [pasalInitialTab, setPasalInitialTab] = useState<'home' | 'pos' | 'admin'>('home');
 
   // Full Software Access Licensing State
   const [hasFullAccess, setHasFullAccess] = useState<boolean>(() => isSoftwareFullAccessUnlocked() || isClientPurchaseApproved());
@@ -383,15 +384,36 @@ export default function App() {
             setActiveTab('admin_control');
             if (section) setAdminInitialTab(section);
           } else if (magicRole === 'POS_STAFF') {
+            setPasalInitialTab('pos');
+            setActiveTab('kharedi');
+          } else if (magicRole === 'STORE_ADMIN') {
+            setPasalInitialTab('admin');
             setActiveTab('kharedi');
           } else if (magicRole === 'MARRIAGE_MODERATOR') {
             setActiveTab('vivah');
           } else if (magicRole === 'NEWS_EDITOR') {
-            setActiveTab('samachar');
+            setAdminInitialTab('samachar_editor');
+            setActiveTab('admin_control');
           }
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
         }
+      }
+
+      const portal = params.get('portal');
+      if (portal === 'pos') {
+        setPasalInitialTab('pos');
+        setActiveTab('kharedi');
+      } else if (portal === 'store_admin') {
+        setPasalInitialTab('admin');
+        setActiveTab('kharedi');
+      } else if (portal === 'vivah_mod') {
+        setActiveTab('vivah');
+      } else if (portal === 'samachar_editor') {
+        setAdminInitialTab('samachar_editor');
+        setActiveTab('admin_control');
+      } else if (portal === 'superadmin') {
+        setActiveTab('admin_control');
       }
 
       // 2. Superadmin Direct Secret Link: ?superadmin_portal=true or ?secret_admin=balananda or ?admin_token=...
@@ -1640,7 +1662,10 @@ export default function App() {
           )}
 
           {activeTab === 'kharedi' && (
-            <VedicPasalMainView onNavigateHome={() => setActiveTab('dashboard')} />
+            <VedicPasalMainView 
+              initialTab={pasalInitialTab}
+              onNavigateHome={() => setActiveTab('dashboard')} 
+            />
           )}
 
           {activeTab === 'my_subscription' && (

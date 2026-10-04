@@ -92,19 +92,32 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
     return `mailto:${recipientContact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
+  const handleQuickGenerate = (role: MagicLinkRole, title: string) => {
+    const res = generateRoleMagicToken(
+      role,
+      title,
+      undefined,
+      expiryDays
+    );
+    setGeneratedLink(res);
+    setTokens(getStoredRoleMagicTokens());
+    setStatusMsg(`सफलतापूर्वक ${getRoleNameNepaliFromMagicRole(role)} को लागि १-क्लिक प्रत्यक्ष लिङ्क तयार भयो!`);
+    setTimeout(() => setStatusMsg(null), 4000);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-600 to-[#7A1C1C] text-white p-5 rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-amber-700 via-amber-800 to-[#7A1C1C] text-white p-5 sm:p-6 rounded-3xl shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-amber-300" />
-            <h2 className="text-xl font-black font-serif tracking-tight">
-              भूमिका प्रत्यक्ष सक्रिय लिङ्क व्यवस्थापन (Role Magic Links)
+            <h2 className="text-xl sm:text-2xl font-black font-serif tracking-tight">
+              प्रत्यक्ष भूमिका लिङ्क जेनेरेटर (Role-Based Direct Access Links)
             </h2>
           </div>
-          <p className="text-xs text-amber-100 mt-1 max-w-2xl leading-relaxed">
-            सुपरएडमिनले <strong>Admin, POS, विवाह सुपरभाइजर, र समाचार सम्पादक</strong> लाई कुनै झन्झट बिना सिधै काम गर्न सक्ने सक्रिय म्याजिक लिङ्क WhatsApp वा Email बाट पठाउने केन्द्रीय प्रणाली।
+          <p className="text-xs sm:text-sm text-amber-100 mt-1.5 max-w-3xl leading-relaxed">
+            सुपरएडमिनले <strong>POS काउन्टर, स्टोर एडमिन, विवाह सुपरभाइजर, समाचार सम्पादक तथा सुपरएडमिन</strong> लाई कुनै पासवर्ड झन्झट बिना प्रत्यक्ष आफ्नै ड्यासबोर्डमा प्रवेश गर्न सक्ने सुरक्षित म्याजिक लिङ्क सिर्जना गर्ने केन्द्रीय प्रणाली।
           </p>
         </div>
       </div>
@@ -116,12 +129,97 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
         </div>
       )}
 
+      {/* 1-Click Quick Generator Grid for All Management Workstations */}
+      <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border-2 border-amber-400/50 dark:border-amber-700/50 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-[#D97706]" />
+          <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100 font-serif">
+            तत्काल १-क्लिक प्रत्यक्ष लिङ्क जेनेरेटर (Instant 1-Click Role Links)
+          </h3>
+        </div>
+        <p className="text-xs text-stone-600 dark:text-stone-400">
+          तलको कुनै पनि भूमिकामा क्लिक गर्नासाथ प्रत्यक्ष पासवर्डरहित लगइन लिङ्क तत्काल तयार हुनेछ:
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          {[
+            {
+              role: 'POS_STAFF' as MagicLinkRole,
+              title: 'काउन्टर POS स्टाफ',
+              desc: 'काउन्टर बिलिङ तथा थर्मल प्रिन्ट',
+              icon: Store,
+              badgeColor: 'bg-emerald-600 text-white',
+              btnColor: 'bg-emerald-700 hover:bg-emerald-800'
+            },
+            {
+              role: 'STORE_ADMIN' as MagicLinkRole,
+              title: 'स्टोर एडमिन',
+              desc: 'पसल सामग्री, अर्डर र स्टक व्यवस्थापन',
+              icon: Store,
+              badgeColor: 'bg-amber-600 text-white',
+              btnColor: 'bg-amber-700 hover:bg-amber-800'
+            },
+            {
+              role: 'MARRIAGE_MODERATOR' as MagicLinkRole,
+              title: 'विवाह सुपरभाइजर',
+              desc: 'विवाह बायोडाटा र साइत प्रमाणीकरण',
+              icon: HeartHandshake,
+              badgeColor: 'bg-rose-600 text-white',
+              btnColor: 'bg-rose-700 hover:bg-rose-800'
+            },
+            {
+              role: 'NEWS_EDITOR' as MagicLinkRole,
+              title: 'समाचार सम्पादक',
+              desc: 'दैनिक समाचार र सूचना सम्पादन',
+              icon: Newspaper,
+              badgeColor: 'bg-sky-600 text-white',
+              btnColor: 'bg-sky-700 hover:bg-sky-800'
+            },
+            {
+              role: 'SUPER_ADMIN' as MagicLinkRole,
+              title: 'सुपरएडमिन मास्टर',
+              desc: 'सम्पूर्ण प्रणालीको पूर्ण नियन्त्रण',
+              icon: Shield,
+              badgeColor: 'bg-purple-600 text-white',
+              btnColor: 'bg-purple-700 hover:bg-purple-800'
+            },
+          ].map(item => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.role}
+                className="bg-white dark:bg-stone-900 p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs flex flex-col justify-between space-y-3 hover:border-amber-400 transition-all"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`p-1.5 rounded-lg ${item.badgeColor}`}>
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <h4 className="text-xs font-bold text-stone-900 dark:text-stone-100">{item.title}</h4>
+                  </div>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-snug">{item.desc}</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickGenerate(item.role, item.title)}
+                  className={`w-full py-2 px-3 ${item.btnColor} text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>१-क्लिक लिङ्क बनाउनुहोस्</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Generator Form Card */}
       <div className="bg-white dark:bg-stone-900 border border-amber-200 dark:border-stone-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
         <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-3">
-          <Sparkles className="w-5 h-5 text-amber-600" />
+          <Link2 className="w-5 h-5 text-amber-600" />
           <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-serif">
-            नयाँ सक्रिय म्याजिक लिङ्क सिर्जना गर्नुहोस्
+            नाम र सम्पर्कसहित कस्टम म्याजिक लिङ्क सिर्जना गर्नुहोस्
           </h3>
         </div>
 
@@ -131,35 +229,37 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
             <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-2">
               प्रणाली भूमिका (Role) छनोट गर्नुहोस्:
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               {[
                 {
                   role: 'POS_STAFF' as MagicLinkRole,
-                  title: 'POS स्टाफ (Store)',
+                  title: 'POS स्टाफ (Counter)',
                   desc: 'पसल, काउन्टर तथा दैनिक बिलिङ',
                   icon: Store,
-                  color: 'border-emerald-300 bg-emerald-50/50 text-emerald-900'
+                },
+                {
+                  role: 'STORE_ADMIN' as MagicLinkRole,
+                  title: 'स्टोर एडमिन',
+                  desc: 'स्टोर स्टक, अर्डर तथा रिपोर्ट',
+                  icon: Store,
                 },
                 {
                   role: 'MARRIAGE_MODERATOR' as MagicLinkRole,
                   title: 'विवाह सुपरभाइजर',
                   desc: 'विवाह बायोडाटा तथा साइत प्रमाणीकरण',
                   icon: HeartHandshake,
-                  color: 'border-rose-300 bg-rose-50/50 text-rose-900'
                 },
                 {
                   role: 'NEWS_EDITOR' as MagicLinkRole,
                   title: 'समाचार सम्पादक',
                   desc: 'दैनिक समाचार लेखन तथा सम्पादन',
                   icon: Newspaper,
-                  color: 'border-sky-300 bg-sky-50/50 text-sky-900'
                 },
                 {
-                  role: 'ADMIN' as MagicLinkRole,
-                  title: 'सहायक एडमिन (Admin)',
-                  desc: 'सामान्य प्रशासनिक नियन्त्रण',
+                  role: 'SUPER_ADMIN' as MagicLinkRole,
+                  title: 'सुपर प्रशासक',
+                  desc: 'सम्पूर्ण मास्टर नियन्त्रण केन्द्र',
                   icon: Shield,
-                  color: 'border-purple-300 bg-purple-50/50 text-purple-900'
                 },
               ].map(item => {
                 const Icon = item.icon;
@@ -244,7 +344,7 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-[#7A1C1C] hover:from-amber-700 hover:to-red-800 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 ml-auto cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
-              <span>सक्रिय म्याजिक लिङ्क सिर्जना गर्नुहोस्</span>
+              <span>कस्टम म्याजिक लिङ्क सिर्जना गर्नुहोस्</span>
             </button>
           </div>
         </form>

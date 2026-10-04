@@ -51,9 +51,10 @@ import {
 
 interface VedicPasalMainViewProps {
   onNavigateHome?: () => void;
+  initialTab?: 'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin';
 }
 
-export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = () => {
+export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNavigateHome, initialTab }) => {
   // Store Data States
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<StoreOrder[]>([]);
@@ -61,11 +62,8 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
 
-  // User Role Switcher: 'CUSTOMER' | 'STORE_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN'
-  const [userRole, setUserRole] = useState<StoreUserRole>('CUSTOMER');
-
   // Main Active Sub-Tab
-  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin'>(initialTab || 'home');
 
   // Search & Category Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -248,36 +246,6 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = () => {
               “सनातन वैदिक सामग्री, पूजा प्याकेज, ज्योतिषीय यन्त्र तथा धार्मिक पुस्तकहरूको विश्वसनीय केन्द्र”
             </p>
           </div>
-
-          {/* Role Switcher Pill */}
-          <div className="bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-amber-500/30 text-xs space-y-1.5 shrink-0">
-            <span className="text-[11px] text-amber-300 font-bold block">प्रणाली भूमिका फेर्नुहोस् (Role Switcher):</span>
-            <div className="flex flex-wrap gap-1">
-              {[
-                { role: 'CUSTOMER', label: 'यजमान/ग्राहक' },
-                { role: 'STORE_STAFF', label: 'काउन्टर/POS Staff' },
-                { role: 'STORE_ADMIN', label: 'स्टोर एडमिन (Admin)' },
-              ].map(r => (
-                <button
-                  key={r.role}
-                  type="button"
-                  onClick={() => {
-                    setUserRole(r.role as StoreUserRole);
-                    if (r.role === 'STORE_STAFF') setActiveTab('pos');
-                    else if (r.role === 'STORE_ADMIN') setActiveTab('admin');
-                    else setActiveTab('home');
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
-                    userRole === r.role
-                      ? 'bg-[#D97706] text-white shadow-sm'
-                      : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -349,31 +317,38 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = () => {
             <span>मेरो ड्यासबोर्ड र अर्डर</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => handleTabChange('pos')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'pos'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
-            }`}
-          >
-            <Barcode className="w-4 h-4" />
-            <span>काउन्टर POS</span>
-          </button>
+          {/* POS & Store Admin Tabs: ONLY visible to authorized Staff / Store Admin / SuperAdmin */}
+          {rbacSession && (rbacSession.role === 'POS_STAFF' || rbacSession.role === 'STORE_ADMIN' || rbacSession.role === 'SUPER_ADMIN') && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleTabChange('pos')}
+                className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+                  activeTab === 'pos'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                }`}
+              >
+                <Barcode className="w-4 h-4" />
+                <span>काउन्टर POS</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => handleTabChange('admin')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'admin'
-                ? 'bg-stone-900 text-white shadow-sm'
-                : 'text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
-            }`}
-          >
-            <BarChart2 className="w-4 h-4 text-amber-400" />
-            <span>एडमिन ड्यासबोर्ड</span>
-          </button>
+              {(rbacSession.role === 'STORE_ADMIN' || rbacSession.role === 'SUPER_ADMIN') && (
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('admin')}
+                  className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin'
+                      ? 'bg-stone-900 text-white shadow-sm'
+                      : 'text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
+                  }`}
+                >
+                  <BarChart2 className="w-4 h-4 text-amber-400" />
+                  <span>एडमिन ड्यासबोर्ड</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         {/* Cart Trigger Button */}
