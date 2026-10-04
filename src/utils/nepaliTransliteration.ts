@@ -55,6 +55,7 @@ const EXACT_WORD_MAP: Record<string, string> = {
   dharma: 'धर्म',
   karma: 'कर्म',
   puja: 'पूजा',
+  pooja: 'पूजा',
   path: 'पाठ',
   mandir: 'मन्दिर',
   guru: 'गुरु',
@@ -108,6 +109,65 @@ const EXACT_WORD_MAP: Record<string, string> = {
   hunuparchha: 'हुनुपर्छ',
   swagatam: 'स्वागतम्',
   pranam: 'प्रणाम',
+  // Store & Puja Vocabulary
+  agarbatti: 'अगरबत्ती',
+  agarbathi: 'अगरबत्ती',
+  dhoop: 'धूप',
+  dhup: 'धूप',
+  ghee: 'घ्यू',
+  ghyu: 'घ्यू',
+  supari: 'सुपारी',
+  rudraksha: 'रुद्राक्ष',
+  rudraksh: 'रुद्राक्ष',
+  mala: 'माला',
+  thali: 'थाली',
+  deep: 'दीप',
+  diyo: 'दियो',
+  ghanti: 'घण्टी',
+  shankha: 'शङ्ख',
+  sankha: 'शङ्ख',
+  kapoor: 'कपूर',
+  karpur: 'कर्पूर',
+  chandana: 'चन्दन',
+  chandan: 'चन्दन',
+  janeu: 'जनै',
+  janai: 'जनै',
+  kusha: 'कुश',
+  kus: 'कुश',
+  haldi: 'हल्दी',
+  besar: 'बेसार',
+  sindoor: 'सिन्दूर',
+  sindur: 'सिन्दूर',
+  til: 'तिल',
+  jau: 'जौ',
+  hawan: 'हवन',
+  samagri: 'सामग्री',
+  samagree: 'सामग्री',
+  set: 'सेट',
+  package: 'प्याकेज',
+  grahapravesh: 'गृहप्रवेश',
+  vastu: 'वास्तु',
+  pustak: 'पुस्तक',
+  kitab: 'किताब',
+  yantra: 'यन्त्र',
+  shree: 'श्री',
+  shri: 'श्री',
+  than: 'थान',
+  kg: 'के.जी.',
+  gram: 'ग्राम',
+  locket: 'लकेट',
+  ring: 'औँठी',
+  patrika: 'पत्रिका',
+  sugandhit: 'सुगन्धित',
+  shuddha: 'शुद्ध',
+  sampurna: 'सम्पूर्ण',
+  prakritik: 'प्राकृतिक',
+  kasturi: 'कस्तुरी',
+  devdaru: 'देवदारु',
+  premium: 'प्रिमियम',
+  bisesh: 'विशेष',
+  bishesh: 'विशेष',
+  karmakanda: 'कर्मकाण्ड',
   manchhe: 'मान्छे',
   manis: 'मानिस',
   janata: 'जनता',
@@ -348,4 +408,42 @@ export function transliterateFullText(fullText: string): string {
         .join('\n');
     })
     .join(' ');
+}
+
+/**
+ * Handle Spacebar / Enter key press on text inputs or textareas to auto-transliterate
+ * the previous Romanized English word to Nepali Unicode.
+ */
+export function handlePhoneticInputKeyDown(
+  e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  currentValue: string,
+  onUpdate: (newValue: string) => void,
+  enabled: boolean = true
+) {
+  if (!enabled) return;
+
+  if (e.key === ' ' || e.key === 'Enter') {
+    const target = e.currentTarget;
+    const cursor = target.selectionStart || 0;
+    const textBefore = currentValue.substring(0, cursor);
+    const textAfter = currentValue.substring(cursor);
+
+    const match = textBefore.match(/([a-zA-Z0-9]+)$/);
+    if (match) {
+      e.preventDefault();
+      const englishWord = match[1];
+      const nepaliWord = transliterateWord(englishWord);
+      const separator = e.key === 'Enter' ? '\n' : ' ';
+      const newBefore = textBefore.substring(0, match.index) + nepaliWord + separator;
+      const newFull = newBefore + textAfter;
+      onUpdate(newFull);
+
+      requestAnimationFrame(() => {
+        if (target) {
+          target.selectionStart = newBefore.length;
+          target.selectionEnd = newBefore.length;
+        }
+      });
+    }
+  }
 }
