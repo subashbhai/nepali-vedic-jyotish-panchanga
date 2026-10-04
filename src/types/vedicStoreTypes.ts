@@ -7,7 +7,52 @@ export type StoreCategoryKey =
   | 'religious_books' 
   | 'puja_package' 
   | 'yantra' 
-  | 'others';
+  | 'others'
+  // 16 Vedic Karma Kanda Categories
+  | 'sanskar_16'            // १. संस्कार → १६ संस्कार
+  | 'vivah_karma'           // २. विवाह कर्मकाण्ड
+  | 'grihapravesh_vastu'     // ३. गृहप्रवेश तथा वास्तु
+  | 'nitya_puja'            // ४. नित्य पूजा
+  | 'naimittik_puja'        // ५. नैमित्तिक पूजा
+  | 'kamya_puja'            // ६. काम्य पूजा
+  | 'graha_shanti'          // ७. ग्रहशान्ति
+  | 'devadevi_puja'         // ८. देवदेवी पूजा
+  | 'hom_havan'             // ९. होम तथा हवन
+  | 'vrata_parva'           // १०. व्रत तथा पर्व
+  | 'shraddha_pitri'        // ११. श्राद्ध तथा पितृकर्म
+  | 'antyeshti_karma'       // १२. अन्त्येष्टि कर्म
+  | 'kuldevata_puja'        // १३. कुलदेवता/कुलदेवी पूजा
+  | 'tirtha_puja'           // १४. तीर्थ तथा विशेष पूजा
+  | 'muhurta_jyotish'       // १५. मुहूर्त तथा ज्योतिषीय कर्म
+  | 'vishesh_anushthan';    // १६. विशेष अनुष्ठान
+
+export interface VedicCategoryOption {
+  key: StoreCategoryKey;
+  label: string;
+  icon: string;
+  description: string;
+}
+
+export const VEDIC_STORE_16_CATEGORIES: VedicCategoryOption[] = [
+  { key: 'all', label: 'सबै सामग्री', icon: '✨', description: 'वैदिक पसलका सबै ५०+ सामग्रीहरू' },
+  { key: 'sanskar_16', label: '१६ संस्कार', icon: '👶', description: 'गर्भाधानदेखि अन्त्येष्टिसम्मका १६ संस्कार' },
+  { key: 'vivah_karma', label: 'विवाह कर्मकाण्ड', icon: '💍', description: 'विवाह, लग्न, स्वयंवर र सप्तपदी सामग्री' },
+  { key: 'grihapravesh_vastu', label: 'गृहप्रवेश तथा वास्तु', icon: '🏠', description: 'भूमिपूजन, शिलान्यास, वास्तुशान्ति र नयाँ घर प्रवेश' },
+  { key: 'graha_shanti', label: 'ग्रहशान्ति तथा दोषनिवारण', icon: '🪐', description: 'नवग्रह, कालसर्प, मंगलदोष, साढेसाती शान्ति' },
+  { key: 'kamya_puja', label: 'काम्य पूजा (मनोकामना)', icon: '🌟', description: 'सन्तान, धन, व्यापार, परीक्षा, कार्यसिद्धि पूजा' },
+  { key: 'shraddha_pitri', label: 'श्राद्ध तथा पितृकर्म', icon: '🕊️', description: 'सोह्रश्राद्ध, एकोदिष्ट, पार्वण, तर्पण एवं पिण्डदान' },
+  { key: 'hom_havan', label: 'होम तथा हवन सामग्री', icon: '🔥', description: 'हवन कुण्ड, समिधा, गुग्गुल, घ्यू र सर्वौषधि' },
+  { key: 'devadevi_puja', label: 'देवदेवी पूजा', icon: '🪔', description: 'गणेश, शिव, विष्णु, दुर्गा, हनुमान, लक्ष्मी पूजा' },
+  { key: 'vishesh_anushthan', label: 'विशेष अनुष्ठान', icon: '🔱', description: 'चण्डी पाठ, महारुद्र, महामृत्युञ्जय, पुरश्चरण' },
+  { key: 'nitya_puja', label: 'नित्य पूजा सामग्री', icon: '🌸', description: 'दैनिक पूजा, दीप, धूप, चन्दन, अगरबत्ती' },
+  { key: 'naimittik_puja', label: 'नैमित्तिक पूजा', icon: '📜', description: 'विशेष अवसर र तिथिमा गरिने अनुष्ठान' },
+  { key: 'vrata_parva', label: 'व्रत तथा पर्व सामग्री', icon: '🎉', description: 'दशैं, तिहार, शिवरात्रि, तीज, एकादशी' },
+  { key: 'antyeshti_karma', label: 'अन्त्येष्टि कर्म', icon: '🌿', description: 'मृत्यु संस्कार, एकादशाह, द्वादशाह, सपिण्डीकरण' },
+  { key: 'kuldevata_puja', label: 'कुलदेवता/कुलदेवी पूजा', icon: '🚩', description: 'कुल पूजा, देवाली, पितृकुल एवं मातृकुल' },
+  { key: 'tirtha_puja', label: 'तीर्थ तथा विशेष पूजा', icon: '🌊', description: 'गया, काशी, पशुपति, मुक्तिनाथ तीर्थ संकल्प' },
+  { key: 'religious_books', label: 'धार्मिक ग्रन्थ र पञ्चाङ्ग', icon: '📖', description: 'गीता, चण्डी, रुद्री, कर्मकाण्ड र पात्रो' },
+  { key: 'jyotish', label: 'रुद्राक्ष, रत्न र यन्त्र', icon: '📿', description: 'नेपाली रुद्राक्ष, स्फटिक, श्रीयन्त्र, औंठी' },
+];
 
 export interface BookDetails {
   author: string;

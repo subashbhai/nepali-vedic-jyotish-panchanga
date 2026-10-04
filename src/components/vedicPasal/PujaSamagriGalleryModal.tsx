@@ -12,10 +12,10 @@ import {
   BookOpen,
   Filter
 } from 'lucide-react';
+import { StoreCategoryKey } from '../../types/vedicStoreTypes';
 import {
   PUJA_SAMAGRI_GALLERY_DATABASE,
   PUJA_GALLERY_CATEGORIES,
-  PujaGalleryCategory,
   PujaGalleryItem,
   getFilteredPujaGalleryItems
 } from '../../utils/pujaSamagriGalleryEngine';
@@ -33,14 +33,15 @@ export const PujaSamagriGalleryModal: React.FC<PujaSamagriGalleryModalProps> = (
   onSelectImage,
   currentSelectedImageUrl,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<PujaGalleryCategory | 'all'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<StoreCategoryKey | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredItems = useMemo(() => {
-    return getFilteredPujaGalleryItems({
-      category: selectedCategory,
-      searchQuery,
-    });
+    return getFilteredPujaGalleryItems(
+      PUJA_SAMAGRI_GALLERY_DATABASE,
+      selectedCategory,
+      searchQuery
+    );
   }, [selectedCategory, searchQuery]);
 
   if (!isOpen) return null;
