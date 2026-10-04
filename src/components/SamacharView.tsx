@@ -33,6 +33,7 @@ import {
 import { PlanetPosition, PlanetName, RashiName, PanchangaData } from '../types/astrology';
 import { RASHI_DATA } from '../data/rashiData';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
+import { convertADToBSFull } from '../utils/bsCalendarData';
 import { getCachedAstroCalculation } from '../utils/astroCache';
 import { 
   SamacharArticle, 
@@ -71,7 +72,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
   onNavigateTab
 }) => {
   const activeTodayAD = propTodayAD || new Date().toISOString().split('T')[0];
-  const activeTodayBS = propTodayBS || convertADToBS(activeTodayAD).formattedBS;
+  const activeTodayBS = propTodayBS || convertADToBSFull(activeTodayAD).formattedBS;
 
   // Obtain Live Astronomical Positions
   const livePlanets: PlanetPosition[] = useMemo(() => {
@@ -591,6 +592,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                       <img 
                         src={todayTithiArticle.coverImageUrl} 
                         alt={todayTithiArticle.title}
+                        onError={(e) => { e.currentTarget.src = deityInfo.portraitUrl || '/assets/festivals/dashain_ghatasthapana.jpg'; }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent flex flex-col justify-end p-3">
@@ -649,6 +651,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                             <img 
                               src={art.coverImageUrl} 
                               alt={art.title} 
+                              onError={(e) => { e.currentTarget.src = festArt?.illustrationUrl || '/assets/festivals/dashain_ghatasthapana.jpg'; }}
                               className="w-24 h-24 rounded-xl object-cover shrink-0 border border-stone-100 dark:border-stone-800 group-hover:scale-105 transition-transform" 
                             />
                           )}
@@ -724,6 +727,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                           <img 
                             src={art.coverImageUrl} 
                             alt={art.title} 
+                            onError={(e) => { e.currentTarget.src = '/assets/festivals/dashain_ghatasthapana.jpg'; }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                           <span className="absolute top-2 left-2 bg-black/70 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs">
@@ -1217,6 +1221,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                   <img 
                     src={selectedStoredArticle.coverImageUrl} 
                     alt={selectedStoredArticle.title}
+                    onError={(e) => { e.currentTarget.src = '/assets/festivals/dashain_ghatasthapana.jpg'; }}
                     className="w-full h-full object-cover" 
                   />
                 </div>
