@@ -1196,7 +1196,7 @@ export default function App() {
           }}
           onTabChange={(tab, subTab) => {
             const resolvedTab = (tab as string) === 'patro' ? 'calendar' : tab;
-            const isPublicTab = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolvedTab);
+            const isPublicTab = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolvedTab);
 
             if (!rbacSession && !isPublicTab) {
               setIsRBACAuthModalOpen(true);
