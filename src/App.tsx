@@ -33,6 +33,7 @@ import { printElement } from './utils/pdfGenerator';
 import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
 import { isMobileApp, isDesktopApp } from './utils/appVersionManager';
 import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
+import { FullPageModuleHeader } from './components/common/FullPageModuleHeader';
 
 const BalanandaMobileAppShell = lazy(() => import('./mobile/BalanandaMobileAppShell').then((m) => ({ default: m.BalanandaMobileAppShell })));
 const BalanandaWindowsAppShell = lazy(() => import('./windows/BalanandaWindowsAppShell').then((m) => ({ default: m.BalanandaWindowsAppShell })));
@@ -1358,120 +1359,140 @@ export default function App() {
         </Suspense>
       ) : (
         <div className="flex-1 flex flex-col w-full min-h-0">
-          {/* Sticky Unified Header & Navigation Container */}
-          <div className="sticky top-0 z-50 bg-white/95 dark:bg-[#262320]/95 backdrop-blur-md border-b border-[#E6E0D5] dark:border-stone-800 shadow-xs transition-colors">
-            <Header
+          {activeTab === 'dashboard' ? (
+            <>
+              {/* Sticky Unified Header & Navigation Container (Home / Dashboard only) */}
+              <div className="sticky top-0 z-50 bg-white/95 dark:bg-[#262320]/95 backdrop-blur-md border-b border-[#E6E0D5] dark:border-stone-800 shadow-xs transition-colors">
+                <Header
+                  activeProfile={activeProfile}
+                  profiles={profiles}
+                  onSelectProfile={handleSelectProfile}
+                  onNewProfile={handleOpenNewKundaliModal}
+                  onOpenSettings={() => handleOpenSettings('astro')}
+                  onNavigateToApplyExpert={() => setActiveTab('apply_expert')}
+                  onNavigateToAdmin={(tab) => {
+                    setAdminInitialTab(tab);
+                    setActiveTab('admin_control');
+                  }}
+                  settings={settings}
+                  onToggleTheme={handleToggleTheme}
+                  todayBS={todayBS}
+                  orgProfile={orgProfile}
+                  onOpenOrgProfile={() => setIsOrgModalOpen(true)}
+                  onOpenDateConverter={() => setIsDateConverterOpen(true)}
+                  rbacSession={rbacSession}
+                  onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
+                  onLogoutRBAC={handleLogoutRBAC}
+                  transitAlertCount={unreadTransitAlerts.length}
+                  hasHighPriorityTransitAlert={hasHighPriorityTransit}
+                  onOpenTransitNotifications={handleOpenTransitNotifications}
+                  onOpenPurchaseModal={(featureName) => {
+                    setLockedFeatureName(featureName || 'पूर्ण सदस्यता');
+                    setIsClientPurchaseLeadModalOpen(true);
+                  }}
+                  hasUpdate={appUpdate.hasUpdate}
+                  updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
+                  onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
+                />
+
+                {/* Main Navigation Tabs */}
+                <Navigation 
+                  activeTab={activeTab} 
+                  activeModule={activeModule}
+                  onEnterJyotish={enterJyotishModule}
+                  onOpenSettingsModal={(tab) => handleOpenSettings(tab || 'astro')}
+                  rbacSession={rbacSession}
+                  onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
+                  onLogoutRBAC={handleLogoutRBAC}
+                  hasFullAccess={isFullyUnlocked}
+                  onOpenPurchaseModal={(featureName) => {
+                    setLockedFeatureName(featureName || 'यो सेवा');
+                    setIsClientPurchaseLeadModalOpen(true);
+                  }}
+                  onOpenDateConverter={() => setActiveTab('date_converter')}
+                  onOpenOrgProfile={() => setActiveTab('org_profile')}
+                  onOpenThemeModal={() => setIsClientThemeModalOpen(true)}
+                  onNavigateToAdmin={(tab) => {
+                    setAdminInitialTab(tab || 'client_approvals');
+                    setActiveTab('admin_control');
+                  }}
+                  profiles={profiles}
+                  onOpenVastuModal={(subTab) => {
+                    if (subTab) {
+                      setVastuSubTab(subTab as VastuSubTab);
+                    }
+                    setIsVastuModalOpen(true);
+                  }}
+                  onTabChange={(tab, subTab) => {
+                    const resolvedTab = (tab as string) === 'patro' ? 'calendar' : tab;
+                    const isPublicTab = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolvedTab);
+
+                    if (!rbacSession && !isPublicTab) {
+                      setIsRBACAuthModalOpen(true);
+                      return;
+                    }
+
+                    if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolvedTab)) {
+                      setLockedFeatureName(
+                        resolvedTab === 'jyotishi' || resolvedTab === 'aarje' ? 'ज्योतिष कार्यक्षेत्र' :
+                        resolvedTab === 'vastu' ? 'वास्तुशास्त्र' :
+                        resolvedTab === 'rashifal' ? 'दैनिक राशिफल' :
+                        resolvedTab === 'dashboard' ? 'गृहपृष्ठ' : 'यो सेवा'
+                      );
+                      setIsClientPurchaseLeadModalOpen(true);
+                      return;
+                    }
+
+                    if (resolvedTab === 'jyotishi' || resolvedTab === 'aarje') {
+                      enterJyotishModule();
+                    } else if (resolvedTab === 'settings') {
+                      setIsSettingsModalOpen(true);
+                    } else if (resolvedTab === 'calendar' || (resolvedTab as string) === 'patro') {
+                      setPanchangaSubTab('patro');
+                      setActiveTab('panchanga');
+                    } else if (resolvedTab === 'date_converter') {
+                      setPanchangaSubTab('converter');
+                      setActiveTab('panchanga');
+                    } else if (resolvedTab === 'rashifal') {
+                      setPanchangaSubTab('rashifal');
+                      setActiveTab('panchanga');
+                    } else {
+                      setActiveTab(resolvedTab);
+                      if (resolvedTab === 'panchanga' && subTab) {
+                        setPanchangaSubTab(subTab as PanchangaSubTab);
+                      } else if (resolvedTab === 'vastu' && subTab) {
+                        setVastuSubTab(subTab as VastuSubTab);
+                      } else if (subTab) {
+                        setActivePatrikaSubTab(subTab as PatrikaSubCategory);
+                      }
+                    }
+                  }} 
+                />
+              </div>
+
+              {/* Global Device Auto-Update Notification Banner (Instant 1-Click Update for Mobile & Desktop) */}
+              <DeviceUpdateNotificationBanner />
+
+              {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
+              <GlobalSiteNoticeBanner onNavigateTab={(tab) => setActiveTab(tab as any)} />
+            </>
+          ) : (
+            /* Dedicated Full Page Window Header for ALL non-dashboard menu tabs (Same UX as Jyotish Sewa) */
+            <FullPageModuleHeader
+              activeTab={activeTab}
+              onGoHome={() => setActiveTab('dashboard')}
+              onOpenDateConverter={() => setIsDateConverterOpen(true)}
+              onToggleTheme={handleToggleTheme}
+              onOpenSettings={() => handleOpenSettings('astro')}
               activeProfile={activeProfile}
               profiles={profiles}
               onSelectProfile={handleSelectProfile}
-              onNewProfile={handleOpenNewKundaliModal}
-              onOpenSettings={() => handleOpenSettings('astro')}
-              onNavigateToApplyExpert={() => setActiveTab('apply_expert')}
-              onNavigateToAdmin={(tab) => {
-                setAdminInitialTab(tab);
-                setActiveTab('admin_control');
-              }}
-              settings={settings}
-              onToggleTheme={handleToggleTheme}
-              todayBS={todayBS}
-              orgProfile={orgProfile}
-              onOpenOrgProfile={() => setIsOrgModalOpen(true)}
-              onOpenDateConverter={() => setIsDateConverterOpen(true)}
               rbacSession={rbacSession}
               onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
               onLogoutRBAC={handleLogoutRBAC}
-              transitAlertCount={unreadTransitAlerts.length}
-              hasHighPriorityTransitAlert={hasHighPriorityTransit}
-              onOpenTransitNotifications={handleOpenTransitNotifications}
-              onOpenPurchaseModal={(featureName) => {
-                setLockedFeatureName(featureName || 'पूर्ण सदस्यता');
-                setIsClientPurchaseLeadModalOpen(true);
-              }}
-              hasUpdate={appUpdate.hasUpdate}
-              updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
-              onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
+              orgProfile={orgProfile}
             />
-
-            {/* Main Navigation Tabs */}
-            <Navigation 
-          activeTab={activeTab} 
-          activeModule={activeModule}
-          onEnterJyotish={enterJyotishModule}
-          onOpenSettingsModal={(tab) => handleOpenSettings(tab || 'astro')}
-          rbacSession={rbacSession}
-          onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
-          onLogoutRBAC={handleLogoutRBAC}
-          hasFullAccess={isFullyUnlocked}
-          onOpenPurchaseModal={(featureName) => {
-            setLockedFeatureName(featureName || 'यो सेवा');
-            setIsClientPurchaseLeadModalOpen(true);
-          }}
-          onOpenDateConverter={() => setActiveTab('date_converter')}
-          onOpenOrgProfile={() => setActiveTab('org_profile')}
-          onOpenThemeModal={() => setIsClientThemeModalOpen(true)}
-          onNavigateToAdmin={(tab) => {
-            setAdminInitialTab(tab || 'client_approvals');
-            setActiveTab('admin_control');
-          }}
-          profiles={profiles}
-          onOpenVastuModal={(subTab) => {
-            if (subTab) {
-              setVastuSubTab(subTab as VastuSubTab);
-            }
-            setIsVastuModalOpen(true);
-          }}
-          onTabChange={(tab, subTab) => {
-            const resolvedTab = (tab as string) === 'patro' ? 'calendar' : tab;
-            const isPublicTab = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolvedTab);
-
-            if (!rbacSession && !isPublicTab) {
-              setIsRBACAuthModalOpen(true);
-              return;
-            }
-
-            if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolvedTab)) {
-              setLockedFeatureName(
-                resolvedTab === 'jyotishi' || resolvedTab === 'aarje' ? 'ज्योतिष कार्यक्षेत्र' :
-                resolvedTab === 'vastu' ? 'वास्तुशास्त्र' :
-                resolvedTab === 'rashifal' ? 'दैनिक राशिफल' :
-                resolvedTab === 'dashboard' ? 'गृहपृष्ठ' : 'यो सेवा'
-              );
-              setIsClientPurchaseLeadModalOpen(true);
-              return;
-            }
-
-            if (resolvedTab === 'jyotishi' || resolvedTab === 'aarje') {
-              enterJyotishModule();
-            } else if (resolvedTab === 'settings') {
-              setIsSettingsModalOpen(true);
-            } else if (resolvedTab === 'calendar' || (resolvedTab as string) === 'patro') {
-              setPanchangaSubTab('patro');
-              setActiveTab('panchanga');
-            } else if (resolvedTab === 'date_converter') {
-              setPanchangaSubTab('converter');
-              setActiveTab('panchanga');
-            } else if (resolvedTab === 'rashifal') {
-              setPanchangaSubTab('rashifal');
-              setActiveTab('panchanga');
-            } else {
-              setActiveTab(resolvedTab);
-              if (resolvedTab === 'panchanga' && subTab) {
-                setPanchangaSubTab(subTab as PanchangaSubTab);
-              } else if (resolvedTab === 'vastu' && subTab) {
-                setVastuSubTab(subTab as VastuSubTab);
-              } else if (subTab) {
-                setActivePatrikaSubTab(subTab as PatrikaSubCategory);
-              }
-            }
-          }} 
-        />
-      </div>
-
-      {/* Global Device Auto-Update Notification Banner (Instant 1-Click Update for Mobile & Desktop) */}
-      <DeviceUpdateNotificationBanner />
-
-      {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
-      <GlobalSiteNoticeBanner onNavigateTab={(tab) => setActiveTab(tab as any)} />
+          )}
 
       {/* Main Container */}
       <main className="max-w-[1700px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6 flex-1 w-full flex flex-col min-h-0">
