@@ -49,7 +49,7 @@ export interface NewsEditorMagicToken {
   note?: string;
 }
 
-const STORAGE_KEY_SAMACHAR = 'balananda_samachar_articles_v3';
+const STORAGE_KEY_SAMACHAR = 'balananda_samachar_articles_v4';
 const STORAGE_KEY_MAGIC_TOKENS = 'balananda_news_editor_magic_tokens_v1';
 
 export const SAMACHAR_CATEGORY_NAMES: Record<SamacharCategory, string> = {

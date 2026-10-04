@@ -1366,7 +1366,7 @@ ${fSpec.vidhiAndSamagri}
         authorRole: 'वरिष्ठ संस्कृतिविद्',
         coverImageUrl: fSpec.coverImageUrl,
         publishedAtBS: festDateBS,
-        publishedAtAD: activeTodayAD,
+        publishedAtAD: festADStr,
         isPublished: true,
         isFeatured: exactDaysRemaining <= 7, // Highlight as featured if within 7 days
         isBreaking: exactDaysRemaining <= 1, // Breaking ticker if today/tomorrow
@@ -1384,6 +1384,8 @@ ${fSpec.vidhiAndSamagri}
           summary: fSpec.summary,
           content: fullFestivalContent,
           coverImageUrl: fSpec.coverImageUrl,
+          publishedAtBS: festDateBS,
+          publishedAtAD: festADStr,
           isFeatured: exactDaysRemaining <= 7,
           isBreaking: exactDaysRemaining <= 1
         };

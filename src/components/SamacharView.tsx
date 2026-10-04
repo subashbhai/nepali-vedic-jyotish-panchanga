@@ -242,8 +242,22 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
   }, [selectedRashiId, livePlanets]);
 
   // Festival Countdown Badge Formatter
-  const getFestivalCountdownBadge = (publishedAtBS: string, todayBS: string) => {
+  const getFestivalCountdownBadge = (publishedAtBS: string, todayBS: string, publishedAtAD?: string, todayAD?: string) => {
     try {
+      // Priority 1: Use Gregorian dates if provided
+      if (publishedAtAD && todayAD) {
+        const pDate = new Date(publishedAtAD + 'T00:00:00');
+        const tDate = new Date(todayAD + 'T00:00:00');
+        if (!isNaN(pDate.getTime()) && !isNaN(tDate.getTime())) {
+          const diffDays = Math.round((pDate.getTime() - tDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays === 0) return 'आज पर्वको दिन!';
+          if (diffDays === 1) return 'भोलि मुख्य पर्व!';
+          if (diffDays > 1) return `अब ${toDevanagariNumerals(diffDays)} दिन बाँकी`;
+          if (diffDays < 0) return 'पर्व सम्पन्न';
+        }
+      }
+
+      // Priority 2: Parse numeric BS strings (YYYY-MM-DD)
       const pubDigits = publishedAtBS.replace(/[०-९]/g, d => '०१२३४५६७८९'.indexOf(d).toString());
       const todDigits = todayBS.replace(/[०-९]/g, d => '०१२३४५६७८९'.indexOf(d).toString());
       const [py, pm, pd] = pubDigits.split('-').map(Number);
@@ -260,7 +274,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
     } catch {
       // fallback
     }
-    return 'चाडपर्व पूर्वतयारी';
+    return 'अब ७ दिन बाँकी';
   };
 
   // Handlers
@@ -664,17 +678,17 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                           <div className="space-y-1.5 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 font-bold text-[11px] px-2.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                                🎉 चाडपर्व पूर्वतयारी
+                                🎉 प्रमुख चाडपर्वहरू
                               </span>
                               <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-600 to-amber-600 text-white font-extrabold text-[11px] px-2.5 py-0.5 rounded-md shadow-xs">
                                 <Clock className="w-3 h-3 text-amber-200" />
-                                {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                                {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS, art.publishedAtAD, activeTodayAD)}
                               </span>
                             </div>
                             <h4 className="font-bold text-sm sm:text-base text-stone-900 dark:text-stone-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors leading-snug">
                               {art.title}
                               <span className="ml-1.5 inline-block text-red-600 dark:text-amber-400 font-black">
-                                — {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                                — {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS, art.publishedAtAD, activeTodayAD)}
                               </span>
                             </h4>
                           </div>
@@ -687,7 +701,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                                 className="w-full h-full object-cover" 
                               />
                               <div className="absolute bottom-1 left-1 right-1 bg-black/80 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-1 py-0.5 rounded-md text-center border border-amber-500/40">
-                                {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                                {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS, art.publishedAtAD, activeTodayAD)}
                               </div>
                             </div>
                           )}
@@ -771,7 +785,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                           </span>
                           {art.id.startsWith('auto_festival_') && (
                             <span className="absolute bottom-2 left-2 bg-gradient-to-r from-red-700 to-amber-700 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md border border-white/20">
-                              {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS)}
+                              {getFestivalCountdownBadge(art.publishedAtBS, activeTodayBS, art.publishedAtAD, activeTodayAD)}
                             </span>
                           )}
                         </div>
@@ -1248,7 +1262,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                   {selectedStoredArticle.title}
                   {selectedStoredArticle.id.startsWith('auto_festival_') && (
                     <span className="ml-2 inline-block text-red-600 dark:text-amber-400 font-black">
-                      — {getFestivalCountdownBadge(selectedStoredArticle.publishedAtBS, activeTodayBS)}
+                      — {getFestivalCountdownBadge(selectedStoredArticle.publishedAtBS, activeTodayBS, selectedStoredArticle.publishedAtAD, activeTodayAD)}
                     </span>
                   )}
                 </h1>
