@@ -5,8 +5,7 @@ import {
   StoreCoupon,
   StoreOrder,
   StoreCategoryKey,
-  StoreUserRole,
-  VEDIC_STORE_16_CATEGORIES
+  StoreUserRole
 } from '../../types/vedicStoreTypes';
 import {
   getStoredProducts,
@@ -402,7 +401,7 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
       {activeTab === 'home' && (
         <div className="space-y-8">
           {/* Global Search Bar */}
-          <div className="bg-white dark:bg-[#231F1C] border border-[#E6E0D5] dark:border-stone-800 p-4 rounded-3xl shadow-sm space-y-4">
+          <div className="bg-white dark:bg-[#231F1C] border border-[#E6E0D5] dark:border-stone-800 p-4 rounded-3xl shadow-sm">
             <div className="relative">
               <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
@@ -421,25 +420,6 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
                   <X className="w-4 h-4" />
                 </button>
               )}
-            </div>
-
-            {/* 16 Vedic Category Filter Chips */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
-              {VEDIC_STORE_16_CATEGORIES.map(cat => (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.key as StoreCategoryKey)}
-                  className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap border flex items-center gap-1.5 ${
-                    selectedCategory === cat.key
-                      ? 'bg-[#D97706] text-white border-[#B45309] shadow-sm'
-                      : 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-[#E6E0D5] dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
-                  }`}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.label}</span>
-                </button>
-              ))}
             </div>
           </div>
 
