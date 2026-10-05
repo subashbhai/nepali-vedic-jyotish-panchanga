@@ -725,11 +725,11 @@ export default function App() {
   useEffect(() => {
     if (!rbacSession) {
       if (!PUBLIC_UNAUTH_NAV_IDS.has(activeTab)) {
-        setActiveTab('dashboard');
+        navigateTab('dashboard', undefined, true);
       }
     } else if (!isFullyUnlocked) {
       if (!NORMAL_USER_ALLOWED_TABS.has(activeTab)) {
-        setActiveTab('dashboard');
+        navigateTab('dashboard', undefined, true);
       }
     }
   }, [rbacSession, isFullyUnlocked, activeTab]);
@@ -830,7 +830,7 @@ export default function App() {
     clearRBACSession();
     setRbacSession(null);
     setPasalInitialTab('home');
-    setActiveTab('dashboard');
+    navigateTab('dashboard', undefined, true);
     if (window.location.search) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -979,12 +979,12 @@ export default function App() {
   useEffect(() => {
     const handleNavigateTab = (e: any) => {
       if (e?.detail) {
-        setActiveTab(e.detail);
+        navigateTab(e.detail);
       }
     };
     window.addEventListener('navigate-tab' as any, handleNavigateTab);
     return () => window.removeEventListener('navigate-tab' as any, handleNavigateTab);
-  }, []);
+  }, [navigateTab]);
 
   const handleToggleTheme = () => {
     const isCurrentlyDark = document.documentElement.classList.contains('dark') || settings.themeMode === 'dark';
@@ -1220,10 +1220,10 @@ export default function App() {
       checkAndSendAutoTransitNotifications({
         activeProfile: currentProfile,
         alerts: profileTransitAlerts,
-        onNavigateToGochar: () => setActiveTab('gochar'),
+        onNavigateToGochar: () => navigateTab('gochar'),
       });
     }
-  }, [currentProfile?.id, profileTransitAlerts]);
+  }, [currentProfile?.id, profileTransitAlerts, navigateTab]);
 
   // Register dynamic app state context for error logging and boundary tracking
   useEffect(() => {
@@ -1244,12 +1244,12 @@ export default function App() {
   useEffect(() => {
     const handleSWMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'NAVIGATE_TAB' && event.data.tab) {
-        setActiveTab(event.data.tab);
+        navigateTab(event.data.tab);
       }
     };
     const handleNavigateTabEvent = (event: any) => {
       if (event.detail) {
-        setActiveTab(event.detail);
+        navigateTab(event.detail);
       }
     };
 
@@ -1259,7 +1259,7 @@ export default function App() {
       window.removeEventListener('message', handleSWMessage);
       window.removeEventListener('navigate-tab', handleNavigateTabEvent);
     };
-  }, []);
+  }, [navigateTab]);
 
   // Optional dedicated mini shells (only if explicitly requested via query param ?view_shell=...)
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -1318,7 +1318,7 @@ export default function App() {
                 setActiveModule('JYOTISH');
               } else {
                 exitJyotishModule();
-                setActiveTab(tab);
+                navigateTab(tab);
               }
             }}
             onExit={exitJyotishModule}
@@ -1679,7 +1679,7 @@ export default function App() {
             <PageMaintenanceView
               pageTitle={currentPageControl.titleNepali}
               maintenanceMessage={currentPageControl.maintenanceMessage}
-              onGoHome={() => setActiveTab('dashboard')}
+              onGoHome={() => navigateTab('dashboard')}
             />
           ) : !rbacSession && !['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(activeTab) ? (
             <VedicLoginGateView
@@ -1692,7 +1692,7 @@ export default function App() {
                   session.role === 'STORE_ADMIN' ||
                   session.role === 'POS_STAFF';
                 if (!isSuper && !isSoftwareFullAccessUnlocked()) {
-                  setActiveTab('yajaman');
+                  navigateTab('yajaman');
                 }
               }}
             />
@@ -1800,7 +1800,7 @@ export default function App() {
                 ayanamsaSystem={settings.ayanamsaSystem}
                 onChangeAyanamsaSystem={(system) => handleSaveSettings({ ...settings, ayanamsaSystem: system })}
                 orgProfile={orgProfile}
-                onNavigateToTab={(tab) => setActiveTab(tab as any)}
+                onNavigateToTab={(tab) => navigateTab(tab as any)}
               />
             </PatrikaErrorBoundary>
           )}
@@ -2118,7 +2118,7 @@ export default function App() {
             orgProfile={orgProfile}
             onSaveOrgProfile={handleSaveOrgProfile}
             onNavigate={(tab) => {
-              setActiveTab(tab);
+              navigateTab(tab);
               setIsOrgModalOpen(false);
             }}
             astrologers={astrologers}
@@ -2176,7 +2176,7 @@ export default function App() {
             setIsRBACAuthModalOpen(false);
             setIsSuperAdminAuthModalOpen(false);
             if (session.role === 'SUPER_ADMIN') {
-              setActiveTab('admin_control');
+              navigateTab('admin_control');
             }
           }}
         />
@@ -2188,7 +2188,7 @@ export default function App() {
             onClose={() => setIsDateConverterOpen(false)}
             onNavigateToPanchanga={(dateAD) => {
               setIsDateConverterOpen(false);
-              setActiveTab('panchanga');
+              navigateTab('panchanga');
             }}
           />
         )}
@@ -2203,7 +2203,7 @@ export default function App() {
           transitPlanets={todayTransitPlanets}
           todayAD={todayAD}
           todayBS={todayBS}
-          onNavigateToGochar={() => setActiveTab('gochar')}
+          onNavigateToGochar={() => navigateTab('gochar')}
           hasUpdate={appUpdate.hasUpdate}
           updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
           onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
@@ -2232,7 +2232,7 @@ export default function App() {
           onNavigateToAdmin={(tab) => {
             setIsClientPurchaseLeadModalOpen(false);
             setAdminInitialTab(tab || 'client_approvals');
-            setActiveTab('admin_control');
+            navigateTab('admin_control');
           }}
         />
 
