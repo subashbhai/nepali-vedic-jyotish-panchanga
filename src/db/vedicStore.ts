@@ -18,7 +18,7 @@ import {
 import { PUJA_SAMAGRI_GALLERY_DATABASE } from '../utils/pujaSamagriGalleryEngine';
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'balananda_vedic_products_v8',
+  PRODUCTS: 'balananda_vedic_products_v10',
   ORDERS: 'balananda_vedic_orders_v1',
   COUPONS: 'balananda_vedic_coupons_v1',
   CART: 'balananda_vedic_cart_v1',
@@ -220,8 +220,34 @@ export const getStoredProducts = (): Product[] => {
       memoryVedicProducts = INITIAL_DEMO_PRODUCTS;
       return INITIAL_DEMO_PRODUCTS;
     }
-    memoryVedicProducts = JSON.parse(raw);
-    return memoryVedicProducts!;
+    const parsed: Product[] = JSON.parse(raw);
+
+    // Synchronize initial demo products with latest shastriya samagri lists & HD posters
+    const synced = INITIAL_DEMO_PRODUCTS.map(initialProd => {
+      const existing = parsed.find(p => p.id === initialProd.id);
+      if (existing) {
+        return {
+          ...existing,
+          nameNepali: initialProd.nameNepali,
+          nameEnglish: initialProd.nameEnglish,
+          category: initialProd.category,
+          subCategory: initialProd.subCategory,
+          imageUrl: initialProd.imageUrl,
+          packageItems: initialProd.packageItems,
+          shortDescription: initialProd.shortDescription,
+          fullDescription: initialProd.fullDescription,
+          sellingPrice: existing.sellingPrice || initialProd.sellingPrice,
+          discountPrice: existing.discountPrice || initialProd.discountPrice,
+        };
+      }
+      return initialProd;
+    });
+
+    const customUserProducts = parsed.filter(p => !INITIAL_DEMO_PRODUCTS.some(init => init.id === p.id));
+    const allProducts = [...synced, ...customUserProducts];
+    memoryVedicProducts = allProducts;
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(allProducts));
+    return allProducts;
   } catch (e) {
     console.error('Failed to load products:', e);
     return INITIAL_DEMO_PRODUCTS;

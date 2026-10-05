@@ -5,7 +5,8 @@ import {
   StoreCoupon,
   StoreOrder,
   StoreCategoryKey,
-  StoreUserRole
+  StoreUserRole,
+  VEDIC_STORE_16_CATEGORIES
 } from '../../types/vedicStoreTypes';
 import {
   getStoredProducts,
@@ -204,14 +205,13 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
     if (!p.isActive) return false;
 
     if (selectedCategory !== 'all') {
-      if (selectedCategory === 'puja_package' && p.category !== 'puja_package') return false;
-      if (selectedCategory === 'religious_books' && p.category !== 'religious_books' && !p.bookDetails) return false;
-      if (selectedCategory === 'puja_samagri' && p.category !== 'puja_samagri') return false;
-      if (selectedCategory === 'karmakanda' && p.category !== 'karmakanda') return false;
-      if (selectedCategory === 'jyotish' && p.category !== 'jyotish') return false;
-      if (selectedCategory === 'vastu' && p.category !== 'vastu') return false;
-      if (selectedCategory === 'yantra' && p.category !== 'yantra') return false;
-      if (selectedCategory === 'others' && p.category !== 'others') return false;
+      if (selectedCategory === 'religious_books') {
+        if (p.category !== 'religious_books' && !p.bookDetails) return false;
+      } else if (selectedCategory === 'puja_package') {
+        if (p.category !== 'puja_package' && (!p.packageItems || p.packageItems.length === 0)) return false;
+      } else {
+        if (p.category !== selectedCategory) return false;
+      }
     }
 
     if (searchQuery.trim()) {
@@ -428,7 +428,37 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
             </div>
           </div>
 
-          {/* Search Result Mode or Main Categorized Homepage */}
+          {/* 16 Vedic Karmakanda Category Filter Carousel */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+            {VEDIC_STORE_16_CATEGORIES.map(cat => {
+              const isSelected = selectedCategory === cat.key;
+              const count = cat.key === 'all'
+                ? products.length
+                : products.filter(p => cat.key === 'religious_books' ? (p.category === 'religious_books' || !!p.bookDetails) : p.category === cat.key).length;
+
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.key)}
+                  className={`px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 border shadow-xs ${
+                    isSelected
+                      ? 'bg-[#D97706] text-white border-[#D97706] shadow-md scale-105'
+                      : 'bg-white dark:bg-[#231F1C] text-stone-700 dark:text-stone-300 border-[#E6E0D5] dark:border-stone-800 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-400'
+                  }`}
+                  title={cat.description}
+                >
+                  <span className="text-sm">{cat.icon}</span>
+                  <span>{cat.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                    isSelected ? 'bg-amber-900 text-amber-200' : 'bg-stone-100 dark:bg-stone-800 text-stone-500'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
           {searchQuery || selectedCategory !== 'all' ? (
             <div className="space-y-4">
               <h3 className="text-base font-bold font-serif text-stone-800 dark:text-stone-200">
