@@ -168,7 +168,50 @@ export interface GPSDetectionResult {
 }
 
 /**
- * High-accuracy promise-based wrapper around navigator.geolocation
+ * Reverse geocodes latitude/longitude into exact locality, municipality, and district
+ */
+export async function reverseGeocodePlaceName(lat: number, lon: number): Promise<{
+  placeName: string;
+  municipality?: string;
+  district?: string;
+  province?: string;
+}> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1&accept-language=ne,en`;
+    const res = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'BalanandaVedicJyotish/1.0' } });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const data = await res.json();
+      const addr = data.address || {};
+      const locality = addr.city || addr.town || addr.village || addr.suburb || addr.municipality || addr.county || addr.hamlet;
+      const district = addr.state_district || addr.district || addr.county;
+      const province = addr.state;
+      if (locality) {
+        return {
+          placeName: district ? `${locality}, ${district}` : locality,
+          municipality: addr.municipality || locality,
+          district: district,
+          province: province
+        };
+      }
+    }
+  } catch (e) {
+    // Fallback to local district database
+  }
+
+  const { district } = findNearestNepalDistrict(lat, lon);
+  return {
+    placeName: `${district.headquarter}, ${district.district}`,
+    municipality: district.headquarter,
+    district: district.district,
+    province: district.province
+  };
+}
+
+/**
+ * High-accuracy promise-based wrapper around navigator.geolocation with reverse geocoding
  */
 export async function getCurrentUserGPS(): Promise<GPSDetectionResult> {
   return new Promise((resolve, reject) => {
@@ -178,7 +221,7 @@ export async function getCurrentUserGPS(): Promise<GPSDetectionResult> {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
         const accuracy = position.coords.accuracy || 50;
@@ -191,9 +234,18 @@ export async function getCurrentUserGPS(): Promise<GPSDetectionResult> {
         const offsetMinutes = -new Date().getTimezoneOffset();
         const tz = isNepal ? 5.75 : Math.round((offsetMinutes / 60) * 100) / 100;
 
+        // Fetch exact place name via reverse geocoding
+        let exactPlaceName = `${district.headquarter}, ${district.district}`;
+        try {
+          const rev = await reverseGeocodePlaceName(lat, lon);
+          if (rev.placeName) {
+            exactPlaceName = rev.placeName;
+          }
+        } catch {}
+
         const location: LocationData = {
           name: isNepal
-            ? `${district.headquarter}, ${district.district}`
+            ? exactPlaceName
             : `GPS अवस्थिति (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`,
           englishName: isNepal ? `${district.districtEn} District` : 'GPS Location',
           district: district.district,

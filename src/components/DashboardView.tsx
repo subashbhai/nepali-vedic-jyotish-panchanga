@@ -38,8 +38,7 @@ import {
   Printer,
   Download,
   Globe,
-  ExternalLink,
-  Crown
+  ExternalLink
 } from 'lucide-react';
 import { getStoredArticles, SamacharArticle } from '../db/samacharStore';
 import { 
@@ -79,6 +78,7 @@ import {
   BALANANDA_GEO_UPDATED_EVENT 
 } from '../utils/geoLocationHelper';
 import { MahaSankalpaModal } from './sankalpa/MahaSankalpaModal';
+import { LocationSelectorModal } from './LocationSelectorModal';
 import { DailyPanchangaPrintModal } from './panchanga/DailyPanchangaPrintModal';
 import { 
   isSoftwareFullAccessUnlocked, 
@@ -306,6 +306,7 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
     return activeProfile?.location || getStoredUserLocation();
   });
   const [isDetectingCardGPS, setIsDetectingCardGPS] = React.useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = React.useState(false);
 
   // Sync when activeProfile changes
   React.useEffect(() => {
@@ -420,12 +421,6 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                 <h2 className="text-lg sm:text-xl md:text-2xl font-black text-[#1A1A1A] dark:text-stone-100 font-serif tracking-wide">
                   ज्योतिष तथा पञ्चाङ्ग
                 </h2>
-                {approvedLicense?.isApproved && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-amber-500/25 to-orange-500/20 text-amber-900 dark:text-amber-200 border-2 border-amber-500/50 shadow-xs animate-in fade-in">
-                    <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    <span>{approvedLicense.clientName} • {approvedLicense.planId?.startsWith('lifetime') ? 'Life Time' : 'One Year'}</span>
-                  </span>
-                )}
               </div>
               <p className="text-xs sm:text-sm font-bold text-stone-600 dark:text-stone-300 mt-0.5 leading-relaxed">
                 दैनिक पञ्चाङ्ग, ग्रह गोचर, कुण्डली चक्र तथा आधिकारिक वैदिक सेवाहरूको प्रत्यक्ष विवरण
@@ -520,22 +515,35 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                {/* Location badge with 1-click GPS refresh */}
+                {/* Clickable Location Selector Button with Place Name */}
+                <button
+                  type="button"
+                  onClick={() => setIsLocationModalOpen(true)}
+                  className="text-xs px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 dark:from-stone-800 dark:to-stone-800/80 text-amber-950 dark:text-amber-200 font-bold border border-amber-300/80 dark:border-amber-700/80 shadow-2xs hover:shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group"
+                  title="सङ्कल्पका लागि स्थान चयन गर्नुहोस् (क्लिक गरी नेपालका ७७ जिल्ला, गाउँ/शहर वा GPS छान्नुहोस्)"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#D97706] group-hover:scale-110 transition-transform shrink-0" />
+                  <span className="font-serif font-bold text-[#78350F] dark:text-amber-300 truncate max-w-[130px]">
+                    {activeGeoLocation?.name?.split('(')[0]?.trim() || activeGeoLocation?.district || 'सप्तरी'}
+                  </span>
+                  <span className="text-[9px] bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-sans font-semibold shrink-0">
+                    बदल्नुहोस्
+                  </span>
+                </button>
+
+                {/* 1-Click High-Accuracy GPS Auto-Detect Button */}
                 <button
                   type="button"
                   onClick={handleRefreshCardGPS}
                   disabled={isDetectingCardGPS}
-                  title="हालको स्थान GPS बाट स्वतः अद्यावधिक गर्नुहोस्"
-                  className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-stone-800 dark:hover:bg-stone-700 text-amber-900 dark:text-amber-200 font-bold border border-amber-200 dark:border-stone-700 flex items-center gap-1 cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
+                  title="हालको स्थान live GPS बाट स्वतः पत्ता लगाई नजिकका मन्दिर र नदी खोज्नुहोस्"
+                  className="text-[11px] p-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-amber-900 dark:text-amber-200 font-bold border border-amber-300 dark:border-stone-700 flex items-center justify-center cursor-pointer transition-colors active:scale-95 disabled:opacity-50 shrink-0"
                 >
                   {isDetectingCardGPS ? (
-                    <span className="w-2.5 h-2.5 border-2 border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
+                    <span className="w-3.5 h-3.5 border-2 border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
                   ) : (
-                    <span>🛰️</span>
+                    <span className="text-xs" title="GPS Auto-detect">🛰️</span>
                   )}
-                  <span className="max-w-[105px] truncate">
-                    {activeGeoLocation?.district || activeGeoLocation?.name?.split('(')[0]?.trim() || 'काठमाडौँ'}
-                  </span>
                 </button>
 
                 {activeProfile && (
@@ -549,11 +557,26 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
               </div>
             </div>
 
-            {/* Sacred Geography & Pilgrimage Badges */}
+            {/* Proximity Tier Indicator (२ कि.मी. -> ५ कि.मी. -> १० कि.मी. -> २० कि.मी.) */}
+            <div className="flex items-center justify-between text-[11px] px-2.5 py-1 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200/70 dark:border-amber-900/40 mb-2.5">
+              <span className="text-amber-900 dark:text-amber-300 font-bold flex items-center gap-1">
+                <span>🎯 शास्त्रोक्त भौगोलिक निकटता:</span>
+              </span>
+              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-200/60 dark:bg-amber-900/60 px-2 py-0.5 rounded-md font-mono">
+                {dailySankalpa.geoInfo.tierSummaryBadge || '📍 २-२० कि.मी. परिधि खोजी'}
+              </span>
+            </div>
+
+            {/* Sacred Geography & Pilgrimage Badges (Multi-tier: 2km -> 5km -> 10km -> 20km) */}
             <div className="grid grid-cols-2 gap-2 mb-2.5 text-[11px]">
               <div className="bg-amber-50/70 dark:bg-stone-800/80 p-2.5 rounded-xl border border-amber-200/60 dark:border-stone-700/60 flex flex-col justify-between">
-                <span className="text-stone-500 dark:text-stone-400 text-[10px] font-medium flex items-center gap-1">
-                  📍 पवित्र नदी व तीर्थ:
+                <span className="text-stone-500 dark:text-stone-400 text-[10px] font-medium flex items-center justify-between">
+                  <span>📍 पवित्र नदी / तीर्थ:</span>
+                  {dailySankalpa.geoInfo.riverTierLabel && (
+                    <span className="text-[9px] text-amber-700 dark:text-amber-300 font-bold">
+                      {dailySankalpa.geoInfo.riverTierLabel}
+                    </span>
+                  )}
                 </span>
                 <span className="font-bold text-stone-800 dark:text-stone-200 truncate mt-0.5" title={`${dailySankalpa.geoInfo.localitySanskrit} • ${dailySankalpa.geoInfo.riverNepali}`}>
                   {dailySankalpa.geoInfo.riverNepali}
@@ -561,8 +584,13 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
               </div>
 
               <div className="bg-amber-50/70 dark:bg-stone-800/80 p-2.5 rounded-xl border border-amber-200/60 dark:border-stone-700/60 flex flex-col justify-between">
-                <span className="text-stone-500 dark:text-stone-400 text-[10px] font-medium flex items-center gap-1">
-                  🛕 प्रसिद्ध देवपीठ:
+                <span className="text-stone-500 dark:text-stone-400 text-[10px] font-medium flex items-center justify-between">
+                  <span>🛕 प्रसिद्ध देवपीठ / देवीथान:</span>
+                  {dailySankalpa.geoInfo.shrineTierLabel && (
+                    <span className="text-[9px] text-amber-700 dark:text-amber-300 font-bold">
+                      {dailySankalpa.geoInfo.shrineTierLabel}
+                    </span>
+                  )}
                 </span>
                 <span className="font-bold text-stone-800 dark:text-stone-200 truncate mt-0.5" title={dailySankalpa.geoInfo.deityNepali}>
                   {dailySankalpa.geoInfo.deityNepali}
@@ -987,6 +1015,19 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
           todayAD={todayAD}
           locationName={activeProfile?.location?.name || 'काठमाडौँ, नेपाल'}
           astrologerName={astrologers?.[0]?.name || 'ज्योतिषाचार्य सुकदेव शर्मा'}
+        />
+      )}
+
+      {/* Global Location Selector Modal */}
+      {isLocationModalOpen && (
+        <LocationSelectorModal
+          isOpen={isLocationModalOpen}
+          onClose={() => setIsLocationModalOpen(false)}
+          selectedLocation={activeGeoLocation}
+          onSelectLocation={(loc) => {
+            saveUserDetectedLocation(loc);
+            setActiveGeoLocation(loc);
+          }}
         />
       )}
     </div>

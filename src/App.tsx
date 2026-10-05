@@ -137,12 +137,150 @@ import { validateNewsEditorMagicToken, autoSyncLivePlanetaryNews } from './db/sa
 import { setAdminSession, AdminSession } from './db/adminStore';
 import { validateRoleMagicToken } from './db/roleMagicTokenStore';
 
+export const TAB_TO_HASH: Record<string, string> = {
+  dashboard: 'dashboard',
+  panchanga: 'panchanga',
+  jyotishi: 'jyotish',
+  vastu: 'vastu',
+  vivah: 'vivah',
+  yajaman: 'yajaman',
+  samachar: 'samachar',
+  kharedi: 'pasal',
+  org_profile: 'org_profile',
+  calendar: 'calendar',
+  date_converter: 'date_converter',
+  sewa: 'sewa',
+  kundali: 'kundali',
+  rashifal: 'rashifal',
+  dasha: 'dasha',
+  gochar: 'gochar',
+  muhurta: 'muhurta',
+  sanskar: 'sanskar',
+  prashna: 'prashna',
+  ankajyotish: 'ankajyotish',
+  kpjyotish: 'kpjyotish',
+  neemajyotish: 'neemajyotish',
+  faladesh: 'faladesh',
+  patrika: 'patrika',
+  my_subscription: 'my_subscription',
+  apply_expert: 'apply_expert',
+  admin_control: 'admin_control',
+  knowledge: 'knowledge',
+  ai_assistant: 'ai_assistant',
+  settings: 'settings',
+  help: 'help',
+  aarje: 'aarje',
+};
+
+export const HASH_TO_TAB: Record<string, NavTab> = {
+  '': 'dashboard',
+  'dashboard': 'dashboard',
+  'home': 'dashboard',
+  'panchanga': 'panchanga',
+  'panchang': 'panchanga',
+  'jyotish': 'jyotishi',
+  'jyotishi': 'jyotishi',
+  'vastu': 'vastu',
+  'vivah': 'vivah',
+  'yajaman': 'yajaman',
+  'samachar': 'samachar',
+  'kharedi': 'kharedi',
+  'pasal': 'kharedi',
+  'store': 'kharedi',
+  'org_profile': 'org_profile',
+  'calendar': 'calendar',
+  'patro': 'calendar',
+  'date_converter': 'date_converter',
+  'converter': 'date_converter',
+  'sewa': 'sewa',
+  'kundali': 'kundali',
+  'rashifal': 'rashifal',
+  'dasha': 'dasha',
+  'gochar': 'gochar',
+  'muhurta': 'muhurta',
+  'sanskar': 'sanskar',
+  'prashna': 'prashna',
+  'ankajyotish': 'ankajyotish',
+  'kpjyotish': 'kpjyotish',
+  'neemajyotish': 'neemajyotish',
+  'faladesh': 'faladesh',
+  'patrika': 'patrika',
+  'my_subscription': 'my_subscription',
+  'subscription': 'my_subscription',
+  'apply_expert': 'apply_expert',
+  'expert': 'apply_expert',
+  'admin_control': 'admin_control',
+  'admin': 'admin_control',
+  'knowledge': 'knowledge',
+  'ai_assistant': 'ai_assistant',
+  'settings': 'settings',
+  'help': 'help',
+  'aarje': 'aarje',
+};
+
+export const TAB_PAGE_TITLES: Record<string, string> = {
+  dashboard: 'गृहपृष्ठ - नेपाली वैदिक ज्योतिष र पञ्चाङ्ग',
+  jyotish: 'नेपाली वैदिक ज्योतिष सेवा कार्यक्षेत्र',
+  jyotishi: 'नेपाली वैदिक ज्योतिष सेवा कार्यक्षेत्र',
+  panchanga: 'नेपाली वैदिक पञ्चाङ्ग',
+  vastu: 'वैदिक वास्तुशास्त्र सेवा',
+  vivah: 'विवाह कुण्डली मिलान (मेलापक)',
+  kharedi: 'वैदिक पसल तथा पूजा सामग्री',
+  pasal: 'वैदिक पसल तथा पूजा सामग्री',
+  yajaman: 'यजमान तथा ग्राहक व्यवस्थापन',
+  samachar: 'वैदिक पञ्चाङ्ग तथा चाडपर्व समाचार',
+  org_profile: 'संस्थागत प्रोफाइल तथा परिचय',
+  calendar: 'नेपाली भित्तेपात्रो तथा क्यालेन्डर',
+  date_converter: 'मिति रूपान्तरण (वि.सं. - ई.सं.)',
+  sewa: 'वैदिक परामर्श तथा सेवा केन्द्र',
+  kundali: 'जन्मकुण्डली चक्र तथा ग्रह स्पष्ट',
+  rashifal: 'दैनिक तथा वार्षिक राशिफल',
+  dasha: 'विंशोत्तरी तथा योगिनी दशा चक्र',
+  gochar: 'वर्तमान ग्रह गोचर तथा साढेसाती',
+  muhurta: 'सर्वसिद्धि शुभ मुहूर्त विचार',
+  sanskar: 'षोडश वैदिक संस्कार दस्तावेज',
+  prashna: 'दैवज्ञ प्रश्न ज्योतिष',
+  ankajyotish: 'वैदिक अंक ज्योतिष (Numerology)',
+  kpjyotish: 'कृष्णमूर्ति पद्धति (KP Astrology)',
+  neemajyotish: 'नेमा ज्योतिष (तिब्बती पञ्चतत्व)',
+  faladesh: 'समग्र वैदिक फलादेश',
+  patrika: 'डिजिटल चिना तथा पत्रिका',
+  my_subscription: 'मेरो सदस्यता तथा लाइसेन्स',
+  apply_expert: 'ज्योतिषी तथा वास्तुविद् प्रमाणीकरण',
+  admin_control: 'सुपरएडमिन नियन्त्रण कक्ष',
+  knowledge: 'वैदिक ज्ञान तथा ग्रन्थ भण्डार',
+  ai_assistant: 'बालानन्द वैदिक AI सहायक',
+  help: 'मद्दत तथा प्रयोगकर्ता निर्देशिका',
+};
+
+const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } => {
+  if (typeof window === 'undefined') return { tab: 'dashboard', module: 'MAIN' };
+  const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+  if (!raw || raw === 'dashboard' || raw === 'home') {
+    return { tab: 'dashboard', module: 'MAIN' };
+  }
+  const resolved = HASH_TO_TAB[raw] || (raw as NavTab);
+  if (resolved === 'jyotishi' || raw === 'jyotish' || raw === 'aarje') {
+    return { tab: 'jyotishi', module: 'JYOTISH' };
+  }
+  return { tab: resolved, module: 'MAIN' };
+};
+
 export default function App() {
+  const initialRoute = useMemo(getInitialRouteFromHash, []);
   const [profiles, setProfiles] = useState<BirthDetails[]>([]);
   const [activeProfile, setActiveProfile] = useState<BirthDetails | null>(null);
-  const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
-  const [panchangaSubTab, setPanchangaSubTab] = useState<PanchangaSubTab>('daily');
-  const [activeModule, setActiveModule] = useState<'MAIN' | 'JYOTISH'>('MAIN');
+  const [activeTab, setActiveTab] = useState<NavTab>(() => initialRoute.tab);
+  const [panchangaSubTab, setPanchangaSubTab] = useState<PanchangaSubTab>(() => {
+    if (typeof window !== 'undefined') {
+      const h = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+      if (h === 'calendar' || h === 'patro') return 'patro';
+      if (h === 'date_converter' || h === 'converter') return 'converter';
+      if (h === 'rashifal') return 'rashifal';
+    }
+    return 'daily';
+  });
+  const [activeModule, setActiveModule] = useState<'MAIN' | 'JYOTISH'>(() => initialRoute.module);
   const [activePatrikaSubTab, setActivePatrikaSubTab] = useState<any>('china');
   const [editingProfile, setEditingProfile] = useState<BirthDetails | null>(null);
   const [settings, setSettingsState] = useState<ApplicationSettings>(getStoredSettings());
@@ -166,7 +304,7 @@ export default function App() {
     };
   }, []);
 
-  // useTransition: Jyotish module switch लाई non-urgent render बनाउँछ → blinking बन्द हुन्छ
+  // useTransition: Module switch renders non-urgently to eliminate blinking
   const [, startModuleTransition] = useTransition();
 
   // Super Admin Page & Service Master Control Configuration
@@ -197,44 +335,61 @@ export default function App() {
     }
   }, []);
 
-  // Sync browser Back/Forward navigation with activeModule
+  // Synchronize browser Back/Forward navigation and direct URL hash changes across ALL menu pages
   useEffect(() => {
-    const handlePopState = () => {
-      if (window.location.hash === '#jyotish') {
-        setActiveModule('JYOTISH');
-        setActiveTab('jyotishi');
-      } else {
-        setActiveModule('MAIN');
-        if (activeTab === 'jyotishi') {
+    const handleHashSync = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+      if (!hash || hash === 'dashboard' || hash === 'home') {
+        startModuleTransition(() => {
+          setActiveModule('MAIN');
           setActiveTab('dashboard');
-        }
+        });
+        document.title = TAB_PAGE_TITLES.dashboard;
+        return;
       }
+
+      if (hash === 'jyotish' || hash === 'jyotishi' || hash === 'aarje') {
+        startModuleTransition(() => {
+          setActiveModule('JYOTISH');
+          setActiveTab('jyotishi');
+        });
+        document.title = TAB_PAGE_TITLES.jyotish;
+        return;
+      }
+
+      const resolved = HASH_TO_TAB[hash] || (hash as NavTab);
+      startModuleTransition(() => {
+        setActiveModule('MAIN');
+        setActiveTab(resolved);
+      });
+
+      if (hash === 'calendar' || hash === 'patro') {
+        setPanchangaSubTab('patro');
+      } else if (hash === 'date_converter' || hash === 'converter') {
+        setPanchangaSubTab('converter');
+      } else if (hash === 'rashifal') {
+        setPanchangaSubTab('rashifal');
+      }
+
+      const pageTitle = TAB_PAGE_TITLES[hash] || TAB_PAGE_TITLES[resolved] || 'नेपाली वैदिक ज्योतिष र पञ्चाङ्ग';
+      document.title = pageTitle;
     };
 
-    if (window.location.hash === '#jyotish') {
-      setActiveModule('JYOTISH');
-      setActiveTab('jyotishi');
-    }
+    window.addEventListener('popstate', handleHashSync);
+    window.addEventListener('hashchange', handleHashSync);
+    return () => {
+      window.removeEventListener('popstate', handleHashSync);
+      window.removeEventListener('hashchange', handleHashSync);
+    };
+  }, []);
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeTab]);
-
-
-  // NOTE: Redundant useEffect removed — enterJyotishModule() already sets both
-  // activeModule='JYOTISH' and activeTab='jyotishi' together. Re-calling it from
-  // a useEffect caused a second render pass which caused visible blinking/flash.
-
-  // Seamlessly consolidate legacy 'patro', 'calendar', and 'date_converter' routes into 'panchanga'
+  // Sync document title on initial load
   useEffect(() => {
-    if ((activeTab as string) === 'patro' || activeTab === 'calendar') {
-      setPanchangaSubTab('patro');
-      setActiveTab('panchanga');
-    } else if (activeTab === 'date_converter') {
-      setPanchangaSubTab('converter');
-      setActiveTab('panchanga');
-    }
-  }, [activeTab]);
+    const initialHash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+    const titleKey = initialHash || activeTab;
+    const pageTitle = TAB_PAGE_TITLES[titleKey] || TAB_PAGE_TITLES[activeTab] || 'नेपाली वैदिक ज्योतिष र पञ्चाङ्ग';
+    document.title = pageTitle;
+  }, []);
 
   const [orgProfile, setOrgProfile] = useState<OrganizationProfile>(getStoredOrgProfile());
   const [astrologers, setAstrologers] = useState<AstrologerProfile[]>(getStoredAstrologers());
@@ -579,30 +734,97 @@ export default function App() {
     }
   }, [rbacSession, isFullyUnlocked, activeTab]);
 
-  // Function to enter full Jyotish workspace (Free to explore)
-  const enterJyotishModule = () => {
-    // startModuleTransition: React लाई blink नगरी background मा Jyotish render गर्न भन्छ
-    startModuleTransition(() => {
-      setActiveModule('JYOTISH');
-      setActiveTab('jyotishi');
-    });
-    if (window.location.hash !== '#jyotish') {
-      window.history.pushState({ module: 'JYOTISH' }, '', '#jyotish');
+  // Centralized URL-hash routed navigation across all menus and sub-features
+  const navigateTab = useCallback((
+    targetTab: NavTab | string,
+    subTab?: string,
+    replaceHistory: boolean = false
+  ) => {
+    let resolved = (targetTab as string) === 'patro' ? 'calendar' : (targetTab as NavTab);
+    
+    if (resolved === 'settings') {
+      setIsSettingsModalOpen(true);
+      return;
     }
-  };
 
-  // Function to exit Jyotish workspace back to main
-  const exitJyotishModule = () => {
+    const isPublic = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolved);
+    if (!rbacSession && !isPublic) {
+      setIsRBACAuthModalOpen(true);
+      return;
+    }
+
+    if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolved)) {
+      setLockedFeatureName(
+        resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष कार्यक्षेत्र' :
+        resolved === 'vastu' ? 'वास्तुशास्त्र' :
+        resolved === 'rashifal' ? 'दैनिक राशिफल' :
+        resolved === 'dashboard' ? 'गृहपृष्ठ' : 'यो सेवा'
+      );
+      setIsClientPurchaseLeadModalOpen(true);
+      return;
+    }
+
+    // Sub-route handling
+    let targetHash = TAB_TO_HASH[resolved] || (resolved as string);
+    if (targetTab === 'calendar' || targetTab === 'patro') {
+      setPanchangaSubTab('patro');
+      resolved = 'panchanga';
+      targetHash = 'calendar';
+    } else if (targetTab === 'date_converter') {
+      setPanchangaSubTab('converter');
+      resolved = 'panchanga';
+      targetHash = 'date_converter';
+    } else if (targetTab === 'rashifal') {
+      setPanchangaSubTab('rashifal');
+      resolved = 'panchanga';
+      targetHash = 'rashifal';
+    } else if (resolved === 'panchanga' && subTab) {
+      setPanchangaSubTab(subTab as PanchangaSubTab);
+    } else if (resolved === 'vastu' && subTab) {
+      setVastuSubTab(subTab as VastuSubTab);
+    } else if (subTab) {
+      setActivePatrikaSubTab(subTab as PatrikaSubCategory);
+    }
+
+    const pageTitle = TAB_PAGE_TITLES[targetHash] || TAB_PAGE_TITLES[resolved] || 'नेपाली वैदिक ज्योतिष र पञ्चाङ्ग';
+    document.title = pageTitle;
+
+    if (resolved === 'jyotishi' || resolved === 'aarje') {
+      startModuleTransition(() => {
+        setActiveModule('JYOTISH');
+        setActiveTab('jyotishi');
+      });
+      if (window.location.hash !== '#jyotish') {
+        if (replaceHistory) window.history.replaceState({ module: 'JYOTISH' }, '', '#jyotish');
+        else window.history.pushState({ module: 'JYOTISH' }, '', '#jyotish');
+      }
+      return;
+    }
+
     startModuleTransition(() => {
       setActiveModule('MAIN');
-      if (activeTab === 'jyotishi') {
-        setActiveTab('dashboard');
-      }
+      setActiveTab(resolved);
     });
-    if (window.location.hash === '#jyotish') {
-      window.history.pushState({ module: 'MAIN' }, '', window.location.pathname + window.location.search);
+
+    const fullHash = targetHash === 'dashboard' ? '#dashboard' : `#${targetHash}`;
+    if (window.location.hash !== fullHash) {
+      if (replaceHistory) {
+        window.history.replaceState({ tab: resolved }, '', fullHash);
+      } else {
+        window.history.pushState({ tab: resolved }, '', fullHash);
+      }
     }
-  };
+  }, [rbacSession, isFullyUnlocked]);
+
+  // Function to enter full Jyotish workspace (Free to explore)
+  const enterJyotishModule = useCallback(() => {
+    navigateTab('jyotishi');
+  }, [navigateTab]);
+
+  // Function to exit Jyotish workspace back to main
+  const exitJyotishModule = useCallback(() => {
+    navigateTab('dashboard');
+  }, [navigateTab]);
 
   const handleLogoutRBAC = () => {
     clearRBACSession();
@@ -1348,8 +1570,8 @@ export default function App() {
           </div>
         }>
           <AdminControlPanel
-            onClosePanel={() => setActiveTab('dashboard')}
-            onNavigateApp={(tab) => setActiveTab(tab as any)}
+            onClosePanel={() => navigateTab('dashboard')}
+            onNavigateApp={(tab) => navigateTab(tab as any)}
             initialTab={adminInitialTab as any}
             profiles={profiles}
             todayPanchanga={todayPanchanga}
@@ -1369,17 +1591,17 @@ export default function App() {
                   onSelectProfile={handleSelectProfile}
                   onNewProfile={handleOpenNewKundaliModal}
                   onOpenSettings={() => handleOpenSettings('astro')}
-                  onNavigateToApplyExpert={() => setActiveTab('apply_expert')}
+                  onNavigateToApplyExpert={() => navigateTab('apply_expert')}
                   onNavigateToAdmin={(tab) => {
                     setAdminInitialTab(tab);
-                    setActiveTab('admin_control');
+                    navigateTab('admin_control');
                   }}
                   settings={settings}
                   onToggleTheme={handleToggleTheme}
                   todayBS={todayBS}
                   orgProfile={orgProfile}
-                  onOpenOrgProfile={() => setIsOrgModalOpen(true)}
-                  onOpenDateConverter={() => setIsDateConverterOpen(true)}
+                  onOpenOrgProfile={() => navigateTab('org_profile')}
+                  onOpenDateConverter={() => navigateTab('date_converter')}
                   rbacSession={rbacSession}
                   onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
                   onLogoutRBAC={handleLogoutRBAC}
@@ -1409,12 +1631,12 @@ export default function App() {
                     setLockedFeatureName(featureName || 'यो सेवा');
                     setIsClientPurchaseLeadModalOpen(true);
                   }}
-                  onOpenDateConverter={() => setActiveTab('date_converter')}
-                  onOpenOrgProfile={() => setActiveTab('org_profile')}
+                  onOpenDateConverter={() => navigateTab('date_converter')}
+                  onOpenOrgProfile={() => navigateTab('org_profile')}
                   onOpenThemeModal={() => setIsClientThemeModalOpen(true)}
                   onNavigateToAdmin={(tab) => {
                     setAdminInitialTab(tab || 'client_approvals');
-                    setActiveTab('admin_control');
+                    navigateTab('admin_control');
                   }}
                   profiles={profiles}
                   onOpenVastuModal={(subTab) => {
@@ -1423,50 +1645,7 @@ export default function App() {
                     }
                     setIsVastuModalOpen(true);
                   }}
-                  onTabChange={(tab, subTab) => {
-                    const resolvedTab = (tab as string) === 'patro' ? 'calendar' : tab;
-                    const isPublicTab = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolvedTab);
-
-                    if (!rbacSession && !isPublicTab) {
-                      setIsRBACAuthModalOpen(true);
-                      return;
-                    }
-
-                    if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolvedTab)) {
-                      setLockedFeatureName(
-                        resolvedTab === 'jyotishi' || resolvedTab === 'aarje' ? 'ज्योतिष कार्यक्षेत्र' :
-                        resolvedTab === 'vastu' ? 'वास्तुशास्त्र' :
-                        resolvedTab === 'rashifal' ? 'दैनिक राशिफल' :
-                        resolvedTab === 'dashboard' ? 'गृहपृष्ठ' : 'यो सेवा'
-                      );
-                      setIsClientPurchaseLeadModalOpen(true);
-                      return;
-                    }
-
-                    if (resolvedTab === 'jyotishi' || resolvedTab === 'aarje') {
-                      enterJyotishModule();
-                    } else if (resolvedTab === 'settings') {
-                      setIsSettingsModalOpen(true);
-                    } else if (resolvedTab === 'calendar' || (resolvedTab as string) === 'patro') {
-                      setPanchangaSubTab('patro');
-                      setActiveTab('panchanga');
-                    } else if (resolvedTab === 'date_converter') {
-                      setPanchangaSubTab('converter');
-                      setActiveTab('panchanga');
-                    } else if (resolvedTab === 'rashifal') {
-                      setPanchangaSubTab('rashifal');
-                      setActiveTab('panchanga');
-                    } else {
-                      setActiveTab(resolvedTab);
-                      if (resolvedTab === 'panchanga' && subTab) {
-                        setPanchangaSubTab(subTab as PanchangaSubTab);
-                      } else if (resolvedTab === 'vastu' && subTab) {
-                        setVastuSubTab(subTab as VastuSubTab);
-                      } else if (subTab) {
-                        setActivePatrikaSubTab(subTab as PatrikaSubCategory);
-                      }
-                    }
-                  }} 
+                  onTabChange={(tab, subTab) => navigateTab(tab, subTab)} 
                 />
               </div>
 
@@ -1474,14 +1653,14 @@ export default function App() {
               <DeviceUpdateNotificationBanner />
 
               {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
-              <GlobalSiteNoticeBanner onNavigateTab={(tab) => setActiveTab(tab as any)} />
+              <GlobalSiteNoticeBanner onNavigateTab={(tab) => navigateTab(tab as any)} />
             </>
           ) : (
             /* Dedicated Full Page Window Header for ALL non-dashboard menu tabs (Same UX as Jyotish Sewa) */
             <FullPageModuleHeader
               activeTab={activeTab}
-              onGoHome={() => setActiveTab('dashboard')}
-              onOpenDateConverter={() => setIsDateConverterOpen(true)}
+              onGoHome={() => navigateTab('dashboard')}
+              onOpenDateConverter={() => navigateTab('date_converter')}
               onToggleTheme={handleToggleTheme}
               onOpenSettings={() => handleOpenSettings('astro')}
               activeProfile={activeProfile}
@@ -1556,38 +1735,8 @@ export default function App() {
               onDeleteProfile={handleDeleteProfile}
               rbacSession={rbacSession}
               hasFullAccess={isFullyUnlocked}
-              onNavigate={(tab) => {
-                const resolved = (tab as string) === 'patro' ? 'calendar' : tab;
-                const isPublic = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolved);
-                if (!rbacSession && !isPublic) {
-                  setIsRBACAuthModalOpen(true);
-                  return;
-                }
-                if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolved as any)) {
-                  setLockedFeatureName(
-                    resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष कार्यक्षेत्र' :
-                    resolved === 'vastu' ? 'वास्तुशास्त्र' :
-                    resolved === 'rashifal' ? 'दैनिक राशिफल' : 'यो सेवा'
-                  );
-                  setIsClientPurchaseLeadModalOpen(true);
-                  return;
-                }
-                if (resolved === 'calendar') {
-                  setPanchangaSubTab('patro');
-                  setActiveTab('panchanga');
-                } else if (resolved === 'date_converter') {
-                  setPanchangaSubTab('converter');
-                  setActiveTab('panchanga');
-                } else if (resolved === 'rashifal') {
-                  setPanchangaSubTab('rashifal');
-                  setActiveTab('panchanga');
-                } else if (resolved === 'jyotishi' || resolved === 'aarje') {
-                  enterJyotishModule();
-                } else {
-                  setActiveTab(resolved as any);
-                }
-              }}
-              onOpenOrgProfile={() => setActiveTab('org_profile')}
+              onNavigate={(tab) => navigateTab(tab)}
+              onOpenOrgProfile={() => navigateTab('org_profile')}
               onOpenSettings={handleOpenSettings}
               onEditCustomerPhoto={(p) => {
                 setCroppingTarget({
@@ -1737,7 +1886,7 @@ export default function App() {
             <PrashnaListView
               activeProfile={currentProfile}
               todayPanchanga={todayPanchanga}
-              onNavigateToAIAssistant={() => setActiveTab('ai_assistant')}
+              onNavigateToAIAssistant={() => navigateTab('ai_assistant')}
               onNavigateToJyotish={() => enterJyotishModule()}
             />
           )}
@@ -1761,7 +1910,7 @@ export default function App() {
 
           {(activeTab === 'calendar' || (activeTab as string) === 'patro') && (
             <NepaliCalendarView 
-              onNavigateToPanchanga={() => setActiveTab('panchanga')}
+              onNavigateToPanchanga={() => navigateTab('panchanga')}
             />
           )}
 
@@ -1776,17 +1925,7 @@ export default function App() {
                 if (subTab) setVastuSubTab(subTab);
                 setIsVastuModalOpen(true);
               }}
-              onNavigateTab={(tab) => {
-                if (tab === 'panchanga') {
-                  setActiveTab('panchanga');
-                } else if (tab === 'vastu') {
-                  setActiveTab('vastu');
-                } else if (tab === 'jyotishi') {
-                  enterJyotishModule();
-                } else {
-                  setActiveTab(tab);
-                }
-              }}
+              onNavigateTab={(tab) => navigateTab(tab)}
               hasFullAccess={isFullyUnlocked}
               onOpenPurchaseModal={() => {
                 setLockedFeatureName('सेवाहरू');
@@ -1829,14 +1968,14 @@ export default function App() {
                 todayPanchanga={todayPanchanga}
                 todayAD={todayAD}
                 todayBS={todayBS}
-                onNavigateTab={(tab) => setActiveTab(tab as any)}
+                onNavigateTab={(tab) => navigateTab(tab as any)}
               />
             </PatrikaErrorBoundary>
           )}
 
           {activeTab === 'date_converter' && (
             <DateConverterView
-              onNavigateTab={(tab) => setActiveTab(tab as any)}
+              onNavigateTab={(tab) => navigateTab(tab as any)}
             />
           )}
 
@@ -1846,7 +1985,7 @@ export default function App() {
               onSaveOrgProfile={handleSaveOrgProfile}
               isSuperAdmin={rbacSession?.role === 'SUPER_ADMIN'}
               isLoggedIn={!!rbacSession}
-              onNavigateTab={(tab) => setActiveTab(tab as any)}
+              onNavigateTab={(tab) => navigateTab(tab as any)}
               onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
               onOpenTrialModal={() => setIsClientPurchaseLeadModalOpen(true)}
             />
@@ -1875,25 +2014,25 @@ export default function App() {
           )}
 
           {activeTab === 'yajaman' && (
-            <YajamanView onNavigateToExpert={() => setActiveTab('apply_expert')} />
+            <YajamanView onNavigateToExpert={() => navigateTab('apply_expert')} />
           )}
 
           {activeTab === 'kharedi' && (
             <VedicPasalMainView 
               initialTab={pasalInitialTab}
-              onNavigateHome={() => setActiveTab('dashboard')} 
+              onNavigateHome={() => navigateTab('dashboard')} 
             />
           )}
 
           {activeTab === 'my_subscription' && (
             <MySubscriptionView
-              onNavigateToPurchase={() => setActiveTab('kharedi')}
+              onNavigateToPurchase={() => navigateTab('kharedi')}
               orgProfile={orgProfile}
             />
           )}
 
           {activeTab === 'apply_expert' && (
-            <ExpertApplicationView onNavigateToDashboard={() => setActiveTab('dashboard')} />
+            <ExpertApplicationView onNavigateToDashboard={() => navigateTab('dashboard')} />
           )}
 
           {activeTab === 'jyotishi' && (
@@ -1905,7 +2044,7 @@ export default function App() {
               onDeleteProfile={handleDeleteProfile}
               settings={settings}
               onSaveSettings={handleSaveSettings}
-              onNavigate={(tab) => setActiveTab(tab)}
+              onNavigate={(tab) => navigateTab(tab)}
               onMembersUpdated={refreshOfficialMembers}
               onOpenPurchaseModal={() => setIsClientPurchaseLeadModalOpen(true)}
             />
