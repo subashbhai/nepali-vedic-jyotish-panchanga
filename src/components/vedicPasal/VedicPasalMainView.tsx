@@ -18,6 +18,7 @@ import {
 } from '../../db/vedicStore';
 import { ProductCard } from './ProductCard';
 import { ProductDetailsModal } from './ProductDetailsModal';
+import { PujaSamagriListModal } from './PujaSamagriListModal';
 import { CartAndCheckoutModal } from './CartAndCheckoutModal';
 import { BookSectionView } from './BookSectionView';
 import { OfflinePOSView } from './OfflinePOSView';
@@ -74,6 +75,8 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
   // Modals & Auth State
   const [selectedProductDetails, setSelectedProductDetails] = useState<Product | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedListProduct, setSelectedListProduct] = useState<Product | null>(null);
+  const [isSamagriListModalOpen, setIsSamagriListModalOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [lastCreatedOrder, setLastCreatedOrder] = useState<StoreOrder | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -450,6 +453,10 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
                         setSelectedProductDetails(p);
                         setIsDetailsModalOpen(true);
                       }}
+                      onOpenSamagriList={p => {
+                        setSelectedListProduct(p);
+                        setIsSamagriListModalOpen(true);
+                      }}
                     />
                   ))}
                 </div>
@@ -480,6 +487,10 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
                           setSelectedProductDetails(p);
                           setIsDetailsModalOpen(true);
                         }}
+                        onOpenSamagriList={p => {
+                          setSelectedListProduct(p);
+                          setIsSamagriListModalOpen(true);
+                        }}
                       />
                     ))}
                   </div>
@@ -507,6 +518,10 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
                         onViewDetails={p => {
                           setSelectedProductDetails(p);
                           setIsDetailsModalOpen(true);
+                        }}
+                        onOpenSamagriList={p => {
+                          setSelectedListProduct(p);
+                          setIsSamagriListModalOpen(true);
                         }}
                       />
                     ))}
@@ -536,6 +551,10 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
                           setSelectedProductDetails(p);
                           setIsDetailsModalOpen(true);
                         }}
+                        onOpenSamagriList={p => {
+                          setSelectedListProduct(p);
+                          setIsSamagriListModalOpen(true);
+                        }}
                       />
                     ))}
                   </div>
@@ -559,6 +578,10 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
                       onViewDetails={p => {
                         setSelectedProductDetails(p);
                         setIsDetailsModalOpen(true);
+                      }}
+                      onOpenSamagriList={p => {
+                        setSelectedListProduct(p);
+                        setIsSamagriListModalOpen(true);
                       }}
                     />
                   ))}
@@ -607,6 +630,10 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
                     onViewDetails={p => {
                       setSelectedProductDetails(p);
                       setIsDetailsModalOpen(true);
+                    }}
+                    onOpenSamagriList={p => {
+                      setSelectedListProduct(p);
+                      setIsSamagriListModalOpen(true);
                     }}
                   />
                 ))}
@@ -685,6 +712,14 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
         onClose={() => setIsDetailsModalOpen(false)}
         isInWishlist={selectedProductDetails ? wishlist.includes(selectedProductDetails.id) : false}
         onToggleWishlist={handleToggleWishlist}
+        onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
+      />
+
+      <PujaSamagriListModal
+        product={selectedListProduct}
+        isOpen={isSamagriListModalOpen}
+        onClose={() => setIsSamagriListModalOpen(false)}
         onAddToCart={handleAddToCart}
         onBuyNow={handleBuyNow}
       />
