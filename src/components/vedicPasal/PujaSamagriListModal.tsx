@@ -11,7 +11,9 @@ import {
   Check,
   ShieldCheck,
   Truck,
-  HeartHandshake
+  HeartHandshake,
+  Image as ImageIcon,
+  ZoomIn
 } from 'lucide-react';
 import { Product } from '../../types/vedicStoreTypes';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
@@ -24,6 +26,33 @@ interface PujaSamagriListModalProps {
   onBuyNow: (product: Product, quantity?: number) => void;
 }
 
+const getItemIcon = (text: string): string => {
+  if (/धागो|मौली|कच्चा|पोते|डोरी/i.test(text)) return '🧵';
+  if (/कलश|पात्र|लोहटा|अर्घ्य|घडा|तामाको|थाली/i.test(text)) return '🏺';
+  if (/घ्यू|घृत|दुध|दही|पञ्चामृत/i.test(text)) return '🧈';
+  if (/चामल|अक्षता|धान|अन्न/i.test(text)) return '🌾';
+  if (/नरिवल|श्रीफल/i.test(text)) return '🥥';
+  if (/सिन्दूर|अबीर|केशरी|रोली|टीका/i.test(text)) return '🔴';
+  if (/कपूर|कर्पूर/i.test(text)) return '❄️';
+  if (/धूप|अगरबत्ती|अगर/i.test(text)) return '🥢';
+  if (/दियो|दीप|बत्ती/i.test(text)) return '🪔';
+  if (/जौ|तिल|कुश|दुबो|दूर्वा|पात|पत्ता|टुसा|अङ्कुर|समिधा|काठ|पिपल|शमी|वट|बर|पञ्चपल्लव/i.test(text)) return '🌿';
+  if (/फूल|पुष्प|माला/i.test(text)) return '🌸';
+  if (/जनै|यज्ञोपवीत/i.test(text)) return '🪢';
+  if (/सुपारी|ल्वाङ|सुकुमेल|मरिच|जायफल/i.test(text)) return '🌰';
+  if (/हवन|कुण्ड/i.test(text)) return '🔥';
+  if (/वस्त्र|कपडा|धोती|पहेँलो|रातो/i.test(text)) return '🧣';
+  if (/घण्टी|घण्टा/i.test(text)) return '🔔';
+  if (/शङ्ख/i.test(text)) return '🐚';
+  if (/गंगाजल|जल|गोमूत्र|पानी/i.test(text)) return '💧';
+  if (/सिक्का|दक्षिणा|भेटी/i.test(text)) return '🪙';
+  if (/शलाका|सियो/i.test(text)) return '🪡';
+  if (/काँधियो|काँइयो|दर्पण|ऐना/i.test(text)) return '🪞';
+  if (/पुस्तक|पञ्चाङ्ग|ग्रन्थ|विधि/i.test(text)) return '📖';
+  if (/शर्करा|सख्खर|मह|गुड/i.test(text)) return '🍯';
+  return '✨';
+};
+
 export const PujaSamagriListModal: React.FC<PujaSamagriListModalProps> = ({
   product,
   isOpen,
@@ -33,6 +62,7 @@ export const PujaSamagriListModal: React.FC<PujaSamagriListModalProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showPosterZoom, setShowPosterZoom] = useState(false);
 
   if (!isOpen || !product) return null;
 
@@ -189,7 +219,53 @@ export const PujaSamagriListModal: React.FC<PujaSamagriListModalProps> = ({
         </div>
 
         {/* 3. Itemized Samagri Checklist Grid */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3 print:p-0">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 print:p-0">
+          {/* HD Poster Preview Banner */}
+          {product.imageUrl && (
+            <div className="flex flex-col sm:flex-row items-center gap-3.5 p-3 sm:p-3.5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/15 dark:bg-stone-800/80 rounded-2xl border border-amber-400/40 dark:border-amber-800/50 shadow-2xs">
+              <div
+                onClick={() => setShowPosterZoom(true)}
+                className="relative w-20 h-24 sm:w-24 sm:h-28 rounded-xl overflow-hidden shadow-md shrink-0 border-2 border-amber-400 cursor-pointer group bg-stone-900"
+                title="पोस्टर ठूलो गरी हेर्नुहोस्"
+              >
+                <img
+                  src={product.imageUrl}
+                  alt={product.nameNepali}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                  <ZoomIn className="w-5 h-5 text-white drop-shadow-md group-hover:scale-125 transition-transform" />
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                  <span className="text-[11px] font-bold text-amber-900 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-300/60 dark:border-amber-700/60">
+                    🖼️ आधिकारिक HD पूजा पोस्टर
+                  </span>
+                  <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                    (सचित्र सामग्री तालिका सहित)
+                  </span>
+                </div>
+                <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 mt-1">
+                  {product.nameNepali} – सम्पूर्ण सचित्र प्याकेज
+                </h4>
+                <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5 line-clamp-2">
+                  सबै पूजा सामग्रीहरूको सचित्र पोस्टर तयार गरिएको छ। पूर्ण पोस्टर हेर्न तलको बटन वा छेउको फोटोमा क्लिक गर्नुहोस्।
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowPosterZoom(true)}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                  <span>पोस्टर ठूलो आकारमा हेर्नुहोस् (Zoom Poster)</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* List Title Header */}
           <div className="flex items-center justify-between">
             <h3 className="text-xs sm:text-sm font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
               <Package className="w-4 h-4 text-amber-600" />
@@ -209,25 +285,41 @@ export const PujaSamagriListModal: React.FC<PujaSamagriListModalProps> = ({
               {filteredItems.map((item, idx) => {
                 // Split by '-' or '–' to highlight quantity if present
                 const parts = item.split(/[-–:]/);
-                const itemName = parts[0]?.trim() || item;
+                const rawName = parts[0]?.trim() || item;
                 const itemQty = parts[1]?.trim() || '';
+
+                // Parse bracketed description e.g. "मौली धागो (रातो र पहेँलो धागो)"
+                const parenMatch = rawName.match(/^(.*?)\s*\((.*?)\)$/);
+                const mainName = parenMatch ? parenMatch[1].trim() : rawName;
+                const subDetail = parenMatch ? parenMatch[2].trim() : '';
+                const itemIcon = getItemIcon(mainName + ' ' + subDetail);
 
                 return (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2.5 rounded-2xl bg-white dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700 hover:border-amber-400 dark:hover:border-amber-600 transition-colors shadow-2xs group"
+                    className="flex items-center justify-between p-2.5 rounded-2xl bg-white dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700 hover:border-amber-400 dark:hover:border-amber-600 transition-all shadow-2xs group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                      <span className="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-bold font-mono flex items-center justify-center shrink-0">
+                      <span className="w-7 h-7 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-xs font-bold font-mono flex items-center justify-center shrink-0 border border-amber-200 dark:border-amber-800/50 shadow-2xs">
                         {toDevanagariNumerals(idx + 1)}
                       </span>
-                      <span className="text-xs font-bold text-stone-800 dark:text-stone-100 truncate group-hover:text-amber-700 dark:group-hover:text-amber-400">
-                        {itemName}
+                      <span className="text-base select-none shrink-0" title={mainName}>
+                        {itemIcon}
                       </span>
+                      <div className="min-w-0">
+                        <span className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 block truncate group-hover:text-amber-700 dark:group-hover:text-amber-400">
+                          {mainName}
+                        </span>
+                        {subDetail && (
+                          <span className="text-[11px] font-medium text-amber-900/70 dark:text-amber-300/70 block truncate">
+                            ({subDetail})
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {itemQty ? (
-                      <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 px-2 py-0.5 rounded-lg shrink-0">
+                      <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 px-2.5 py-1 rounded-xl shrink-0 shadow-2xs">
                         {itemQty}
                       </span>
                     ) : (
@@ -294,6 +386,50 @@ export const PujaSamagriListModal: React.FC<PujaSamagriListModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* 5. Poster Zoom Lightbox Modal */}
+        {showPosterZoom && product.imageUrl && (
+          <div 
+            className="fixed inset-0 z-60 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
+            onClick={() => setShowPosterZoom(false)}
+          >
+            <div 
+              className="relative max-w-4xl max-h-[90vh] bg-stone-900 rounded-3xl overflow-hidden shadow-2xl border-2 border-amber-500/50 flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="bg-stone-950/80 px-4 py-3 flex items-center justify-between border-b border-stone-800 text-white shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-400 font-bold text-sm">🖼️ {product.nameNepali} – HD आधिकारिक पोस्टर</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={product.imageUrl}
+                    download
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                  >
+                    डाउनलोड / नयाँ ट्याब
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowPosterZoom(false)}
+                    className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-auto flex-1 p-2 sm:p-4 flex items-center justify-center bg-stone-950">
+                <img
+                  src={product.imageUrl}
+                  alt={product.nameNepali}
+                  className="max-h-[80vh] w-auto object-contain rounded-xl shadow-lg border border-amber-500/30"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
