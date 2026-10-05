@@ -986,34 +986,34 @@ export function resolveSacredGeographyByCoordinates(
     if (dist <= 2.0) {
       return {
         tier: '2km',
-        label: `२ कि.मी. भित्र (${toDevanagariNumerals(dist.toFixed(1))} कि.मी.)`,
-        sanskritPrefix: 'समीपवर्तिनि (२ कि.मी. परिधौ)'
+        label: '२ कि.मी. भित्र',
+        sanskritPrefix: 'समीपवर्तिनि'
       };
     }
     if (dist <= 5.0) {
       return {
         tier: '5km',
-        label: `५ कि.मी. भित्र (${toDevanagariNumerals(dist.toFixed(1))} कि.मी.)`,
-        sanskritPrefix: 'समीपे (५ कि.मी. परिधौ)'
+        label: '५ कि.मी. भित्र',
+        sanskritPrefix: 'समीपे'
       };
     }
     if (dist <= 10.0) {
       return {
         tier: '10km',
-        label: `१० कि.मी. भित्र (${toDevanagariNumerals(dist.toFixed(1))} कि.मी.)`,
-        sanskritPrefix: '१० कि.मी. परिधौ स्थिते'
+        label: '१० कि.मी. भित्र',
+        sanskritPrefix: 'समीपे'
       };
     }
     if (dist <= 20.0) {
       return {
         tier: '20km',
-        label: `२० कि.मी. भित्र (${toDevanagariNumerals(dist.toFixed(1))} कि.मी.)`,
-        sanskritPrefix: '२० कि.मी. परिधौ स्थिते'
+        label: '२० कि.मी. भित्र',
+        sanskritPrefix: 'समीपे'
       };
     }
     return {
       tier: 'regional',
-      label: `प्रादेशिक क्षेत्र (${toDevanagariNumerals(dist.toFixed(0))} कि.मी.)`,
+      label: 'प्रादेशिक क्षेत्र',
       sanskritPrefix: 'प्रसिद्ध'
     };
   };
@@ -1028,11 +1028,11 @@ export function resolveSacredGeographyByCoordinates(
   const sanskritLocalityText = `${cleanLocalityName} नगरे (वा ग्रामे)`;
   const sanskritSubdivisionText = cleanDistrict.endsWith('े') ? cleanDistrict : `${cleanDistrict} जनपदे, ${resolvedProvince.replace('प्रदेश', 'मण्डले')}`;
 
-  const sanskritRiverText = `${bestRiverObj.river.sanskritLocative} (दूरी: ${toDevanagariNumerals(riverD.toFixed(1))} कि.मी.)`;
-  const sanskritShrineText = `${bestShrineObj.shrine.sanskritLocative} (दूरी: ${toDevanagariNumerals(shrineD.toFixed(1))} कि.मी.)`;
+  const sanskritRiverText = bestRiverObj.river.sanskritLocative;
+  const sanskritShrineText = bestShrineObj.shrine.sanskritLocative;
 
-  const nepaliRiverSummary = `${bestRiverObj.river.nameNepali} [${riverTierInfo.label}]`;
-  const nepaliShrineSummary = `${bestShrineObj.shrine.nameNepali} [${shrineTierInfo.label}]`;
+  const nepaliRiverSummary = bestRiverObj.river.nameNepali;
+  const nepaliShrineSummary = bestShrineObj.shrine.nameNepali;
 
   const tierSummaryBadge = shrineD <= 2.0 || riverD <= 2.0
     ? '📍 २ कि.मी. निकटतम खोजी'
