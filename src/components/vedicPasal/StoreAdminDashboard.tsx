@@ -59,7 +59,15 @@ import {
 } from 'lucide-react';
 import { compressAndResizeImage } from '../../utils/imageUtils';
 import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
+import {
+  PUJA_SAMAGRI_GALLERY_DATABASE,
+  PUJA_GALLERY_CATEGORIES,
+  PujaGalleryItem,
+  getFilteredPujaGalleryItems,
+  VEDIC_STORE_OFFICIAL_CONTACT
+} from '../../utils/pujaSamagriGalleryEngine';
 import { PujaSamagriGalleryModal } from './PujaSamagriGalleryModal';
+import { PujaSamagriListModal } from './PujaSamagriListModal';
 import { InvoiceModal } from './InvoiceModal';
 
 interface StoreAdminDashboardProps {
@@ -76,7 +84,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
   onRefreshData,
 }) => {
   const [adminSubTab, setAdminSubTab] = useState<
-    'overview' | 'esewa_approval' | 'products' | 'orders' | 'inventory' | 'audit_logs' | 'coupons'
+    'overview' | 'esewa_approval' | 'products' | 'orders' | 'inventory' | 'audit_logs' | 'coupons' | 'gallery'
   >('overview');
 
   // Audit and Inventory logs
@@ -96,6 +104,31 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
   const [isCompressingProductImage, setIsCompressingProductImage] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [isPujaGalleryModalOpen, setIsPujaGalleryModalOpen] = useState(false);
+
+  // Gallery Hub Management States
+  const [galleryCategory, setGalleryCategory] = useState<StoreCategoryKey | 'all'>('all');
+  const [gallerySearch, setGallerySearch] = useState('');
+  const [customUploadedGallery, setCustomUploadedGallery] = useState<PujaGalleryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('balananda_custom_gallery_items_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isCustomGalleryFormOpen, setIsCustomGalleryFormOpen] = useState(false);
+  const [newCustomTitleNp, setNewCustomTitleNp] = useState('');
+  const [newCustomTitleEn, setNewCustomTitleEn] = useState('');
+  const [newCustomCategory, setNewCustomCategory] = useState<StoreCategoryKey>('puja_package');
+  const [newCustomPrice, setNewCustomPrice] = useState<number>(1500);
+  const [newCustomDesc, setNewCustomDesc] = useState('');
+  const [newCustomSamagriText, setNewCustomSamagriText] = useState('');
+  const [newCustomImageUrl, setNewCustomImageUrl] = useState('');
+  const [isUploadingGalleryImg, setIsUploadingGalleryImg] = useState(false);
+
+  // Gallery Preview List Modal State
+  const [galleryPreviewProduct, setGalleryPreviewProduct] = useState<Product | null>(null);
+  const [isGalleryListModalOpen, setIsGalleryListModalOpen] = useState(false);
 
   const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -128,6 +161,136 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
       setIsCompressingProductImage(false);
       e.target.value = '';
     }
+  };
+
+  // Gallery Custom Image Upload Handler
+  const handleCustomGalleryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingGalleryImg(true);
+      const optimized = await compressAndResizeImage(file, 1080, 0.9);
+      setNewCustomImageUrl(optimized);
+    } catch (err) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        setNewCustomImageUrl(ev.target?.result as string || '');
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsUploadingGalleryImg(false);
+      e.target.value = '';
+    }
+  };
+
+  // Save new item to Gallery Hub
+  const handleSaveCustomGalleryItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomTitleNp.trim() || !newCustomImageUrl) {
+      alert('कृपया सामग्रीको नेपाली नाम र फोटो अनिवार्य रूपमा हाल्नुहोस्।');
+      return;
+    }
+
+    const samagriLines = newCustomSamagriText
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const newItem: PujaGalleryItem = {
+      id: `custom_gal_${Date.now()}`,
+      nameNepali: newCustomTitleNp.trim(),
+      nameEnglish: newCustomTitleEn.trim() || newCustomTitleNp.trim(),
+      category: newCustomCategory,
+      categoryNameNepali: PUJA_GALLERY_CATEGORIES.find(c => c.key === newCustomCategory)?.label || 'पूजा प्याकेज',
+      description: newCustomDesc.trim() || `${newCustomTitleNp.trim()} सम्पूर्ण शास्त्रीय सामग्री`,
+      tags: [newCustomTitleNp.trim(), 'कस्टम', 'ग्यालरी'],
+      imageUrl: newCustomImageUrl,
+      suggestedPrice: newCustomPrice,
+      samagriList: samagriLines.length > 0 ? samagriLines : ['शुद्ध पूजा सामग्री सेट'],
+    };
+
+    const updated = [newItem, ...customUploadedGallery];
+    setCustomUploadedGallery(updated);
+    try {
+      localStorage.setItem('balananda_custom_gallery_items_v1', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to save to localStorage:', err);
+    }
+
+    // Reset Form
+    setNewCustomTitleNp('');
+    setNewCustomTitleEn('');
+    setNewCustomDesc('');
+    setNewCustomSamagriText('');
+    setNewCustomImageUrl('');
+    setIsCustomGalleryFormOpen(false);
+    alert('नयाँ फोटो तथा सामग्री ग्यालरी हबमा सुरक्षित भयो!');
+  };
+
+  // High Resolution Image Download Handler
+  const handleDownloadHQ = (imageUrl: string, title: string) => {
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `${title.replace(/[\s/\\:*?"<>|]+/g, '_')}_HQ.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Use selected gallery item in Product Add/Edit
+  const handleUseInProduct = (item: PujaGalleryItem) => {
+    setEditingProduct({
+      nameNepali: item.nameNepali,
+      nameEnglish: item.nameEnglish,
+      category: item.category,
+      subCategory: item.categoryNameNepali,
+      shortDescription: item.description,
+      fullDescription: `${item.nameNepali} सनातन वैदिक परम्परा र शास्त्रोक्त विधि अनुसार सम्पन्न गर्नका लागि आवश्यक सम्पूर्ण शुद्ध एवं प्रमाणित सामग्रीहरूको तयारी प्याकेज हो।\n\nमुख्य सामग्री सूची:\n${item.samagriList.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
+      packageItems: item.samagriList,
+      imageUrl: item.imageUrl,
+      sellingPrice: item.suggestedPrice || 1200,
+      discountPrice: Math.round((item.suggestedPrice || 1200) * 0.9),
+      purchasePrice: Math.round((item.suggestedPrice || 1200) * 0.7),
+      stockQuantity: 20,
+      minStockLevel: 4,
+      supplier: 'बालानन्द वैदिक सामग्री भण्डार, काठमाडौं',
+      unit: item.category === 'religious_books' ? 'पुस्तक' : 'सेट',
+      isActive: true,
+      isFeatured: true,
+      isPopular: true,
+    });
+    setIsProductModalOpen(true);
+  };
+
+  // Preview Shastriya items in Modal
+  const handlePreviewGalleryItemSamagri = (item: PujaGalleryItem) => {
+    const tempProd: Product = {
+      id: `temp_${item.id}`,
+      sku: 'GAL-' + item.category.substring(0, 3).toUpperCase(),
+      nameNepali: item.nameNepali,
+      nameEnglish: item.nameEnglish,
+      category: item.category,
+      subCategory: item.categoryNameNepali,
+      shortDescription: item.description,
+      fullDescription: item.description,
+      packageItems: item.samagriList,
+      purchasePrice: Math.round((item.suggestedPrice || 1200) * 0.7),
+      sellingPrice: item.suggestedPrice || 1200,
+      discountPrice: Math.round((item.suggestedPrice || 1200) * 0.9),
+      stockQuantity: 25,
+      minStockLevel: 3,
+      unit: 'सेट',
+      weightGram: 1200,
+      rating: 4.9,
+      reviewsCount: 24,
+      imageUrl: item.imageUrl,
+      isActive: true,
+      isFeatured: true,
+      isPopular: true,
+      isBestSeller: true,
+    };
+    setGalleryPreviewProduct(tempProd);
+    setIsGalleryListModalOpen(true);
   };
 
   // Coupon Add Modal state
@@ -330,6 +493,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
             badge: pendingEsewaOrders.length > 0
           },
           { id: 'products', label: `🛍️ सामग्री म्यानेजर (${totalProductsCount})` },
+          { id: 'gallery', label: `🖼️ फोटो ग्यालरी (${PUJA_SAMAGRI_GALLERY_DATABASE.length + customUploadedGallery.length})` },
           { id: 'orders', label: `📦 अर्डर सूची (${totalOrdersCount})` },
           { id: 'inventory', label: `⚠️ इन्भेन्टरी स्टक (${lowStockProducts.length + outOfStockProducts.length})` },
           { id: 'audit_logs', label: `📜 अडिट लगहरू (${auditLogs.length})` },
@@ -490,7 +654,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
         <div className="space-y-4">
           <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
             <div>
-              <strong>eSewa भुक्तानी प्रमाणीकरण:</strong> प्रापक eSewa ID: <span className="font-mono font-bold text-emerald-700">9764400533</span> मा प्राप्त रकम र ग्राहकको eSewa Transaction ID भिडाएर मात्र स्वीकृत गर्नुहोस्।
+              <strong>eSewa भुक्तानी प्रमाणीकरण:</strong> प्रापक eSewa ID: <span className="font-mono font-bold text-emerald-700">97674244778</span> मा प्राप्त रकम र ग्राहकको eSewa Transaction ID भिडाएर मात्र स्वीकृत गर्नुहोस्।
             </div>
             <span className="font-mono font-bold px-3 py-1 bg-emerald-600 text-white rounded-full">
               {pendingEsewaOrders.length} Pending
@@ -532,7 +696,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900">
                     <div>
                       <span className="text-stone-500 block">eSewa Receiver Number:</span>
-                      <span className="font-mono font-bold text-emerald-700">9764400533</span>
+                      <span className="font-mono font-bold text-emerald-700">97674244778</span>
                     </div>
 
                     <div>
@@ -907,6 +1071,411 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* View 8: Photo Gallery Hub (ग्यालरी व्यवस्थापन) */}
+      {adminSubTab === 'gallery' && (
+        <div className="space-y-6">
+          {/* Gallery Header Card */}
+          <div className="bg-gradient-to-r from-[#7A1C1C] via-[#991B1B] to-[#7A1C1C] text-white p-6 sm:p-7 rounded-3xl shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-2 border-amber-500/40">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 bg-amber-400/20 px-3 py-1 rounded-full text-amber-300 text-xs font-bold border border-amber-300/30">
+                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                <span>५०+ शास्त्रीय पूजा सामग्री तथा संस्कार फोटो ग्यालरी हब</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold font-serif text-amber-100">
+                वैदिक पूजा तथा संस्कार फोटो ग्यालरी (Gallery Hub)
+              </h3>
+              <p className="text-xs sm:text-sm text-amber-200/90 font-sans">
+                उच्च गुणस्तर (HQ) का फोटोहरू डाउनलोड गर्नुहोस्, नयाँ फोटो अपलोड गर्नुहोस् र सिधै स्टोर सामग्रीमा प्रयोग गर्नुहोस्।
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsCustomGalleryFormOpen(!isCustomGalleryFormOpen)}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-xl text-xs font-black shadow-md flex items-center gap-2 transition-all cursor-pointer"
+              >
+                {isCustomGalleryFormOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                <span>{isCustomGalleryFormOpen ? 'फर्म बन्द गर्नुहोस्' : 'नयाँ फोटो / सामग्री अपलोड गर्नुहोस्'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Custom Upload Form */}
+          {isCustomGalleryFormOpen && (
+            <form
+              onSubmit={handleSaveCustomGalleryItem}
+              className="bg-white dark:bg-[#231F1C] border-2 border-amber-500/50 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4 text-xs animate-fadeIn"
+            >
+              <div className="flex items-center justify-between border-b pb-3 border-amber-200 dark:border-stone-700">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <h4 className="font-bold text-sm text-stone-900 dark:text-stone-100 font-serif">
+                    ग्यालरी हबमा नयाँ फोटो र सामग्री विवरण थप्नुहोस्
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomGalleryFormOpen(false)}
+                  className="p-1.5 rounded-full bg-stone-100 text-stone-600 hover:bg-stone-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-stone-600 dark:text-stone-300 font-bold">
+                      सामग्रीको नेपाली नाम (*):
+                    </label>
+                    <span className="text-[10px] text-amber-600 font-medium">Roman to Nepali (Space)</span>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={newCustomTitleNp}
+                    onChange={e => setNewCustomTitleNp(e.target.value)}
+                    onKeyDown={e => handlePhoneticInputKeyDown(e, newCustomTitleNp, setNewCustomTitleNp)}
+                    placeholder="उदा: श्री सत्यनारायण महापूजा प्याकेज"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2.5"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 mb-1 font-bold">
+                    English Name:
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomTitleEn}
+                    onChange={e => setNewCustomTitleEn(e.target.value)}
+                    placeholder="e.g. Satyanarayan Maha Puja Package"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2.5"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 mb-1 font-bold">
+                    वर्ग (Category):
+                  </label>
+                  <select
+                    value={newCustomCategory}
+                    onChange={e => setNewCustomCategory(e.target.value as any)}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2.5"
+                  >
+                    {PUJA_GALLERY_CATEGORIES.map(cat => (
+                      <option key={cat.key} value={cat.key}>
+                        {cat.icon} {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 mb-1 font-bold">
+                    अनुमानित मूल्य (NRs):
+                  </label>
+                  <input
+                    type="number"
+                    value={newCustomPrice}
+                    onChange={e => setNewCustomPrice(Number(e.target.value))}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2.5 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-stone-600 dark:text-stone-300 mb-1 font-bold">
+                  छोटो विवरण (Description):
+                </label>
+                <textarea
+                  value={newCustomDesc}
+                  onChange={e => setNewCustomDesc(e.target.value)}
+                  onKeyDown={e => handlePhoneticInputKeyDown(e, newCustomDesc, setNewCustomDesc)}
+                  placeholder="पूजाको संक्षिप्त विधि वा महत्त्व (Roman मा लेखेर Space थिच्नुहोस्)"
+                  rows={2}
+                  className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl p-2.5"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-stone-600 dark:text-stone-300 font-bold">
+                    📦 प्याकेजमा समावेश सामग्रीहरूको सूची (प्रत्येक लाइनमा एक सामग्री):
+                  </label>
+                  <span className="text-[10px] text-stone-500">प्रति लाइन: १ सामग्री</span>
+                </div>
+                <textarea
+                  value={newCustomSamagriText}
+                  onChange={e => setNewCustomSamagriText(e.target.value)}
+                  onKeyDown={e => handlePhoneticInputKeyDown(e, newCustomSamagriText, setNewCustomSamagriText)}
+                  placeholder={`तामाको कलश – १ थान\nशुद्ध गाईको घ्यू – ५०० ग्राम\nहवन सामग्री – १ केजी\nसमिधा काठ – २ केजी\nजौ-तिल र कुश – १ सेट`}
+                  rows={4}
+                  className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl p-2.5 font-sans"
+                />
+              </div>
+
+              {/* Photo Upload & Preview */}
+              <div className="bg-amber-50/70 dark:bg-stone-900 p-4 rounded-2xl border border-amber-200 dark:border-stone-700 space-y-3">
+                <label className="block text-stone-700 dark:text-stone-300 font-bold">
+                  🖼️ फोटो चयन गर्नुहोस् (*):
+                </label>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <label className="w-full sm:w-auto px-4 py-3 bg-white dark:bg-stone-800 border-2 border-dashed border-amber-400 rounded-2xl hover:bg-amber-50 dark:hover:bg-stone-700 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs">
+                    {isUploadingGalleryImg ? (
+                      <Loader2 className="w-5 h-5 text-amber-600 animate-spin" />
+                    ) : (
+                      <Upload className="w-5 h-5 text-amber-600" />
+                    )}
+                    <span className="font-bold text-stone-800 dark:text-stone-200">
+                      कम्प्युटरबाट फोटो छान्नुहोस्
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCustomGalleryImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <div className="w-full sm:flex-1">
+                    <input
+                      type="text"
+                      value={newCustomImageUrl}
+                      onChange={e => setNewCustomImageUrl(e.target.value)}
+                      placeholder="अथवा फोटोको URL लिङ्क..."
+                      className="w-full bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                {newCustomImageUrl && (
+                  <div className="relative w-32 h-24 rounded-xl overflow-hidden border-2 border-amber-400 shadow-md">
+                    <img
+                      src={newCustomImageUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-stone-200 dark:border-stone-700">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomGalleryFormOpen(false)}
+                  className="px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-700 dark:text-stone-300 rounded-xl font-bold"
+                >
+                  रद्द गर्नुहोस्
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-md flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>ग्यालरी हबमा सुरक्षित गर्नुहोस्</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Search and Category Filters */}
+          <div className="p-4 bg-white dark:bg-[#231F1C] border border-[#E6E0D5] dark:border-stone-800 rounded-2xl shadow-sm space-y-3">
+            {/* Search Input with Phonetic Engine */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={gallerySearch}
+                onChange={e => setGallerySearch(e.target.value)}
+                onKeyDown={e => handlePhoneticInputKeyDown(e, gallerySearch, setGallerySearch)}
+                placeholder="ग्यालरीमा खोज्नुहोस् (उदा: vivah, garbhadhana, bartabandha, rudraksha, kalash, ghee)..."
+                className="w-full pl-10 pr-4 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl text-xs sm:text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              {gallerySearch && (
+                <button
+                  type="button"
+                  onClick={() => setGallerySearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xs p-1"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+              <button
+                type="button"
+                onClick={() => setGalleryCategory('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
+                  galleryCategory === 'all'
+                    ? 'bg-[#7A1C1C] text-white border-amber-600 shadow-xs'
+                    : 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-100'
+                }`}
+              >
+                🌟 सबै ({PUJA_SAMAGRI_GALLERY_DATABASE.length + customUploadedGallery.length})
+              </button>
+
+              {PUJA_GALLERY_CATEGORIES.map(cat => {
+                const combined = [...customUploadedGallery, ...PUJA_SAMAGRI_GALLERY_DATABASE];
+                const count = combined.filter(i => i.category === cat.key).length;
+                const isSel = galleryCategory === cat.key;
+                return (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => setGalleryCategory(cat.key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 border flex items-center gap-1.5 ${
+                      isSel
+                        ? 'bg-[#7A1C1C] text-white border-amber-600 shadow-xs font-bold'
+                        : 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-100'
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isSel ? 'bg-amber-400 text-stone-950' : 'bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300'}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Gallery Items Grid */}
+          {(() => {
+            const combined = [...customUploadedGallery, ...PUJA_SAMAGRI_GALLERY_DATABASE];
+            const filtered = getFilteredPujaGalleryItems(combined, galleryCategory, gallerySearch);
+
+            if (filtered.length === 0) {
+              return (
+                <div className="py-16 text-center bg-white dark:bg-[#231F1C] rounded-3xl border border-stone-200 dark:border-stone-800 space-y-3">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-700 dark:text-amber-400">
+                    <ImageIcon className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm font-bold text-stone-700 dark:text-stone-300">
+                    खोजी गरिएका शब्दसँग मिल्ने सामग्री ग्यालरीमा फेला परेन।
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGalleryCategory('all');
+                      setGallerySearch('');
+                    }}
+                    className="text-xs text-[#D97706] underline font-bold cursor-pointer"
+                  >
+                    सबै सामग्रीहरू हेर्नुहोस्
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {filtered.map(item => (
+                  <div
+                    key={item.id}
+                    className="bg-white dark:bg-[#231F1C] border border-stone-200 dark:border-stone-800 hover:border-amber-400 dark:hover:border-amber-600 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
+                  >
+                    {/* Top Image Box */}
+                    <div className="relative aspect-[4/3] bg-stone-900 overflow-hidden">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.nameNepali}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap">
+                        <span className="bg-black/75 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-400/30">
+                          {item.categoryNameNepali}
+                        </span>
+                        <span className="bg-amber-500 text-stone-950 text-[9px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                          Ultra-HD
+                        </span>
+                      </div>
+
+                      <div className="absolute bottom-2 right-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadHQ(item.imageUrl, item.nameNepali)}
+                          className="p-2 rounded-xl bg-black/80 hover:bg-[#D97706] text-white transition-colors cursor-pointer shadow-lg backdrop-blur-xs"
+                          title="High-Resolution HQ फोटो डाउनलोड गर्नुहोस्"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Content Details */}
+                    <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-mono font-bold text-[#D97706]">
+                            रु. {(item.suggestedPrice || 1200).toLocaleString('ne-NP')}
+                          </span>
+                          <span className="text-[10px] bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold border border-amber-200 dark:border-amber-800">
+                            {item.samagriList.length} सामग्री
+                          </span>
+                        </div>
+
+                        <h4 className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 line-clamp-2 leading-snug group-hover:text-[#7A1C1C] dark:group-hover:text-amber-400 transition-colors">
+                          {item.nameNepali}
+                        </h4>
+
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 line-clamp-2 leading-relaxed">
+                          {item.description}
+                        </p>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="space-y-1.5 pt-2 border-t border-stone-100 dark:border-stone-800">
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadHQ(item.imageUrl, item.nameNepali)}
+                            className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            title="HQ डाउनलोड"
+                          >
+                            <Download className="w-3.5 h-3.5 text-[#D97706]" />
+                            <span>HQ डाउनलोड</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handlePreviewGalleryItemSamagri(item)}
+                            className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            title="सामग्री सूची हेर्नुहोस्"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-amber-600" />
+                            <span>सूची हेर्नुहोस्</span>
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUseInProduct(item)}
+                          className="w-full py-2 px-3 rounded-xl text-[11px] font-bold bg-gradient-to-r from-amber-600 to-[#7A1C1C] hover:from-amber-500 hover:to-[#991B1B] text-white shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                          <span>सामग्रीमा प्रयोग गर्नुहोस् (Use in Product)</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1295,6 +1864,46 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
           }));
         }}
         currentSelectedImageUrl={editingProduct?.imageUrl}
+      />
+
+      {/* Puja Samagri Itemized Checklist Modal from Gallery */}
+      <PujaSamagriListModal
+        product={galleryPreviewProduct}
+        isOpen={isGalleryListModalOpen}
+        onClose={() => {
+          setIsGalleryListModalOpen(false);
+          setGalleryPreviewProduct(null);
+        }}
+        onAddToCart={(prod) => {
+          setIsGalleryListModalOpen(false);
+          handleUseInProduct({
+            id: prod.id,
+            nameNepali: prod.nameNepali,
+            nameEnglish: prod.nameEnglish,
+            category: prod.category,
+            categoryNameNepali: prod.subCategory || 'पूजा प्याकेज',
+            description: prod.shortDescription,
+            tags: [],
+            imageUrl: prod.imageUrl,
+            suggestedPrice: prod.sellingPrice,
+            samagriList: prod.packageItems || [],
+          });
+        }}
+        onBuyNow={(prod) => {
+          setIsGalleryListModalOpen(false);
+          handleUseInProduct({
+            id: prod.id,
+            nameNepali: prod.nameNepali,
+            nameEnglish: prod.nameEnglish,
+            category: prod.category,
+            categoryNameNepali: prod.subCategory || 'पूजा प्याकेज',
+            description: prod.shortDescription,
+            tags: [],
+            imageUrl: prod.imageUrl,
+            suggestedPrice: prod.sellingPrice,
+            samagriList: prod.packageItems || [],
+          });
+        }}
       />
     </div>
   );

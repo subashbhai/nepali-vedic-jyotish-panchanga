@@ -239,9 +239,17 @@ export const PujaSamagriListModal: React.FC<PujaSamagriListModalProps> = ({
             </div>
           )}
 
-          {/* Shastriya Note */}
-          <div className="mt-4 p-3 bg-stone-100/80 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700 text-xs text-stone-600 dark:text-stone-300 leading-relaxed">
-            <strong>शास्त्रीय नोट:</strong> यो प्याकेज सनातन वैदिक परम्परा, कर्मकाण्ड पद्धति र नेपालका प्रसिद्ध पण्डितहरूको परामर्श अनुसार तयार गरिएको हो। यदि कुनै विशेष कुलपरम्परा अनुसार थप सामग्री आवश्यक परेमा ग्राहकले सहजै थपघट गर्न सक्नुहुनेछ।
+          {/* Shastriya Note with Official Contact */}
+          <div className="mt-4 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-800/80 dark:to-stone-800/40 rounded-2xl border border-amber-300/60 dark:border-stone-700 text-xs text-stone-700 dark:text-stone-300 leading-relaxed flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+            <div>
+              <strong>शास्त्रीय विधि:</strong> यो प्याकेज सनातन वैदिक परम्परा, कर्मकाण्ड पद्धति र नेपालका प्रसिद्ध पण्डितहरूको परामर्श अनुसार १००% शुद्ध सामग्री सहित तयार गरिएको हो।
+            </div>
+            <a
+              href="tel:97674244778"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold font-mono text-xs shrink-0 shadow-xs transition-colors"
+            >
+              <span>📞 सम्पर्क: ९७६७४२४४७७८</span>
+            </a>
           </div>
         </div>
 
