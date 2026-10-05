@@ -16,14 +16,12 @@ import {
   User,
   ShieldAlert,
   ArrowRightLeft,
-  Crown,
   Zap,
   Camera
 } from 'lucide-react';
 import { BirthDetails, ApplicationSettings, OrganizationProfile } from '../types/astrology';
 import { getStoredRBACUsers, type RBACSession } from '../db/rbacStore';
 import { getStoredOfficialMembers } from '../db/officialMemberStore';
-import { getSubscriptionBadgeInfo, type SubscriptionBadgeInfo } from '../db/subscriptionStore';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { getAssetUrl, handleImageFallback, BALANANDA_DEFAULT_EMBLEM_SVG } from '../utils/assetHelper';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -89,7 +87,6 @@ export const Header: React.FC<HeaderProps> = memo(({
 
   const [pendingCount, setPendingCount] = useState(0);
   const [rbacPendingCount, setRbacPendingCount] = useState(0);
-  const [badgeInfo, setBadgeInfo] = useState<SubscriptionBadgeInfo>(() => getSubscriptionBadgeInfo());
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
   const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(() => getStoredCustomLogo());
   const [, setCurrentTheme] = useState(() => getStoredClientTheme());
@@ -108,24 +105,6 @@ export const Header: React.FC<HeaderProps> = memo(({
       window.removeEventListener(APP_LOGO_CHANGED_EVENT as any, handleLogoChange);
       window.removeEventListener('storage', handleLogoChange);
       window.removeEventListener('client-theme-changed', handleThemeChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    const updateBadge = () => {
-      setBadgeInfo(getSubscriptionBadgeInfo());
-    };
-
-    window.addEventListener('software-full-access-updated', updateBadge);
-    window.addEventListener('software-trial-updated', updateBadge);
-    window.addEventListener('trial-status-updated', updateBadge);
-    window.addEventListener('storage', updateBadge);
-
-    return () => {
-      window.removeEventListener('software-full-access-updated', updateBadge);
-      window.removeEventListener('software-trial-updated', updateBadge);
-      window.removeEventListener('trial-status-updated', updateBadge);
-      window.removeEventListener('storage', updateBadge);
     };
   }, []);
 
@@ -201,15 +180,6 @@ export const Header: React.FC<HeaderProps> = memo(({
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-base sm:text-lg md:text-xl font-bold font-serif tracking-wide text-[var(--header-title,#1A1A1A)] flex items-center gap-2 flex-wrap transition-colors drop-shadow-xs">
                 <span>{orgName}</span>
-                {badgeInfo.isPurchased && (
-                  <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wider font-sans bg-[var(--header-badge-bg,rgba(217,119,6,0.2))] text-[var(--header-badge-text,#FFFBEB)] border-2 border-[var(--header-badge-border,rgba(245,158,11,0.5))] shadow-xs backdrop-blur-xs select-none cursor-default"
-                    title={badgeInfo.tooltip}
-                  >
-                    <Crown className="w-3.5 h-3.5 text-[var(--header-accent,#F59E0B)]" />
-                    <span>{badgeInfo.text}</span>
-                  </span>
-                )}
               </h1>
             </div>
             <p className="text-xs font-bold text-[var(--header-subtitle,#D97706)] mt-0.5 tracking-wide transition-colors">
