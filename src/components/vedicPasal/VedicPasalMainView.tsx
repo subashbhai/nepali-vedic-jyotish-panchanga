@@ -264,39 +264,8 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
 
   return (
     <div className="space-y-6">
-      {/* Top Banner Header */}
-      <div className="bg-gradient-to-r from-amber-900 via-[#3D2514] to-stone-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 bg-amber-500/20 px-3.5 py-1 rounded-full text-amber-200 text-xs font-bold border border-amber-400/30">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>सनातन वैदिक स्टोर तथा धार्मिक ई-कमर्स</span>
-            </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold font-serif tracking-tight leading-snug">
-              वैदिक पसल (Vedic Store)
-            </h1>
-            <p className="text-xs sm:text-sm text-amber-100/90 leading-relaxed font-sans">
-              “सनातन वैदिक सामग्री, पूजा प्याकेज, ज्योतिषीय यन्त्र तथा धार्मिक पुस्तकहरूको विश्वसनीय केन्द्र”
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Access Denied Banner */}
-      {accessDeniedMsg && (
-        <div className="p-4 bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 shadow">
-          <span>{accessDeniedMsg}</span>
-          <button
-            onClick={() => setAccessDeniedMsg(null)}
-            className="px-3 py-1 bg-red-200 dark:bg-red-900 rounded-lg text-red-900 dark:text-red-100"
-          >
-            बन्द गर्नुहोस्
-          </button>
-        </div>
-      )}
-
-      {/* Main Secondary Navigation Bar inside Vedic Pasal */}
-      <div className="bg-white dark:bg-[#231F1C] border border-[#E6E0D5] dark:border-stone-800 p-2.5 rounded-2xl shadow-sm flex items-center justify-between gap-2 overflow-x-auto text-xs sm:text-sm sticky top-[115px] z-20 backdrop-blur-md">
+      {/* Main Secondary Navigation Bar inside Vedic Pasal (Frozen at the Top) */}
+      <div className="bg-white/95 dark:bg-[#231F1C]/95 border border-[#E6E0D5] dark:border-stone-800 p-2 sm:p-2.5 rounded-2xl shadow-md flex items-center justify-between gap-2 overflow-x-auto text-xs sm:text-sm sticky top-[52px] sm:top-14 z-40 backdrop-blur-md transition-all">
         <div className="flex items-center gap-1.5 min-w-max">
           <button
             type="button"
@@ -388,7 +357,7 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
         <button
           type="button"
           onClick={() => setIsCartModalOpen(true)}
-          className="px-4 py-2 bg-[#D97706] hover:bg-[#B45309] text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-md shrink-0"
+          className="px-4 py-2 bg-[#D97706] hover:bg-[#B45309] text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-md shrink-0 cursor-pointer"
         >
           <ShoppingCart className="w-4 h-4" />
           <span className="hidden sm:inline">कार्ट</span>
@@ -399,6 +368,39 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
           )}
         </button>
       </div>
+
+      {/* Access Denied Banner */}
+      {accessDeniedMsg && (
+        <div className="p-4 bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 shadow">
+          <span>{accessDeniedMsg}</span>
+          <button
+            onClick={() => setAccessDeniedMsg(null)}
+            className="px-3 py-1 bg-red-200 dark:bg-red-900 rounded-lg text-red-900 dark:text-red-100"
+          >
+            बन्द गर्नुहोस्
+          </button>
+        </div>
+      )}
+
+      {/* Top Banner Header (Store Home) */}
+      {activeTab === 'home' && (
+        <div className="bg-gradient-to-r from-amber-900 via-[#3D2514] to-stone-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 bg-amber-500/20 px-3.5 py-1 rounded-full text-amber-200 text-xs font-bold border border-amber-400/30">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>सनातन वैदिक स्टोर तथा धार्मिक ई-कमर्स</span>
+              </div>
+              <h1 className="text-2xl sm:text-4xl font-extrabold font-serif tracking-tight leading-snug">
+                वैदिक पसल (Vedic Store)
+              </h1>
+              <p className="text-xs sm:text-sm text-amber-100/90 leading-relaxed font-sans">
+                “सनातन वैदिक सामग्री, पूजा प्याकेज, ज्योतिषीय यन्त्र तथा धार्मिक पुस्तकहरूको विश्वसनीय केन्द्र”
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* VIEW: Shop Homepage */}

@@ -276,7 +276,7 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
   }, []);
 
   return (
-    <header className="bg-[#7A1C1C] text-white px-3 sm:px-4 py-2.5 shadow-md border-b border-amber-600/40 flex items-center justify-between sticky top-0 z-50 select-none">
+    <header className="bg-[#7A1C1C] text-white px-3 sm:px-4 h-[52px] sm:h-14 shadow-md border-b border-amber-600/40 flex items-center justify-between sticky top-0 z-50 select-none">
       {/* 1. Left Section: Return to Home Button & Module Identity */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {/* Main Return to Home Button (Same as Jyotish Sewa) */}
