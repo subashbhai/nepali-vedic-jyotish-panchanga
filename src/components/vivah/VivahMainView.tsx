@@ -462,7 +462,7 @@ export const VivahMainView: React.FC<VivahMainViewProps> = ({
         </div>
 
         {/* Navigation Bar / Menu */}
-        <div className="bg-white dark:bg-[#1E1B18] rounded-2xl border border-[#E6E0D5] dark:border-stone-800 p-2 sm:p-3 shadow-sm sticky top-[115px] z-20 backdrop-blur-md">
+        <div className="bg-white/95 dark:bg-[#1E1B18]/95 rounded-2xl border border-[#E6E0D5] dark:border-stone-800 p-2 sm:p-3 shadow-md sticky top-[52px] sm:top-14 z-30 backdrop-blur-md">
           {/* Desktop Tab Menu with Clean Dropdowns */}
           <div className="hidden lg:flex items-center gap-2 overflow-visible pb-1">
             {/* 1. विवाह पोर्टल (Overview) */}
