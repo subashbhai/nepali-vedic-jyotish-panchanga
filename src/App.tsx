@@ -147,6 +147,8 @@ export const TAB_TO_HASH: Record<string, string> = {
   yajaman: 'yajaman',
   samachar: 'samachar',
   kharedi: 'pasal',
+  pustak: 'pustak',
+  books_download: 'pustak',
   org_profile: 'org_profile',
   calendar: 'calendar',
   date_converter: 'date_converter',
@@ -188,6 +190,10 @@ export const HASH_TO_TAB: Record<string, NavTab> = {
   'kharedi': 'kharedi',
   'pasal': 'kharedi',
   'store': 'kharedi',
+  'pustak': 'kharedi',
+  'books_download': 'kharedi',
+  'library': 'kharedi',
+  'digital_library': 'kharedi',
   'org_profile': 'org_profile',
   'calendar': 'calendar',
   'patro': 'calendar',
@@ -228,6 +234,8 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
   vivah: 'विवाह कुण्डली मिलान (मेलापक)',
   kharedi: 'वैदिक पसल तथा पूजा सामग्री',
   pasal: 'वैदिक पसल तथा पूजा सामग्री',
+  pustak: '📚 पुस्तक डाउनलोड - बालानन्द वैदिक डिजिटल पुस्तकालय',
+  books_download: '📚 पुस्तक डाउनलोड - बालानन्द वैदिक डिजिटल पुस्तकालय',
   yajaman: 'यजमान तथा ग्राहक व्यवस्थापन',
   samachar: 'वैदिक पञ्चाङ्ग तथा चाडपर्व समाचार',
   org_profile: 'संस्थागत प्रोफाइल तथा परिचय',
@@ -370,6 +378,8 @@ export default function App() {
         setPanchangaSubTab('converter');
       } else if (hash === 'rashifal') {
         setPanchangaSubTab('rashifal');
+      } else if (hash === 'pustak' || hash === 'books_download' || hash === 'library' || hash === 'digital_library') {
+        setPasalInitialTab('books_download');
       }
 
       const pageTitle = TAB_PAGE_TITLES[hash] || TAB_PAGE_TITLES[resolved] || 'नेपाली वैदिक ज्योतिष र पञ्चाङ्ग';
@@ -387,6 +397,9 @@ export default function App() {
   // Sync document title on initial load
   useEffect(() => {
     const initialHash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+    if (initialHash === 'pustak' || initialHash === 'books_download' || initialHash === 'library' || initialHash === 'digital_library') {
+      setPasalInitialTab('books_download');
+    }
     const titleKey = initialHash || activeTab;
     const pageTitle = TAB_PAGE_TITLES[titleKey] || TAB_PAGE_TITLES[activeTab] || 'नेपाली वैदिक ज्योतिष र पञ्चाङ्ग';
     document.title = pageTitle;
@@ -418,7 +431,7 @@ export default function App() {
   const [isRBACAuthModalOpen, setIsRBACAuthModalOpen] = useState(false);
   const [isSuperAdminAuthModalOpen, setIsSuperAdminAuthModalOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<string | undefined>(undefined);
-  const [pasalInitialTab, setPasalInitialTab] = useState<'home' | 'pos' | 'admin'>('home');
+  const [pasalInitialTab, setPasalInitialTab] = useState<'home' | 'books' | 'books_download' | 'pos' | 'admin'>('home');
 
   // Full Software Access Licensing State
   const [hasFullAccess, setHasFullAccess] = useState<boolean>(() => isSoftwareFullAccessUnlocked() || isClientPurchaseApproved());
@@ -688,7 +701,8 @@ export default function App() {
         'graha-faladesh-printable-area',
         'planet-popup-printable-area',
         'yoga-breakdown-printable-area',
-        'yoga-shadbala-printable-report'
+        'yoga-shadbala-printable-report',
+        'balananda-printable-book-document'
       ];
 
       for (const id of targetCandidates) {
@@ -2006,6 +2020,7 @@ export default function App() {
           {activeTab === 'kharedi' && (
             <VedicPasalMainView 
               initialTab={pasalInitialTab}
+              orgProfile={orgProfile}
               onNavigateHome={() => navigateTab('dashboard')} 
             />
           )}
