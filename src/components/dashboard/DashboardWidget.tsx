@@ -333,41 +333,45 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
         </div>
       ) : (
         <>
-          {/* The 5 Core Limbs Cards Grid (पञ्चाङ्गका ५ अङ्ग) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 flex-1">
-            {/* 1. Tithi Card (तिथि) */}
-            <div className="bg-[#FDFCF8] dark:bg-stone-850 border border-[#E6E0D5] dark:border-stone-700/80 p-3 sm:p-3.5 rounded-2xl shadow-2xs flex flex-col justify-between relative group hover:border-amber-400/60 transition-colors space-y-2.5">
-              <div className="space-y-2">
-                {/* Header Row */}
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    <Moon className="w-3 h-3 text-amber-500" />
-                    <span>१. तिथि (Tithi)</span>
-                  </span>
-                  <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-400/40">
-                    {tithiMeta.category}
-                  </span>
-                </div>
-
-                {/* Title & Paksha */}
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
-                    {panchanga?.tithi?.name || 'प्रतिपदा'}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
-                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">
-                      {panchanga?.tithi?.paksha || 'शुक्ल'} पक्ष
+          {/* The 5 Core Limbs Horizontal Cards (पञ्चाङ्गका ५ अङ्ग - तेर्सो ब्लक) */}
+          <div className="space-y-3.5 flex-1">
+            {/* 1. Tithi Card (तिथि - तेर्सो ब्लक) */}
+            <div className="bg-[#FDFCF8] dark:bg-stone-850 border border-[#E6E0D5] dark:border-stone-700/80 p-3 sm:p-4 rounded-2xl shadow-2xs hover:border-amber-400/60 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-center">
+                {/* Left (Col 1-3): Identity & Timing */}
+                <div className="md:col-span-3 flex flex-col justify-between space-y-2 border-b md:border-b-0 md:border-r border-stone-200 dark:border-stone-700/60 pb-2.5 md:pb-0 md:pr-3">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10.5px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Moon className="w-3.5 h-3.5 text-amber-500" />
+                      <span>१. तिथि (Tithi)</span>
                     </span>
-                    <span className="text-stone-400">•</span>
-                    <span className="text-stone-600 dark:text-stone-400 font-medium">
-                      {tithiMeta.category} तिथि
+                    <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-400/40">
+                      {tithiMeta.category}
                     </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
+                      {panchanga?.tithi?.name || 'प्रतिपदा'}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                      <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                        {panchanga?.tithi?.paksha || 'शुक्ल'} पक्ष
+                      </span>
+                      <span className="text-stone-400">•</span>
+                      <span className="text-stone-600 dark:text-stone-400 font-medium">
+                        {tithiMeta.category} तिथि
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 font-medium pt-0.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>{panchanga?.tithi?.endTime || 'दिनभर'}</span>
                   </div>
                 </div>
 
-                {/* Deity & Sacred Mantra Box */}
-                <div className="p-2 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-300/60 dark:border-amber-700/50 flex items-start gap-2 shadow-2xs">
-                  <div className="relative shrink-0 w-9 h-9 rounded-full overflow-hidden ring-2 ring-amber-400/70 shadow-xs bg-amber-100 dark:bg-stone-800 flex items-center justify-center">
+                {/* Middle (Col 4-7): Deity, Mantra & Shloka */}
+                <div className="md:col-span-4 p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-300/60 dark:border-amber-700/50 flex items-start gap-2.5 shadow-2xs h-full">
+                  <div className="relative shrink-0 w-11 h-11 rounded-full overflow-hidden ring-2 ring-amber-400/70 shadow-xs bg-amber-100 dark:bg-stone-800 flex items-center justify-center">
                     <img
                       src={tithiDeity.image}
                       alt={tithiDeity.deity}
@@ -379,28 +383,30 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10.5px] font-bold text-amber-950 dark:text-amber-100 leading-tight">
+                    <div className="text-xs font-bold text-amber-950 dark:text-amber-100 leading-tight">
                       {tithiDeity.deity}
                     </div>
-                    <div className="text-[9.5px] font-semibold text-amber-800 dark:text-amber-300 leading-snug font-mono mt-0.5">
+                    <div className="text-[10px] font-semibold text-amber-800 dark:text-amber-300 leading-snug font-mono mt-0.5">
                       {tithiDeity.mantra}
                     </div>
-                    <div className="text-[9px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-0.5">
+                    <div className="text-[9.5px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-1">
                       {tithiDeity.shloka}
                     </div>
                   </div>
                 </div>
 
-                {/* Astrological Explanation & Muhurta Guidance Box */}
-                <div className="p-2 rounded-xl bg-amber-50/70 dark:bg-stone-800/80 border border-amber-200/80 dark:border-stone-700/80 space-y-1.5 text-[10.5px]">
-                  <div className="flex items-center gap-1 font-bold text-amber-900 dark:text-amber-300 text-[10px] uppercase tracking-wider">
-                    <Info className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>शास्त्रीय फल तथा विमर्श</span>
+                {/* Right (Col 8-12): Astrological Guidance & Advice */}
+                <div className="md:col-span-5 p-2.5 rounded-xl bg-amber-50/70 dark:bg-stone-800/80 border border-amber-200/80 dark:border-stone-700/80 space-y-1.5 text-xs h-full flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-300 text-[10.5px] uppercase tracking-wider">
+                      <Info className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>शास्त्रीय फल तथा विमर्श</span>
+                    </div>
+                    <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify text-[11px] mt-1">
+                      {tithiAnalysis.explanation}
+                    </p>
                   </div>
-                  <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify">
-                    {tithiAnalysis.explanation}
-                  </p>
-                  <div className="pt-1 border-t border-amber-200/60 dark:border-stone-700/60 space-y-0.5 text-[10px]">
+                  <div className="pt-1.5 border-t border-amber-200/60 dark:border-stone-700/60 space-y-0.5 text-[10.5px]">
                     <div className="text-stone-800 dark:text-stone-200 font-medium">
                       <strong className="text-amber-800 dark:text-amber-300 font-bold">🎯 उपयुक्त:</strong> {tithiAnalysis.favorableWork}
                     </div>
@@ -410,52 +416,45 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                   </div>
                 </div>
               </div>
-
-              {/* Bottom Footer Row */}
-              <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/70 text-[10.5px] text-stone-600 dark:text-stone-300 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="font-semibold">{panchanga?.tithi?.endTime || 'दिनभर'}</span>
-                </div>
-                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-medium">
-                  {tithiMeta.effect.split(',')[0]}
-                </span>
-              </div>
             </div>
 
-            {/* 2. Vara Card (वार) */}
-            <div className="bg-[#FDFCF8] dark:bg-stone-850 border border-[#E6E0D5] dark:border-stone-700/80 p-3 sm:p-3.5 rounded-2xl shadow-2xs flex flex-col justify-between relative group hover:border-amber-400/60 transition-colors space-y-2.5">
-              <div className="space-y-2">
-                {/* Header Row */}
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    <Sun className="w-3 h-3 text-amber-500" />
-                    <span>२. वार (Vara)</span>
-                  </span>
-                  <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-900 dark:text-orange-200 border border-orange-400/40">
-                    {vaarMeta.tattva} तत्त्व
-                  </span>
-                </div>
-
-                {/* Title & Lord */}
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
-                    {panchanga?.dayNameNepali || panchanga?.vaar?.name || 'आइतबार'}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
-                    <span className="text-orange-700 dark:text-orange-400 font-bold">
-                      स्वामी: {panchanga?.vaar?.lord || 'सूर्य'}
+            {/* 2. Vara Card (वार - तेर्सो ब्लक) */}
+            <div className="bg-[#FDFCF8] dark:bg-stone-850 border border-[#E6E0D5] dark:border-stone-700/80 p-3 sm:p-4 rounded-2xl shadow-2xs hover:border-orange-400/60 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-center">
+                {/* Left (Col 1-3): Identity & Timing */}
+                <div className="md:col-span-3 flex flex-col justify-between space-y-2 border-b md:border-b-0 md:border-r border-stone-200 dark:border-stone-700/60 pb-2.5 md:pb-0 md:pr-3">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10.5px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Sun className="w-3.5 h-3.5 text-orange-500" />
+                      <span>२. वार (Vara)</span>
                     </span>
-                    <span className="text-stone-400">•</span>
-                    <span className="text-stone-600 dark:text-stone-400 font-medium">
-                      {panchanga?.dayNameSanskrit || 'वासरः'}
+                    <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-900 dark:text-orange-200 border border-orange-400/40">
+                      {vaarMeta.tattva} तत्त्व
                     </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
+                      {panchanga?.dayNameNepali || panchanga?.vaar?.name || 'आइतबार'}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                      <span className="text-orange-700 dark:text-orange-400 font-bold">
+                        स्वामी: {panchanga?.vaar?.lord || 'सूर्य'}
+                      </span>
+                      <span className="text-stone-400">•</span>
+                      <span className="text-stone-600 dark:text-stone-400 font-medium">
+                        {panchanga?.dayNameSanskrit || 'वासरः'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 font-medium pt-0.5">
+                    <Flame className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span>{vaarMeta.tattva} प्रधान (दिवस)</span>
                   </div>
                 </div>
 
-                {/* Deity & Sacred Mantra Box */}
-                <div className="p-2 rounded-xl bg-orange-500/10 dark:bg-orange-400/10 border border-orange-300/60 dark:border-orange-700/50 flex items-start gap-2 shadow-2xs">
-                  <div className="relative shrink-0 w-9 h-9 rounded-full overflow-hidden ring-2 ring-orange-400/70 shadow-xs bg-orange-100 dark:bg-stone-800 flex items-center justify-center">
+                {/* Middle (Col 4-7): Deity, Mantra & Shloka */}
+                <div className="md:col-span-4 p-2.5 rounded-xl bg-orange-500/10 dark:bg-orange-400/10 border border-orange-300/60 dark:border-orange-700/50 flex items-start gap-2.5 shadow-2xs h-full">
+                  <div className="relative shrink-0 w-11 h-11 rounded-full overflow-hidden ring-2 ring-orange-400/70 shadow-xs bg-orange-100 dark:bg-stone-800 flex items-center justify-center">
                     <img
                       src={vaarDeity.image}
                       alt={vaarDeity.deity}
@@ -467,28 +466,30 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10.5px] font-bold text-orange-950 dark:text-orange-100 leading-tight">
+                    <div className="text-xs font-bold text-orange-950 dark:text-orange-100 leading-tight">
                       {vaarDeity.deity}
                     </div>
-                    <div className="text-[9.5px] font-semibold text-orange-800 dark:text-orange-300 leading-snug font-mono mt-0.5">
+                    <div className="text-[10px] font-semibold text-orange-800 dark:text-orange-300 leading-snug font-mono mt-0.5">
                       {vaarDeity.mantra}
                     </div>
-                    <div className="text-[9px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-0.5">
+                    <div className="text-[9.5px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-1">
                       {vaarDeity.shloka}
                     </div>
                   </div>
                 </div>
 
-                {/* Astrological Explanation & Day Guidance Box */}
-                <div className="p-2 rounded-xl bg-orange-50/70 dark:bg-stone-800/80 border border-orange-200/80 dark:border-stone-700/80 space-y-1.5 text-[10.5px]">
-                  <div className="flex items-center gap-1 font-bold text-orange-900 dark:text-orange-300 text-[10px] uppercase tracking-wider">
-                    <Sparkles className="w-3 h-3 text-orange-600 dark:text-orange-400 shrink-0" />
-                    <span>दिनको शास्त्रीय विमर्श</span>
+                {/* Right (Col 8-12): Astrological Guidance & Advice */}
+                <div className="md:col-span-5 p-2.5 rounded-xl bg-orange-50/70 dark:bg-stone-800/80 border border-orange-200/80 dark:border-stone-700/80 space-y-1.5 text-xs h-full flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-orange-900 dark:text-orange-300 text-[10.5px] uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
+                      <span>दिनको शास्त्रीय विमर्श</span>
+                    </div>
+                    <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify text-[11px] mt-1">
+                      {vaarAnalysis.explanation}
+                    </p>
                   </div>
-                  <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify">
-                    {vaarAnalysis.explanation}
-                  </p>
-                  <div className="pt-1 border-t border-orange-200/60 dark:border-stone-700/60 space-y-0.5 text-[10px]">
+                  <div className="pt-1.5 border-t border-orange-200/60 dark:border-stone-700/60 space-y-0.5 text-[10.5px]">
                     <div className="text-stone-800 dark:text-stone-200 font-medium">
                       <strong className="text-orange-800 dark:text-orange-300 font-bold">🎯 अनुकूल:</strong> {vaarAnalysis.favorableWork}
                     </div>
@@ -498,52 +499,45 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                   </div>
                 </div>
               </div>
-
-              {/* Bottom Footer Row */}
-              <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/70 text-[10.5px] text-stone-600 dark:text-stone-300 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Flame className="w-3 h-3 text-orange-500 shrink-0" />
-                  <span className="font-semibold">{panchanga?.dayNameSanskrit || 'रविवासरः'}</span>
-                </div>
-                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-medium">
-                  {vaarMeta.tattva} प्रधान
-                </span>
-              </div>
             </div>
 
-            {/* 3. Nakshatra Card (नक्षत्र) */}
-            <div className="bg-[#FDFCF8] dark:bg-stone-850 border border-[#E6E0D5] dark:border-stone-700/80 p-3 sm:p-3.5 rounded-2xl shadow-2xs flex flex-col justify-between relative group hover:border-amber-400/60 transition-colors space-y-2.5">
-              <div className="space-y-2">
-                {/* Header Row */}
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-500" />
-                    <span>३. नक्षत्र (Nakshatra)</span>
-                  </span>
-                  <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-900 dark:text-blue-200 border border-blue-400/40">
-                    पाद {panchanga?.nakshatra?.pada || '१'}
-                  </span>
-                </div>
-
-                {/* Title & Lord */}
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
-                    {panchanga?.nakshatra?.name || 'अश्विनी'}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
-                    <span className="text-blue-700 dark:text-blue-400 font-bold">
-                      स्वामी: {panchanga?.nakshatra?.lord || 'केतु'}
+            {/* 3. Nakshatra Card (नक्षत्र - तेर्सो ब्लक) */}
+            <div className="bg-[#FDFCF8] dark:bg-stone-850 border border-[#E6E0D5] dark:border-stone-700/80 p-3 sm:p-4 rounded-2xl shadow-2xs hover:border-blue-400/60 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-center">
+                {/* Left (Col 1-3): Identity & Timing */}
+                <div className="md:col-span-3 flex flex-col justify-between space-y-2 border-b md:border-b-0 md:border-r border-stone-200 dark:border-stone-700/60 pb-2.5 md:pb-0 md:pr-3">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10.5px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                      <span>३. नक्षत्र (Nakshatra)</span>
                     </span>
-                    <span className="text-stone-400">•</span>
-                    <span className="text-stone-600 dark:text-stone-400 font-medium">
-                      {nakshatraMeta.nature}
+                    <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-900 dark:text-blue-200 border border-blue-400/40">
+                      पाद {panchanga?.nakshatra?.pada || '१'}
                     </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
+                      {panchanga?.nakshatra?.name || 'अश्विनी'}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                      <span className="text-blue-700 dark:text-blue-400 font-bold">
+                        स्वामी: {panchanga?.nakshatra?.lord || 'केतु'}
+                      </span>
+                      <span className="text-stone-400">•</span>
+                      <span className="text-stone-600 dark:text-stone-400 font-medium">
+                        {nakshatraMeta.nature}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 font-medium pt-0.5">
+                    <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>{panchanga?.nakshatra?.endTime || 'दिनभर'}</span>
                   </div>
                 </div>
 
-                {/* Deity & Sacred Mantra Box */}
-                <div className="p-2 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 border border-blue-300/60 dark:border-blue-700/50 flex items-start gap-2 shadow-2xs">
-                  <div className="relative shrink-0 w-9 h-9 rounded-full overflow-hidden ring-2 ring-blue-400/70 shadow-xs bg-blue-100 dark:bg-stone-800 flex items-center justify-center">
+                {/* Middle (Col 4-7): Deity, Mantra & Shloka */}
+                <div className="md:col-span-4 p-2.5 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 border border-blue-300/60 dark:border-blue-700/50 flex items-start gap-2.5 shadow-2xs h-full">
+                  <div className="relative shrink-0 w-11 h-11 rounded-full overflow-hidden ring-2 ring-blue-400/70 shadow-xs bg-blue-100 dark:bg-stone-800 flex items-center justify-center">
                     <img
                       src={nakshatraDeity.image}
                       alt={nakshatraDeity.deity}
@@ -555,28 +549,30 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10.5px] font-bold text-blue-950 dark:text-blue-100 leading-tight">
+                    <div className="text-xs font-bold text-blue-950 dark:text-blue-100 leading-tight">
                       {nakshatraDeity.deity}
                     </div>
-                    <div className="text-[9.5px] font-semibold text-blue-800 dark:text-blue-300 leading-snug font-mono mt-0.5">
+                    <div className="text-[10px] font-semibold text-blue-800 dark:text-blue-300 leading-snug font-mono mt-0.5">
                       {nakshatraDeity.mantra}
                     </div>
-                    <div className="text-[9px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-0.5">
+                    <div className="text-[9.5px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-1">
                       {nakshatraDeity.shloka}
                     </div>
                   </div>
                 </div>
 
-                {/* Astrological Explanation & Nakshatra Guidance Box */}
-                <div className="p-2 rounded-xl bg-blue-50/70 dark:bg-stone-800/80 border border-blue-200/80 dark:border-stone-700/80 space-y-1.5 text-[10.5px]">
-                  <div className="flex items-center gap-1 font-bold text-blue-900 dark:text-blue-300 text-[10px] uppercase tracking-wider">
-                    <Info className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                    <span>नक्षत्र स्वभाव तथा फल</span>
+                {/* Right (Col 8-12): Astrological Guidance & Advice */}
+                <div className="md:col-span-5 p-2.5 rounded-xl bg-blue-50/70 dark:bg-stone-800/80 border border-blue-200/80 dark:border-stone-700/80 space-y-1.5 text-xs h-full flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-300 text-[10.5px] uppercase tracking-wider">
+                      <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>नक्षत्र स्वभाव तथा फल</span>
+                    </div>
+                    <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify text-[11px] mt-1">
+                      {nakshatraAnalysis.explanation}
+                    </p>
                   </div>
-                  <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify">
-                    {nakshatraAnalysis.explanation}
-                  </p>
-                  <div className="pt-1 border-t border-blue-200/60 dark:border-stone-700/60 space-y-0.5 text-[10px]">
+                  <div className="pt-1.5 border-t border-blue-200/60 dark:border-stone-700/60 space-y-0.5 text-[10.5px]">
                     <div className="text-stone-800 dark:text-stone-200 font-medium">
                       <strong className="text-blue-800 dark:text-blue-300 font-bold">🎯 उपयुक्त:</strong> {nakshatraAnalysis.favorableWork}
                     </div>
@@ -586,64 +582,63 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                   </div>
                 </div>
               </div>
-
-              {/* Bottom Footer Row */}
-              <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/70 text-[10.5px] text-stone-600 dark:text-stone-300 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span className="font-semibold">{panchanga?.nakshatra?.endTime || 'दिनभर'}</span>
-                </div>
-                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-medium">
-                  {nakshatraMeta.nature.split('/')[0]}
-                </span>
-              </div>
             </div>
 
-            {/* 4. Yoga Card (योग) */}
-            <div className="bg-[#FDFCF8] dark:bg-stone-850 border border-[#E6E0D5] dark:border-stone-700/80 p-3 sm:p-3.5 rounded-2xl shadow-2xs flex flex-col justify-between relative group hover:border-amber-400/60 transition-colors space-y-2.5">
-              <div className="space-y-2">
-                {/* Header Row */}
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    <Compass className="w-3 h-3 text-amber-500" />
-                    <span>४. योग (Yoga)</span>
-                  </span>
-                  <span
-                    className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border ${
-                      isYogaInauspicious
-                        ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-400/40'
-                        : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-400/40'
-                    }`}
-                  >
-                    {isYogaInauspicious ? 'दोष/सावधानी' : 'शुभ फलदायी'}
-                  </span>
-                </div>
-
-                {/* Title & Status */}
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
-                    {panchanga?.yoga?.name || 'सिद्धि'}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
+            {/* 4. Yoga Card (योग - तेर्सो ब्लक) */}
+            <div
+              className={`bg-[#FDFCF8] dark:bg-stone-850 border p-3 sm:p-4 rounded-2xl shadow-2xs transition-all ${
+                isYogaInauspicious
+                  ? 'border-rose-300/80 dark:border-rose-700/80 hover:border-rose-400'
+                  : 'border-[#E6E0D5] dark:border-stone-700/80 hover:border-emerald-400/60'
+              }`}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-center">
+                {/* Left (Col 1-3): Identity & Timing */}
+                <div className="md:col-span-3 flex flex-col justify-between space-y-2 border-b md:border-b-0 md:border-r border-stone-200 dark:border-stone-700/60 pb-2.5 md:pb-0 md:pr-3">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10.5px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5 text-amber-500" />
+                      <span>४. योग (Yoga)</span>
+                    </span>
                     <span
-                      className={`font-bold ${
-                        isYogaInauspicious ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                      className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
+                        isYogaInauspicious
+                          ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-400/40'
+                          : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-400/40'
                       }`}
                     >
-                      {isYogaInauspicious ? 'अशुभ / शान्तिकर्म' : 'उत्तम / मङ्गल कार्य'}
+                      {isYogaInauspicious ? 'दोष/सावधानी' : 'शुभ फलदायी'}
                     </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-black text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
+                      {panchanga?.yoga?.name || 'सिद्धि'}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                      <span
+                        className={`font-bold ${
+                          isYogaInauspicious ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        {isYogaInauspicious ? 'अशुभ / शान्तिकर्म' : 'उत्तम / मङ्गल कार्य'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 font-medium pt-0.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>{panchanga?.yoga?.endTime || 'दिनभर'}</span>
                   </div>
                 </div>
 
-                {/* Deity & Sacred Mantra Box */}
+                {/* Middle (Col 4-7): Deity, Mantra & Shloka */}
                 <div
-                  className={`p-2 rounded-xl border flex items-start gap-2 shadow-2xs ${
+                  className={`md:col-span-4 p-2.5 rounded-xl border flex items-start gap-2.5 shadow-2xs h-full ${
                     isYogaInauspicious
                       ? 'bg-rose-500/10 dark:bg-rose-400/10 border-rose-300/60 dark:border-rose-700/50'
                       : 'bg-emerald-500/10 dark:bg-emerald-400/10 border-emerald-300/60 dark:border-emerald-700/50'
                   }`}
                 >
-                  <div className="relative shrink-0 w-9 h-9 rounded-full overflow-hidden ring-2 ring-amber-400/70 shadow-xs bg-amber-100 dark:bg-stone-800 flex items-center justify-center">
+                  <div className="relative shrink-0 w-11 h-11 rounded-full overflow-hidden ring-2 ring-amber-400/70 shadow-xs bg-amber-100 dark:bg-stone-800 flex items-center justify-center">
                     <img
                       src={yogaDeity.image}
                       alt={yogaDeity.deity}
@@ -655,38 +650,40 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10.5px] font-bold text-stone-900 dark:text-stone-100 leading-tight">
+                    <div className="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight">
                       {yogaDeity.deity}
                     </div>
-                    <div className="text-[9.5px] font-semibold text-amber-800 dark:text-amber-300 leading-snug font-mono mt-0.5">
+                    <div className="text-[10px] font-semibold text-amber-800 dark:text-amber-300 leading-snug font-mono mt-0.5">
                       {yogaDeity.mantra}
                     </div>
-                    <div className="text-[9px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-0.5">
+                    <div className="text-[9.5px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-1">
                       {yogaDeity.shloka}
                     </div>
                   </div>
                 </div>
 
-                {/* Astrological Explanation & Yoga Guidance Box */}
+                {/* Right (Col 8-12): Astrological Guidance & Advice */}
                 <div
-                  className={`p-2 rounded-xl border space-y-1.5 text-[10.5px] ${
+                  className={`md:col-span-5 p-2.5 rounded-xl border space-y-1.5 text-xs h-full flex flex-col justify-between ${
                     isYogaInauspicious
                       ? 'bg-rose-50/70 dark:bg-stone-800/80 border-rose-200/80 dark:border-stone-700/80'
                       : 'bg-emerald-50/70 dark:bg-stone-800/80 border-emerald-200/80 dark:border-stone-700/80'
                   }`}
                 >
-                  <div
-                    className={`flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider ${
-                      isYogaInauspicious ? 'text-rose-900 dark:text-rose-300' : 'text-emerald-900 dark:text-emerald-300'
-                    }`}
-                  >
-                    <Compass className="w-3 h-3 shrink-0" />
-                    <span>योग फल तथा प्रभाव</span>
+                  <div>
+                    <div
+                      className={`flex items-center gap-1.5 font-bold text-[10.5px] uppercase tracking-wider ${
+                        isYogaInauspicious ? 'text-rose-900 dark:text-rose-300' : 'text-emerald-900 dark:text-emerald-300'
+                      }`}
+                    >
+                      <Compass className="w-3.5 h-3.5 shrink-0" />
+                      <span>योग फल तथा प्रभाव</span>
+                    </div>
+                    <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify text-[11px] mt-1">
+                      {yogaAnalysis.explanation}
+                    </p>
                   </div>
-                  <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify">
-                    {yogaAnalysis.explanation}
-                  </p>
-                  <div className="pt-1 border-t border-stone-200/60 dark:border-stone-700/60 space-y-0.5 text-[10px]">
+                  <div className="pt-1.5 border-t border-stone-200/60 dark:border-stone-700/60 space-y-0.5 text-[10.5px]">
                     <div className="text-stone-800 dark:text-stone-200 font-medium">
                       <strong className="text-amber-800 dark:text-amber-300 font-bold">🎯 उपयुक्त:</strong> {yogaAnalysis.favorableWork}
                     </div>
@@ -696,84 +693,77 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                   </div>
                 </div>
               </div>
-
-              {/* Bottom Footer Row */}
-              <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/70 text-[10.5px] text-stone-600 dark:text-stone-300 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="font-semibold">{panchanga?.yoga?.endTime || 'दिनभर'}</span>
-                </div>
-                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-medium">
-                  {isYogaInauspicious ? 'दोष विचार' : 'शुभ योग'}
-                </span>
-              </div>
             </div>
 
-            {/* 5. Karana Card (करण) */}
+            {/* 5. Karana Card (करण - तेर्सो ब्लक) */}
             <div
-              className={`bg-[#FDFCF8] dark:bg-stone-850 border p-3 sm:p-3.5 rounded-2xl shadow-2xs flex flex-col justify-between relative group transition-colors space-y-2.5 ${
+              className={`bg-[#FDFCF8] dark:bg-stone-850 border p-3 sm:p-4 rounded-2xl shadow-2xs transition-all ${
                 isBhadra
                   ? 'border-rose-400/80 dark:border-rose-700/80 bg-rose-50/40 dark:bg-rose-950/20'
-                  : 'border-[#E6E0D5] dark:border-stone-700/80 hover:border-amber-400/60'
+                  : 'border-[#E6E0D5] dark:border-stone-700/80 hover:border-teal-400/60'
               }`}
             >
-              <div className="space-y-2">
-                {/* Header Row */}
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    {isBhadra ? (
-                      <AlertTriangle className="w-3 h-3 text-rose-500" />
-                    ) : (
-                      <ShieldCheck className="w-3 h-3 text-amber-500" />
-                    )}
-                    <span>५. करण (Karana)</span>
-                  </span>
-                  <span
-                    className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border ${
-                      isBhadra
-                        ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-400/40 animate-pulse'
-                        : isFixedKarana
-                        ? 'bg-stone-500/15 text-stone-700 dark:text-stone-300 border-stone-400/30'
-                        : 'bg-teal-500/15 text-teal-800 dark:text-teal-200 border-teal-400/30'
-                    }`}
-                  >
-                    {isBhadra ? 'भद्रा काल' : isFixedKarana ? 'स्थिर' : 'चर'}
-                  </span>
-                </div>
-
-                {/* Title & Status */}
-                <div>
-                  <h3
-                    className={`text-base sm:text-lg font-black font-serif leading-tight ${
-                      isBhadra ? 'text-rose-700 dark:text-rose-300' : 'text-[#1A1A1A] dark:text-stone-100'
-                    }`}
-                  >
-                    {panchanga?.karana?.name || 'बव'}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-center">
+                {/* Left (Col 1-3): Identity & Timing */}
+                <div className="md:col-span-3 flex flex-col justify-between space-y-2 border-b md:border-b-0 md:border-r border-stone-200 dark:border-stone-700/60 pb-2.5 md:pb-0 md:pr-3">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10.5px] text-[#A8A29E] dark:text-stone-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      {isBhadra ? (
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                      ) : (
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                      )}
+                      <span>५. करण (Karana)</span>
+                    </span>
                     <span
-                      className={`font-bold ${
+                      className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
                         isBhadra
-                          ? 'text-rose-600 dark:text-rose-400'
+                          ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-400/40 animate-pulse'
                           : isFixedKarana
-                          ? 'text-stone-600 dark:text-stone-400'
-                          : 'text-teal-600 dark:text-teal-400'
+                          ? 'bg-stone-500/15 text-stone-700 dark:text-stone-300 border-stone-400/30'
+                          : 'bg-teal-500/15 text-teal-800 dark:text-teal-200 border-teal-400/30'
                       }`}
                     >
-                      {isBhadra ? '⚠️ शुभ कार्य वर्जित' : isFixedKarana ? 'स्थिर फलदायी' : 'चर/चलायमान'}
+                      {isBhadra ? 'भद्रा काल' : isFixedKarana ? 'स्थिर' : 'चर'}
                     </span>
+                  </div>
+                  <div>
+                    <h3
+                      className={`text-lg sm:text-xl font-black font-serif leading-tight ${
+                        isBhadra ? 'text-rose-700 dark:text-rose-300' : 'text-[#1A1A1A] dark:text-stone-100'
+                      }`}
+                    >
+                      {panchanga?.karana?.name || 'बव'}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                      <span
+                        className={`font-bold ${
+                          isBhadra
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : isFixedKarana
+                            ? 'text-stone-600 dark:text-stone-400'
+                            : 'text-teal-600 dark:text-teal-400'
+                        }`}
+                      >
+                        {isBhadra ? '⚠️ शुभ कार्य वर्जित' : isFixedKarana ? 'स्थिर फलदायी' : 'चर/चलायमान'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 font-medium pt-0.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>{panchanga?.karana?.endTime || 'दिनभर'}</span>
                   </div>
                 </div>
 
-                {/* Deity & Sacred Mantra Box */}
+                {/* Middle (Col 4-7): Deity, Mantra & Shloka */}
                 <div
-                  className={`p-2 rounded-xl border flex items-start gap-2 shadow-2xs ${
+                  className={`md:col-span-4 p-2.5 rounded-xl border flex items-start gap-2.5 shadow-2xs h-full ${
                     isBhadra
                       ? 'bg-rose-500/10 dark:bg-rose-950/40 border-rose-300/60 dark:border-rose-800/40'
                       : 'bg-teal-500/10 dark:bg-teal-400/10 border-teal-300/60 dark:border-teal-700/50'
                   }`}
                 >
-                  <div className="relative shrink-0 w-9 h-9 rounded-full overflow-hidden ring-2 ring-amber-400/70 shadow-xs bg-amber-100 dark:bg-stone-800 flex items-center justify-center">
+                  <div className="relative shrink-0 w-11 h-11 rounded-full overflow-hidden ring-2 ring-amber-400/70 shadow-xs bg-amber-100 dark:bg-stone-800 flex items-center justify-center">
                     <img
                       src={karanaDeity.image}
                       alt={karanaDeity.deity}
@@ -785,38 +775,40 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10.5px] font-bold text-stone-900 dark:text-stone-100 leading-tight">
+                    <div className="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight">
                       {karanaDeity.deity}
                     </div>
-                    <div className="text-[9.5px] font-semibold text-teal-800 dark:text-teal-300 leading-snug font-mono mt-0.5">
+                    <div className="text-[10px] font-semibold text-teal-800 dark:text-teal-300 leading-snug font-mono mt-0.5">
                       {karanaDeity.mantra}
                     </div>
-                    <div className="text-[9px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-0.5">
+                    <div className="text-[9.5px] text-stone-700 dark:text-stone-300 italic font-serif leading-snug mt-1">
                       {karanaDeity.shloka}
                     </div>
                   </div>
                 </div>
 
-                {/* Astrological Explanation & Karana Guidance Box */}
+                {/* Right (Col 8-12): Astrological Guidance & Advice */}
                 <div
-                  className={`p-2 rounded-xl border space-y-1.5 text-[10.5px] ${
+                  className={`md:col-span-5 p-2.5 rounded-xl border space-y-1.5 text-xs h-full flex flex-col justify-between ${
                     isBhadra
                       ? 'bg-rose-50/70 dark:bg-stone-800/80 border-rose-200/80 dark:border-stone-700/80'
                       : 'bg-teal-50/70 dark:bg-stone-800/80 border-teal-200/80 dark:border-stone-700/80'
                   }`}
                 >
-                  <div
-                    className={`flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider ${
-                      isBhadra ? 'text-rose-900 dark:text-rose-300' : 'text-teal-900 dark:text-teal-300'
-                    }`}
-                  >
-                    <ShieldCheck className="w-3 h-3 shrink-0" />
-                    <span>करण फल तथा प्रभाव</span>
+                  <div>
+                    <div
+                      className={`flex items-center gap-1.5 font-bold text-[10.5px] uppercase tracking-wider ${
+                        isBhadra ? 'text-rose-900 dark:text-rose-300' : 'text-teal-900 dark:text-teal-300'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                      <span>करण फल तथा प्रभाव</span>
+                    </div>
+                    <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify text-[11px] mt-1">
+                      {karanaAnalysis.explanation}
+                    </p>
                   </div>
-                  <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans text-justify">
-                    {karanaAnalysis.explanation}
-                  </p>
-                  <div className="pt-1 border-t border-stone-200/60 dark:border-stone-700/60 space-y-0.5 text-[10px]">
+                  <div className="pt-1.5 border-t border-stone-200/60 dark:border-stone-700/60 space-y-0.5 text-[10.5px]">
                     <div className="text-stone-800 dark:text-stone-200 font-medium">
                       <strong className="text-teal-800 dark:text-teal-300 font-bold">🎯 उपयुक्त:</strong> {karanaAnalysis.favorableWork}
                     </div>
@@ -825,17 +817,6 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = memo(({
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Bottom Footer Row */}
-              <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/70 text-[10.5px] text-stone-600 dark:text-stone-300 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="font-semibold">{panchanga?.karana?.endTime || 'दिनभर'}</span>
-                </div>
-                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-medium">
-                  {isBhadra ? 'भद्रा' : isFixedKarana ? 'स्थिर' : 'चर'}
-                </span>
               </div>
             </div>
           </div>
