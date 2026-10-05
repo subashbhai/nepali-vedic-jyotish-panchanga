@@ -64,7 +64,8 @@ export const JyotishVastuLicenseHeader: React.FC<JyotishVastuLicenseHeaderProps>
 
   // 1. Fully Approved Client / Astrologer License
   if (isApproved || isDirectUnlocked) {
-    const clientName = approvedLicense?.clientName || rbacSession?.fullName || 'आधिकारिक ज्योतिषी';
+    const rawClient = approvedLicense?.clientName || rbacSession?.fullName || 'आधिकारिक ज्योतिषी';
+    const clientName = (rawClient.includes('प्रमाणित ग्राहक') || rawClient.includes('Verified Client')) ? 'आधिकारिक ज्योतिषी' : rawClient;
     const planName = approvedLicense?.planId?.startsWith('lifetime') 
       ? 'Life Time' 
       : (approvedLicense?.planName || 'One Year');

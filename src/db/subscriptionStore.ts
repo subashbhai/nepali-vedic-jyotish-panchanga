@@ -1448,7 +1448,9 @@ export function getSubscriptionBadgeInfo(): SubscriptionBadgeInfo {
       if (approvedLicenseRaw) {
         const lic = JSON.parse(approvedLicenseRaw);
         if (lic && lic.isApproved) {
-          const clientName = (lic.clientName || '').trim();
+          const rawClient = (lic.clientName || '').trim();
+          const isGeneric = rawClient.includes('प्रमाणित ग्राहक') || rawClient.includes('Verified Client');
+          const clientName = isGeneric ? '' : rawClient;
           const planPrefix = lic.planId?.startsWith('lifetime') ? 'Life Time' : 'One Year';
           const badgeText = clientName ? `${clientName} • ${planPrefix}` : planPrefix;
           return {

@@ -87,8 +87,7 @@ import {
 } from '../db/subscriptionStore';
 import { 
   isClientPurchaseApproved, 
-  is24HourTrialActive,
-  getApprovedClientLicense
+  is24HourTrialActive
 } from '../db/clientLeadStore';
 
 interface DashboardViewProps {
@@ -150,7 +149,6 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
     rbacSession?.role === 'POS_STAFF';
   const isTrialActive = is24HourTrialActive() || is3DayTrialActive() || is7DayTrialActive();
   const isApprovedClient = isClientPurchaseApproved();
-  const approvedLicense = getApprovedClientLicense();
   const isPurchasedOrUnlocked =
     isApprovedClient ||
     hasFullAccess ||
