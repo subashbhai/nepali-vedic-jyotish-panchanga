@@ -51,6 +51,7 @@ import {
   addReceipt,
   getStoredPrintLogs
 } from '../db/jyotishiStore';
+import { getLiveCurrentMomentProfile } from '../db/profileStore';
 
 import { getCachedAstroCalculation, createAstroCacheKey } from '../utils/astroCache';
 import { calculateGocharAndSadeSati } from '../utils/gocharEngine';
@@ -215,28 +216,13 @@ export const JyotishMainView: React.FC<JyotishMainViewProps> = memo(({
     }
   }, [activeProfile?.id]);
 
-  // Current active profile with robust fallback
+  // Current active profile with dynamic recent date/time fallback
   const currentProfile: BirthDetails = useMemo(() => {
     if (selectedProfileId) {
       const found = displayProfiles.find((p) => p.id === selectedProfileId);
       if (found) return found;
     }
-    return activeProfile || displayProfiles[0] || {
-      id: 'default',
-      name: 'राम शर्मा',
-      gender: 'male',
-      dateAD: '1995-05-15',
-      dateBS: '२०५२ जेठ ०१',
-      time: '08:30',
-      location: {
-        name: 'काठमाडौँ (Kathmandu)',
-        country: 'Nepal',
-        latitude: 27.7172,
-        longitude: 85.3240,
-        timeZone: 5.75,
-      },
-      category: 'Client',
-    };
+    return activeProfile || displayProfiles[0] || getLiveCurrentMomentProfile();
   }, [selectedProfileId, displayProfiles, activeProfile]);
 
   const handleSelectProfileChange = useCallback((id: string) => {

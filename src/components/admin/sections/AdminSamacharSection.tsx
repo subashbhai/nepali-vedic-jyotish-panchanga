@@ -526,7 +526,7 @@ export const AdminSamacharSection: React.FC<{
                       required
                       value={recipientName}
                       onChange={(e) => setRecipientName(e.target.value)}
-                      placeholder="उदा: पण्डित राम शर्मा वा सम्पादक"
+                      placeholder="उदा: सम्पादक वा लेखकको नाम"
                       className="w-full px-3 py-2 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-xs focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
                     />
                   </div>

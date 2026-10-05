@@ -1370,7 +1370,7 @@ export const NewsEditorDashboard: React.FC<NewsEditorDashboardProps> = ({
                   value={recipientName}
                   onChange={(e) => setRecipientName(e.target.value)}
                   onKeyDown={(e) => handlePhoneticInputKeyDown(e, recipientName, setRecipientName)}
-                  placeholder="उदा: पण्डित राम शर्मा"
+                  placeholder="उदा: लेखक वा सम्पादकको नाम"
                   className="w-full px-3 py-2 rounded-xl bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 text-xs text-stone-900 dark:text-stone-100 outline-none focus:border-emerald-500"
                 />
               </div>

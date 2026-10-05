@@ -45,7 +45,7 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
 }) => {
   const [pujaType, setPujaType] = useState<SankalpaPujaType>('daily');
   const [gotra, setGotra] = useState<string>(activeProfile?.gotra || activeProfile?.fatherDetails?.gotra || 'कश्यप');
-  const [name, setName] = useState<string>(activeProfile?.name || 'राम शर्मा');
+  const [name, setName] = useState<string>(activeProfile?.name || 'यजमान');
   const [locationName, setLocationName] = useState<string>(activeProfile?.location?.name || 'काठमाडौँ');
   const [includeFamily, setIncludeFamily] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'sanskrit' | 'nepali' | 'steps'>('sanskrit');
@@ -56,7 +56,7 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
   // Sync profile when opened
   useEffect(() => {
     if (activeProfile) {
-      setName(activeProfile.name || 'राम शर्मा');
+      setName(activeProfile.name || 'यजमान');
       const profileGotra = activeProfile.gotra || activeProfile.fatherDetails?.gotra;
       if (profileGotra) setGotra(profileGotra);
       if (activeProfile.location?.name) setLocationName(activeProfile.location.name);
@@ -246,7 +246,7 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => handlePhoneticInputKeyDown(e, name, setName)}
-                placeholder="यजमानको नाम (उदा: Ram Sharma)"
+                placeholder="यजमानको पूरा नाम"
                 className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500"
               />
             </div>

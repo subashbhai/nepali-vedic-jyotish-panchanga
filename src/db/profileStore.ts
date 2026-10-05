@@ -10,6 +10,8 @@ import {
 export type { BirthDetails };
 import { getDefaultLogoSvg, getDefaultMainPhotoSvg } from '../utils/imageUtils';
 
+import { convertADToBS } from '../utils/nepaliCalendar';
+
 const STORAGE_KEY_PROFILES = 'nepali_astro_profiles_v1';
 const STORAGE_KEY_SETTINGS = 'nepali_astro_settings_v1';
 const STORAGE_KEY_ORG_PROFILE = 'sukdev_org_profile_v1';
@@ -18,16 +20,30 @@ const STORAGE_KEY_PUROHITS = 'sukdev_purohits_v1';
 const STORAGE_KEY_VASTU_EXPERTS = 'sukdev_vastu_experts_v1';
 const STORAGE_KEY_PATRIKA_RECORDS = 'sukdev_patrika_records_v1';
 
-// Default Sample Birth Profiles (Kathmandu, Pokhara, etc.)
-export const DEFAULT_PROFILES: BirthDetails[] = [
-  {
-    id: 'sample_1',
-    customerId: 'ग्राह-००१',
-    name: 'राम शर्मा',
+/**
+ * Generates a dynamic real-time profile based on the EXACT CURRENT (recent) date and time
+ * Used as the live dynamic baseline for Faladesh, Panchanga, Kundali & Gochar calculations
+ * when no user profile is selected / logged in.
+ */
+export function getLiveCurrentMomentProfile(): BirthDetails {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateAD = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  let dateBS = '';
+  try {
+    dateBS = convertADToBS(dateAD).formattedBS || dateAD;
+  } catch {
+    dateBS = dateAD;
+  }
+
+  return {
+    id: 'live_current_moment',
+    name: 'तात्कालिक समय (प्रत्यक्ष गोचर)',
     gender: 'male',
-    dateAD: '1995-05-15',
-    dateBS: '२०५२ जेठ ०१',
-    time: '08:30',
+    dateAD,
+    dateBS,
+    time,
     location: {
       name: 'काठमाडौँ (Kathmandu)',
       district: 'काठमाडौँ',
@@ -37,44 +53,13 @@ export const DEFAULT_PROFILES: BirthDetails[] = [
       longitude: 85.3240,
       timeZone: 5.75,
     },
-    maritalStatus: 'single',
-    parentName: 'हरिप्रसाद शर्मा',
-    phone: '+९७७-९८४१२३४५६७',
-    email: 'ram.sharma@example.com',
-    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-    isPhotoPrivate: false,
-    notes: 'मुख्य नमुना जन्म विवरण।',
-    category: 'VIP',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'sample_2',
-    customerId: 'ग्राह-००२',
-    name: 'सीता देवी',
-    gender: 'female',
-    dateAD: '1998-08-20',
-    dateBS: '२०५५ भाद्र ०४',
-    time: '14:15',
-    location: {
-      name: 'पोखरा (Pokhara)',
-      district: 'कास्की',
-      province: 'गण्डकी',
-      country: 'नेपाल',
-      latitude: 28.2096,
-      longitude: 83.9856,
-      timeZone: 5.75,
-    },
-    maritalStatus: 'single',
-    parentName: 'कृष्णबहादुर थापा',
-    phone: '+९७७-९८५१०९८७६५',
-    email: 'sita.devi@example.com',
-    photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300',
-    isPhotoPrivate: false,
-    notes: 'विवाह मिलानका लागि नमुना प्रोफाइल।',
     category: 'Client',
-    createdAt: new Date().toISOString(),
-  },
-];
+    notes: 'वर्तमान समयको प्रत्यक्ष ग्रहस्थिति तथा पञ्चाङ्ग गणना।',
+  };
+}
+
+// No static demo profiles - All data is user-scoped upon sign-in or dynamic live current moment
+export const DEFAULT_PROFILES: BirthDetails[] = [];
 
 export const DEFAULT_ORG_PROFILE: OrganizationProfile = {
   name: 'बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा',
@@ -197,33 +182,47 @@ export function getStoredProfiles(): BirthDetails[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PROFILES);
     if (!raw) {
-      saveProfiles(DEFAULT_PROFILES);
-      return DEFAULT_PROFILES;
+      memoryProfiles = [];
+      return [];
     }
-    memoryProfiles = JSON.parse(raw);
-    return memoryProfiles!;
+    const parsed: BirthDetails[] = JSON.parse(raw);
+    // Strip out legacy demo profiles (sample_1, sample_2, Ram Sharma, Sita Devi)
+    const cleaned = Array.isArray(parsed)
+      ? parsed.filter(
+          (p) =>
+            p &&
+            !p.id?.startsWith('sample_') &&
+            p.name !== 'राम शर्मा' &&
+            p.name !== 'सीता देवी'
+        )
+      : [];
+    if (cleaned.length !== parsed.length) {
+      saveProfiles(cleaned);
+    }
+    memoryProfiles = cleaned;
+    return cleaned;
   } catch (e) {
     console.error('Failed to parse profiles from LocalStorage', e);
-    return DEFAULT_PROFILES;
+    return [];
   }
 }
 
 /**
  * Multi-Tenant Data Isolation: Filter profiles by Client / User
- * - SuperAdmin sees ALL profiles
- * - Logged-in Client only sees profiles they created or default sample profiles
+ * - SuperAdmin sees ALL authentic user profiles
+ * - Logged-in Client strictly sees profiles they created/saved on their account/device
+ * - Visitors without login have NO demo profiles (dynamic live current moment is computed instead)
  */
 export function getProfilesForUser(userId?: string | null, isSuperAdmin: boolean = false): BirthDetails[] {
   const all = getStoredProfiles();
-  if (isSuperAdmin) return all.length > 0 ? all : DEFAULT_PROFILES;
+  if (isSuperAdmin) return all;
   if (!userId) {
-    // Visitor: only see default sample profiles
-    const filtered = all.filter((p) => p.id?.startsWith('sample_'));
-    return filtered.length > 0 ? filtered : DEFAULT_PROFILES;
+    // Visitor: No demo profiles - calculations will be based on real-time current date/time
+    return [];
   }
-  // Client / Member: strictly see their own profiles OR system sample profiles
-  const filtered = all.filter((p) => (p.clientId && p.clientId === userId) || p.id?.startsWith('sample_'));
-  return filtered.length > 0 ? filtered : DEFAULT_PROFILES;
+  // Client / Member: strictly see their own profiles saved under their account
+  const userProfiles = all.filter((p) => p.clientId && p.clientId === userId);
+  return userProfiles;
 }
 
 export function saveProfiles(profiles: BirthDetails[]) {

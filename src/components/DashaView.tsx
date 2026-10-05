@@ -157,7 +157,7 @@ export const DashaView: React.FC<DashaViewProps> = ({
           विंशोत्तरी दशा तथा पञ्चस्तरीय समय-चक्र प्रतिवेदन
         </h1>
         <p className="text-sm text-stone-700 mt-1">
-          जातक: <span className="font-bold">{profile?.name || 'राम शर्मा'}</span> | जन्म मिति: {profile?.dateBS || birthDateAD} | समय: {birthTimeStr}
+          जातक: <span className="font-bold">{profile?.name || 'जातक'}</span> | जन्म मिति: {profile?.dateBS || birthDateAD} | समय: {birthTimeStr}
         </p>
       </div>
 
@@ -1885,7 +1885,7 @@ export const DashaView: React.FC<DashaViewProps> = ({
 
           <div className="grid grid-cols-2 gap-4 text-xs border border-amber-800/60 p-4 rounded-xl print:border-stone-400">
             <div>
-              <span className="font-bold text-amber-400 print:text-black">नाम:</span> {profile?.name || 'राम शर्मा'}
+              <span className="font-bold text-amber-400 print:text-black">नाम:</span> {profile?.name || 'जातक'}
             </div>
             <div>
               <span className="font-bold text-amber-400 print:text-black">जन्म मिति (वि.सं.):</span> {profile?.dateBS || 'वि.सं. २०८३ जेठ १५'}

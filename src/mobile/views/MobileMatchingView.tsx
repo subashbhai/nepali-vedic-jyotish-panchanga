@@ -12,16 +12,16 @@ import { BirthDetails, VivahMilanResult } from '../../types/astrology';
 import { calculateMobileKundaliMatch } from '../services/mobileAstrologyService';
 
 export const MobileMatchingView: React.FC = () => {
-  // Sample Boy & Girl details
+  // Boy & Girl matching profiles
   const [boy, setBoy] = useState<BirthDetails>({
     id: 'boy_01',
-    name: 'रामचन्द्र शर्मा',
+    name: 'वर',
     gender: 'male',
     dateAD: '1996-03-12',
     dateBS: '२०५२ फागुन २९',
     time: '07:15',
     location: {
-      name: 'काठमाडौं, नेपाल',
+      name: 'काठमाडौँ, नेपाल',
       latitude: 27.7172,
       longitude: 85.3240,
       timeZone: 5.75,
@@ -31,7 +31,7 @@ export const MobileMatchingView: React.FC = () => {
 
   const [girl, setGirl] = useState<BirthDetails>({
     id: 'girl_01',
-    name: 'सीता कुमारी पौडेल',
+    name: 'कन्या',
     gender: 'female',
     dateAD: '1998-07-25',
     dateBS: '२०५५ श्रावण ०९',

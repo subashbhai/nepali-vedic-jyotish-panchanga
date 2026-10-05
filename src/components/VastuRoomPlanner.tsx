@@ -914,7 +914,7 @@ export const VastuRoomPlanner: React.FC<VastuRoomPlannerProps> = ({
                     type="text"
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
-                    placeholder="उदा: श्री राम शर्मा"
+                    placeholder="उदा: गृहस्वामीको नाम"
                     className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-semibold focus:outline-none focus:ring-2 focus:ring-[#7A1C1C]"
                   />
                 </div>
