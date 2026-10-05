@@ -494,7 +494,7 @@ export const CartAndCheckoutModal: React.FC<CartAndCheckoutModalProps> = ({
                     <div>
                       <div className="font-bold text-sm text-emerald-700 dark:text-emerald-400">B. eSewa Direct Pay</div>
                       <div className="text-[11px] text-stone-500 dark:text-stone-400 font-normal">
-                        eSewa ID: <span className="font-mono font-bold text-emerald-700">9764400533</span> मा सोझै भुक्तानी
+                        eSewa ID: <span className="font-mono font-bold text-emerald-700">97674244778</span> मा सोझै भुक्तानी
                       </div>
                     </div>
                   </button>
@@ -507,7 +507,7 @@ export const CartAndCheckoutModal: React.FC<CartAndCheckoutModalProps> = ({
                       <div className="space-y-0.5">
                         <span className="text-[11px] text-stone-500 block">eSewa भुक्तानी प्रापक ID (Receiver Number):</span>
                         <span className="font-mono text-base font-black text-emerald-700 dark:text-emerald-400 tracking-wider">
-                          9764400533
+                          97674244778
                         </span>
                         <span className="text-[10px] text-stone-500 block">नाम: बालानन्द ज्योतिष तथा वास्तु सेवा</span>
                       </div>
@@ -517,7 +517,7 @@ export const CartAndCheckoutModal: React.FC<CartAndCheckoutModalProps> = ({
                     </div>
 
                     <p className="text-[11px] text-stone-600 dark:text-stone-300 font-medium">
-                      कृपया तपाईंको eSewa App बाट रु. <span className="font-bold font-mono text-emerald-700">{grandTotal.toLocaleString('ne-NP')}</span> रकम <span className="font-bold font-mono">9764400533</span> मा पठाउनुहोस् र तलको विवरण भर्नुहोस्:
+                      कृपया तपाईंको eSewa App बाट रु. <span className="font-bold font-mono text-emerald-700">{grandTotal.toLocaleString('ne-NP')}</span> रकम <span className="font-bold font-mono">97674244778</span> मा पठाउनुहोस् र तलको विवरण भर्नुहोस्:
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

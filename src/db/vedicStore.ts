@@ -18,7 +18,7 @@ import {
 import { PUJA_SAMAGRI_GALLERY_DATABASE } from '../utils/pujaSamagriGalleryEngine';
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'balananda_vedic_products_v7',
+  PRODUCTS: 'balananda_vedic_products_v8',
   ORDERS: 'balananda_vedic_orders_v1',
   COUPONS: 'balananda_vedic_coupons_v1',
   CART: 'balananda_vedic_cart_v1',
