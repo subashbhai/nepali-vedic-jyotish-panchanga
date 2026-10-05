@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bot, Send, User, Sparkles, Loader2, ShieldCheck } from 'lucide-react';
 import { BirthDetails, LagnaInfo, PlanetPosition, VimshottariDashaResult } from '../types/astrology';
+import { handlePhoneticInputKeyDown } from '../utils/nepaliTransliteration';
 
 interface AIAssistantViewProps {
   profile: BirthDetails;
@@ -162,7 +163,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
           type="text"
           value={inputQuery}
           onChange={(e) => setInputQuery(e.target.value)}
-          placeholder="उदा. मेरो करियर र आर्थिक स्थिति आगामी वर्ष कस्तो रहला?"
+          onKeyDown={(e) => handlePhoneticInputKeyDown(e, inputQuery, setInputQuery)}
+          placeholder="उदा. मेरो करियर र आर्थिक स्थिति आगामी वर्ष कस्तो रहला? (mero career...)"
           className="flex-1 bg-white dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#2D241E] dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-[#D97706] shadow-xs"
         />
         <button

@@ -19,6 +19,7 @@ import {
   PujaGalleryItem,
   getFilteredPujaGalleryItems
 } from '../../utils/pujaSamagriGalleryEngine';
+import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
 
 interface PujaSamagriGalleryModalProps {
   isOpen: boolean;
@@ -90,7 +91,8 @@ export const PujaSamagriGalleryModal: React.FC<PujaSamagriGalleryModalProps> = (
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="सामग्रीको नाम, वर्ग वा ट्याग खोज्नुहोस् (उदा: कलश, विवाह, घ्यू, रुद्राक्ष, अगरबत्ती, गीता)..."
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
+              placeholder="सामग्रीको नाम, वर्ग वा ट्याग खोज्नुहोस् (उदा: kalash, vivah, ghee, rudraksha, geeta)..."
               className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-2xl text-xs sm:text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
             />
             {searchQuery && (

@@ -26,6 +26,7 @@ import {
   getSacredLocationInfo
 } from '../../utils/vedicSankalpaEngine';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
+import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
 
 interface MahaSankalpaModalProps {
   isOpen: boolean;
@@ -244,7 +245,8 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="यजमानको नाम"
+                onKeyDown={(e) => handlePhoneticInputKeyDown(e, name, setName)}
+                placeholder="यजमानको नाम (उदा: Ram Sharma)"
                 className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500"
               />
             </div>
@@ -258,7 +260,8 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
                 type="text"
                 value={locationName}
                 onChange={(e) => setLocationName(e.target.value)}
-                placeholder="काठमाडौँ / पोखरा..."
+                onKeyDown={(e) => handlePhoneticInputKeyDown(e, locationName, setLocationName)}
+                placeholder="काठमाडौँ / पोखरा (Kathmandu...)"
                 className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500"
               />
             </div>
