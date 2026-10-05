@@ -8,6 +8,7 @@ import { PanchangaData, BirthDetails, PlanetPosition, LocationData } from '../ty
 import { toDevanagariNumerals } from './nepaliCalendar';
 import { calculateGeoDistanceKm, getStoredUserLocation } from './geoLocationHelper';
 import { getVedicRituInfo, getRituSanskritLocative, getAyanaForBSMonth } from './vedicRituEngine';
+import { resolveSacredGeographyByCoordinates, MultiTierGeoResult } from './sacredGeoSpatialEngine';
 
 export interface SacredLocationInfo {
   countrySanskrit: string; // e.g. नेपाल देशे
@@ -17,6 +18,12 @@ export interface SacredLocationInfo {
   prominentDeitySanskrit: string; // e.g. श्रीपशुपतिनाथ-गुह्येश्वरी-स्वयम्भू चरणसन्निधौ
   riverNepali: string;
   deityNepali: string;
+  riverTierLabel?: string;
+  shrineTierLabel?: string;
+  tierSummaryBadge?: string;
+  shrineDistanceKm?: number;
+  riverDistanceKm?: number;
+  tierResult?: MultiTierGeoResult;
 }
 
 export interface SacredGeoDefinition {
@@ -1043,22 +1050,47 @@ export function getSacredLocationInfo(
   }
 
   // Helper to convert definition to SacredLocationInfo
-  const formatResult = (data: SacredGeoDefinition): SacredLocationInfo => ({
-    countrySanskrit: 'नेपाल देशे',
-    subdivisionSanskrit: data.subdivision,
-    localitySanskrit: data.locality,
-    sacredRiverSanskrit: data.riverSanskrit,
-    prominentDeitySanskrit: data.deitySanskrit,
-    riverNepali: data.riverNepali,
-    deityNepali: data.deityNepali,
-  });
+  // If coordinates are available, perform full multi-tier sacred geographic search (2km -> 5km -> 10km -> 20km)
+  if (lat && lon && lat >= 25.0 && lat <= 31.5 && lon >= 79.0 && lon <= 89.5) {
+    const tiered = resolveSacredGeographyByCoordinates(lat, lon, inputName, inputDistrict);
+    return {
+      countrySanskrit: 'नेपाल देशे',
+      subdivisionSanskrit: tiered.sanskritSubdivisionText,
+      localitySanskrit: tiered.sanskritLocalityText,
+      sacredRiverSanskrit: tiered.sanskritRiverText,
+      prominentDeitySanskrit: tiered.sanskritShrineText,
+      riverNepali: tiered.nepaliRiverSummary,
+      deityNepali: tiered.nepaliShrineSummary,
+      riverTierLabel: tiered.riverTierLabelNepali,
+      shrineTierLabel: tiered.shrineTierLabelNepali,
+      tierSummaryBadge: tiered.tierSummaryBadge,
+      shrineDistanceKm: tiered.shrineDistanceKm,
+      riverDistanceKm: tiered.riverDistanceKm,
+      tierResult: tiered,
+    };
+  }
 
   // 4. District Direct Match
   if (inputDistrict) {
     const cleanDist = inputDistrict.trim().toLowerCase();
     for (const [key, data] of Object.entries(NEPAL_SACRED_GEOGRAPHY)) {
       if (key === inputDistrict || data.aliases.some(a => a.toLowerCase() === cleanDist || cleanDist.includes(a.toLowerCase()))) {
-        return formatResult(data);
+        const tiered = resolveSacredGeographyByCoordinates(data.lat, data.lon, inputName || data.locality, key);
+        return {
+          countrySanskrit: 'नेपाल देशे',
+          subdivisionSanskrit: data.subdivision,
+          localitySanskrit: data.locality,
+          sacredRiverSanskrit: tiered.sanskritRiverText,
+          prominentDeitySanskrit: tiered.sanskritShrineText,
+          riverNepali: tiered.nepaliRiverSummary,
+          deityNepali: tiered.nepaliShrineSummary,
+          riverTierLabel: tiered.riverTierLabelNepali,
+          shrineTierLabel: tiered.shrineTierLabelNepali,
+          tierSummaryBadge: tiered.tierSummaryBadge,
+          shrineDistanceKm: tiered.shrineDistanceKm,
+          riverDistanceKm: tiered.riverDistanceKm,
+          tierResult: tiered,
+        };
       }
     }
   }
@@ -1071,11 +1103,41 @@ export function getSacredLocationInfo(
     for (const [key, data] of Object.entries(NEPAL_SACRED_GEOGRAPHY)) {
       // Check if key or any alias is matched
       if (cleanText.includes(key.toLowerCase()) || data.aliases.some(a => cleanText.includes(a.toLowerCase()))) {
-        return formatResult(data);
+        const tiered = resolveSacredGeographyByCoordinates(data.lat, data.lon, inputName, key);
+        return {
+          countrySanskrit: 'नेपाल देशे',
+          subdivisionSanskrit: data.subdivision,
+          localitySanskrit: data.locality,
+          sacredRiverSanskrit: tiered.sanskritRiverText,
+          prominentDeitySanskrit: tiered.sanskritShrineText,
+          riverNepali: tiered.nepaliRiverSummary,
+          deityNepali: tiered.nepaliShrineSummary,
+          riverTierLabel: tiered.riverTierLabelNepali,
+          shrineTierLabel: tiered.shrineTierLabelNepali,
+          tierSummaryBadge: tiered.tierSummaryBadge,
+          shrineDistanceKm: tiered.shrineDistanceKm,
+          riverDistanceKm: tiered.riverDistanceKm,
+          tierResult: tiered,
+        };
       }
       for (const tok of tokens) {
         if (tok.length > 2 && (key.toLowerCase().includes(tok) || data.aliases.some(a => a.toLowerCase() === tok))) {
-          return formatResult(data);
+          const tiered = resolveSacredGeographyByCoordinates(data.lat, data.lon, inputName, key);
+          return {
+            countrySanskrit: 'नेपाल देशे',
+            subdivisionSanskrit: data.subdivision,
+            localitySanskrit: data.locality,
+            sacredRiverSanskrit: tiered.sanskritRiverText,
+            prominentDeitySanskrit: tiered.sanskritShrineText,
+            riverNepali: tiered.nepaliRiverSummary,
+            deityNepali: tiered.nepaliShrineSummary,
+            riverTierLabel: tiered.riverTierLabelNepali,
+            shrineTierLabel: tiered.shrineTierLabelNepali,
+            tierSummaryBadge: tiered.tierSummaryBadge,
+            shrineDistanceKm: tiered.shrineDistanceKm,
+            riverDistanceKm: tiered.riverDistanceKm,
+            tierResult: tiered,
+          };
         }
       }
     }
