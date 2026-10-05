@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Product } from '../../types/vedicStoreTypes';
 import { ProductCard } from './ProductCard';
 import { BookOpen, Search, Filter, Sparkles, Layers } from 'lucide-react';
+import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
 
 interface BookSectionViewProps {
   products: Product[];
@@ -73,9 +74,10 @@ export const BookSectionView: React.FC<BookSectionViewProps> = ({
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
-              placeholder="पुस्तकको नाम, लेखक वा विषय खोज्नुहोस्..."
+              placeholder="पुस्तकको नाम, लेखक वा विषय खोज्नुहोस् (उदा: geeta, chandi, rudri)..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
               className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl pl-9 pr-3 py-2 text-xs text-stone-900 dark:text-stone-100"
             />
           </div>

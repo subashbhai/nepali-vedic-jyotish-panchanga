@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { BirthDetails, PanchangaData, PlanetPosition } from '../types/astrology';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
+import { handlePhoneticInputKeyDown } from '../utils/nepaliTransliteration';
 
 interface PrashnaListViewProps {
   activeProfile: BirthDetails | null;
@@ -279,9 +280,10 @@ export const PrashnaListView: React.FC<PrashnaListViewProps> = ({
             <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="प्रश्न, भाव वा कारक खोज्नुहोस्..."
+              placeholder="प्रश्न, भाव वा कारक खोज्नुहोस् (उदा: nokari, biwaha, dhan)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/70 border border-stone-200 dark:border-stone-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-stone-900 dark:text-stone-100"
             />
           </div>

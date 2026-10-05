@@ -7,6 +7,7 @@
 import { PanchangaData, BirthDetails, PlanetPosition, LocationData } from '../types/astrology';
 import { toDevanagariNumerals } from './nepaliCalendar';
 import { calculateGeoDistanceKm, getStoredUserLocation } from './geoLocationHelper';
+import { getVedicRituInfo, getRituSanskritLocative, getAyanaForBSMonth } from './vedicRituEngine';
 
 export interface SacredLocationInfo {
   countrySanskrit: string; // e.g. नेपाल देशे
@@ -1220,8 +1221,11 @@ export function generateDailyVedicSankalpa(
   const yogaText = panchanga.yoga?.name ? `${panchanga.yoga.name} योगे` : 'शुभ योगे';
   const karanaText = panchanga.karana?.name ? `${panchanga.karana.name} करणे` : 'शुभ करणे';
   const samvatsarName = panchanga.samvatsara || 'कालयुक्त';
-  const ayanaText = panchanga.ayana || 'उत्तरायण';
-  const rituText = panchanga.ritu || 'वसन्त';
+  const rituInfo = getVedicRituInfo(masaName || panchanga.dateBS || 1);
+  const rituText = rituInfo.nameNepali;
+  const rituSanskritLocative = rituInfo.sanskritLocative;
+  const ayanaText = getAyanaForBSMonth(masaName || 1);
+  const ayanaSanskrit = ayanaText === 'उत्तरायण' ? 'उत्तरायणे' : 'दक्षिणायने';
 
   // Graha Rashi Positions
   let sunRashi = panchanga.sunRashi || 'मेष';
@@ -1259,9 +1263,9 @@ export function generateDailyVedicSankalpa(
   const gotra = profile?.gotra || profile?.fatherDetails?.gotra || 'कश्यप';
   const name = profile?.name || 'अमुक नामाहम्';
 
-  const sanskritText = `ॐ विष्णुर्विष्णुर्विष्णुः श्रीमद्भगवतो महापुरुषस्य विष्णोराज्ञया प्रवर्तमानस्य अद्य ब्रह्मणो द्वितीयपरार्धे श्रीश्वेतवाराहकल्पे वैवस्वतमन्वन्तरे अष्टाविंशतितमे कलियुगे कलिप्रथमचरणे, भूर्लोके जम्बूद्वीपे भरतखण्डे भारतवर्षे आर्यावर्तैकदेशे पुण्यतमे नेपालदेशे, ${geo.subdivisionSanskrit}, ${geo.localitySanskrit}, पवित्र-सुरसरित्-सदृश ${geo.sacredRiverSanskrit}, ${geo.prominentDeitySanskrit} पावन-चरणसन्निधौ, श्रीविक्रमादित्य नृपतेः शकाब्दे संवत् ${toDevanagariNumerals(yearNum)} प्रवर्त्तमाने श्रीविक्रमार्कशके ${samvatsarName} नाम संवत्सरे, श्रीशालिवाहन शके ${toDevanagariNumerals(shakaYear)}, श्रीसूर्ये ${ayanaText}े, ${rituText} ऋतौ, महामाङ्गल्यप्रदे शुभे ${masaLoc}, ${pakshaText}, ${tithiLoc}, ${varaLoc}, ${nakshatraLoc}, ${yogaText}, ${karanaText}, आनन्दादि योगमध्ये शुभयोगे, ग्रहगोचर स्थितिज्ञानेन ${planetsTransitSanskrit}, एवं गुणविशेषणविशिष्टायां शुभपुण्यतिथौ, ${gotra} गोत्रोत्पन्नः ${name} नामाहं, सपत्नीकः सपुत्र-पौत्र-सकुटुम्ब-सपरिवार-सहितोऽहम्, मम आत्मनः श्रुतिस्मृतिपुराणोक्त-समस्तपुण्यफलप्राप्त्यर्थं, कायिक-वाचिक-मानसिक-सांसर्गिक-सकलदुरितोपशान्त्यर्थं, आधिव्याधि-जरामृत्यु-भयनिवारणपूर्वकं दीर्घायुः-आरोग्य-ऐश्वर्य-सन्तति-यशः-कीर्ति-अभिवृद्ध्यर्थं, श्रीसूर्यादिनवग्रहदेवतानां प्रसादेन अनुकूलतासिद्ध्यर्थं, धर्मार्थकाममोक्ष-चतुर्विधपुरुषार्थसिद्धये, इष्टदेवता-कुलदेवता-स्थानदेवता-वास्तुदेवता-प्रीत्यर्थं च अद्य प्रातःकाले (सायङ्काले वा) यथाज्ञानं यथामिलितोपचारैः नित्य वैदिक भगवत्पूजनं, सन्ध्यावन्दनं, देवतार्चनं, मङ्गलकर्म चाहं करिष्ये। तत्पूर्वाङ्गत्वेन निर्विघ्नतासिद्ध्यर्थं श्रीगणेशस्मरणपूर्वकं कलशार्चनादि नित्यकर्म सम्पादयामि। ॥ ॐ तत्सत्, श्रीब्रह्मार्पणमस्तु ॥`;
+  const sanskritText = `ॐ विष्णुर्विष्णुर्विष्णुः श्रीमद्भगवतो महापुरुषस्य विष्णोराज्ञया प्रवर्तमानस्य अद्य ब्रह्मणो द्वितीयपरार्धे श्रीश्वेतवाराहकल्पे वैवस्वतमन्वन्तरे अष्टाविंशतितमे कलियुगे कलिप्रथमचरणे, भूर्लोके जम्बूद्वीपे भरतखण्डे भारतवर्षे आर्यावर्तैकदेशे पुण्यतमे नेपालदेशे, ${geo.subdivisionSanskrit}, ${geo.localitySanskrit}, पवित्र-सुरसरित्-सदृश ${geo.sacredRiverSanskrit}, ${geo.prominentDeitySanskrit} पावन-चरणसन्निधौ, श्रीविक्रमादित्य नृपतेः शकाब्दे संवत् ${toDevanagariNumerals(yearNum)} प्रवर्त्तमाने श्रीविक्रमार्कशके ${samvatsarName} नाम संवत्सरे, श्रीशालिवाहन शके ${toDevanagariNumerals(shakaYear)}, श्रीसूर्ये ${ayanaSanskrit}, ${rituSanskritLocative}, महामाङ्गल्यप्रदे शुभे ${masaLoc}, ${pakshaText}, ${tithiLoc}, ${varaLoc}, ${nakshatraLoc}, ${yogaText}, ${karanaText}, आनन्दादि योगमध्ये शुभयोगे, ग्रहगोचर स्थितिज्ञानेन ${planetsTransitSanskrit}, एवं गुणविशेषणविशिष्टायां शुभपुण्यतिथौ, ${gotra} गोत्रोत्पन्नः ${name} नामाहं, सपत्नीकः सपुत्र-पौत्र-सकुटुम्ब-सपरिवार-सहितोऽहम्, मम आत्मनः श्रुतिस्मृतिपुराणोक्त-समस्तपुण्यफलप्राप्त्यर्थं, कायिक-वाचिक-मानसिक-सांसर्गिक-सकलदुरितोपशान्त्यर्थं, आधिव्याधि-जरामृत्यु-भयनिवारणपूर्वकं दीर्घायुः-आरोग्य-ऐश्वर्य-सन्तति-यशः-कीर्ति-अभिवृद्ध्यर्थं, श्रीसूर्यादिनवग्रहदेवतानां प्रसादेन अनुकूलतासिद्ध्यर्थं, धर्मार्थकाममोक्ष-चतुर्विधपुरुषार्थसिद्धये, इष्टदेवता-कुलदेवता-स्थानदेवता-वास्तुदेवता-प्रीत्यर्थं च अद्य प्रातःकाले (सायङ्काले वा) यथाज्ञानं यथामिलितोपचारैः नित्य वैदिक भगवत्पूजनं, सन्ध्यावन्दनं, देवतार्चनं, मङ्गलकर्म चाहं करिष्ये। तत्पूर्वाङ्गत्वेन निर्विघ्नतासिद्ध्यर्थं श्रीगणेशस्मरणपूर्वकं कलशार्चनादि नित्यकर्म सम्पादयामि। ॥ ॐ तत्सत्, श्रीब्रह्मार्पणमस्तु ॥`;
 
-  const nepaliMeaning = `ॐ श्रीविष्णु भगवान्‌को आज्ञाले यस अनन्त ब्रह्माण्डीय सृष्टि-चक्र अन्तर्गत ब्रह्माजीको ५१औँ वर्षको द्वितीय परार्ध, श्वेतवाराह कल्प, वैवस्वत मन्वन्तर तथा २८औँ कलियुगको प्रथम चरणमा, जम्बूद्वीप भरतखण्ड अन्तर्गत पावन नेपाल देश, ${geo.subdivisionSanskrit}, ${geo.localitySanskrit} मा पवित्र ${geo.riverNepali} को पावन तट एवं ${geo.deityNepali} को पवित्र सानिध्यमा; आज श्रीविक्रम संवत् ${toDevanagariNumerals(yearNum)} (शालिवाहन शक ${toDevanagariNumerals(shakaYear)}) ${samvatsarName} संवत्सर, ${ayanaText}ायन, ${rituText} ऋतु, ${masaName} ${paksha} पक्षको ${panchanga.tithi?.name || ''} तिथि, ${dayName} वार, ${panchanga.nakshatra?.name || ''} नक्षत्र, ${panchanga.yoga?.name || ''} योग, ${panchanga.karana?.name || ''} करणको शुभ घडीमा तथा नवग्रह गोचरमा सूर्यदेव ${sunRashi} राशिमा, चन्द्रमा ${moonRashi} राशिमा एवं बृहस्पति, शनि, राहु-केतु लगायत सबै ग्रहहरू आ-आफ्नो राशिमा गोचर भइरहँदा: म (${name}, ${gotra} गोत्र, सपरिवार) आफ्नो तथा सम्पूर्ण परिवारको कायिक, वाचिक र मानसिक पापकष्ट निवारण, दीर्घायु, सुस्वास्थ्य, धनधान्य, यश-कीर्ति, नवग्रह कृपा एवं धर्म, अर्थ, काम, मोक्ष चारै पुरुषार्थ सिद्धिका लागि भगवान्‌को नित्य वैदिक पूजा, सन्ध्यावन्दन तथा ईश आराधना गर्दछु।`;
+  const nepaliMeaning = `ॐ श्रीविष्णु भगवान्‌को आज्ञाले यस अनन्त ब्रह्माण्डीय सृष्टि-चक्र अन्तर्गत ब्रह्माजीको ५१औँ वर्षको द्वितीय परार्ध, श्वेतवाराह कल्प, वैवस्वत मन्वन्तर तथा २८औँ कलियुगको प्रथम चरणमा, जम्बूद्वीप भरतखण्ड अन्तर्गत पावन नेपाल देश, ${geo.subdivisionSanskrit}, ${geo.localitySanskrit} मा पवित्र ${geo.riverNepali} को पावन तट एवं ${geo.deityNepali} को पवित्र सानिध्यमा; आज श्रीविक्रम संवत् ${toDevanagariNumerals(yearNum)} (शालिवाहन शक ${toDevanagariNumerals(shakaYear)}) ${samvatsarName} संवत्सर, ${ayanaText}, ${rituText} ऋतु, ${masaName} ${paksha} पक्षको ${panchanga.tithi?.name || ''} तिथि, ${dayName} वार, ${panchanga.nakshatra?.name || ''} नक्षत्र, ${panchanga.yoga?.name || ''} योग, ${panchanga.karana?.name || ''} करणको शुभ घडीमा तथा नवग्रह गोचरमा सूर्यदेव ${sunRashi} राशिमा, चन्द्रमा ${moonRashi} राशिमा एवं बृहस्पति, शनि, राहु-केतु लगायत सबै ग्रहहरू आ-आफ्नो राशिमा गोचर भइरहँदा: म (${name}, ${gotra} गोत्र, सपरिवार) आफ्नो तथा सम्पूर्ण परिवारको कायिक, वाचिक र मानसिक पापकष्ट निवारण, दीर्घायु, सुस्वास्थ्य, धनधान्य, यश-कीर्ति, नवग्रह कृपा एवं धर्म, अर्थ, काम, मोक्ष चारै पुरुषार्थ सिद्धिका लागि भगवान्‌को नित्य वैदिक पूजा, सन्ध्यावन्दन तथा ईश आराधना गर्दछु।`;
 
   const panchangaSummary = `${toDevanagariNumerals(yearNum)} ${masaName} • ${paksha} पक्ष • ${panchanga.tithi?.name || ''} • ${panchanga.nakshatra?.name || ''} • ${dayName}`;
   const grahaStatusSummary = `सूर्य: ${sunRashi} | चन्द्र: ${moonRashi} | संवत्सर: ${samvatsarName}`;
@@ -1419,8 +1423,11 @@ export function generateMahaSankalpa(options: MahaSankalpaOptions): MahaSankalpa
   const yogaText = panchanga.yoga?.name ? `${panchanga.yoga.name} योगे` : 'विष्कम्भादि योगे';
   const karanaText = panchanga.karana?.name ? `${panchanga.karana.name} करणे` : 'बवादि करणे';
   const samvatsarName = panchanga.samvatsara || 'कालयुक्त';
-  const ayanaText = panchanga.ayana || 'उत्तरायण';
-  const rituText = panchanga.ritu || 'वसन्त';
+  const rituInfo = getVedicRituInfo(masaName || panchanga.dateBS || 1);
+  const rituText = rituInfo.nameNepali;
+  const rituSanskritLocative = rituInfo.sanskritLocative;
+  const ayanaText = getAyanaForBSMonth(masaName || 1);
+  const ayanaSanskrit = ayanaText === 'उत्तरायण' ? 'उत्तरायणे' : 'दक्षिणायने';
 
   // Graha status
   let sunR = panchanga.sunRashi || 'मेष';
@@ -1445,7 +1452,7 @@ export function generateMahaSankalpa(options: MahaSankalpaOptions): MahaSankalpa
 
 ॐ विष्णुर्विष्णुर्विष्णुः श्रीमद्भगवतो महापुरुषस्य विष्णोराज्ञया प्रवर्तमानस्य अद्य श्रीब्रह्मणो द्वितीयपरार्धे श्रीश्वेतवाराहकल्पे वैवस्वतमन्वन्तरे अष्टाविंशतितमे युगे कलियुगे कलिप्रथमचरणे, भूर्लोके जम्बूद्वीपे भरतखण्डे भारतवर्षे आर्यावर्तैकदेशे पुण्यपवित्र ${geo.countrySanskrit}, ${geo.subdivisionSanskrit}, ${geo.localitySanskrit}, ${geo.sacredRiverSanskrit}, ${geo.prominentDeitySanskrit},
 
-श्रीविक्रमादित्य नृपतेः शकाब्दे ${toDevanagariNumerals(yearNum)} प्रवर्त्तमाने श्रीविक्रमार्कशके ${samvatsarName} नाम संवत्सरे, श्रीसूर्ये ${ayanaText}े, ${rituText} ऋतौ, महामाङ्गल्यप्रदे शुभे ${masaLoc}, ${pakshaText}, ${tithiLoc}, ${varaLoc}, ${nakshatraLoc}, ${yogaText}, ${karanaText}, आनन्दादि योगमध्ये शुभयोगे,
+श्रीविक्रमादित्य नृपतेः शकाब्दे ${toDevanagariNumerals(yearNum)} प्रवर्त्तमाने श्रीविक्रमार्कशके ${samvatsarName} नाम संवत्सरे, श्रीसूर्ये ${ayanaSanskrit}, ${rituSanskritLocative}, महामाङ्गल्यप्रदे शुभे ${masaLoc}, ${pakshaText}, ${tithiLoc}, ${varaLoc}, ${nakshatraLoc}, ${yogaText}, ${karanaText}, आनन्दादि योगमध्ये शुभयोगे,
 
 ग्रहगोचर स्थितिज्ञानेन:
 सूर्ये ${sunR} राशौ स्थिते, चन्द्रे ${moonR} राशौ स्थिते, देवगुरौ बृहस्पतौ ${guruR} राशौ स्थिते, एवं शेषेषु ग्रहेषु यथायथा राशिस्थानस्थितेषु सत्सु, एवं ग्रहगुणविशेषणविशिष्टायां शुभपुण्यतिथौ—
@@ -1461,7 +1468,7 @@ ${gotra} गोत्रोत्पन्नस्य, ${name} शर्मण�
 ॐ परमब्रह्म परमात्मा श्रीविष्णु भगवान्‌को आज्ञाले यस अनन्त सृष्टि चक्रमा:
 १. काल गणना: ब्रह्माजीको दोस्रो परार्ध, श्वेतवाराह कल्प, वैवस्वत मन्वन्तर, २८औं कलियुगको प्रथम चरणमा।
 २. भूगोल विवरण: जम्बूद्वीप, भरतखण्ड, नेपाल देश, ${geo.subdivisionSanskrit} अन्तर्गत ${geo.localitySanskrit}, पावन ${geo.riverNepali} को पवित्र तट तथा साक्षात् ${geo.deityNepali} को सानिध्यमा।
-३. पञ्चाङ्ग गणना: विक्रम संवत् ${toDevanagariNumerals(yearNum)}, ${samvatsarName} संवत्सर, ${ayanaText}ायन, ${rituText} ऋतु, ${masaLoc}, ${paksha} पक्ष, ${panchanga.tithi?.name || ''} तिथि, ${dayName} वार, ${panchanga.nakshatra?.name || ''} नक्षत्रको महापुण्य समयमा।
+३. पञ्चाङ्ग गणना: विक्रम संवत् ${toDevanagariNumerals(yearNum)}, ${samvatsarName} संवत्सर, ${ayanaText}, ${rituText} ऋतु, ${masaLoc}, ${paksha} पक्ष, ${panchanga.tithi?.name || ''} तिथि, ${dayName} वार, ${panchanga.nakshatra?.name || ''} नक्षत्रको महापुण्य समयमा।
 ४. ग्रह स्थिति: सूर्यदेव ${sunR} राशिमा, चन्द्रमा ${moonR} राशिमा, र देवगुरु बृहस्पति ${guruR} राशिमा रहँदा।
 ५. सङ्कल्प कर्ता: ${gotra} गोत्र, ${name} (तथा सम्पूर्ण परिवार)।
 ६. सङ्कल्पको उद्देश्य: ${purpose.nepaliPurpose}, समस्त पाप नाश, आरोग्य, ऐश्वर्य तथा धर्म, अर्थ, काम र मोक्ष प्राप्तिका लागि म पूर्ण श्रद्धा र भक्तिपूर्वक यो सङ्कल्प गर्दछु।`;

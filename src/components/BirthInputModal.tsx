@@ -30,6 +30,7 @@ import { NEPAL_LOCATIONS, toDevanagariNumerals, fromDevanagariNumerals } from '.
 import { convertBSToADFull, convertADToBSFull } from '../utils/bsCalendarData';
 import { getStoredProfiles } from '../db/profileStore';
 import { LocationSelectorModal } from './LocationSelectorModal';
+import { handlePhoneticInputKeyDown } from '../utils/nepaliTransliteration';
 import { 
   WORLD_LOCATIONS_DATA, 
   formatCoordinatesDevanagari, 
@@ -577,7 +578,8 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="ओम बहादुर सुब्बा"
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, name, setName)}
+              placeholder="नाम (उदा: Om Bahadur Subba)"
               className="w-full bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded px-3 py-2 text-sm text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -874,6 +876,7 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
                     setLocationQuery(e.target.value);
                     setIsLocationPickerOpen(true);
                   }}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, locationQuery, setLocationQuery)}
                   onFocus={() => setIsLocationPickerOpen(true)}
                   placeholder="शहर वा जिल्ला खोज्नुहोस् (उदा. काठमाडौँ, पोखरा, धरान, झापा, Delhi, London...)"
                   className="w-full bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg pl-8.5 pr-8 py-2 text-sm text-stone-800 dark:text-stone-100 placeholder-stone-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
@@ -1188,6 +1191,8 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
                       type="text"
                       value={fatherName}
                       onChange={(e) => setFatherName(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, fatherName, setFatherName)}
+                      placeholder="उदा: Hari Prasad"
                       className="w-full bg-white dark:bg-stone-900 border rounded px-2 py-1"
                     />
                   </div>
@@ -1197,6 +1202,8 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
                       type="text"
                       value={motherName}
                       onChange={(e) => setMotherName(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, motherName, setMotherName)}
+                      placeholder="उदा: Sita Devi"
                       className="w-full bg-white dark:bg-stone-900 border rounded px-2 py-1"
                     />
                   </div>
@@ -1209,7 +1216,8 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
                       type="text"
                       value={gotra}
                       onChange={(e) => setGotra(e.target.value)}
-                      placeholder="उदा. कश्यप"
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, gotra, setGotra)}
+                      placeholder="उदा. Kashyap"
                       className="w-full bg-white dark:bg-stone-900 border rounded px-2 py-1"
                     />
                   </div>

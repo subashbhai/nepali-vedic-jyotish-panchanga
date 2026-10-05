@@ -28,6 +28,7 @@ import { YajamanCustomerDashboard } from '../auth/YajamanCustomerDashboard';
 import { SuperAdminApprovalCenter } from '../auth/SuperAdminApprovalCenter';
 import { RBACAuthModal } from '../auth/RBACAuthModal';
 import { getActiveRBACSession, RBACSession, clearRBACSession } from '../../db/rbacStore';
+import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
 
 import {
   ShoppingBag,
@@ -406,9 +407,10 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
               <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
                 type="text"
-                placeholder="सामग्री, पुस्तक वा पूजा Package खोज्नुहोस्..."
+                placeholder="सामग्री, पुस्तक वा पूजा Package खोज्नुहोस् (उदा: pooja, gita, havan)..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
                 className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-2xl pl-12 pr-4 py-3 text-sm text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-[#D97706]"
               />
               {searchQuery && (

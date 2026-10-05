@@ -425,28 +425,5 @@ export function getSamvatsaraForBSYear(bsYear: number): string {
   return SAMVATSARA_NAMES_60[validIndex];
 }
 
-/**
- * Returns Ritu (season) for a given BS Month
- */
-export function getRituForBSMonth(bsMonth: number): 'वसन्त' | 'ग्रीष्म' | 'वर्षा' | 'शरद' | 'हेमन्त' | 'शिशिर' {
-  const rituList: Array<'वसन्त' | 'ग्रीष्म' | 'वर्षा' | 'शरद' | 'हेमन्त' | 'शिशिर'> = [
-    'वसन्त', 'वसन्त',  // Baishakh, Jestha
-    'ग्रीष्म', 'ग्रीष्म',  // Ashad, Shrawan
-    'वर्षा', 'वर्षा',    // Bhadra, Ashwin
-    'शरद', 'शरद',      // Kartik, Mangar
-    'हेमन्त', 'हेमन्त',  // Poush, Magh
-    'शिशिर', 'शिशिर'    // Falgun, Chaitra
-  ];
-  return rituList[(bsMonth - 1) % 12];
-}
-
-/**
- * Returns Ayana (Utterayana or Dakshinayana) for a given BS Month
- */
-export function getAyanaForBSMonth(bsMonth: number): 'उत्तरायण' | 'दक्षिणायन' {
-  // Magh (10) to Ashad (3) -> Uttarayana; Shrawan (4) to Poush (9) -> Dakshinayana
-  if (bsMonth >= 10 || bsMonth <= 3) {
-    return 'उत्तरायण';
-  }
-  return 'दक्षिणायन';
-}
+// Re-export from authoritative Vedic Ritu Engine
+export { getRituForBSMonth, getAyanaForBSMonth, getVedicRituInfo, getRituSanskritLocative } from './vedicRituEngine';
