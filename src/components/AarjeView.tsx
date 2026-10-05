@@ -945,254 +945,313 @@ export const AarjeView: React.FC<AarjeViewProps> = ({
             </div>
 
             {/* PRINTABLE REPORT DOCUMENT */}
-            <div id="aarje-printable-report">
-            <OmBorderFrame>
-              <div className="bg-[#FFFDF7] text-stone-900 p-4 sm:p-8 space-y-6 font-serif max-w-4xl mx-auto leading-relaxed print:p-2">
-                
-                {/* 1. CENTERED LORD GANESHA HEADER */}
-                <GaneshaHeaderCenter
-                  orgName={orgProfile?.name || 'बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा'}
-                  orgPhone={orgProfile?.phone || ''}
-                  primaryShloka="ॐ वक्रतुण्ड महाकाय सूर्यकोटि समप्रभ। निर्विघ्नं कुरु मे देव सर्वकार्येषु सर्वदा॥"
-                />
-
-                <div className="text-center border-y-2 border-red-800/60 py-2 my-2 bg-amber-100/50">
-                  <h2 className="text-xl sm:text-2xl font-black text-red-900 tracking-wide font-serif">
-                    ॥ आर्जे ज्योतिषीय विश्लेषण प्रतिवेदन ॥
-                  </h2>
-                  <p className="text-xs text-stone-700 font-sans font-bold mt-0.5">
-                    (हराएको / चोरी भएको वस्तु, धन, गहना तथा कागजात सम्बन्धी प्रश्नकुण्डली प्रतिवेदन — इन्जिन {currentAnalysis.engineVersion})
-                  </p>
-                </div>
-
-                {/* 2. QUERIER & ITEM DETAILS BOX */}
-                <div className="border-2 border-red-800/80 p-5 rounded-xl bg-amber-50/80 space-y-4 text-sm sm:text-base">
-                  <h3 className="font-bold text-red-900 border-b-2 border-red-700/60 pb-1.5 text-base sm:text-lg flex items-center justify-between">
-                    <span>॥ १. प्रश्नकर्ता तथा वस्तु विवरण ॥</span>
-                    <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded border border-amber-400">
-                      क्रमाङ्क: {selectedRecord.serialNo}
-                    </span>
-                  </h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p><strong>प्रश्नकर्ताको नाम:</strong> <span className="text-red-900 font-extrabold">{selectedRecord.querierName}</span></p>
-                      <p><strong>सम्पर्क नम्बर:</strong> {selectedRecord.contactNumber}</p>
-                      <p><strong>वस्तुको प्रकार:</strong> {selectedRecord.itemCategory}</p>
-                      <p><strong>वस्तुको नाम:</strong> <span className="font-bold text-amber-950">{selectedRecord.itemName}</span></p>
-                      <p><strong>अनुमानित मूल्य:</strong> रू {selectedRecord.estimatedValue}</p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <p><strong>अन्तिम पटक देखिएको समय:</strong> {selectedRecord.lastSeenTime}</p>
-                      <p><strong>अन्तिम पटक देखिएको स्थान:</strong> {selectedRecord.lastSeenLocation}</p>
-                      <p><strong>घटनाको अनुमानित समय:</strong> {selectedRecord.estimatedIncidentTime}</p>
-                      <p><strong>चोरीको सम्भावना:</strong> {selectedRecord.isStolen ? 'चोरी भएको प्रश्न' : 'सामान्य हराएको प्रश्न'}</p>
-                      <p><strong>विश्लेषण आधार:</strong> {selectedRecord.evalBasis === 'prashna_only' ? 'प्रश्नकुण्डली मात्र' : 'प्रश्नकुण्डली + जन्मकुण्डली'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. PRASHNA TIMESTAMP & PANCHANGA */}
-                <div className="border-2 border-red-800/80 p-5 rounded-xl bg-gradient-to-br from-amber-50 via-white to-amber-100 space-y-3 text-sm sm:text-base">
-                  <h3 className="font-bold text-red-900 border-b-2 border-red-700/60 pb-1.5 text-base sm:text-lg">
-                    ॥ २. प्रश्न समय तथा पञ्चाङ्ग विवरण ॥
-                  </h3>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs sm:text-sm">
-                    <div className="bg-white p-2.5 rounded border border-amber-300">
-                      <p className="font-bold text-red-900">प्रश्न मिति (वि.सं.):</p>
-                      <p className="font-bold">{selectedRecord.queryDateBS}</p>
-                    </div>
-
-                    <div className="bg-white p-2.5 rounded border border-amber-300">
-                      <p className="font-bold text-red-900">प्रश्न समय:</p>
-                      <p className="font-bold">{toDevanagariNumerals(selectedRecord.queryTime)}</p>
-                    </div>
-
-                    <div className="bg-white p-2.5 rounded border border-amber-300">
-                      <p className="font-bold text-red-900">प्रश्न स्थान:</p>
-                      <p className="font-bold">{selectedRecord.queryLocation.locationName}</p>
-                    </div>
-
-                    <div className="bg-white p-2.5 rounded border border-amber-300">
-                      <p className="font-bold text-red-900">प्रश्न पञ्चाङ्ग:</p>
-                      <p>{currentAnalysis.tithi} / {currentAnalysis.vara} / {currentAnalysis.moonNakshatra}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. ASTROLOGICAL ANALYSIS OUTCOMES */}
-                <div className="border-2 border-red-800 p-5 rounded-xl bg-amber-100/90 space-y-4">
-                  <h3 className="font-bold text-red-900 border-b-2 border-red-700/60 pb-1.5 text-base sm:text-lg flex items-center justify-between">
-                    <span>॥ ३. आर्जे ज्योतिषीय विश्लेषण निष्कर्ष ॥</span>
-                    <span className="text-xs font-bold text-red-900 bg-red-200 px-3 py-1 rounded-full border border-red-400">
-                      प्राप्ति सम्भावना: {toDevanagariNumerals(currentAnalysis.recoveryChancePercentage)}% ({currentAnalysis.confidenceLevel} विश्वसनीयता)
-                    </span>
-                  </h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs sm:text-sm">
-                    
-                    {/* Direction Box */}
-                    <div className="bg-white p-4 rounded-xl border-2 border-amber-400 space-y-1.5">
-                      <p className="font-bold text-red-900 border-b pb-1 text-sm sm:text-base">सम्भावित दिशा</p>
-                      <p className="font-black text-lg text-amber-950">{currentAnalysis.probableDirection}</p>
-                      <p className="text-xs text-stone-700 leading-relaxed">{currentAnalysis.directionAstrologicalReason}</p>
-                    </div>
-
-                    {/* Place Box */}
-                    <div className="bg-white p-4 rounded-xl border-2 border-amber-400 space-y-1.5">
-                      <p className="font-bold text-red-900 border-b pb-1 text-sm sm:text-base">सम्भावित क्षेत्र / स्थान</p>
-                      <p className="font-black text-lg text-amber-950">{currentAnalysis.probablePlaceCategory}</p>
-                      <p className="text-xs text-stone-700 leading-relaxed">{currentAnalysis.placeAstrologicalReason}</p>
-                    </div>
-
-                    {/* Condition Box */}
-                    <div className="bg-white p-4 rounded-xl border-2 border-amber-400 space-y-1.5">
-                      <p className="font-bold text-red-900 border-b pb-1 text-sm sm:text-base">वस्तुको सम्भावित अवस्था</p>
-                      <p className="font-black text-lg text-amber-950">{currentAnalysis.probableCondition}</p>
-                      <p className="text-xs text-stone-700 leading-relaxed">{currentAnalysis.conditionAstrologicalReason}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 5. THREE LAYER DIRECTION BREAKDOWN TABLE */}
-                <div className="border-2 border-amber-700/80 p-5 rounded-xl bg-amber-50/60 space-y-3 text-xs sm:text-sm">
-                  <h3 className="font-bold text-red-900 border-b-2 border-amber-300 pb-1.5 text-base flex items-center justify-between">
-                    <span>॥ ४. त्रि-स्तरीय दिशा विश्लेषण (ग्रह, राशि र भाव) ॥</span>
-                    {currentAnalysis.threeLayerDirection.isMixedSignal && (
-                      <span className="bg-amber-200 text-amber-900 text-xs px-2.5 py-0.5 rounded font-bold border border-amber-400">
-                        ⚠️ मिश्रित संकेत (Mixed Signals)
-                      </span>
-                    )}
-                  </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="bg-white p-3 rounded-lg border border-amber-300 space-y-1">
-                      <p className="font-bold text-red-900">१. ग्रह-दिशा (Planet Direction):</p>
-                      <p className="font-extrabold text-amber-950 text-sm">{currentAnalysis.threeLayerDirection.planetDirection}</p>
-                      <p className="text-stone-600">{currentAnalysis.threeLayerDirection.planetDirectionReason}</p>
-                    </div>
-
-                    <div className="bg-white p-3 rounded-lg border border-amber-300 space-y-1">
-                      <p className="font-bold text-red-900">२. राशि-दिशा (Rashi Direction):</p>
-                      <p className="font-extrabold text-amber-950 text-sm">{currentAnalysis.threeLayerDirection.rashiDirection}</p>
-                      <p className="text-stone-600">{currentAnalysis.threeLayerDirection.rashiDirectionReason}</p>
-                    </div>
-
-                    <div className="bg-white p-3 rounded-lg border border-amber-300 space-y-1">
-                      <p className="font-bold text-red-900">३. भाव-दिशा (Bhava Direction):</p>
-                      <p className="font-extrabold text-amber-950 text-sm">{currentAnalysis.threeLayerDirection.bhavaDirection}</p>
-                      <p className="text-stone-600">{currentAnalysis.threeLayerDirection.bhavaDirectionReason}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 6. MULTI-HOUSE JOINT ANALYSIS TABLE */}
-                <div className="border-2 border-stone-300 p-5 rounded-xl bg-white space-y-3 text-xs">
-                  <h3 className="font-bold text-red-900 border-b-2 border-red-200 pb-1.5 text-base">
-                    ॥ ५. भाव विश्लेषण (लग्न + चन्द्र + २ + ४ + ७ + ८ + ११ + १२ भाव) ॥
-                  </h3>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse border border-stone-300 text-xs">
-                      <thead>
-                        <tr className="bg-amber-100 text-amber-950 font-bold border-b border-stone-300">
-                          <th className="p-2 border-r">भाव / महत्व</th>
-                          <th className="p-2 border-r">राशि / भावेश</th>
-                          <th className="p-2 border-r">स्थित ग्रह</th>
-                          <th className="p-2">ज्योतिषीय संकेत तथा निष्कर्ष</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentAnalysis.houseAnalysis.filter((h) => [1, 2, 4, 7, 8, 11, 12].includes(h.houseNo)).map((h) => (
-                          <tr key={h.houseNo} className="border-b border-stone-200">
-                            <td className="p-2 border-r font-bold text-red-900">{h.houseName}</td>
-                            <td className="p-2 border-r font-semibold">{h.rashiName} ({h.lordName})</td>
-                            <td className="p-2 border-r">{h.planetsPresent.length > 0 ? h.planetsPresent.join(', ') : 'खाली'}</td>
-                            <td className="p-2">{h.significanceNepali}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* 7. APPLIED CLASSICAL RULES & SOURCES */}
-                <div className="border-2 border-red-700/60 p-5 rounded-xl bg-red-50/50 space-y-3 text-xs sm:text-sm">
-                  <h3 className="font-bold text-red-900 border-b-2 border-red-300 pb-1.5 text-base sm:text-lg">
-                    ॥ ६. प्रयोग गरिएका शास्त्रीय नियम तथा स्रोत ॥
-                  </h3>
-
+            <div id="aarje-printable-report" className="space-y-6 print:space-y-0">
+              {/* PAGE 1: मुख्य प्रतिवेदन, प्रश्नकर्ता विवरण तथा मुख्य निष्कर्ष */}
+              <OmBorderFrame pageNumber={1}>
+                <div className="bg-[#FFFDF7] text-stone-900 p-2 sm:p-3.5 space-y-2.5 font-serif max-w-4xl mx-auto leading-normal flex flex-col justify-between h-full print:p-1 box-border">
                   <div className="space-y-2">
-                    {currentAnalysis.appliedRules.slice(0, 5).map((rule) => (
-                      <div key={rule.id} className="bg-white p-3 rounded-lg border border-amber-300 space-y-1">
-                        <div className="flex items-center justify-between font-bold text-red-900">
-                          <span>• {rule.nameNepali}</span>
-                          <span className="text-xs text-stone-600 bg-amber-100 px-2 py-0.5 rounded">{rule.sourceText}</span>
-                        </div>
-                        <p className="text-xs text-stone-800">{rule.descriptionNepali}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                    {/* 1. CENTERED LORD GANESHA HEADER */}
+                    <GaneshaHeaderCenter
+                      orgName={orgProfile?.name || 'बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा'}
+                      orgPhone={orgProfile?.phone || ''}
+                      primaryShloka="ॐ वक्रतुण्ड महाकाय सूर्यकोटि समप्रभ। निर्विघ्नं कुरु मे देव सर्वकार्येषु सर्वदा॥"
+                    />
 
-                {/* 6. RECOMMENDED SEARCH AREAS */}
-                <div className="border-2 border-amber-800 p-5 rounded-xl bg-amber-50 space-y-2 text-xs sm:text-sm">
-                  <h3 className="font-bold text-amber-950 text-base sm:text-lg border-b border-amber-300 pb-1">
-                    ॥ ५. खोजी गर्दा विशेष ध्यान दिनुपर्ने क्षेत्र ॥
-                  </h3>
-                  <ul className="list-disc pl-5 space-y-1 text-stone-900 font-semibold">
-                    {currentAnalysis.recommendedSearchAreas.map((area, idx) => (
-                      <li key={idx}>{area}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* 7. SAFETY & LEGAL GUIDANCE */}
-                {currentAnalysis.safetyAndLegalGuidance.length > 0 && (
-                  <div className="border-2 border-red-800 p-4 rounded-xl bg-red-100/80 space-y-2 text-xs sm:text-sm">
-                    <h3 className="font-bold text-red-950 text-base border-b border-red-300 pb-1">
-                      ⚠️ सुरक्षा, प्रहरी तथा कानुनी प्रक्रिया सम्बन्धी जानकारी
-                    </h3>
-                    <ul className="list-disc pl-5 space-y-1 text-red-950 font-bold">
-                      {currentAnalysis.safetyAndLegalGuidance.map((guide, idx) => (
-                        <li key={idx}>{guide}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 8. CAUTIONARY DISCLAIMER NOTICE */}
-                <div className="border border-stone-400 p-3.5 rounded-xl bg-stone-100 text-xs text-stone-800 space-y-1">
-                  <p className="font-bold text-stone-900">कानुनी तथा ज्योतिषीय सावधानी (Disclaimer):</p>
-                  <p className="leading-relaxed">
-                    यो प्रतिवेदन विशुद्ध प्रश्नकुण्डली र परम्परागत ज्योतिषीय नियममा आधारित साङ्केतिक अनुमान मात्र हो। यसका आधारमा कुनै पनि व्यक्तिलाई विना प्रत्यक्ष प्रमाण चोरीको आरोप लगाउन मनाही छ। वास्तविक निष्कर्ष, खोज तथा कारबाहीका लागि प्रहरी छानबिन र कानुनी प्रमाणलाई नै अन्तिम आधार मान्नुहोला।
-                  </p>
-                </div>
-
-                {/* 9. ASTROLOGER SIGNATURE BLOCK */}
-                <div className="pt-6 border-t-2 border-red-800 flex items-center justify-between text-xs sm:text-sm text-stone-900">
-                  <div className="space-y-1">
-                    <p><strong>प्रमाणित गर्ने ज्योतिषाचार्य:</strong> {currentAstrologer?.name || orgProfile.name}</p>
-                    <p><strong>पद / उपाधि:</strong> {currentAstrologer?.title || 'वरिष्ठ ज्योतिषाचार्य'}</p>
-                    <p><strong>सम्पर्क:</strong> {toDevanagariNumerals(currentAstrologer?.contactPhone || orgProfile.phone)}</p>
-                  </div>
-
-                  <div className="text-center space-y-1">
-                    <div className="h-14 w-40 border-b border-dashed border-red-800 flex items-center justify-center italic text-xs text-stone-600">
-                      {currentAstrologer?.signatureUrl ? (
-                        <img src={currentAstrologer.signatureUrl} alt="हस्ताक्षर" className="h-full object-contain" />
-                      ) : (
-                        <span>हस्ताक्षर / छाप</span>
-                      )}
+                    <div className="text-center border-y-2 border-red-800/60 py-1 bg-amber-100/50">
+                      <h2 className="text-lg sm:text-xl font-black text-red-900 tracking-wide font-serif">
+                        ॥ आर्जे ज्योतिषीय विश्लेषण प्रतिवेदन ॥
+                      </h2>
+                      <p className="text-[10.5px] text-stone-700 font-sans font-bold mt-0.5">
+                        (हराएको / चोरी भएको वस्तु, धन, गहना तथा कागजात सम्बन्धी प्रश्नकुण्डली प्रतिवेदन — इन्जिन {currentAnalysis.engineVersion})
+                      </p>
                     </div>
-                    <p className="font-bold text-red-900">{currentAstrologer?.name || orgProfile.name}</p>
-                  </div>
-                </div>
 
-              </div>
-            </OmBorderFrame>
+                    {/* 2. QUERIER & ITEM DETAILS BOX */}
+                    <div className="border border-red-800/80 p-3 rounded-lg bg-amber-50/80 space-y-1.5 text-xs">
+                      <h3 className="font-bold text-red-900 border-b border-red-700/60 pb-1 text-xs sm:text-sm flex items-center justify-between">
+                        <span>॥ १. प्रश्नकर्ता तथा वस्तु विवरण ॥</span>
+                        <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded border border-amber-400">
+                          क्रमाङ्क: {selectedRecord.serialNo}
+                        </span>
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        <div className="space-y-0.5">
+                          <p><strong>प्रश्नकर्ताको नाम:</strong> <span className="text-red-900 font-extrabold">{selectedRecord.querierName}</span></p>
+                          <p><strong>सम्पर्क नम्बर:</strong> {selectedRecord.contactNumber}</p>
+                          <p><strong>वस्तुको प्रकार:</strong> {selectedRecord.itemCategory}</p>
+                          <p><strong>वस्तुको नाम:</strong> <span className="font-bold text-amber-950">{selectedRecord.itemName}</span></p>
+                          <p><strong>अनुमानित मूल्य:</strong> रू {selectedRecord.estimatedValue}</p>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <p><strong>अन्तिम पटक देखिएको समय:</strong> {selectedRecord.lastSeenTime}</p>
+                          <p><strong>अन्तिम पटक देखिएको स्थान:</strong> {selectedRecord.lastSeenLocation}</p>
+                          <p><strong>घटनाको अनुमानित समय:</strong> {selectedRecord.estimatedIncidentTime}</p>
+                          <p><strong>चोरीको सम्भावना:</strong> {selectedRecord.isStolen ? 'चोरी भएको प्रश्न' : 'सामान्य हराएको प्रश्न'}</p>
+                          <p><strong>विश्लेषण आधार:</strong> {selectedRecord.evalBasis === 'prashna_only' ? 'प्रश्नकुण्डली मात्र' : 'प्रश्नकुण्डली + जन्मकुण्डली'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. PRASHNA TIMESTAMP & PANCHANGA */}
+                    <div className="border border-red-800/80 p-3 rounded-lg bg-gradient-to-br from-amber-50 via-white to-amber-100 space-y-1.5 text-xs">
+                      <h3 className="font-bold text-red-900 border-b border-red-700/60 pb-1 text-xs sm:text-sm">
+                        ॥ २. प्रश्न समय तथा पञ्चाङ्ग विवरण ॥
+                      </h3>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="bg-white p-2 rounded border border-amber-300">
+                          <p className="font-bold text-red-900 text-[10.5px]">प्रश्न मिति (वि.सं.):</p>
+                          <p className="font-bold">{selectedRecord.queryDateBS}</p>
+                        </div>
+
+                        <div className="bg-white p-2 rounded border border-amber-300">
+                          <p className="font-bold text-red-900 text-[10.5px]">प्रश्न समय:</p>
+                          <p className="font-bold">{toDevanagariNumerals(selectedRecord.queryTime)}</p>
+                        </div>
+
+                        <div className="bg-white p-2 rounded border border-amber-300">
+                          <p className="font-bold text-red-900 text-[10.5px]">प्रश्न स्थान:</p>
+                          <p className="font-bold truncate">{selectedRecord.queryLocation.locationName}</p>
+                        </div>
+
+                        <div className="bg-white p-2 rounded border border-amber-300">
+                          <p className="font-bold text-red-900 text-[10.5px]">प्रश्न पञ्चाङ्ग:</p>
+                          <p className="truncate">{currentAnalysis.tithi} / {currentAnalysis.vara} / {currentAnalysis.moonNakshatra}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. ASTROLOGICAL ANALYSIS OUTCOMES */}
+                    <div className="border-2 border-red-800 p-3 rounded-xl bg-amber-100/90 space-y-2">
+                      <h3 className="font-bold text-red-900 border-b border-red-700/60 pb-1 text-xs sm:text-sm flex items-center justify-between">
+                        <span>॥ ३. आर्जे ज्योतिषीय विश्लेषण मुख्य निष्कर्ष ॥</span>
+                        <span className="text-[10px] font-bold text-red-900 bg-red-200 px-2 py-0.5 rounded-full border border-red-400">
+                          प्राप्ति सम्भावना: {toDevanagariNumerals(currentAnalysis.recoveryChancePercentage)}% ({currentAnalysis.confidenceLevel} विश्वसनीयता)
+                        </span>
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                        {/* Direction Box */}
+                        <div className="bg-white p-2.5 rounded-lg border-2 border-amber-400 space-y-1">
+                          <p className="font-bold text-red-900 border-b pb-0.5 text-xs">सम्भावित दिशा</p>
+                          <p className="font-black text-base text-amber-950">{currentAnalysis.probableDirection}</p>
+                          <p className="text-[10.5px] text-stone-700 leading-snug">{currentAnalysis.directionAstrologicalReason}</p>
+                        </div>
+
+                        {/* Place Box */}
+                        <div className="bg-white p-2.5 rounded-lg border-2 border-amber-400 space-y-1">
+                          <p className="font-bold text-red-900 border-b pb-0.5 text-xs">सम्भावित क्षेत्र / स्थान</p>
+                          <p className="font-black text-base text-amber-950">{currentAnalysis.probablePlaceCategory}</p>
+                          <p className="text-[10.5px] text-stone-700 leading-snug">{currentAnalysis.placeAstrologicalReason}</p>
+                        </div>
+
+                        {/* Condition Box */}
+                        <div className="bg-white p-2.5 rounded-lg border-2 border-amber-400 space-y-1">
+                          <p className="font-bold text-red-900 border-b pb-0.5 text-xs">वस्तुको सम्भावित अवस्था</p>
+                          <p className="font-black text-base text-amber-950">{currentAnalysis.probableCondition}</p>
+                          <p className="text-[10.5px] text-stone-700 leading-snug">{currentAnalysis.conditionAstrologicalReason}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Summary Guide Box */}
+                    <div className="bg-amber-50 border border-amber-300 p-2 rounded-lg text-[10.5px] text-stone-800 flex items-center justify-between">
+                      <p>
+                        <strong className="text-red-900">मार्गदर्शन सूचना: </strong>
+                        विस्तृत त्रि-स्तरीय दिशा (ग्रह, राशि र भाव), अष्टक-भाव विश्लेषण, शास्त्रीय सूत्रहरू तथा खोजी निर्देशिका पृष्ठ २ मा समावेश गरिएको छ।
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Page 1 Footer */}
+                  <footer className="pt-1.5 border-t border-[#166534]/30 flex items-center justify-between text-[9.5px] text-stone-500 shrink-0">
+                    <div>
+                      <span className="font-medium text-stone-600">{orgProfile?.name || '॥ श्री बालानन्द ज्योतिष ॥'}</span>
+                      {orgProfile?.phone && <span className="ml-2 font-mono">({toDevanagariNumerals(orgProfile.phone)})</span>}
+                    </div>
+                    <div className="italic text-[#166534] font-semibold text-[9px]">
+                      ॥ सत्यमेव जयते नानृतम् ॥
+                    </div>
+                    <div className="font-bold text-[#166534] text-right">
+                      पृष्ठ १ / २
+                    </div>
+                  </footer>
+                </div>
+              </OmBorderFrame>
+
+              {/* PAGE 2: विस्तृत विश्लेषण, शास्त्रीय नियम, खोजी निर्देशिका तथा प्रमाणीकरण */}
+              <OmBorderFrame pageNumber={2}>
+                <div className="bg-[#FFFDF7] text-stone-900 p-2 sm:p-3.5 space-y-2 font-serif max-w-4xl mx-auto leading-normal flex flex-col justify-between h-full print:p-1 box-border">
+                  <div className="space-y-2">
+                    {/* Compact Top Header for Page 2 */}
+                    <div className="text-center border-b-2 border-red-800/60 pb-1 bg-amber-50/80 p-1.5 rounded">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-stone-700 px-1">
+                        <span>卐 श्री गणेशाय नमः 卐</span>
+                        <span className="font-mono text-red-900">दर्ता नं: {selectedRecord.serialNo}</span>
+                      </div>
+                      <h2 className="text-xs sm:text-sm font-black text-red-900 tracking-wide font-serif mt-0.5">
+                        ॥ आर्जे ज्योतिषीय विस्तृत विवेचना तथा खोजी निर्देशिका ॥
+                      </h2>
+                      <p className="text-[9.5px] text-stone-600 font-sans mt-0.5">
+                        प्रश्नकर्ता: <strong>{selectedRecord.querierName}</strong> | वस्तु: <strong>{selectedRecord.itemName}</strong> | मिति: {selectedRecord.queryDateBS}
+                      </p>
+                    </div>
+
+                    {/* Section 4: THREE LAYER DIRECTION BREAKDOWN TABLE */}
+                    <div className="border border-amber-700/80 p-2 rounded-lg bg-amber-50/60 space-y-1 text-xs">
+                      <h3 className="font-bold text-red-900 border-b border-amber-300 pb-0.5 text-xs flex items-center justify-between">
+                        <span>॥ ४. त्रि-स्तरीय दिशा विश्लेषण (ग्रह, राशि र भाव) ॥</span>
+                        {currentAnalysis.threeLayerDirection.isMixedSignal && (
+                          <span className="bg-amber-200 text-amber-900 text-[9.5px] px-2 py-0.2 rounded font-bold border border-amber-400">
+                            ⚠️ मिश्रित संकेत (Mixed Signals)
+                          </span>
+                        )}
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[10.5px]">
+                        <div className="bg-white p-1.5 rounded border border-amber-300 space-y-0.5">
+                          <p className="font-bold text-red-900 text-[10px]">१. ग्रह-दिशा (Planet Direction):</p>
+                          <p className="font-extrabold text-amber-950 text-xs">{currentAnalysis.threeLayerDirection.planetDirection}</p>
+                          <p className="text-[9.5px] text-stone-600 leading-snug">{currentAnalysis.threeLayerDirection.planetDirectionReason}</p>
+                        </div>
+
+                        <div className="bg-white p-1.5 rounded border border-amber-300 space-y-0.5">
+                          <p className="font-bold text-red-900 text-[10px]">२. राशि-दिशा (Rashi Direction):</p>
+                          <p className="font-extrabold text-amber-950 text-xs">{currentAnalysis.threeLayerDirection.rashiDirection}</p>
+                          <p className="text-[9.5px] text-stone-600 leading-snug">{currentAnalysis.threeLayerDirection.rashiDirectionReason}</p>
+                        </div>
+
+                        <div className="bg-white p-1.5 rounded border border-amber-300 space-y-0.5">
+                          <p className="font-bold text-red-900 text-[10px]">३. भाव-दिशा (Bhava Direction):</p>
+                          <p className="font-extrabold text-amber-950 text-xs">{currentAnalysis.threeLayerDirection.bhavaDirection}</p>
+                          <p className="text-[9.5px] text-stone-600 leading-snug">{currentAnalysis.threeLayerDirection.bhavaDirectionReason}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 5: MULTI-HOUSE JOINT ANALYSIS TABLE */}
+                    <div className="border border-stone-300 p-2 rounded-lg bg-white space-y-1 text-xs">
+                      <h3 className="font-bold text-red-900 border-b border-red-200 pb-0.5 text-xs">
+                        ॥ ५. भाव विश्लेषण (लग्न + चन्द्र + २ + ४ + ७ + ८ + ११ + १२ भाव) ॥
+                      </h3>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse border border-stone-300 text-[10px]">
+                          <thead>
+                            <tr className="bg-amber-100 text-amber-950 font-bold border-b border-stone-300">
+                              <th className="p-1 border-r">भाव / महत्व</th>
+                              <th className="p-1 border-r">राशि / भावेश</th>
+                              <th className="p-1 border-r">स्थित ग्रह</th>
+                              <th className="p-1">ज्योतिषीय संकेत तथा निष्कर्ष</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {currentAnalysis.houseAnalysis.filter((h) => [1, 2, 4, 7, 8, 11, 12].includes(h.houseNo)).map((h) => (
+                              <tr key={h.houseNo} className="border-b border-stone-200">
+                                <td className="p-1 border-r font-bold text-red-900">{h.houseName}</td>
+                                <td className="p-1 border-r font-semibold">{h.rashiName} ({h.lordName})</td>
+                                <td className="p-1 border-r">{h.planetsPresent.length > 0 ? h.planetsPresent.join(', ') : 'खाली'}</td>
+                                <td className="p-1">{h.significanceNepali}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Section 6: APPLIED CLASSICAL RULES & SOURCES */}
+                    <div className="border border-red-700/60 p-2 rounded-lg bg-red-50/40 space-y-1 text-xs">
+                      <h3 className="font-bold text-red-900 border-b border-red-300 pb-0.5 text-xs">
+                        ॥ ६. प्रयोग गरिएका शास्त्रीय नियम तथा स्रोत ॥
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {currentAnalysis.appliedRules.slice(0, 4).map((rule) => (
+                          <div key={rule.id} className="bg-white p-1.5 rounded border border-amber-300 space-y-0.5">
+                            <div className="flex items-center justify-between font-bold text-red-900 text-[10px]">
+                              <span>• {rule.nameNepali}</span>
+                              <span className="text-[8.5px] text-stone-600 bg-amber-100 px-1 py-0.2 rounded">{rule.sourceText}</span>
+                            </div>
+                            <p className="text-[9.5px] text-stone-700 leading-snug">{rule.descriptionNepali}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section 7 & 8: RECOMMENDED SEARCH AREAS & SAFETY/LEGAL GUIDANCE */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
+                      {/* Section 7 */}
+                      <div className="border border-amber-800 p-2 rounded-lg bg-amber-50 space-y-1">
+                        <h4 className="font-bold text-amber-950 text-xs border-b border-amber-300 pb-0.5">
+                          ॥ ७. खोजी गर्दा विशेष ध्यान दिनुपर्ने क्षेत्र ॥
+                        </h4>
+                        <ul className="list-disc pl-4 space-y-0.5 text-stone-800">
+                          {currentAnalysis.recommendedSearchAreas.map((area, idx) => (
+                            <li key={idx}>{area}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Section 8 */}
+                      <div className="border border-red-800 p-2 rounded-lg bg-red-100/70 space-y-1">
+                        <h4 className="font-bold text-red-950 text-xs border-b border-red-300 pb-0.5">
+                          ॥ ८. ⚠️ सुरक्षा, प्रहरी तथा कानुनी जानकारी ॥
+                        </h4>
+                        <ul className="list-disc pl-4 space-y-0.5 text-red-950">
+                          {currentAnalysis.safetyAndLegalGuidance.length > 0 ? (
+                            currentAnalysis.safetyAndLegalGuidance.map((guide, idx) => (
+                              <li key={idx}>{guide}</li>
+                            ))
+                          ) : (
+                            <li>सम्बन्धित निकायमा समयमै जानकारी गराई आवश्यक सावधानी अपनाउनुहोस्।</li>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Section 9: CAUTIONARY DISCLAIMER NOTICE */}
+                    <div className="border border-stone-300 p-1.5 rounded-lg bg-stone-50 text-[9.5px] text-stone-700 leading-snug">
+                      <strong className="text-stone-900">॥ ९. कानुनी तथा ज्योतिषीय सावधानी (Disclaimer): </strong>
+                      यो प्रतिवेदन विशुद्ध प्रश्नकुण्डली र परम्परागत ज्योतिषीय नियममा आधारित साङ्केतिक अनुमान मात्र हो। यसका आधारमा कुनै पनि व्यक्तिलाई विना प्रत्यक्ष प्रमाण चोरीको आरोप लगाउन मनाही छ। वास्तविक निष्कर्ष, खोज तथा कानुनी कारबाहीका लागि नेपाल प्रहरी छानबिन र कानुनी प्रमाणलाई नै अन्तिम आधार मान्नुहोला।
+                    </div>
+
+                    {/* Section 10: ASTROLOGER SIGNATURE BLOCK */}
+                    <div className="pt-1.5 border-t border-red-800 flex items-center justify-between text-xs text-stone-900">
+                      <div className="space-y-0.5">
+                        <p><strong>प्रमाणित गर्ने ज्योतिषाचार्य:</strong> {currentAstrologer?.name || orgProfile.name}</p>
+                        <p><strong>पद / उपाधि:</strong> {currentAstrologer?.title || 'वरिष्ठ ज्योतिषाचार्य'}</p>
+                        <p><strong>सम्पर्क:</strong> {toDevanagariNumerals(currentAstrologer?.contactPhone || orgProfile.phone)}</p>
+                      </div>
+
+                      <div className="text-center space-y-0.5">
+                        <div className="h-10 w-36 border-b border-dashed border-red-800 flex items-center justify-center italic text-[10.5px] text-stone-600">
+                          {currentAstrologer?.signatureUrl ? (
+                            <img src={currentAstrologer.signatureUrl} alt="हस्ताक्षर" className="h-full object-contain" />
+                          ) : (
+                            <span>हस्ताक्षर तथा छाप</span>
+                          )}
+                        </div>
+                        <p className="font-bold text-red-900 text-xs">{currentAstrologer?.name || orgProfile.name}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Page 2 Footer */}
+                  <footer className="pt-1.5 border-t border-[#166534]/30 flex items-center justify-between text-[9.5px] text-stone-500 shrink-0">
+                    <div>
+                      <span className="font-medium text-stone-600">{orgProfile?.name || '॥ श्री बालानन्द ज्योतिष ॥'}</span>
+                    </div>
+                    <div className="italic text-[#166534] font-semibold text-[9px]">
+                      ॥ धर्मो रक्षति रक्षितः ॥
+                    </div>
+                    <div className="font-bold text-[#166534] text-right">
+                      पृष्ठ २ / २
+                    </div>
+                  </footer>
+                </div>
+              </OmBorderFrame>
             </div>
           </div>
         )}
