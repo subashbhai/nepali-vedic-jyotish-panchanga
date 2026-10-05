@@ -124,7 +124,8 @@ import {
   getStoredAstrologers,
   saveAstrologers,
   getStoredPurohits,
-  savePurohits
+  savePurohits,
+  getLiveCurrentMomentProfile
 } from './db/profileStore';
 
 import {
@@ -1111,23 +1112,8 @@ export default function App() {
   const todayAD = new Date().toISOString().split('T')[0];
   const todayBS = useMemo(() => convertADToBS(todayAD).formattedBS, [todayAD]);
 
-  // Default fallback if no profile exists
-  const currentProfile: BirthDetails = activeProfile || {
-    id: 'default',
-    name: 'राम शर्मा',
-    gender: 'male',
-    dateAD: '1995-05-15',
-    dateBS: '२०५२ जेठ ०१',
-    time: '08:30',
-    location: {
-      name: 'काठमाडौँ (Kathmandu)',
-      country: 'Nepal',
-      latitude: 27.7172,
-      longitude: 85.3240,
-      timeZone: 5.75,
-    },
-    category: 'Client',
-  };
+  // Dynamic recent date/time fallback if no user profile is active
+  const currentProfile: BirthDetails = activeProfile || getLiveCurrentMomentProfile();
 
   const birthAD = currentProfile.dateAD || '1995-05-15';
   const birthTime = currentProfile.time || '08:30';

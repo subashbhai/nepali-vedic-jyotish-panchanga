@@ -102,9 +102,9 @@ export const KundaliCompatibilityWidget: React.FC<KundaliCompatibilityWidgetProp
     if (!person1 || !person2 || person1.id === person2.id) {
       // If same person or missing, create synthetic default comparison between person1 and standard counterpart
       if (person1) {
-        const dummyGirl: BirthDetails = {
+        const dummyPartner: BirthDetails = {
           id: 'partner_default',
-          name: person1.gender === 'female' ? 'वर (उदा. राम शर्मा)' : 'कन्या (उदा. सीता पौडेल)',
+          name: person1.gender === 'female' ? 'वर (प्रतिपक्ष वर)' : 'कन्या (प्रतिपक्ष कन्या)',
           gender: person1.gender === 'female' ? 'male' : 'female',
           dateBS: '२०५३-०५-१०',
           dateAD: '1996-08-25',
@@ -118,8 +118,8 @@ export const KundaliCompatibilityWidget: React.FC<KundaliCompatibilityWidgetProp
           }
         };
         return calculateVivahMilan(
-          person1.gender === 'female' ? dummyGirl : person1,
-          person1.gender === 'female' ? person1 : dummyGirl
+          person1.gender === 'female' ? dummyPartner : person1,
+          person1.gender === 'female' ? person1 : dummyPartner
         );
       }
       return null;
@@ -319,7 +319,7 @@ export const KundaliCompatibilityWidget: React.FC<KundaliCompatibilityWidgetProp
                 </option>
               ))}
               {profiles.length <= 1 && (
-                <option value="partner_default">सीता पौडेल (नमुना कन्या)</option>
+                <option value="partner_default">प्रतिपक्ष जोडी (तुलनात्मक विवरण)</option>
               )}
             </select>
           </div>

@@ -280,7 +280,7 @@ export const MobileProfileView: React.FC<{
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="उदा: सीता शर्मा"
+                  placeholder="उदा: पूरा नाम"
                   className="w-full bg-stone-950 border border-stone-800 rounded-xl p-2.5 text-stone-100"
                 />
               </div>

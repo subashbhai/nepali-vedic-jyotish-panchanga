@@ -28,6 +28,7 @@ import { generateMasterFaladeshReport } from '../utils/faladeshEngine';
 import { evaluateAllYogasAndDoshas } from '../utils/yogaEngine';
 import { calculateGocharAndSadeSati } from '../utils/gocharEngine';
 import { calculateVimshottariDasha } from '../utils/dashaEngine';
+import { getLiveCurrentMomentProfile } from '../db/profileStore';
 import { UserCheck, Sparkles, BookOpen, ShieldCheck, Heart, Compass } from 'lucide-react';
 
 export interface SelectedPrintPages {
@@ -243,16 +244,7 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Safe Null-Guards for Input Props
-  const safeProfile: BirthDetails = profile || {
-    id: 'default',
-    name: 'राम शर्मा',
-    gender: 'male',
-    dateAD: '1995-05-15',
-    dateBS: '२०५२ जेठ ०१',
-    time: '08:30',
-    location: { name: 'काठमाडौँ', latitude: 27.7172, longitude: 85.3240, timeZone: 5.75, country: 'नेपाल', district: 'काठमाडौँ', province: 'बागमती' },
-    category: 'Client',
-  };
+  const safeProfile: BirthDetails = profile || getLiveCurrentMomentProfile();
 
   const safeLagna: LagnaInfo = lagna || {
     rashiId: 1,
