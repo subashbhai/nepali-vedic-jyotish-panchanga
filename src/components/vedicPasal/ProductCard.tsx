@@ -9,6 +9,7 @@ interface ProductCardProps {
   onAddToCart: (product: Product) => void;
   onBuyNow: (product: Product) => void;
   onViewDetails: (product: Product) => void;
+  onOpenSamagriList?: (product: Product) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -18,6 +19,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onAddToCart,
   onBuyNow,
   onViewDetails,
+  onOpenSamagriList,
 }) => {
   const isOutOfStock = product.stockQuantity <= 0;
   const isLowStock = product.stockQuantity > 0 && product.stockQuantity <= product.minStockLevel;
@@ -108,10 +110,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </p>
 
           {/* Package items count or book details */}
-          {product.packageItems && product.packageItems.length > 0 && (
-            <p className="text-[11px] text-amber-800 dark:text-amber-300/90 font-medium bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-lg border border-amber-200/50 dark:border-amber-800/40 inline-block">
-              ✨ कुल {product.packageItems.length} प्रकारका सामग्री समावेश
-            </p>
+          {(product.category === 'puja_package' || (product.packageItems && product.packageItems.length > 0)) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenSamagriList) {
+                  onOpenSamagriList(product);
+                } else {
+                  onViewDetails(product);
+                }
+              }}
+              className="w-full text-left group/badge text-[11px] font-bold text-amber-900 dark:text-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/60 dark:to-stone-900 px-2.5 py-1.5 rounded-xl border border-amber-300/80 dark:border-amber-700/80 hover:border-amber-500 hover:shadow-xs transition-all flex items-center justify-between gap-1 cursor-pointer"
+              title="सामग्री र परिमाणको पूर्ण सूची हेर्नुहोस्"
+            >
+              <span className="flex items-center gap-1.5 truncate">
+                <Package className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>कुल {product.packageItems?.length || 26} प्रकारका सामग्री</span>
+              </span>
+              <span className="text-[10px] text-[#D97706] dark:text-amber-400 font-extrabold underline shrink-0">
+                (सूची हेर्नुहोस् 📋)
+              </span>
+            </button>
           )}
 
           {product.bookDetails && (
