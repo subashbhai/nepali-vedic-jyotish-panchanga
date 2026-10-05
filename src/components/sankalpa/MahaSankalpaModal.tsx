@@ -44,8 +44,8 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
   planets
 }) => {
   const [pujaType, setPujaType] = useState<SankalpaPujaType>('daily');
-  const [gotra, setGotra] = useState<string>(activeProfile?.gotra || activeProfile?.fatherDetails?.gotra || 'कश्यप');
-  const [name, setName] = useState<string>(activeProfile?.name || 'यजमान');
+  const [gotra, setGotra] = useState<string>(activeProfile?.gotra || activeProfile?.fatherDetails?.gotra || 'अमुक (आफ्नो गोत्र)');
+  const [name, setName] = useState<string>(activeProfile?.name || 'अमुक नामाहम्');
   const [locationName, setLocationName] = useState<string>(activeProfile?.location?.name || 'काठमाडौँ');
   const [includeFamily, setIncludeFamily] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'sanskrit' | 'nepali' | 'steps'>('sanskrit');
@@ -56,7 +56,7 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
   // Sync profile when opened
   useEffect(() => {
     if (activeProfile) {
-      setName(activeProfile.name || 'यजमान');
+      setName(activeProfile.name || 'अमुक नामाहम्');
       const profileGotra = activeProfile.gotra || activeProfile.fatherDetails?.gotra;
       if (profileGotra) setGotra(profileGotra);
       if (activeProfile.location?.name) setLocationName(activeProfile.location.name);
@@ -230,7 +230,7 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
               >
                 {COMMON_GOTRAS.map((g) => (
                   <option key={g} value={g}>
-                    {g} गोत्र
+                    {g.includes('(') || g.includes('गोत्र') ? g : `${g} गोत्र`}
                   </option>
                 ))}
               </select>
