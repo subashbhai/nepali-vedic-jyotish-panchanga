@@ -66,10 +66,91 @@ interface CeremonyGraphicOptions {
 }
 
 /**
- * Creates an illustrative Graphic SVG representing the cultural ceremony scene
- * with traditional mandap, sacred fire, characters, and authentic package checklist.
+ * Returns high-resolution poster image for ceremony and title
  */
+export function getPosterImageForCeremony(sceneType: CeremonySceneType, titleNepali?: string): string {
+  if (titleNepali && (titleNepali.includes('गणेश') || titleNepali.includes('विद्यारम्भ'))) {
+    return '/images/puja_packages/ganesh_puja_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('विवाह') || titleNepali.includes('लग्न'))) {
+    return '/images/puja_packages/vivaha_mandap_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('व्रतबन्ध') || titleNepali.includes('उपनयन') || titleNepali.includes('मुण्डन') || titleNepali.includes('चूडाकर्म') || titleNepali.includes('वेदारम्भ') || titleNepali.includes('समावर्तन') || titleNepali.includes('छेवर'))) {
+    return '/images/puja_packages/bartabandha_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('पास्नी') || titleNepali.includes('अन्नप्राशन') || titleNepali.includes('कर्णवेध') || titleNepali.includes('निष्क्रमण'))) {
+    return '/images/puja_packages/annaprashan_pasni_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('न्वारान') || titleNepali.includes('नामकरण') || titleNepali.includes('गर्भाधान') || titleNepali.includes('पुंसवन') || titleNepali.includes('सीमन्त') || titleNepali.includes('जातकर्म'))) {
+    return '/images/puja_packages/nwaran_namakarana_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('रुद्र') || titleNepali.includes('शिव') || titleNepali.includes('महामृत्युञ्जय') || titleNepali.includes('लिङ्ग'))) {
+    return '/images/puja_packages/rudrabhishek_shiva_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('सत्यनारायण') || titleNepali.includes('सन्तानगोपाल') || titleNepali.includes('एकादशी') || titleNepali.includes('पूर्णिमा'))) {
+    return '/images/puja_packages/satyanarayan_puja_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('दुर्गा') || titleNepali.includes('चण्डी') || titleNepali.includes('कुलदेवता') || titleNepali.includes('देवाली') || titleNepali.includes('नवरात्र') || titleNepali.includes('दशैं'))) {
+    return '/images/puja_packages/durga_chandi_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('लक्ष्मी') || titleNepali.includes('दीपावली') || titleNepali.includes('तिहार') || titleNepali.includes('व्यापार') || titleNepali.includes('कुबेर'))) {
+    return '/images/puja_packages/lakshmi_puja_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('नवग्रह') || titleNepali.includes('कालसर्प') || titleNepali.includes('मंगल') || titleNepali.includes('दोष') || titleNepali.includes('शान्ति'))) {
+    return '/images/puja_packages/navagraha_shanti_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('गृहप्रवेश') || titleNepali.includes('वास्तु') || titleNepali.includes('भूमि') || titleNepali.includes('शिलान्यास'))) {
+    return '/images/puja_packages/grihapravesh_vastu_poster.jpg';
+  }
+  if (titleNepali && (titleNepali.includes('श्राद्ध') || titleNepali.includes('तर्पण') || titleNepali.includes('अन्त्येष्टि') || titleNepali.includes('पितृ') || titleNepali.includes('मोक्ष'))) {
+    return '/images/puja_packages/shraddha_pitri_poster.jpg';
+  }
+
+  switch (sceneType) {
+    case 'vivah_mandap_sindur':
+      return '/images/puja_packages/vivaha_mandap_poster.jpg';
+    case 'bartabandha_upanayan':
+    case 'chudakarma_mundan':
+    case 'samavartana_snataka':
+      return '/images/puja_packages/bartabandha_poster.jpg';
+    case 'annaprashan_pasni':
+    case 'karnavedha_earpierce':
+      return '/images/puja_packages/annaprashan_pasni_poster.jpg';
+    case 'namakarana_nwaran':
+    case 'garbhadhana_simanta':
+      return '/images/puja_packages/nwaran_namakarana_poster.jpg';
+    case 'rudrabhishek_lingam_snan':
+    case 'mahamrityunjaya_havan':
+      return '/images/puja_packages/rudrabhishek_shiva_poster.jpg';
+    case 'satyanarayan_banana_mandap':
+    case 'santana_gopala_puja':
+      return '/images/puja_packages/satyanarayan_puja_poster.jpg';
+    case 'durga_chandi_path':
+    case 'kuldevata_devali_puja':
+      return '/images/puja_packages/durga_chandi_poster.jpg';
+    case 'lakshmi_deepawali_coins':
+    case 'vyapar_vriddhi_kuber':
+      return '/images/puja_packages/lakshmi_puja_poster.jpg';
+    case 'navagraha_shanti_altar':
+    case 'kalsarp_mangal_dosha':
+      return '/images/puja_packages/navagraha_shanti_poster.jpg';
+    case 'grihapravesh_kalash_door':
+    case 'vastu_shanti_mandala':
+    case 'bhumi_shilanyas_jag':
+      return '/images/puja_packages/grihapravesh_vastu_poster.jpg';
+    case 'antyeshti_pitri_moksha':
+    case 'shraddha_pitri_tarpana':
+      return '/images/puja_packages/shraddha_pitri_poster.jpg';
+    default:
+      return '/images/puja_packages/ganesh_puja_poster.jpg';
+  }
+}
+
 function createVedicCeremonyGraphicSvg(options: CeremonyGraphicOptions): string {
+  return getPosterImageForCeremony(options.sceneType, options.titleNepali);
+}
+
+function _legacySvgGenerator(options: CeremonyGraphicOptions): string {
   const {
     sceneType,
     titleNepali,
@@ -889,6 +970,48 @@ function createVedicCeremonyGraphicSvg(options: CeremonyGraphicOptions): string 
 // ५०+ सम्पूर्ण प्रामाणिक पूजा तथा वैदिक सामग्रीहरूको आधिकारिक ग्यालरी
 // ============================================================================
 export const PUJA_SAMAGRI_GALLERY_DATABASE: PujaGalleryItem[] = [
+  // =========================================================================
+  // ०. विशेष अग्रपूजा (Lord Ganesha Auspicious Puja Package)
+  // =========================================================================
+  {
+    id: 'ps_ganesh_puja_complete',
+    nameNepali: 'श्री गणेश पूजा सम्पूर्ण सामग्री प्याकेज',
+    nameEnglish: 'Lord Ganesha Complete Auspicious Puja Package',
+    category: 'puja_package',
+    categoryNameNepali: 'पूजा प्याकेज',
+    description: 'विघ्न विनाशक, मङ्गलकर्ता, ऋद्धि-सिद्धि दाता श्री गणेशको विशेष पूजा, नयाँ कार्य शुभारम्भ तथा नित्य पूजन सामग्री सेट।',
+    tags: ['गणेश', 'अग्रपूजा', 'विघ्नहर्ता', 'मोदक', 'दुबो', 'सिन्दूर', 'मङ्गल'],
+    suggestedPrice: 1550,
+    samagriList: [
+      'गणेश मूर्ति (धातु/पीतल/माटो) – १ थान',
+      'कलश (तामाको भाँडो) – १ थान',
+      'नारियल – १ थान',
+      'आँपको पात – ५/७ वटा',
+      'पूजा वस्त्र (रातो/पहेंलो कपडा) – १ थान',
+      'जनै (पवित्र धागो) – १ थान',
+      'अक्षता (चामल) – १ प्याकेट',
+      'सुपारी – ५/११ वटा',
+      'पान – ५/११ पाती',
+      'दूर्वा (दुबो) – १ गुच्छा',
+      'फूलमाला / ताजा फूल – १ सेट',
+      'फलफूल – १ सेट (केरा, स्याउ, सुन्तला आदि)',
+      'मिठाई / मोदक – १ प्याकेट',
+      'रोली, चन्दन, अबिर – १ सेट',
+      'धूप, अगरबत्ती – १ प्याकेट',
+      'घिउ (शुद्ध) – १ सानो डब्बा',
+      'तेल (दीपका लागि) – १ बोतल',
+      'कपूर – १ प्याकेट',
+      'अक्षत, तिल, लव, मूंग – सानो प्याकेट',
+      'पञ्चमेवा – १ प्याकेट',
+      'नवधान्य – १ प्याकेट',
+      'गणेश यन्त्र – १ थान',
+      'पूजा पुस्तक (विधि सहित) – १ थान',
+      'माचिस – १ प्याकेट',
+      'घण्टी – १ थान',
+      'आरती थाली (सजावट सहित) – १ सेट',
+    ],
+    imageUrl: '/images/puja_packages/ganesh_puja_poster.jpg',
+  },
   // =========================================================================
   // १. १६ संस्कार (16 Vedic Sanskars)
   // =========================================================================
