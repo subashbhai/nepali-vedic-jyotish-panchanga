@@ -19,7 +19,10 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Camera,
+  Wand2,
+  Scan
 } from 'lucide-react';
 import { DigitalReligiousBook, BookChapter, BookCategoryKey } from '../../data/books/bookTypes';
 import {
@@ -36,8 +39,13 @@ import {
 } from '../../utils/nepaliBookTranslatorEngine';
 import {
   extractTextFromPdfFile,
-  isBinaryGarbage
+  isBinaryGarbage,
+  scanPdfWithAiVisionOcr
 } from '../../utils/pdfTextExtractor';
+import {
+  cleanAndDecodePdfText,
+  isChanakyaOrLegacyFont
+} from '../../utils/legacyFontDecoder';
 import { OrganizationProfile } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
 import { handlePhoneticInputKeyDown, handlePhoneticBlur } from '../../utils/nepaliTransliteration';
@@ -93,6 +101,9 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scanFileInputRef = useRef<HTMLInputElement>(null);
+  const [isScanningOcr, setIsScanningOcr] = useState(false);
+  const [scanProgress, setScanProgress] = useState<string | null>(null);
 
   const refreshBooks = () => {
     setCustomBooks(getCustomBooks());
@@ -182,6 +193,70 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
     }
   };
 
+  // Handle Immediate AI Vision OCR Page Scanner Upload
+  const handleScanOcrUpload = async (file: File) => {
+    if (!file) return;
+
+    if (!titleNepali) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setTitleNepali(cleanName);
+    }
+
+    try {
+      setIsScanningOcr(true);
+      setScanProgress('PDF पृष्ठहरू स्क्यान गरिँदैछ...');
+
+      const result = await scanPdfWithAiVisionOcr(file, (p) => {
+        setScanProgress(p.stage);
+      });
+
+      if (result.text && result.text.trim()) {
+        const cleaned = cleanAndDecodePdfText(result.text);
+        setRawBookText(cleaned);
+        showToast(`🎉 ${toDevanagariNumerals(result.pageCount)} पृष्ठहरू सफलतापूर्वक स्क्यान गरी मन्त्र तथा टीका प्राप्त भयो!`);
+        
+        // Auto-split into chapters
+        setTimeout(() => {
+          handleAutoProcessAndTranslate(cleaned);
+        }, 300);
+      } else {
+        alert('स्क्यानबाट कुनै पाठ निकाल्न सकिएन। कृपया पाठ सिधै तल टाँस्नुहोस्।');
+      }
+    } catch (err: any) {
+      console.error('Scan OCR error:', err);
+      alert('तत्काल स्क्यानमा समस्या आयो: ' + (err?.message || 'कृपया पुनः प्रयास गर्नुहोस्।'));
+    } finally {
+      setIsScanningOcr(false);
+      setScanProgress(null);
+    }
+  };
+
+  // Immediate Fix for legacy Chanakya / Kruti Dev Mojibake
+  const handleFixLegacyMojibake = () => {
+    if (!rawBookText.trim()) {
+      alert('कृपया पहिले कुनै पाठ टाँस्नुहोस् वा फाइल छान्नुहोस्।');
+      return;
+    }
+    const fixed = cleanAndDecodePdfText(rawBookText);
+    setRawBookText(fixed);
+    showToast('✨ चाणक्य/क्रुतिदेव फन्ट सफलतापूर्वक शुद्ध देवनागरीमा रूपान्तरण भयो!');
+  };
+
+  // Auto detect & decode legacy fonts on paste
+  const handlePasteRawText = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (pasted && isChanakyaOrLegacyFont(pasted)) {
+      e.preventDefault();
+      const converted = cleanAndDecodePdfText(pasted);
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart || 0;
+      const end = textarea.selectionEnd || 0;
+      const newText = rawBookText.substring(0, start) + converted + rawBookText.substring(end);
+      setRawBookText(newText);
+      showToast('✨ चाणक्य/क्रुतिदेव फन्ट पत्ता लाग्यो र स्वतः शुद्ध देवनागरीमा रूपान्तरण गरियो!');
+    }
+  };
+
   // Handle PDF / Text file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -204,8 +279,15 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
           setPdfProgress(`पृष्ठ ${toDevanagariNumerals(p.current)} / ${toDevanagariNumerals(p.total)} बाट पाठ निकालिँदैछ...`);
         });
 
+        if (result.wasLegacyDecoded) {
+          showToast('✨ पुरानो चाणक्य/क्रुतिदेव फन्ट पत्ता लाग्यो र स्वतः शुद्ध देवनागरीमा रूपान्तरण गरियो!');
+        }
+
         if (result.isScanned) {
-          alert('चेतावनी: यो PDF स्क्यान गरिएको फोटो (Scanned Image) हुन सक्छ, जसमा डिजिटल अक्षरहरू भेटिएन। कृपया यस ग्रन्थको मूल पाठ तलको बक्समा कपी-पेस्ट गर्नुहोस्।');
+          if (window.confirm('यो PDF स्क्यान गरिएको फोटो (Scanned Image) जस्तो देखिन्छ। के तपाईं यसलाई तत्काल AI Vision OCR मार्फत प्रत्यक्ष स्क्यान गरेर श्लोक र नेपाली टीका निकाल्न चाहनुहुन्छ?')) {
+            await handleScanOcrUpload(file);
+            return;
+          }
         }
 
         extractedText = result.text;
@@ -215,16 +297,21 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
 
       // Check for binary garbage characters
       if (isBinaryGarbage(extractedText)) {
-        alert('त्रुटि: यो फाइलबाट बाइनरी फोहोर कोड प्राप्त भयो (कुनै पठनीय देवनागरी/संस्कृत पाठ भेटिएन)। कृपया शुद्ध डिजिटल टेक्स्ट फाइल प्रयोग गर्नुहोस् वा पाठ सिधै तल पेस्ट गर्नुहोस्।');
+        alert('त्रुटि: यो फाइलबाट बाइनरी फोहोर कोड प्राप्त भयो (कुनै पठनीय देवनागरी/संस्कृत पाठ भेटिएन)। कृपया शुद्ध डिजिटल टेक्स्ट फाइल प्रयोग गर्नुहोस् वा तत्काल पृष्ठ स्क्यानर (OCR) बटन प्रयोग गर्नुहोस्।');
         setRawBookText('');
         return;
       }
 
       if (extractedText && extractedText.trim().length > 0) {
-        setRawBookText(extractedText);
-        showToast(`फाइल "${file.name}" बाट पाठ सफलतापूर्वक लोड भयो! अब "अटो अनुवाद" बटन थिच्नुहोस्।`);
+        const cleanDecoded = cleanAndDecodePdfText(extractedText);
+        setRawBookText(cleanDecoded);
+        showToast(`फाइल "${file.name}" बाट पाठ सफलतापूर्वक लोड भयो!`);
+        // Auto translate/split
+        setTimeout(() => {
+          handleAutoProcessAndTranslate(cleanDecoded);
+        }, 300);
       } else {
-        alert('फाइलबाट कुनै पाठ फेला परेन। कृपया पाठ सिधै कपी गरेर तल टाँस्नुहोस्।');
+        alert('फाइलबाट कुनै पाठ फेला परेन। कृपया पाठ सिधै कपी गरेर तल टाँस्नुहोस् वा स्क्यानर प्रयोग गर्नुहोस्।');
       }
     } catch (err: any) {
       console.error('File read error:', err);
@@ -237,13 +324,16 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
   };
 
   // Auto Split & Translate raw text into Chapters
-  const handleAutoProcessAndTranslate = () => {
-    if (!rawBookText.trim()) {
+  const handleAutoProcessAndTranslate = (overrideText?: string) => {
+    const textToProcess = overrideText || rawBookText;
+    if (!textToProcess.trim()) {
       alert('कृपया पहिले कुनै PDF फाइल छान्नुहोस् वा पाठ बक्समा पुस्तकको सामग्री टाँस्नुहोस्।');
       return;
     }
 
-    if (isBinaryGarbage(rawBookText)) {
+    const cleanInput = cleanAndDecodePdfText(textToProcess);
+
+    if (isBinaryGarbage(cleanInput)) {
       alert('त्रुटि: बक्समा बाइनरी बिग्रेका अक्षरहरू छन्। कृपया यसलाई हटाएर शुद्ध देवनागरी/संस्कृत/नेपाली पाठ मात्र राख्नुहोस्।');
       return;
     }
@@ -253,7 +343,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
       // Check if text has multiple chapters indicated by keywords
       const chapterSplitRegex = /(?:\n\s*|^)(?:॥\s*)?(?:अथ\s+.*?अध्याय|अध्याय\s+[\d०-९]+|भाग\s+[\d०-९]+|खण्ड\s+[\d०-९]+|प्रथम[ः\s]|द्वितीय[ः\s]|तृतीय[ः\s]|चतुर्थ[ः\s]|पञ्चम[ः\s]|षष्ठ[ः\s]|सप्तम[ः\s]|अष्टम[ः\s]|नवम[ः\s]|दशम[ः\s]|एकादश[ः\s]|द्वादश[ः\s]|त्रयोदश[ः\s]|चतुर्दश[ः\s]|स्तोत्र[ः\s]|कवच[ः\s]|चालीसा|आरती)/gi;
 
-      const rawChunks = rawBookText.split(chapterSplitRegex).filter((c) => c.trim().length > 0);
+      const rawChunks = cleanInput.split(chapterSplitRegex).filter((c) => c.trim().length > 0);
 
       let processedChapters: BookChapter[] = [];
 
@@ -770,7 +860,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <input
                         type="file"
                         ref={fileInputRef}
@@ -781,10 +871,31 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="px-3.5 py-1.5 bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded-xl text-xs font-bold hover:bg-amber-100 cursor-pointer flex items-center gap-1.5"
+                        className="px-3 py-1.5 bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded-xl text-xs font-bold hover:bg-amber-100 cursor-pointer flex items-center gap-1.5 shadow-xs"
                       >
                         <FileText className="w-3.5 h-3.5" />
-                        <span>फाइल अपलोड (.pdf / .txt)</span>
+                        <span>द्रुत PDF अपलोड</span>
+                      </button>
+
+                      <input
+                        type="file"
+                        ref={scanFileInputRef}
+                        accept=".pdf,image/*"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleScanOcrUpload(f);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        disabled={isScanningOcr}
+                        onClick={() => scanFileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-amber-600 text-white rounded-xl text-xs font-black hover:from-red-700 hover:to-amber-700 cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>📸 तत्काल स्क्यान (AI Vision OCR)</span>
                       </button>
                     </div>
                   </div>
@@ -796,22 +907,49 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                     </div>
                   )}
 
+                  {scanProgress && (
+                    <div className="p-3 bg-red-100 dark:bg-red-950/50 border border-red-300 dark:border-red-700 rounded-xl flex items-center gap-3 text-xs text-red-900 dark:text-red-200 font-bold animate-pulse">
+                      <Camera className="w-4 h-4 animate-bounce text-red-600 dark:text-red-400" />
+                      <span>{scanProgress}</span>
+                    </div>
+                  )}
+
+                  {/* Informational Banner */}
+                  <div className="bg-amber-100/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl p-2.5 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p>
+                      <strong>🛡️ स्थायी समाधान (Permanent Mojibake Fix):</strong> पुराना धार्मिक ग्रन्थहरू (गीता प्रेस, चौखम्बा) <em>चाणक्य/वाकम्यान फन्ट</em> मा टाइप गरिएकाले PDF बाट <code>üÊÈêy§ / ◊ìàÿÈ</code> जस्ता बिग्रेका अक्षर आउने समस्या अब <strong>पूर्णतया समाधान</strong> भएको छ। सिधै PDF हाल्नुहोस् वा <strong>"तत्काल स्क्यान (OCR)"</strong> प्रयोग गर्नुहोस्, सबै मन्त्र र टीका १००% शुद्ध देवनागरीमै रूपान्तरण हुन्छन्।
+                    </p>
+                  </div>
+
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
-                        पुस्तकको कच्चा पाठ वा मन्त्र (Raw Text):
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                        <span>पुस्तकको कच्चा पाठ वा मन्त्र (Raw Text):</span>
                       </label>
-                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                        ⌨️ Roman to Nepali (Space bar)
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleFixLegacyMojibake}
+                          title="चाणक्य (Chanakya) वा क्रुतिदेवका बिग्रेका अक्षरहरू शुद्ध युनिकोड देवनागरीमा रूपान्तरण गर्नुहोस्"
+                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 rounded-lg text-[11px] font-bold border border-amber-300 dark:border-amber-700 flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                        >
+                          <Wand2 className="w-3 h-3 text-amber-700 dark:text-amber-400" />
+                          <span>⚡ चाणक्य फन्ट शुद्ध गर्नुहोस् (Fix Mojibake)</span>
+                        </button>
+                        <span className="text-[10px] text-stone-500 font-medium">
+                          ⌨️ Roman to Nepali (Space bar)
+                        </span>
+                      </div>
                     </div>
                     <textarea
                       rows={6}
                       value={rawBookText}
                       onChange={(e) => setRawBookText(e.target.value)}
+                      onPaste={handlePasteRawText}
                       onKeyDown={(e) => handlePhoneticInputKeyDown(e, rawBookText, setRawBookText)}
                       onBlur={() => handlePhoneticBlur(rawBookText, setRawBookText)}
-                      placeholder="यहाँ पुस्तकको कुनै पनि अध्याय, हिन्दी टीका वा मूल मन्त्रहरू टाँस्नुहोस् (Paste text here)..."
+                      placeholder="यहाँ पुस्तकको कुनै पनि अध्याय, हिन्दी टीका वा मूल मन्त्रहरू टाँस्नुहोस् (Paste text here)... चाणक्य/क्रुतिदेव फन्ट भए स्वतः शुद्ध हुन्छ।"
                       className="w-full p-3 rounded-xl border border-amber-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden font-serif"
                     />
                   </div>
