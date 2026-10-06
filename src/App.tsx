@@ -218,6 +218,19 @@ export const HASH_TO_TAB: Record<string, NavTab> = {
   'expert': 'apply_expert',
   'admin_control': 'admin_control',
   'admin': 'admin_control',
+  'super_admin': 'admin_control',
+  'store_admin': 'store_admin',
+  'pasal_admin': 'store_admin',
+  'library_admin': 'store_admin',
+  'digital_library_admin': 'store_admin',
+  'pos': 'pos',
+  'pos_terminal': 'pos',
+  'news_editor': 'news_editor',
+  'news_admin': 'news_editor',
+  'vivah_admin': 'vivah_admin',
+  'marriage_admin': 'vivah_admin',
+  'whatsapp_admin': 'whatsapp_admin',
+  'whatsapp_dispatch': 'whatsapp_admin',
   'knowledge': 'knowledge',
   'ai_assistant': 'ai_assistant',
   'settings': 'settings',
@@ -257,6 +270,11 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
   my_subscription: 'मेरो सदस्यता तथा लाइसेन्स',
   apply_expert: 'ज्योतिषी तथा वास्तुविद् प्रमाणीकरण',
   admin_control: 'सुपरएडमिन नियन्त्रण कक्ष',
+  store_admin: '🏬 स्टोर तथा डिजिटल पुस्तकालय व्यवस्थापक',
+  pos: '🛍️ काउन्टर POS बिलिङ टर्मिनल',
+  news_editor: '📰 समाचार तथा लेख सम्पादक ड्यासबोर्ड',
+  vivah_admin: '💍 विवाह बायोडाटा सुपरभाइजर ड्यासबोर्ड',
+  whatsapp_admin: '💬 ह्वाट्सएप दैनिक सन्देश व्यवस्थापक',
   knowledge: 'वैदिक ज्ञान तथा ग्रन्थ भण्डार',
   ai_assistant: 'बालानन्द वैदिक AI सहायक',
   help: 'मद्दत तथा प्रयोगकर्ता निर्देशिका',
@@ -449,7 +467,9 @@ export default function App() {
   const isSuperOrStoreAdmin =
     rbacSession?.role === 'SUPER_ADMIN' ||
     rbacSession?.role === 'STORE_ADMIN' ||
-    rbacSession?.role === 'POS_STAFF';
+    rbacSession?.role === 'POS_STAFF' ||
+    rbacSession?.role === 'NEWS_EDITOR' ||
+    rbacSession?.role === 'MARRIAGE_MODERATOR';
   const isApprovedClient = isClientPurchaseApproved();
   const isFullyUnlocked = isSuperOrStoreAdmin || hasFullAccess || isTrialActive || isApprovedClient;
 
@@ -556,15 +576,13 @@ export default function App() {
             setActiveTab('admin_control');
             if (section) setAdminInitialTab(section);
           } else if (magicRole === 'POS_STAFF') {
-            setPasalInitialTab('pos');
-            setActiveTab('kharedi');
+            setActiveTab('pos');
           } else if (magicRole === 'STORE_ADMIN') {
-            setPasalInitialTab('admin');
-            setActiveTab('kharedi');
+            setActiveTab('store_admin');
           } else if (magicRole === 'MARRIAGE_MODERATOR') {
-            setActiveTab('vivah');
+            setActiveTab('vivah_admin');
           } else if (magicRole === 'NEWS_EDITOR' || validated.session.role === 'NEWS_EDITOR') {
-            setActiveTab('samachar');
+            setActiveTab('news_editor');
           }
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
@@ -573,16 +591,14 @@ export default function App() {
 
       const portal = params.get('portal');
       if (portal === 'pos') {
-        setPasalInitialTab('pos');
-        setActiveTab('kharedi');
+        setActiveTab('pos');
       } else if (portal === 'store_admin') {
-        setPasalInitialTab('admin');
-        setActiveTab('kharedi');
-      } else if (portal === 'vivah_mod') {
-        setActiveTab('vivah');
+        setActiveTab('store_admin');
+      } else if (portal === 'vivah_mod' || portal === 'vivah_admin') {
+        setActiveTab('vivah_admin');
       } else if (portal === 'samachar_editor' || portal === 'news_editor') {
-        setActiveTab('samachar');
-      } else if (portal === 'superadmin') {
+        setActiveTab('news_editor');
+      } else if (portal === 'superadmin' || portal === 'admin') {
         setActiveTab('admin_control');
       }
 
@@ -735,19 +751,8 @@ export default function App() {
     };
   }, [activeTab]);
 
-  // For unauthenticated visitors: restrict to public menus (Home, Panchanga, Patro, Samachar)
-  // For signed-in users: if not fully unlocked, default to dashboard
-  useEffect(() => {
-    if (!rbacSession) {
-      if (!PUBLIC_UNAUTH_NAV_IDS.has(activeTab)) {
-        navigateTab('dashboard', undefined, true);
-      }
-    } else if (!isFullyUnlocked) {
-      if (!NORMAL_USER_ALLOWED_TABS.has(activeTab)) {
-        navigateTab('dashboard', undefined, true);
-      }
-    }
-  }, [rbacSession, isFullyUnlocked, activeTab]);
+  // Note: Tab authorization & login gates are handled gracefully inline by VedicLoginGateView
+  // to ensure that on browser refresh (F5), the active page URL hash is never overwritten!
 
   // Centralized URL-hash routed navigation across all menus and sub-features
   const navigateTab = useCallback((
@@ -1351,236 +1356,9 @@ export default function App() {
     );
   }
 
-  const isPosStaffSession = rbacSession?.role === 'POS_STAFF';
-  const isStoreAdminSession = rbacSession?.role === 'STORE_ADMIN';
-  const isMarriageModSession = rbacSession?.role === 'MARRIAGE_MODERATOR';
-  const isNewsEditorSession = rbacSession?.role === 'NEWS_EDITOR';
-
   return (
     <div className="min-h-screen bg-[#FDFCF8] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] font-sans selection:bg-[#D97706]/20 selection:text-[#D97706] transition-colors duration-200 flex flex-col">
-      {isPosStaffSession ? (
-        <div className="min-h-screen bg-[#FDFCF8] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] flex flex-col">
-          {/* Isolated POS Staff Workstation Header */}
-          <header className="sticky top-0 z-50 bg-stone-900 text-white px-4 py-3 border-b border-stone-800 shadow-md flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-stone-950 font-black flex items-center justify-center text-lg shadow-sm">
-                🛍️
-              </div>
-              <div>
-                <h1 className="font-bold text-sm sm:text-base font-serif text-amber-400">
-                  काउन्टर POS बिलिङ टर्मिनल
-                </h1>
-                <p className="text-[11px] text-stone-400">
-                  बालानन्द वैदिक पसल | काउन्टर बिलिङ तथा प्रत्यक्ष बिक्री कार्यकक्ष
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="hidden sm:flex items-center gap-2 bg-stone-800 px-3 py-1.5 rounded-xl border border-stone-700 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-stone-300">कर्मचारी:</span>
-                <strong className="text-amber-400">{rbacSession.fullName || rbacSession.username}</strong>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleToggleTheme}
-                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
-                title="Theme Toggle"
-              >
-                {settings.theme === 'dark' ? '☀️' : '🌙'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogoutRBAC}
-                className="px-3.5 py-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                title="सत्र बन्द गर्नुहोस्"
-              >
-                <span>सत्र बन्द / Logout</span>
-              </button>
-            </div>
-          </header>
-
-          <main className="flex-1 p-3 sm:p-5 max-w-[1700px] w-full mx-auto">
-            <Suspense fallback={<div className="p-12 text-center text-xs text-amber-600 font-bold animate-pulse">काउन्टर POS लोड हुँदैछ...</div>}>
-              <VedicPasalMainView initialTab="pos" isStandalone={true} />
-            </Suspense>
-          </main>
-        </div>
-      ) : isStoreAdminSession ? (
-        <div className="min-h-screen bg-[#FDFCF8] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] flex flex-col">
-          {/* Isolated Store Admin Workstation Header */}
-          <header className="sticky top-0 z-50 bg-stone-900 text-white px-4 py-3 border-b border-stone-800 shadow-md flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-stone-950 font-black flex items-center justify-center text-lg shadow-sm">
-                🏬
-              </div>
-              <div>
-                <h1 className="font-bold text-sm sm:text-base font-serif text-amber-400">
-                  वैदिक पसल व्यवस्थापक ड्यासबोर्ड (Store Admin)
-                </h1>
-                <p className="text-[11px] text-stone-400">
-                  सामग्री क्याटलग, स्टक इन्भेन्टरी, अर्डर तथा भुक्तानी व्यवस्थापन
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="hidden sm:flex items-center gap-2 bg-stone-800 px-3 py-1.5 rounded-xl border border-stone-700 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-stone-300">स्टोर व्यवस्थापक:</span>
-                <strong className="text-amber-400">{rbacSession.fullName || rbacSession.username}</strong>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleToggleTheme}
-                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
-                title="Theme Toggle"
-              >
-                {settings.theme === 'dark' ? '☀️' : '🌙'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogoutRBAC}
-                className="px-3.5 py-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                title="सत्र बन्द गर्नुहोस्"
-              >
-                <span>सत्र बन्द / Logout</span>
-              </button>
-            </div>
-          </header>
-
-          <main className="flex-1 p-3 sm:p-5 max-w-[1700px] w-full mx-auto">
-            <Suspense fallback={<div className="p-12 text-center text-xs text-amber-600 font-bold animate-pulse">स्टोर व्यवस्थापक ड्यासबोर्ड लोड हुँदैछ...</div>}>
-              <VedicPasalMainView initialTab="admin" isStandalone={true} />
-            </Suspense>
-          </main>
-        </div>
-      ) : isMarriageModSession ? (
-        <div className="min-h-screen bg-[#FDFCF8] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] flex flex-col">
-          {/* Isolated Marriage Moderator Workstation Header */}
-          <header className="sticky top-0 z-50 bg-stone-900 text-white px-4 py-3 border-b border-stone-800 shadow-md flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-rose-500 text-white font-black flex items-center justify-center text-lg shadow-sm">
-                💍
-              </div>
-              <div>
-                <h1 className="font-bold text-sm sm:text-base font-serif text-rose-300">
-                  विवाह बायोडाटा सुपरभाइजर ड्यासबोर्ड
-                </h1>
-                <p className="text-[11px] text-stone-400">
-                  बालानन्द वैदिक वैवाहिक प्रोफाइल प्रमाणीकरण तथा म्याचिङ सुपरभाइजिङ
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="hidden sm:flex items-center gap-2 bg-stone-800 px-3 py-1.5 rounded-xl border border-stone-700 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-stone-300">सुपरभाइजर:</span>
-                <strong className="text-rose-300">{rbacSession.fullName || rbacSession.username}</strong>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleToggleTheme}
-                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
-                title="Theme Toggle"
-              >
-                {settings.theme === 'dark' ? '☀️' : '🌙'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogoutRBAC}
-                className="px-3.5 py-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                title="सत्र बन्द गर्नुहोस्"
-              >
-                <span>सत्र बन्द / Logout</span>
-              </button>
-            </div>
-          </header>
-
-          <main className="flex-1 p-3 sm:p-5 max-w-[1700px] w-full mx-auto">
-            <Suspense fallback={<div className="p-12 text-center text-xs text-rose-600 font-bold animate-pulse">विवाह सुपरभाइजर ड्यासबोर्ड लोड हुँदैछ...</div>}>
-              <AdminVivahSection onRefreshParent={() => {}} />
-            </Suspense>
-          </main>
-        </div>
-      ) : isNewsEditorSession ? (
-        <div className="min-h-screen bg-[#FDFCF8] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] flex flex-col">
-          {/* Isolated News Editor Workstation Header */}
-          <header className="sticky top-0 z-50 bg-stone-900 text-white px-4 py-3 border-b border-stone-800 shadow-md flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-stone-950 font-black flex items-center justify-center text-lg shadow-sm">
-                📰
-              </div>
-              <div>
-                <h1 className="font-bold text-sm sm:text-base font-serif text-amber-200">
-                  समाचार तथा लेख सम्पादक ड्यासबोर्ड
-                </h1>
-                <p className="text-[11px] text-stone-400">
-                  बालानन्द वैदिक पञ्चाङ्ग, चाडपर्व, खगोल तथा ज्योतिष समाचार व्यवस्थापन
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="hidden sm:flex items-center gap-2 bg-stone-800 px-3 py-1.5 rounded-xl border border-stone-700 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-stone-300">सम्पादक:</span>
-                <strong className="text-amber-300">{rbacSession?.fullName || rbacSession?.username || 'समाचार सम्पादक'}</strong>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleToggleTheme}
-                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
-                title="Theme Toggle"
-              >
-                {settings.theme === 'dark' ? '☀️' : '🌙'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogoutRBAC}
-                className="px-3.5 py-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                title="सत्र बन्द गर्नुहोस्"
-              >
-                <span>सत्र बन्द / Logout</span>
-              </button>
-            </div>
-          </header>
-
-          <main className="flex-1 p-3 sm:p-5 max-w-[1700px] w-full mx-auto">
-            <Suspense fallback={<div className="p-12 text-center text-xs text-amber-600 font-bold animate-pulse">समाचार तथा लेख सम्पादक ड्यासबोर्ड लोड हुँदैछ...</div>}>
-              <NewsEditorDashboard orgName={orgProfile.name} isStandalone={true} onRefreshParent={() => {}} />
-            </Suspense>
-          </main>
-        </div>
-      ) : activeTab === 'admin_control' ? (
-        <Suspense fallback={
-          <div className="min-h-screen bg-[#0C0A09] flex flex-col items-center justify-center p-12 space-y-3 text-amber-500">
-            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-semibold">सुपरएडमिन नियन्त्रण कक्ष लोड हुँदैछ...</span>
-          </div>
-        }>
-          <AdminControlPanel
-            onClosePanel={() => navigateTab('dashboard')}
-            onNavigateApp={(tab) => navigateTab(tab as any)}
-            initialTab={adminInitialTab as any}
-            profiles={profiles}
-            todayPanchanga={todayPanchanga}
-            orgProfile={orgProfile}
-            transitPlanets={todayTransitPlanets}
-          />
-        </Suspense>
-      ) : (
-        <div className="flex-1 flex flex-col w-full min-h-0">
+      <div className="flex-1 flex flex-col w-full min-h-0">
           {activeTab === 'dashboard' ? (
             <>
               {/* Sticky Unified Header & Navigation Container (Home / Dashboard only) */}
@@ -2063,14 +1841,67 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'admin_control' && (
+            <AdminControlPanel
+              onClosePanel={() => navigateTab('dashboard')}
+              onNavigateApp={(tab) => navigateTab(tab as any)}
+              initialTab={adminInitialTab as any}
+              profiles={profiles}
+              todayPanchanga={todayPanchanga}
+              orgProfile={orgProfile}
+              transitPlanets={todayTransitPlanets}
+            />
+          )}
+
+          {activeTab === 'store_admin' && (
+            <VedicPasalMainView
+              initialTab="admin"
+              isStandalone={true}
+              orgProfile={orgProfile}
+              onNavigateHome={() => navigateTab('dashboard')}
+            />
+          )}
+
+          {activeTab === 'pos' && (
+            <VedicPasalMainView
+              initialTab="pos"
+              isStandalone={true}
+              orgProfile={orgProfile}
+              onNavigateHome={() => navigateTab('dashboard')}
+            />
+          )}
+
+          {activeTab === 'news_editor' && (
+            <NewsEditorDashboard
+              orgName={orgProfile.name}
+              isStandalone={true}
+              onRefreshParent={() => {}}
+            />
+          )}
+
+          {activeTab === 'vivah_admin' && (
+            <AdminVivahSection onRefreshParent={() => {}} />
+          )}
+
+          {activeTab === 'whatsapp_admin' && (
+            <div className="w-full max-w-6xl mx-auto py-2">
+              <DailyWhatsAppDispatchManager
+                profiles={profiles}
+                todayPanchanga={todayPanchanga}
+                orgProfile={orgProfile}
+                transitPlanets={todayTransitPlanets}
+                onClose={() => navigateTab('dashboard')}
+              />
+            </div>
+          )}
+
                   </PatrikaErrorBoundary>
                 </TabTransition>
         </Suspense>
         </>
       )}
       </main>
-        </div>
-      )}
+      </div>
 
       {/* Modals */}
       <Suspense fallback={null}>
@@ -2177,7 +2008,15 @@ export default function App() {
             setIsRBACAuthModalOpen(false);
             setIsSuperAdminAuthModalOpen(false);
             if (session.role === 'SUPER_ADMIN') {
-              navigateTab('admin_control');
+              if (activeTab === 'dashboard') navigateTab('admin_control');
+            } else if (session.role === 'STORE_ADMIN') {
+              if (activeTab === 'dashboard') navigateTab('store_admin');
+            } else if (session.role === 'POS_STAFF') {
+              if (activeTab === 'dashboard') navigateTab('pos');
+            } else if (session.role === 'NEWS_EDITOR') {
+              if (activeTab === 'dashboard') navigateTab('news_editor');
+            } else if (session.role === 'MARRIAGE_MODERATOR') {
+              if (activeTab === 'dashboard') navigateTab('vivah_admin');
             }
           }}
         />
