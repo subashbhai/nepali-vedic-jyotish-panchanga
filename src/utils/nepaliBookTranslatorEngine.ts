@@ -8,6 +8,7 @@
  */
 
 import { cleanAndDecodePdfText, isChanakyaOrLegacyFont } from './legacyFontDecoder';
+import { BookCategoryKey } from '../data/books/bookTypes';
 
 // Comprehensive Hindi to Nepali linguistic transformation dictionary
 const HINDI_TO_NEPALI_RULES: [RegExp, string][] = [
@@ -259,3 +260,168 @@ export function parseAndTranslateRawBookChapter(rawText: string, defaultTitle: s
     contentNepaliTika: translatedNepaliTika || (rawSanskrit ? 'यस अध्यायका सम्पूर्ण मन्त्रहरूको विधिपूर्वक नित्य पाठ गर्नाले पुण्य, शान्ति र अभीष्ट सिद्धि प्राप्त हुन्छ।' : ''),
   };
 }
+
+export interface ExtractedBookMetadata {
+  titleNepali: string;
+  titleSanskrit: string;
+  subtitleNepali: string;
+  category: BookCategoryKey;
+  authorOriginal: string;
+  descriptionNepali: string;
+}
+
+/**
+ * Reads full extracted text and file name to auto-discover:
+ * - Book title (Nepali and Sanskrit)
+ * - Best-fit category (mantra_stotra, karmakanda, purana, etc.)
+ * - Original author / tradition
+ * - Subtitle & description in Nepali
+ */
+export function extractBookMetadataFromText(fullText: string, fileName?: string): ExtractedBookMetadata {
+  const cleanText = cleanAndDecodePdfText(fullText || '');
+  const lines = cleanText.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+
+  // 1. Determine Title
+  let title = '';
+  let titleSanskrit = '';
+
+  // Look through first 40 lines for prominent title phrases
+  for (let i = 0; i < Math.min(lines.length, 40); i++) {
+    const l = lines[i];
+
+    // Check if line contains typical title patterns
+    if (
+      /(?:चालीसा|स्तोत्र|कवच|सहस्रनाम|अष्टक|माहात्म्य|सप्तशती|रुद्राष्टाध्यायी|सुन्दरकाण्ड|गीता|आरती|पूजाविधि|विधान|व्रतकथा|हवन)/i.test(l) &&
+      l.length >= 4 &&
+      l.length <= 60
+    ) {
+      // Clean up common header decorations
+      const cleaned = l
+        .replace(/^[॥।\s*•\-]+/, '')
+        .replace(/[॥।\s*•\-]+$/, '')
+        .replace(/^अथ\s+/, '')
+        .replace(/^श्री\s*श्री\s*/, 'श्री ')
+        .replace(/\s+समाप्तम्.*$/, '')
+        .trim();
+
+      if (cleaned.length >= 3) {
+        title = cleaned;
+        break;
+      }
+    }
+  }
+
+  // If no title found in text, derive from filename
+  if (!title && fileName) {
+    title = fileName
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+  }
+
+  if (!title) {
+    title = 'श्री सनातन वैदिक धार्मिक ग्रन्थ';
+  }
+
+  // Ensure title has dignified prefix if not already present
+  if (!title.startsWith('श्री ') && !title.startsWith('अथ ') && !title.startsWith('ॐ ')) {
+    title = `श्री ${title}`;
+  }
+
+  // Sanskrit title formatting
+  titleSanskrit = title.replace(/\s+/g, '');
+  if (!titleSanskrit.endsWith('म्') && !titleSanskrit.endsWith('ः')) {
+    titleSanskrit = `${titleSanskrit}म्`;
+  }
+
+  // 2. Determine Category
+  const searchCorpus = `${title} ${cleanText.slice(0, 5000)}`;
+  let category: BookCategoryKey = 'mantra_stotra';
+
+  if (/ऋग्वेद|यजुर्वेद|सामवेद|अथर्ववेद|संहिता|सूक्त|रुद्रसूक्त|पुरुषसूक्त|श्रीसूक्त/i.test(searchCorpus)) {
+    category = 'veda';
+  } else if (/उपनिषद्|कठोपनिषद्|ईशावास्य|माण्डूक्य|केनोपनिषद्|प्रश्नोपनिषद्/i.test(searchCorpus)) {
+    category = 'upanishad';
+  } else if (/पुराण|श्रीमद्भागवत|विष्णुपुराण|शिवपुराण|मार्कण्डेयपुराण|गरुडपुराण/i.test(searchCorpus)) {
+    category = 'purana';
+  } else if (/कर्मकाण्ड|पूजाविधि|पञ्चोपचार|षोडशोपचार|रुद्राभिषेक|हवन|सङ्कल्प|यज्ञ|पद्धति|विधान/i.test(searchCorpus)) {
+    category = 'karmakanda';
+  } else if (/ज्योतिष|कुण्डली|लग्न|ग्रह|गोचर|दशा|मुहूर्त|भाव|होरा|बृहत्पाराशर/i.test(searchCorpus)) {
+    category = 'jyotisha';
+  } else if (/पञ्चाङ्ग|तिथि|नक्षत्र|करण|वार|पञ्चांग/i.test(searchCorpus)) {
+    category = 'panchanga';
+  } else if (/वास्तु|गृहनिर्माण|दिशानिर्देश|वास्तुशास्त्र/i.test(searchCorpus)) {
+    category = 'vastu';
+  } else if (/आयुर्वेद|चरक|सुश्रुत|योग|प्राणायाम|आसन|पतञ्जलि/i.test(searchCorpus)) {
+    category = 'ayurveda_yoga';
+  } else if (/नेपाल|पशुपतिनाथ|मुक्तिनाथ|गोसाइँकुण्ड|नेपालमहात्म्य|जनकपुर/i.test(searchCorpus)) {
+    category = 'nepal_vishesh';
+  } else if (/धर्मशास्त्र|मनुस्मृति|याज्ञवल्क्य|संस्कार|प्रायश्चित्त/i.test(searchCorpus)) {
+    category = 'dharmashastra';
+  } else {
+    category = 'mantra_stotra';
+  }
+
+  // 3. Subtitle
+  let subtitleNepali = 'सुरुदेखि अन्तिमसम्म पूर्ण पाठ • शुद्ध संस्कृत मन्त्र एवं नेपाली टीका';
+  if (category === 'karmakanda') {
+    subtitleNepali = 'सविस्तार पूजन एवं अनुष्ठान विधि • संस्कृत सङ्कल्प मन्त्र तथा नेपाली टीका';
+  } else if (category === 'purana') {
+    subtitleNepali = 'शास्त्रीय पौराणिक कथा • मूल श्लोक तथा नेपाली भावार्थ टीका';
+  } else if (category === 'jyotisha') {
+    subtitleNepali = 'शास्त्रीय ज्योतिषीय फलित एवं सिद्धान्त • नेपाली व्याख्या';
+  } else if (category === 'veda' || category === 'upanishad') {
+    subtitleNepali = 'वैदिक मूल मन्त्र संहिता • सस्वर पाठ तथा नेपाली तात्पर्य';
+  }
+
+  // 4. Author
+  let authorOriginal = 'सनातन पारम्परिक धार्मिक ग्रन्थ';
+  if (/तुलसीदास|गोस्वामी/i.test(searchCorpus)) {
+    authorOriginal = 'गोस्वामी तुलसीदासजी';
+  } else if (/वेदव्यास|व्यासदेव|कृष्णद्वैपायन/i.test(searchCorpus)) {
+    authorOriginal = 'महर्षि कृष्णद्वैपायन वेदव्यास';
+  } else if (/शङ्कराचार्य|शंकराचार्य/i.test(searchCorpus)) {
+    authorOriginal = 'जगद्गुरु आदि शङ्कराचार्य';
+  } else if (/वाल्मीकि/i.test(searchCorpus)) {
+    authorOriginal = 'महर्षि वाल्मीकि';
+  } else if (/पराशर/i.test(searchCorpus)) {
+    authorOriginal = 'महर्षि पराशर मुनि';
+  } else if (/कालिदास/i.test(searchCorpus)) {
+    authorOriginal = 'महाकवि कालिदास';
+  }
+
+  // 5. Description
+  // Search for an introductory commentary paragraph from the first 50 lines
+  let descriptionNepali = '';
+  for (let i = 0; i < Math.min(lines.length, 50); i++) {
+    const l = lines[i];
+    // Prose commentary line that has explanatory value
+    if (
+      l.length > 50 &&
+      !l.includes('॥') &&
+      !l.includes('।।') &&
+      !l.includes('--- पृष्ठ') &&
+      /(?:पाठ|फल|माहात्म्य|महत्त्व|विधि|कथा|भक्ति|सिद्धि|कल्याण|पुण्य|पूजा|मन्त्र)/i.test(l)
+    ) {
+      const translated = translateHindiToNepali(l);
+      if (translated.length > 40) {
+        descriptionNepali = translated;
+        break;
+      }
+    }
+  }
+
+  if (!descriptionNepali) {
+    descriptionNepali = `यस पवित्र ग्रन्थमा ${title} को सम्पूर्ण शास्त्रीय पाठ, मूल संस्कृत मन्त्रहरू तथा सरल एवं प्रामाणिक नेपाली टीका समावेश गरिएको छ। नित्य नियमपूर्वक पाठ गर्नाले पुण्य, शान्ति, ग्रहदोष निवारण तथा अभीष्ट फल प्राप्त हुन्छ।`;
+  }
+
+  return {
+    titleNepali: title,
+    titleSanskrit,
+    subtitleNepali,
+    category,
+    authorOriginal,
+    descriptionNepali,
+  };
+}
+

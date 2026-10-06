@@ -35,7 +35,8 @@ import { BookCoverGenerator, detectDeityFromTitle } from './BookCoverGenerator';
 import { BookReaderModal } from '../books/BookReaderModal';
 import {
   parseAndTranslateRawBookChapter,
-  translateHindiToNepali
+  translateHindiToNepali,
+  extractBookMetadataFromText
 } from '../../utils/nepaliBookTranslatorEngine';
 import {
   extractTextFromPdfFile,
@@ -104,6 +105,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
   const scanFileInputRef = useRef<HTMLInputElement>(null);
   const [isScanningOcr, setIsScanningOcr] = useState(false);
   const [scanProgress, setScanProgress] = useState<string | null>(null);
+  const [isAutoFilledFromPdf, setIsAutoFilledFromPdf] = useState(false);
 
   const refreshBooks = () => {
     setCustomBooks(getCustomBooks());
@@ -142,6 +144,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
     ]);
     setRawBookText('');
     setPdfProgress(null);
+    setIsAutoFilledFromPdf(false);
     setIsEditing(true);
     setActiveFormTab('details');
   };
@@ -161,6 +164,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
     setChapters(book.chapters || []);
     setRawBookText('');
     setPdfProgress(null);
+    setIsAutoFilledFromPdf(false);
     setIsEditing(true);
     setActiveFormTab('details');
   };
@@ -213,7 +217,18 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
       if (result.text && result.text.trim()) {
         const cleaned = cleanAndDecodePdfText(result.text);
         setRawBookText(cleaned);
-        showToast(`🎉 ${toDevanagariNumerals(result.pageCount)} पृष्ठहरू सफलतापूर्वक स्क्यान गरी मन्त्र तथा टीका प्राप्त भयो!`);
+
+        // Auto-fill all book metadata into form
+        const meta = extractBookMetadataFromText(cleaned, file.name);
+        setTitleNepali(meta.titleNepali);
+        setTitleSanskrit(meta.titleSanskrit);
+        setSubtitleNepali(meta.subtitleNepali);
+        setCategory(meta.category);
+        setAuthorOriginal(meta.authorOriginal);
+        setDescriptionNepali(meta.descriptionNepali);
+        setIsAutoFilledFromPdf(true);
+
+        showToast(`🎉 ${toDevanagariNumerals(result.pageCount)} पृष्ठहरू स्क्यान गरी पुस्तकको नाम, विधा र विवरण स्वतः भरियो!`);
         
         // Auto-split into chapters
         setTimeout(() => {
@@ -305,7 +320,19 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
       if (extractedText && extractedText.trim().length > 0) {
         const cleanDecoded = cleanAndDecodePdfText(extractedText);
         setRawBookText(cleanDecoded);
-        showToast(`फाइल "${file.name}" बाट पाठ सफलतापूर्वक लोड भयो!`);
+
+        // Auto-fill all book metadata into form
+        const meta = extractBookMetadataFromText(cleanDecoded, file.name);
+        setTitleNepali(meta.titleNepali);
+        setTitleSanskrit(meta.titleSanskrit);
+        setSubtitleNepali(meta.subtitleNepali);
+        setCategory(meta.category);
+        setAuthorOriginal(meta.authorOriginal);
+        setDescriptionNepali(meta.descriptionNepali);
+        setIsAutoFilledFromPdf(true);
+
+        showToast(`🎉 "${file.name}" बाट पुस्तकको नाम, विधा, लेखक र विवरण स्वतः भरियो!`);
+
         // Auto translate/split
         setTimeout(() => {
           handleAutoProcessAndTranslate(cleanDecoded);
@@ -614,9 +641,98 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
           </div>
 
           <form onSubmit={handleSaveBook} className="space-y-6">
+            {/* Global file input triggers */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".pdf,.txt,.docx"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <input
+              type="file"
+              ref={scanFileInputRef}
+              accept=".pdf,image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleScanOcrUpload(f);
+                e.target.value = '';
+              }}
+              className="hidden"
+            />
+
             {/* TAB 1: Basic Details */}
             {activeFormTab === 'details' && (
               <div className="space-y-5">
+                {/* 🌟 FEATURED PDF UPLOADER & AUTO-FILL CARD IN TAB 1 */}
+                <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100/70 dark:from-stone-900 dark:via-stone-900/90 dark:to-amber-950/40 border-2 border-dashed border-amber-300 dark:border-amber-700/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-black text-amber-950 dark:text-amber-100 flex items-center gap-2 font-serif">
+                        <Upload className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                        <span>१. PDF फाइल यहाँ अपलोड गर्नुहोस् (Auto-Fill Details from PDF)</span>
+                      </h4>
+                      <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">
+                        धार्मिक पुस्तक वा पाण्डुलिपिको PDF छान्नुहोस् — हाम्रो इन्जिनले पुस्तकको <strong>नाम, विधा (Category), लेखक र विवरण</strong> स्वतः पहिचान गरी तलका फारमहरू भरिदिनेछ।
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isProcessingText}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50 transition-all"
+                      >
+                        <FileText className="w-4 h-4 text-amber-200" />
+                        <span>{isProcessingText ? 'पढिँदैछ...' : '📄 PDF फाइल छान्नुहोस्'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isScanningOcr}
+                        onClick={() => scanFileInputRef.current?.click()}
+                        className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-600 text-white rounded-xl text-xs font-bold hover:from-red-700 hover:to-amber-700 cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-all"
+                      >
+                        <Camera className="w-4 h-4 text-red-200" />
+                        <span>📸 तत्काल स्क्यान (AI Vision OCR)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {pdfProgress && (
+                    <div className="p-3 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-xl flex items-center gap-3 text-xs text-amber-900 dark:text-amber-200 font-bold animate-pulse">
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-700 dark:text-amber-300" />
+                      <span>{pdfProgress}</span>
+                    </div>
+                  )}
+
+                  {scanProgress && (
+                    <div className="p-3 bg-red-100 dark:bg-red-950/50 border border-red-300 dark:border-red-700 rounded-xl flex items-center gap-3 text-xs text-red-900 dark:text-red-200 font-bold animate-pulse">
+                      <Camera className="w-4 h-4 animate-bounce text-red-600 dark:text-red-400" />
+                      <span>{scanProgress}</span>
+                    </div>
+                  )}
+
+                  {isAutoFilledFromPdf && (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl p-3 flex items-start justify-between gap-3 text-emerald-900 dark:text-emerald-200 text-xs">
+                      <div className="flex items-center gap-2 font-medium">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          <strong>विवरणहरू स्वतः भरिए!</strong> तलका सबै बाकसहरू (शीर्षक, विधा, लेखक, विवरण आदि) मा यदि कुनै संशोधन वा थपघट गर्न मन लागे तपाईं आफैं सम्पादन (Modify) गर्न सक्नुहुन्छ।
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAutoFilledFromPdf(false)}
+                        className="text-[10px] text-emerald-700 dark:text-emerald-400 hover:underline shrink-0"
+                      >
+                        हटाउनुहोस् ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -861,13 +977,6 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept=".pdf,.txt,.docx"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
@@ -877,17 +986,6 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                         <span>द्रुत PDF अपलोड</span>
                       </button>
 
-                      <input
-                        type="file"
-                        ref={scanFileInputRef}
-                        accept=".pdf,image/*"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleScanOcrUpload(f);
-                          e.target.value = '';
-                        }}
-                        className="hidden"
-                      />
                       <button
                         type="button"
                         disabled={isScanningOcr}
