@@ -69,6 +69,7 @@ import {
 import { PujaSamagriGalleryModal } from './PujaSamagriGalleryModal';
 import { PujaSamagriListModal } from './PujaSamagriListModal';
 import { InvoiceModal } from './InvoiceModal';
+import { StoreDigitalLibraryAdminTab } from '../admin/StoreDigitalLibraryAdminTab';
 
 interface StoreAdminDashboardProps {
   products: Product[];
@@ -84,7 +85,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
   onRefreshData,
 }) => {
   const [adminSubTab, setAdminSubTab] = useState<
-    'overview' | 'esewa_approval' | 'products' | 'orders' | 'inventory' | 'audit_logs' | 'coupons' | 'gallery'
+    'overview' | 'esewa_approval' | 'products' | 'orders' | 'inventory' | 'audit_logs' | 'coupons' | 'gallery' | 'digital_library_admin'
   >('overview');
 
   // Audit and Inventory logs
@@ -498,6 +499,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
           { id: 'inventory', label: `⚠️ इन्भेन्टरी स्टक (${lowStockProducts.length + outOfStockProducts.length})` },
           { id: 'audit_logs', label: `📜 अडिट लगहरू (${auditLogs.length})` },
           { id: 'coupons', label: `🎟️ कुपन (${coupons.length})` },
+          { id: 'digital_library_admin', label: '📚 डिजिटल पुस्तकालय एवं PDF अपलोडर' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -1477,6 +1479,11 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
             );
           })()}
         </div>
+      )}
+
+      {/* View 9: Digital Library Admin & PDF Uploader */}
+      {adminSubTab === 'digital_library_admin' && (
+        <StoreDigitalLibraryAdminTab />
       )}
 
       {/* Image Preview Modal */}

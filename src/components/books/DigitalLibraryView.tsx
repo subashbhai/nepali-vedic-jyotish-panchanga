@@ -16,7 +16,7 @@ import {
   Award
 } from 'lucide-react';
 import { DigitalReligiousBook, BookCategoryKey } from '../../data/books/bookTypes';
-import { PUBLISHED_LETTERHEAD_BOOKS } from '../../data/books/publishedLetterheadBooksData';
+import { getCombinedBooksList } from '../../data/books/customBooksStore';
 import { BookReaderModal } from './BookReaderModal';
 import { OrganizationProfile } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
@@ -44,9 +44,11 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
   const [readingBook, setReadingBook] = useState<DigitalReligiousBook | null>(null);
   const [isReaderOpen, setIsReaderOpen] = useState<boolean>(false);
 
+  const allBooks = useMemo(() => getCombinedBooksList(), []);
+
   // Filter books based on category and search text
   const filteredBooks = useMemo(() => {
-    return PUBLISHED_LETTERHEAD_BOOKS.filter((b) => {
+    return allBooks.filter((b) => {
       const matchesCategory = selectedCategory === 'all' || b.category === selectedCategory;
       const matchesSearch =
         searchQuery.trim() === '' ||
@@ -58,7 +60,7 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
 
       return matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [allBooks, selectedCategory, searchQuery]);
 
   const handleOpenReader = (book: DigitalReligiousBook) => {
     setReadingBook(book);
@@ -104,7 +106,7 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
           <div className="mt-5 pt-4 border-t border-white/15 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-amber-200/90">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
-              <span><strong>{toDevanagariNumerals(PUBLISHED_LETTERHEAD_BOOKS.length)}</strong> आधिकारिक डिजिटल पुस्तकहरू</span>
+              <span><strong>{toDevanagariNumerals(allBooks.length)}</strong> आधिकारिक डिजिटल पुस्तकहरू</span>
             </div>
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-300" />

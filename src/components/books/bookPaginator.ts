@@ -9,27 +9,31 @@ export interface PaginatedBookPage {
   nepaliTikaContent?: string;
   notesNepali?: string;
   isCoverPage?: boolean;
+  isFirstPage?: boolean;
+  isLastPage?: boolean;
 }
 
 /**
  * Intelligent Book Paginator:
  * Breaks any book into structured pages following the user's exact classical rule:
- * 1. Page 1: Official Balananda Letterhead Cover / Table of Contents Page
- * 2. Subsequent Pages:
- *    - Upper Half (५०%): मूल संस्कृत मन्त्र / श्लोक (as many as fit nicely, usually 2 to 4 verses)
- *    - Lower Half (५०%): प्रामाणिक नेपाली टीका एवं विधि for those exact verses
- * 3. All pages wrapped in the authentic Patrika ॐ repeating border frame!
+ * 1. First Page: Official Balananda Letterhead Cover / Table of Contents Page
+ * 2. Intermediate Pages:
+ *    - If No Sanskrit: Full page filled with Nepali text (100% height, no empty half-page).
+ *    - If Sanskrit Present: Page filled with top half Sanskrit (2-4 verses) and bottom half Nepali Tika.
+ * 3. Last Page: Contains the Official Balananda Publisher Footer & seal.
+ * 4. All pages wrapped in the authentic Patrika ॐ repeating border frame!
  */
 export function paginateBookIntoPages(book: DigitalReligiousBook): PaginatedBookPage[] {
   const pages: PaginatedBookPage[] = [];
 
-  // Page 1 is the Cover / Title Page
+  // Page 1 is the Cover / Title Page with Letterhead Banner
   pages.push({
     pageNumber: 1,
     chapterIndex: -1,
     chapterTitleNepali: book.titleNepali,
     chapterTitleSanskrit: book.titleSanskrit,
     isCoverPage: true,
+    isFirstPage: true,
   });
 
   let currentPageNum = 2;
@@ -38,12 +42,46 @@ export function paginateBookIntoPages(book: DigitalReligiousBook): PaginatedBook
     const sanskritRaw = (chapter.contentSanskrit || '').trim();
     const tikaRaw = (chapter.contentNepaliTika || '').trim();
 
+    // 1. SCENARIO A: NO SANSKRIT AT ALL (e.g., pure remedies, totke, vrat katha without Sanskrit)
+    // -> Fill full pages with Nepali text!
+    if (!sanskritRaw && tikaRaw) {
+      // Chunk into ~1000-1200 character blocks so each A4 page is nicely filled
+      const paragraphs = tikaRaw.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+      let currentChunk = '';
+      const chunks: string[] = [];
+
+      for (const para of paragraphs) {
+        if ((currentChunk + '\n\n' + para).length > 1100 && currentChunk.length > 0) {
+          chunks.push(currentChunk.trim());
+          currentChunk = para;
+        } else {
+          currentChunk = currentChunk ? currentChunk + '\n\n' + para : para;
+        }
+      }
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+      }
+
+      chunks.forEach((chunkText, cIdx) => {
+        pages.push({
+          pageNumber: currentPageNum++,
+          chapterIndex: chIdx,
+          chapterTitleNepali: chapter.titleNepali,
+          chapterTitleSanskrit: chapter.titleSanskrit,
+          sanskritContent: undefined, // no Sanskrit -> full page Nepali
+          nepaliTikaContent: chunkText,
+          notesNepali: cIdx === chunks.length - 1 ? chapter.notesNepali : undefined,
+        });
+      });
+      return;
+    }
+
+    // 2. SCENARIO B: SANSKRIT IS PRESENT
     // Check if chapter has distinct numbered verses (e.g. ॥१॥, ॥२॥ or मन्त्र १, मन्त्र २)
     const hasVerseNumbers = /॥\d+॥/.test(sanskritRaw) || /॥[०-९]+॥/.test(sanskritRaw);
 
     if (hasVerseNumbers) {
       // Split Sanskrit into individual verses
-      // Match delimiter with capturing group
       const sktParts = sanskritRaw.split(/(॥\d+॥|॥[०-९]+॥)/g);
       const verses: string[] = [];
       for (let i = 0; i < sktParts.length - 1; i += 2) {
@@ -60,7 +98,6 @@ export function paginateBookIntoPages(book: DigitalReligiousBook): PaginatedBook
       }
 
       // Split Nepali Tika into corresponding explanations
-      // Look for मन्त्र १, मन्त्र २ or श्लोक १, श्लोक २ or blank lines
       const tikaHasNumbers = /(?:मन्त्र|श्लोक)\s*[०-९\d]+:?/.test(tikaRaw);
       let tikaBlocks: string[] = [];
 
@@ -68,12 +105,11 @@ export function paginateBookIntoPages(book: DigitalReligiousBook): PaginatedBook
         const tParts = tikaRaw.split(/(?=(?:मन्त्र|श्लोक)\s*[०-९\d]+:?)/g);
         tikaBlocks = tParts.map((t) => t.trim()).filter(Boolean);
       } else {
-        // Split by double newline paragraphs
         tikaBlocks = tikaRaw.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
       }
 
-      // Chunk 2 to 4 verses per page (depending on length)
-      const versesPerPage = verses.length > 10 ? 4 : verses.length > 4 ? 3 : 2;
+      // Chunk 2 to 4 verses per page so each page is well filled (top half Sanskrit, bottom half Tika)
+      const versesPerPage = verses.length > 12 ? 4 : verses.length > 5 ? 3 : 2;
 
       for (let vIdx = 0; vIdx < verses.length; vIdx += versesPerPage) {
         const chunkSkt = verses.slice(vIdx, vIdx + versesPerPage).join('\n\n');
@@ -97,20 +133,14 @@ export function paginateBookIntoPages(book: DigitalReligiousBook): PaginatedBook
         });
       }
     } else {
-      // Long prose or ritual procedure:
-      // If text is long (> 1200 characters), split into 2 or more balanced pages
+      // Long prose Sanskrit + Nepali (like dhyana, nyasa, vidhi):
       const combinedLen = sanskritRaw.length + tikaRaw.length;
 
-      if (combinedLen > 1400) {
-        // Split into chunks
+      if (combinedLen > 1200) {
         const sktParagraphs = sanskritRaw ? sanskritRaw.split(/\n\s*\n/) : [];
         const tikaParagraphs = tikaRaw ? tikaRaw.split(/\n\s*\n/) : [];
 
-        const totalChunks = Math.max(
-          2,
-          Math.ceil(combinedLen / 1200)
-        );
-
+        const totalChunks = Math.max(2, Math.ceil(combinedLen / 1100));
         const sktChunkSize = Math.max(1, Math.ceil(sktParagraphs.length / totalChunks));
         const tikaChunkSize = Math.max(1, Math.ceil(tikaParagraphs.length / totalChunks));
 
@@ -131,7 +161,6 @@ export function paginateBookIntoPages(book: DigitalReligiousBook): PaginatedBook
           }
         }
       } else {
-        // Fits comfortably on a single A4 Patrika page
         pages.push({
           pageNumber: currentPageNum++,
           chapterIndex: chIdx,
@@ -144,6 +173,12 @@ export function paginateBookIntoPages(book: DigitalReligiousBook): PaginatedBook
       }
     }
   });
+
+  // Mark first and last page flags
+  if (pages.length > 0) {
+    pages[0].isFirstPage = true;
+    pages[pages.length - 1].isLastPage = true;
+  }
 
   return pages;
 }
