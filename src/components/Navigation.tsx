@@ -129,6 +129,11 @@ export type NavTab =
   | 'knowledge' 
   | 'ai_assistant' 
   | 'admin_control'
+  | 'store_admin'
+  | 'pos'
+  | 'news_editor'
+  | 'vivah_admin'
+  | 'whatsapp_admin'
   | 'aarje';
 
 // Vastu Submenu Modules for quick direct navigation
@@ -1047,7 +1052,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
                           <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300">
-                            ६. सुपरएडमिन कक्ष तथा खरिद स्वीकृति
+                            ६. सुपरएडमिन नियन्त्रण कक्ष
                           </span>
                           <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-stone-950">
                             Superadmin
@@ -1059,6 +1064,141 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       </div>
                     </button>
                   )}
+
+                  {/* 7. Store & Digital Library Admin */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUnifiedSettingsOpen(false);
+                      onTabChange('store_admin');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/30"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-600/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300">
+                          ७. स्टोर एवं डिजिटल पुस्तकालय एडमिन
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-stone-800 text-amber-900 dark:text-amber-300">
+                          Store Admin
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        सामग्री, अर्डर, भुक्तानी, PDF ग्रन्थ तथा अटो-कभर व्यवस्थापन
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 8. POS Billing Terminal */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUnifiedSettingsOpen(false);
+                      onTabChange('pos');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
+                          ८. काउन्टर POS बिलिङ टर्मिनल
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
+                          POS
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        काउन्टर प्रत्यक्ष बिक्री, इनभ्वाइस तथा रसिद प्रिन्ट
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 9. News Editor Dashboard */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUnifiedSettingsOpen(false);
+                      onTabChange('news_editor');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Newspaper className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
+                          ९. समाचार तथा लेख सम्पादक
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                          News
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        पञ्चाङ्ग, चाडपर्व, खगोल तथा ज्योतिष समाचार प्रकाशन
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 10. Vivah Supervisor Dashboard */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUnifiedSettingsOpen(false);
+                      onTabChange('vivah_admin');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <HeartHandshake className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
+                          १०. विवाह बायोडाटा सुपरभाइजर
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
+                          Marriage
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        वैवाहिक प्रोफाइल प्रमाणीकरण तथा वर-वधु म्याचिङ
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 11. Daily WhatsApp Dispatch Manager */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUnifiedSettingsOpen(false);
+                      onTabChange('whatsapp_admin');
+                    }}
+                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-green-500/20 text-green-700 dark:text-green-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Bot className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
+                          ११. दैनिक ह्वाट्सएप डिस्प्याच व्यवस्थापक
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-300">
+                          WhatsApp
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                        दैनिक पञ्चाङ्ग, राशिफल तथा उत्सव सन्देश स्वचालित प्रसारण
+                      </p>
+                    </div>
+                  </button>
                 </div>
 
                 {/* Footer with support info */}

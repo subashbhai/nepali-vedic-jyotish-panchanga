@@ -71,7 +71,22 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
   const [wishlist, setWishlist] = useState<string[]>([]);
 
   // Main Active Sub-Tab
-  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'books_download' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin'>(initialTab || 'home');
+  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'books_download' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin'>(() => {
+    if (initialTab) return initialTab;
+    if (typeof window !== 'undefined') {
+      const h = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+      if (h === 'store_admin' || h === 'pasal_admin' || h === 'library_admin' || h === 'digital_library_admin') return 'admin';
+      if (h === 'pos' || h === 'pos_terminal') return 'pos';
+      if (h === 'pustak' || h === 'books_download' || h === 'library' || h === 'digital_library') return 'books_download';
+    }
+    return 'home';
+  });
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Search & Category Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,6 +139,19 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
     }
 
     setActiveTab(targetTab);
+
+    // Synchronize URL hash so on browser refresh (F5), it NEVER redirects back to home
+    if (typeof window !== 'undefined') {
+      let targetHash = '#kharedi';
+      if (targetTab === 'admin') targetHash = '#store_admin';
+      else if (targetTab === 'pos') targetHash = '#pos';
+      else if (targetTab === 'books_download') targetHash = '#pustak';
+      else if (targetTab === 'books') targetHash = '#kharedi';
+
+      if (window.location.hash !== targetHash) {
+        window.history.pushState(null, '', targetHash);
+      }
+    }
   };
 
   // Load Initial Data
