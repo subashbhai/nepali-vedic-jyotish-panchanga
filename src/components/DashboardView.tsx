@@ -500,59 +500,63 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
         <div className="bg-white dark:bg-stone-900 rounded-2xl border border-[#E6E0D5] dark:border-stone-800 p-5 sm:p-6 shadow-sm flex flex-col justify-between h-full">
           <div className="flex-1 flex flex-col">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-amber-200/70 dark:border-stone-800 pb-3 mb-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-xl shadow-xs text-lg flex items-center justify-center shrink-0 select-none">🪔</span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-bold text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight">
+            <div className="border-b border-amber-200/70 dark:border-stone-800 pb-3 mb-3 space-y-2.5">
+              {/* Row 1: Icon, Title & Auto-update Badge */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-xl shadow-xs text-lg flex items-center justify-center shrink-0 select-none">🪔</span>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-[#1A1A1A] dark:text-stone-100 font-serif leading-tight whitespace-nowrap">
                       दैनिक वैदिक सङ्कल्प
                     </h3>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100/90 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold border border-amber-300/60 dark:border-amber-800/60 whitespace-nowrap">
-                      दैनिक स्वतः अद्यावधिक
-                    </span>
+                    <p className="text-[11px] text-amber-800/90 dark:text-amber-400 font-medium truncate">
+                      शास्त्रोक्त नित्य सङ्कल्प वाक्य
+                    </p>
                   </div>
-                  <p className="text-[11px] text-amber-800/90 dark:text-amber-400 font-medium truncate">
-                    शास्त्रोक्त नित्य सङ्कल्प वाक्य
-                  </p>
                 </div>
+
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100/90 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold border border-amber-300/60 dark:border-amber-800/60 whitespace-nowrap shrink-0">
+                  दैनिक स्वतः अद्यावधिक
+                </span>
               </div>
 
-              {/* Unified Location & GPS Control Group */}
-              <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
-                <div className="inline-flex items-center rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-800 dark:to-stone-800/90 border border-amber-300/80 dark:border-amber-700/80 shadow-2xs p-0.5">
+              {/* Row 2: Location Selector & GPS Auto-detect Bar */}
+              <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                <div className="inline-flex items-center justify-between flex-1 min-w-0 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-800 dark:to-stone-800/90 border border-amber-300/80 dark:border-amber-700/80 shadow-2xs p-1">
                   <button
                     type="button"
                     onClick={() => setIsLocationModalOpen(true)}
-                    className="text-xs px-2.5 py-1 text-amber-950 dark:text-amber-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-amber-100/70 dark:hover:bg-stone-700/60 rounded-lg transition-colors group"
+                    className="text-xs px-2 py-1 text-amber-950 dark:text-amber-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-amber-100/70 dark:hover:bg-stone-700/60 rounded-lg transition-colors group min-w-0 flex-1"
                     title="सङ्कल्पका लागि स्थान चयन गर्नुहोस् (नेपालका ७७ जिल्ला, गाउँ/शहर वा GPS)"
                   >
                     <MapPin className="w-3.5 h-3.5 text-[#D97706] group-hover:scale-110 transition-transform shrink-0" />
-                    <span className="font-serif font-bold text-[#78350F] dark:text-amber-300 truncate max-w-[140px] sm:max-w-[170px]">
+                    <span className="font-serif font-bold text-[#78350F] dark:text-amber-300 truncate">
                       {activeGeoLocation?.name?.split('(')[0]?.trim() || activeGeoLocation?.district || 'सप्तरी'}
                     </span>
-                    <span className="text-[9px] bg-amber-200/80 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-sans font-semibold shrink-0">
+                    <span className="text-[9.5px] bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 px-1.5 py-0.5 rounded font-sans font-semibold shrink-0 shadow-2xs">
                       बदल्नुहोस्
                     </span>
                   </button>
-                  <div className="h-4 w-[1px] bg-amber-300/70 dark:bg-stone-700 mx-0.5" />
+                  <div className="h-4 w-[1px] bg-amber-300/70 dark:bg-stone-700 mx-1 shrink-0" />
                   <button
                     type="button"
                     onClick={handleRefreshCardGPS}
                     disabled={isDetectingCardGPS}
                     title="हालको स्थान live GPS बाट स्वतः पत्ता लगाई नजिकका मन्दिर र नदी खोज्नुहोस्"
-                    className="p-1 px-1.5 text-xs text-amber-900 dark:text-amber-200 hover:bg-amber-100/70 dark:hover:bg-stone-700/60 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
+                    className="p-1 px-2 text-xs text-amber-900 dark:text-amber-200 hover:bg-amber-100/70 dark:hover:bg-stone-700/60 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
                   >
                     {isDetectingCardGPS ? (
                       <span className="w-3.5 h-3.5 border-2 border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
                     ) : (
-                      <span title="GPS Auto-detect">🛰️</span>
+                      <span className="flex items-center gap-1 font-sans text-[11px] font-semibold" title="GPS Auto-detect">
+                        🛰️ GPS
+                      </span>
                     )}
                   </button>
                 </div>
 
                 {activeProfile && (
-                  <span className="text-[10px] bg-amber-50 dark:bg-stone-800 text-amber-900 dark:text-amber-200 px-2 py-1 rounded-xl font-bold border border-amber-200 dark:border-amber-800/60 max-w-[110px] truncate hidden lg:inline-block" title={`यजमान: ${activeProfile.name}`}>
+                  <span className="text-[10px] bg-amber-50 dark:bg-stone-800 text-amber-900 dark:text-amber-200 px-2 py-1 rounded-xl font-bold border border-amber-200 dark:border-amber-800/60 max-w-[120px] truncate shrink-0" title={`यजमान: ${activeProfile.name}`}>
                     यजमान: {activeProfile.name}
                   </span>
                 )}
