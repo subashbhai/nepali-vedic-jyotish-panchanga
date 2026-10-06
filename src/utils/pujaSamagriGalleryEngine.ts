@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { StoreCategoryKey, VEDIC_STORE_16_CATEGORIES } from '../types/vedicStoreTypes';
+import { getAssetUrl } from './assetHelper';
 
 export const VEDIC_STORE_OFFICIAL_CONTACT = '97674244778';
 export const VEDIC_STORE_OFFICIAL_CONTACT_DISPLAY = '+977-97674244778';
@@ -73,111 +74,115 @@ interface CeremonyGraphicOptions {
  * Returns high-resolution poster image for ceremony and title
  */
 export function getPosterImageForCeremony(sceneType: CeremonySceneType, titleNepali?: string): string {
-  // 1. Garbhadhana & Maternity Sanskars
-  if (titleNepali && (titleNepali.includes('गर्भाधान') || titleNepali.includes('पुंसवन') || titleNepali.includes('सीमन्त'))) {
-    return '/images/puja_packages/garbhadhana_sanskar_poster.jpg';
-  }
-
-  // 2. Vivaha / Marriage Sanskar
-  if (titleNepali && (titleNepali.includes('विवाह') || titleNepali.includes('लग्न') || titleNepali.includes('पाणिग्रहण') || titleNepali.includes('स्वयंवर'))) {
-    return '/images/puja_packages/vivaha_mandap_poster.jpg';
-  }
-
-  // 3. Bartabandha / Upanayana / Chudakarma
-  if (titleNepali && (titleNepali.includes('व्रतबन्ध') || titleNepali.includes('उपनयन') || titleNepali.includes('मुण्डन') || titleNepali.includes('चूडाकर्म') || titleNepali.includes('वेदारम्भ') || titleNepali.includes('समावर्तन') || titleNepali.includes('केशान्त') || titleNepali.includes('छेवर'))) {
-    return '/images/puja_packages/bartabandha_poster.jpg';
-  }
-
-  // 4. Annaprashan / Pasni / Karnavedha
-  if (titleNepali && (titleNepali.includes('पास्नी') || titleNepali.includes('अन्नप्राशन') || titleNepali.includes('कर्णवेध'))) {
-    return '/images/puja_packages/annaprashan_pasni_poster.jpg';
-  }
-
-  // 5. Nwaran / Namakarana / Nishkramana / Jatakarma
-  if (titleNepali && (titleNepali.includes('न्वारान') || titleNepali.includes('नामकरण') || titleNepali.includes('जातकर्म') || titleNepali.includes('निष्क्रमण'))) {
-    return '/images/puja_packages/nwaran_namakarana_poster.jpg';
-  }
-
-  // 6. Ganesha / Vidyarambha
-  if (titleNepali && (titleNepali.includes('गणेश') || titleNepali.includes('विद्यारम्भ') || titleNepali.includes('अक्षराम्भ') || titleNepali.includes('सरस्वती'))) {
-    return '/images/puja_packages/ganesh_puja_poster.jpg';
-  }
-
-  // 7. Rudrabhishek / Shiva / Mahamrityunjaya
-  if (titleNepali && (titleNepali.includes('रुद्र') || titleNepali.includes('शिव') || titleNepali.includes('महामृत्युञ्जय') || titleNepali.includes('लिङ्ग'))) {
-    return '/images/puja_packages/rudrabhishek_shiva_poster.jpg';
-  }
-
-  // 8. Satyanarayan / Santana Gopala
-  if (titleNepali && (titleNepali.includes('सत्यनारायण') || titleNepali.includes('सन्तानगोपाल') || titleNepali.includes('एकादशी') || titleNepali.includes('पूर्णिमा') || titleNepali.includes('शालिग्राम'))) {
-    return '/images/puja_packages/satyanarayan_puja_poster.jpg';
-  }
-
-  // 9. Durga / Chandi / Kuldevata
-  if (titleNepali && (titleNepali.includes('दुर्गा') || titleNepali.includes('चण्डी') || titleNepali.includes('कुलदेवता') || titleNepali.includes('देवाली') || titleNepali.includes('नवरात्र') || titleNepali.includes('दशैं') || titleNepali.includes('काली') || titleNepali.includes('भगवती'))) {
-    return '/images/puja_packages/durga_chandi_poster.jpg';
-  }
-
-  // 10. Lakshmi / Deepawali / Kuber / Wealth
-  if (titleNepali && (titleNepali.includes('लक्ष्मी') || titleNepali.includes('दीपावली') || titleNepali.includes('तिहार') || titleNepali.includes('व्यापार') || titleNepali.includes('कुबेर') || titleNepali.includes('धनप्राप्ति') || titleNepali.includes('कनकधारा'))) {
-    return '/images/puja_packages/lakshmi_puja_poster.jpg';
-  }
-
-  // 11. Navagraha / Kalsarp / Shani / Mangal
-  if (titleNepali && (titleNepali.includes('नवग्रह') || titleNepali.includes('कालसर्प') || titleNepali.includes('मंगल') || titleNepali.includes('शनि') || titleNepali.includes('दोष') || titleNepali.includes('शान्ति') || titleNepali.includes('राहु') || titleNepali.includes('केतु'))) {
-    return '/images/puja_packages/navagraha_shanti_poster.jpg';
-  }
-
-  // 12. Grihapravesh / Vastu / Bhumi Shilanayas
-  if (titleNepali && (titleNepali.includes('गृहप्रवेश') || titleNepali.includes('वास्तु') || titleNepali.includes('भूमि') || titleNepali.includes('शिलान्यास') || titleNepali.includes('पसल') || titleNepali.includes('कार्यालय') || titleNepali.includes('उद्घाटन'))) {
-    return '/images/puja_packages/grihapravesh_vastu_poster.jpg';
-  }
-
-  // 13. Shraddha / Pitri / Antyeshti / Tarpana
-  if (titleNepali && (titleNepali.includes('श्राद्ध') || titleNepali.includes('तर्पण') || titleNepali.includes('अन्त्येष्टि') || titleNepali.includes('पितृ') || titleNepali.includes('मोक्ष') || titleNepali.includes('नारायणबलि') || titleNepali.includes('त्रिपिण्डी') || titleNepali.includes('एकोदिष्ट') || titleNepali.includes('पार्वण'))) {
-    return '/images/puja_packages/shraddha_pitri_poster.jpg';
-  }
-
-  // SceneType Fallbacks
-  switch (sceneType) {
-    case 'garbhadhana_simanta':
+  const getRawPosterPath = (): string => {
+    // 1. Garbhadhana & Maternity Sanskars
+    if (titleNepali && (titleNepali.includes('गर्भाधान') || titleNepali.includes('पुंसवन') || titleNepali.includes('सीमन्त'))) {
       return '/images/puja_packages/garbhadhana_sanskar_poster.jpg';
-    case 'vivah_mandap_sindur':
+    }
+
+    // 2. Vivaha / Marriage Sanskar
+    if (titleNepali && (titleNepali.includes('विवाह') || titleNepali.includes('लग्न') || titleNepali.includes('पाणिग्रहण') || titleNepali.includes('स्वयंवर'))) {
       return '/images/puja_packages/vivaha_mandap_poster.jpg';
-    case 'bartabandha_upanayan':
-    case 'chudakarma_mundan':
-    case 'samavartana_snataka':
+    }
+
+    // 3. Bartabandha / Upanayana / Chudakarma
+    if (titleNepali && (titleNepali.includes('व्रतबन्ध') || titleNepali.includes('उपनयन') || titleNepali.includes('मुण्डन') || titleNepali.includes('चूडाकर्म') || titleNepali.includes('वेदारम्भ') || titleNepali.includes('समावर्तन') || titleNepali.includes('केशान्त') || titleNepali.includes('छेवर'))) {
       return '/images/puja_packages/bartabandha_poster.jpg';
-    case 'annaprashan_pasni':
-    case 'karnavedha_earpierce':
+    }
+
+    // 4. Annaprashan / Pasni / Karnavedha
+    if (titleNepali && (titleNepali.includes('पास्नी') || titleNepali.includes('अन्नप्राशन') || titleNepali.includes('कर्णवेध'))) {
       return '/images/puja_packages/annaprashan_pasni_poster.jpg';
-    case 'namakarana_nwaran':
+    }
+
+    // 5. Nwaran / Namakarana / Nishkramana / Jatakarma
+    if (titleNepali && (titleNepali.includes('न्वारान') || titleNepali.includes('नामकरण') || titleNepali.includes('जातकर्म') || titleNepali.includes('निष्क्रमण'))) {
       return '/images/puja_packages/nwaran_namakarana_poster.jpg';
-    case 'rudrabhishek_lingam_snan':
-    case 'mahamrityunjaya_havan':
-      return '/images/puja_packages/rudrabhishek_shiva_poster.jpg';
-    case 'satyanarayan_banana_mandap':
-    case 'santana_gopala_puja':
-      return '/images/puja_packages/satyanarayan_puja_poster.jpg';
-    case 'durga_chandi_path':
-    case 'kuldevata_devali_puja':
-      return '/images/puja_packages/durga_chandi_poster.jpg';
-    case 'lakshmi_deepawali_coins':
-    case 'vyapar_vriddhi_kuber':
-      return '/images/puja_packages/lakshmi_puja_poster.jpg';
-    case 'navagraha_shanti_altar':
-    case 'kalsarp_mangal_dosha':
-      return '/images/puja_packages/navagraha_shanti_poster.jpg';
-    case 'grihapravesh_kalash_door':
-    case 'vastu_shanti_mandala':
-    case 'bhumi_shilanyas_jag':
-      return '/images/puja_packages/grihapravesh_vastu_poster.jpg';
-    case 'antyeshti_pitri_moksha':
-    case 'shraddha_pitri_tarpana':
-      return '/images/puja_packages/shraddha_pitri_poster.jpg';
-    default:
+    }
+
+    // 6. Ganesha / Vidyarambha
+    if (titleNepali && (titleNepali.includes('गणेश') || titleNepali.includes('विद्यारम्भ') || titleNepali.includes('अक्षराम्भ') || titleNepali.includes('सरस्वती'))) {
       return '/images/puja_packages/ganesh_puja_poster.jpg';
-  }
+    }
+
+    // 7. Rudrabhishek / Shiva / Mahamrityunjaya
+    if (titleNepali && (titleNepali.includes('रुद्र') || titleNepali.includes('शिव') || titleNepali.includes('महामृत्युञ्जय') || titleNepali.includes('लिङ्ग'))) {
+      return '/images/puja_packages/rudrabhishek_shiva_poster.jpg';
+    }
+
+    // 8. Satyanarayan / Santana Gopala
+    if (titleNepali && (titleNepali.includes('सत्यनारायण') || titleNepali.includes('सन्तानगोपाल') || titleNepali.includes('एकादशी') || titleNepali.includes('पूर्णिमा') || titleNepali.includes('शालिग्राम'))) {
+      return '/images/puja_packages/satyanarayan_puja_poster.jpg';
+    }
+
+    // 9. Durga / Chandi / Kuldevata
+    if (titleNepali && (titleNepali.includes('दुर्गा') || titleNepali.includes('चण्डी') || titleNepali.includes('कुलदेवता') || titleNepali.includes('देवाली') || titleNepali.includes('नवरात्र') || titleNepali.includes('दशैं') || titleNepali.includes('काली') || titleNepali.includes('भगवती'))) {
+      return '/images/puja_packages/durga_chandi_poster.jpg';
+    }
+
+    // 10. Lakshmi / Deepawali / Kuber / Wealth
+    if (titleNepali && (titleNepali.includes('लक्ष्मी') || titleNepali.includes('दीपावली') || titleNepali.includes('तिहार') || titleNepali.includes('व्यापार') || titleNepali.includes('कुबेर') || titleNepali.includes('धनप्राप्ति') || titleNepali.includes('कनकधारा'))) {
+      return '/images/puja_packages/lakshmi_puja_poster.jpg';
+    }
+
+    // 11. Navagraha / Kalsarp / Shani / Mangal
+    if (titleNepali && (titleNepali.includes('नवग्रह') || titleNepali.includes('कालसर्प') || titleNepali.includes('मंगल') || titleNepali.includes('शनि') || titleNepali.includes('दोष') || titleNepali.includes('शान्ति') || titleNepali.includes('राहु') || titleNepali.includes('केतु'))) {
+      return '/images/puja_packages/navagraha_shanti_poster.jpg';
+    }
+
+    // 12. Grihapravesh / Vastu / Bhumi Shilanayas
+    if (titleNepali && (titleNepali.includes('गृहप्रवेश') || titleNepali.includes('वास्तु') || titleNepali.includes('भूमि') || titleNepali.includes('शिलान्यास') || titleNepali.includes('पसल') || titleNepali.includes('कार्यालय') || titleNepali.includes('उद्घाटन'))) {
+      return '/images/puja_packages/grihapravesh_vastu_poster.jpg';
+    }
+
+    // 13. Shraddha / Pitri / Antyeshti / Tarpana
+    if (titleNepali && (titleNepali.includes('श्राद्ध') || titleNepali.includes('तर्पण') || titleNepali.includes('अन्त्येष्टि') || titleNepali.includes('पितृ') || titleNepali.includes('मोक्ष') || titleNepali.includes('नारायणबलि') || titleNepali.includes('त्रिपिण्डी') || titleNepali.includes('एकोदिष्ट') || titleNepali.includes('पार्वण'))) {
+      return '/images/puja_packages/shraddha_pitri_poster.jpg';
+    }
+
+    // SceneType Fallbacks
+    switch (sceneType) {
+      case 'garbhadhana_simanta':
+        return '/images/puja_packages/garbhadhana_sanskar_poster.jpg';
+      case 'vivah_mandap_sindur':
+        return '/images/puja_packages/vivaha_mandap_poster.jpg';
+      case 'bartabandha_upanayan':
+      case 'chudakarma_mundan':
+      case 'samavartana_snataka':
+        return '/images/puja_packages/bartabandha_poster.jpg';
+      case 'annaprashan_pasni':
+      case 'karnavedha_earpierce':
+        return '/images/puja_packages/annaprashan_pasni_poster.jpg';
+      case 'namakarana_nwaran':
+        return '/images/puja_packages/nwaran_namakarana_poster.jpg';
+      case 'rudrabhishek_lingam_snan':
+      case 'mahamrityunjaya_havan':
+        return '/images/puja_packages/rudrabhishek_shiva_poster.jpg';
+      case 'satyanarayan_banana_mandap':
+      case 'santana_gopala_puja':
+        return '/images/puja_packages/satyanarayan_puja_poster.jpg';
+      case 'durga_chandi_path':
+      case 'kuldevata_devali_puja':
+        return '/images/puja_packages/durga_chandi_poster.jpg';
+      case 'lakshmi_deepawali_coins':
+      case 'vyapar_vriddhi_kuber':
+        return '/images/puja_packages/lakshmi_puja_poster.jpg';
+      case 'navagraha_shanti_altar':
+      case 'kalsarp_mangal_dosha':
+        return '/images/puja_packages/navagraha_shanti_poster.jpg';
+      case 'grihapravesh_kalash_door':
+      case 'vastu_shanti_mandala':
+      case 'bhumi_shilanyas_jag':
+        return '/images/puja_packages/grihapravesh_vastu_poster.jpg';
+      case 'antyeshti_pitri_moksha':
+      case 'shraddha_pitri_tarpana':
+        return '/images/puja_packages/shraddha_pitri_poster.jpg';
+      default:
+        return '/images/puja_packages/ganesh_puja_poster.jpg';
+    }
+  };
+
+  return getAssetUrl(getRawPosterPath());
 }
 
 function createVedicCeremonyGraphicSvg(options: CeremonyGraphicOptions): string {
@@ -188,7 +193,7 @@ function createVedicCeremonyGraphicSvg(options: CeremonyGraphicOptions): string 
 // ५०+ सम्पूर्ण प्रामाणिक पूजा तथा वैदिक सामग्रीहरूको आधिकारिक ग्यालरी
 // (All items feature authentic Shastriya breakdown with quantities & units)
 // ============================================================================
-export const PUJA_SAMAGRI_GALLERY_DATABASE: PujaGalleryItem[] = [
+const RAW_PUJA_SAMAGRI_GALLERY_DATABASE: PujaGalleryItem[] = [
   // =========================================================================
   // ०. विशेष अग्रपूजा (Lord Ganesha Auspicious Puja Package)
   // =========================================================================
@@ -1233,6 +1238,11 @@ export const PUJA_SAMAGRI_GALLERY_DATABASE: PujaGalleryItem[] = [
     imageUrl: '/images/puja_packages/durga_chandi_poster.jpg',
   },
 ];
+
+export const PUJA_SAMAGRI_GALLERY_DATABASE: PujaGalleryItem[] = RAW_PUJA_SAMAGRI_GALLERY_DATABASE.map(item => ({
+  ...item,
+  imageUrl: getAssetUrl(item.imageUrl)
+}));
 
 /**
  * Filter gallery items by search query and category

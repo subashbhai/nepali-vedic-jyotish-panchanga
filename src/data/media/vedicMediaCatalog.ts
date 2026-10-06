@@ -1,3 +1,5 @@
+import { getAssetUrl } from '../../utils/assetHelper';
+
 export type MediaCategory = 'all' | 'mantra' | 'stotra' | 'wallpaper' | 'infographic';
 
 export interface VedicMediaItem {
@@ -16,7 +18,7 @@ export interface VedicMediaItem {
   badge?: string;
 }
 
-export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
+const RAW_VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
   // ==========================================
   // १. वैदिक मन्त्र तथा सूक्त (VEDIC MANTRAS & SUKTAS) - १८ वटा
   // ==========================================
@@ -1302,3 +1304,12 @@ export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
     badge: 'पञ्चाङ्ग मण्डल'
   }
 ];
+
+export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = RAW_VEDIC_MEDIA_ITEMS.map(item => ({
+  ...item,
+  downloadUrl: item.type === 'image' ? getAssetUrl(item.downloadUrl) : item.downloadUrl,
+  thumbnailUrl: item.thumbnailUrl ? getAssetUrl(item.thumbnailUrl) : undefined,
+  fileName: item.type === 'audio'
+    ? (item.fileName.startsWith('balananda_baidik_') ? item.fileName : `balananda_baidik_${item.fileName}`)
+    : item.fileName,
+}));

@@ -27,6 +27,7 @@ import {
   MediaCategory
 } from '../../data/media/vedicMediaCatalog';
 import { handlePhoneticInputKeyDown, handlePhoneticBlur } from '../../utils/nepaliTransliteration';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 const CATEGORY_TABS: { key: MediaCategory; label: string; icon: string }[] = [
   { key: 'all', label: 'सम्पूर्ण मिडिया', icon: '✨' },
@@ -47,6 +48,8 @@ export const MediaDownloadView: React.FC = () => {
   const [previewImage, setPreviewImage] = useState<VedicMediaItem | null>(null);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -94,36 +97,114 @@ export const MediaDownloadView: React.FC = () => {
     return `${m < 10 ? '०' + m : m}:${s < 10 ? '०' + s : s}`;
   };
 
-  // Safe guaranteed 1-click Download Trigger
-  const handleDownload = (item: VedicMediaItem) => {
-    setDownloadNotice(`"${item.titleNepali}" डाउनलोड सुरु भयो...`);
-
-    try {
-      const a = document.createElement('a');
-      a.href = item.downloadUrl;
-      a.setAttribute('download', item.fileName);
-      a.setAttribute('target', '_blank');
-      a.setAttribute('rel', 'noopener noreferrer');
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch {
-      window.open(item.downloadUrl, '_blank');
+  const getCleanTargetFileName = (item: VedicMediaItem): string => {
+    let fn = item.fileName;
+    if (item.type === 'audio') {
+      if (!fn.toLowerCase().startsWith('balananda_baidik_') && !fn.toLowerCase().startsWith('balananda-baidik-')) {
+        fn = `balananda_baidik_${fn}`;
+      }
     }
-
-    setTimeout(() => {
-      setDownloadNotice(null);
-    }, 4500);
+    return fn;
   };
 
-  const handleShare = (item: VedicMediaItem) => {
-    if (navigator.clipboard) {
-      const fullUrl = item.downloadUrl.startsWith('http')
-        ? item.downloadUrl
-        : `${window.location.origin}${item.downloadUrl}`;
-      navigator.clipboard.writeText(fullUrl);
-      setCopiedId(item.id);
-      setTimeout(() => setCopiedId(null), 2500);
+  // Safe guaranteed 1-click Direct Download (No new page, no redirect, direct MP3 file)
+  const handleDownload = async (item: VedicMediaItem) => {
+    const finalFileName = getCleanTargetFileName(item);
+    const resolvedUrl = item.type === 'image' ? getAssetUrl(item.downloadUrl) : item.downloadUrl;
+
+    setDownloadingId(item.id);
+    setDownloadNotice(`"${item.titleNepali}" प्रत्यक्ष डाउनलोड हुँदैछ (${finalFileName})...`);
+
+    try {
+      // Direct CORS Blob Fetch: Guarantees direct download in the background without opening ANY new tab/page!
+      const response = await fetch(resolvedUrl, { mode: 'cors' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = blobUrl;
+      a.download = finalFileName;
+      document.body.appendChild(a);
+      a.click();
+
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 2500);
+
+      setDownloadNotice(`✓ "${item.titleNepali}" सफलतापूर्वक डिभाइसमा डाउनलोड भयो (${finalFileName})`);
+    } catch {
+      // Safe fallback if CORS blocks blob creation: direct download attribute without target="_blank"
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = resolvedUrl;
+      a.download = finalFileName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+      }, 1500);
+      setDownloadNotice(`"${item.titleNepali}" डाउनलोड सुरु भयो...`);
+    } finally {
+      setDownloadingId(null);
+      setTimeout(() => {
+        setDownloadNotice(null);
+      }, 4500);
+    }
+  };
+
+  // Direct MP3 File Sharing (Files ONLY, NO link URL, NO website text)
+  const handleShare = async (item: VedicMediaItem) => {
+    const finalFileName = getCleanTargetFileName(item);
+    const resolvedUrl = item.type === 'image' ? getAssetUrl(item.downloadUrl) : item.downloadUrl;
+
+    setSharingId(item.id);
+    setDownloadNotice(`"${item.titleNepali}" अडियो फाइल तयार हुँदैछ, कृपया एक क्षण पर्खनुहोस्...`);
+
+    try {
+      const response = await fetch(resolvedUrl, { mode: 'cors' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+
+      const mimeType = item.type === 'audio' ? 'audio/mpeg' : (blob.type || 'image/jpeg');
+      const file = new File([blob], finalFileName, { type: mimeType });
+
+      // Directly share File object via Web Share API
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file], // Files ONLY, strictly no url or text
+        });
+        setCopiedId(item.id);
+        setDownloadNotice(`✓ "${item.titleNepali}" अडियो फाइल सफलतापूर्वक सेयर गरियो!`);
+      } else {
+        // Fallback for browsers without direct file-sharing API (e.g. desktop Chrome):
+        // Automatically save/download the MP3 file directly so the user has the audio file to attach!
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = finalFileName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 2000);
+        setDownloadNotice(`ब्राउजरमा सिधै फाइल सेयरिङ नभएकाले "${finalFileName}" डिभाइसमा डाउनलोड भयो। अब सिधै पठाउन सक्नुहुन्छ।`);
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        console.warn('Share error:', err);
+        setDownloadNotice(`फाइल सेयर गर्न असमर्थ, कृपया डाउनलोड बटन प्रयोग गर्नुहोस्।`);
+      }
+    } finally {
+      setSharingId(null);
+      setTimeout(() => {
+        setCopiedId(null);
+        setDownloadNotice(null);
+      }, 5000);
     }
   };
 
@@ -288,10 +369,11 @@ export const MediaDownloadView: React.FC = () => {
                     className="relative h-56 sm:h-64 w-full bg-stone-100 dark:bg-stone-800 overflow-hidden cursor-pointer group/thumb"
                   >
                     <img
-                      src={item.thumbnailUrl}
+                      src={getAssetUrl(item.thumbnailUrl)}
                       alt={item.titleNepali}
                       className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-500"
                       loading="lazy"
+                      onError={(e) => handleImageFallback(e, ['/assets/deities/shiva_kailash.jpg', '/logo.png'])}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-black/20 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-3">
                       <span className="px-3 py-1.5 rounded-xl bg-white/90 text-stone-900 text-xs font-bold flex items-center gap-1.5 shadow-lg">
@@ -393,20 +475,28 @@ export const MediaDownloadView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleDownload(item)}
-                    className="py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95"
-                    title={`${item.titleNepali} डाउनलोड गर्नुहोस्`}
+                    disabled={downloadingId === item.id}
+                    className="py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95 disabled:opacity-60"
+                    title={`${item.titleNepali} सिधै डाउनलोड गर्नुहोस्`}
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>डाउनलोड</span>
+                    <Download className={`w-3.5 h-3.5 ${downloadingId === item.id ? 'animate-bounce' : ''}`} />
+                    <span>{downloadingId === item.id ? 'डाउनलोड...' : 'डाउनलोड'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleShare(item)}
-                    className="p-2 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer"
-                    title="लिङ्क कपी गर्नुहोस्"
+                    disabled={sharingId === item.id}
+                    className="p-2 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer disabled:opacity-60 transition-colors"
+                    title="अडियो / मिडिया फाइल सिधै सेयर गर्नुहोस्"
                   >
-                    {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
+                    {sharingId === item.id ? (
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                    ) : copiedId === item.id ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Share2 className="w-3.5 h-3.5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -529,9 +619,10 @@ export const MediaDownloadView: React.FC = () => {
             {/* Image Full Container */}
             <div className="flex-1 overflow-auto p-2 sm:p-4 flex items-center justify-center bg-black/60">
               <img
-                src={previewImage.downloadUrl}
+                src={getAssetUrl(previewImage.downloadUrl)}
                 alt={previewImage.titleNepali}
                 className="max-h-[72vh] w-auto object-contain rounded-xl shadow-2xl border border-stone-800"
+                onError={(e) => handleImageFallback(e, ['/assets/deities/shiva_kailash.jpg', '/logo.png'])}
               />
             </div>
 

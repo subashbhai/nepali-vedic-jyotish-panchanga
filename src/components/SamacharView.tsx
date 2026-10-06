@@ -55,6 +55,7 @@ import {
   DeityPortraitInfo, 
   NepaliFestivalArtInfo 
 } from '../utils/deityAndFestivalArtEngine';
+import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
 
 interface SamacharViewProps {
   todayTransitPlanets?: PlanetPosition[];
@@ -626,9 +627,9 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                     <div className="w-full lg:w-72 h-52 sm:h-60 rounded-2xl overflow-hidden border border-amber-300 dark:border-amber-800 shadow-md shrink-0 relative group cursor-pointer"
                          onClick={() => handleOpenStoredArticle(todayTithiArticle)}>
                       <img 
-                        src={todayTithiArticle.coverImageUrl} 
+                        src={getAssetUrl(todayTithiArticle.coverImageUrl)} 
                         alt={todayTithiArticle.title}
-                        onError={(e) => { e.currentTarget.src = deityInfo.portraitUrl || '/assets/festivals/dashain_ghatasthapana.jpg'; }}
+                        onError={(e) => { handleImageFallback(e, [deityInfo.portraitUrl || '/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent flex flex-col justify-end p-3">
@@ -695,9 +696,9 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                           {art.coverImageUrl && (
                             <div className="relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden border border-amber-200 dark:border-stone-800 group-hover:scale-105 transition-transform shadow-xs">
                               <img 
-                                src={art.coverImageUrl} 
+                                src={getAssetUrl(art.coverImageUrl)} 
                                 alt={art.title} 
-                                onError={(e) => { e.currentTarget.src = festArt?.illustrationUrl || '/assets/festivals/dashain_ghatasthapana.jpg'; }}
+                                onError={(e) => { handleImageFallback(e, [festArt?.illustrationUrl || '/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
                                 className="w-full h-full object-cover" 
                               />
                               <div className="absolute bottom-1 left-1 right-1 bg-black/80 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-1 py-0.5 rounded-md text-center border border-amber-500/40">
@@ -775,9 +776,9 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                       {art.coverImageUrl && (
                         <div className="w-full h-40 rounded-xl overflow-hidden mb-2 relative">
                           <img 
-                            src={art.coverImageUrl} 
+                            src={getAssetUrl(art.coverImageUrl)} 
                             alt={art.title} 
-                            onError={(e) => { e.currentTarget.src = '/assets/festivals/dashain_ghatasthapana.jpg'; }}
+                            onError={(e) => { handleImageFallback(e, ['/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                           <span className="absolute top-2 left-2 bg-black/70 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs">
@@ -951,8 +952,9 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                 {breakingArticle.coverImageUrl && (
                   <div className="w-full lg:w-72 h-44 sm:h-48 rounded-2xl overflow-hidden border border-amber-200 dark:border-amber-800 shadow-xs shrink-0 relative">
                     <img 
-                      src={breakingArticle.coverImageUrl} 
+                      src={getAssetUrl(breakingArticle.coverImageUrl)} 
                       alt={breakingArticle.planet} 
+                      onError={(e) => { handleImageFallback(e, ['/logo.png']); }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                     />
                     <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
@@ -1279,9 +1281,9 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
               {selectedStoredArticle.coverImageUrl && (
                 <div className="w-full h-64 sm:h-80 rounded-2xl overflow-hidden border border-stone-200 dark:border-stone-800 shadow-md">
                   <img 
-                    src={selectedStoredArticle.coverImageUrl} 
+                    src={getAssetUrl(selectedStoredArticle.coverImageUrl)} 
                     alt={selectedStoredArticle.title}
-                    onError={(e) => { e.currentTarget.src = '/assets/festivals/dashain_ghatasthapana.jpg'; }}
+                    onError={(e) => { handleImageFallback(e, ['/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
                     className="w-full h-full object-cover" 
                   />
                 </div>
