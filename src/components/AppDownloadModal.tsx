@@ -22,7 +22,9 @@ import {
   triggerDirectBrowserDownload, 
   checkLatestRelease,
   getApkDirectDownloadUrl,
-  CURRENT_APP_VERSION
+  CURRENT_APP_VERSION,
+  isAndroidDevice,
+  isMacDevice
 } from '../utils/appVersionManager';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { ApkDownloadPromptModal } from './common/ApkDownloadPromptModal';
@@ -40,9 +42,15 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
   isOpen,
   onClose,
   currentVersion = `v${CURRENT_APP_VERSION}`,
-  initialTab = 'WINDOWS',
+  initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<PlatformTab>(initialTab);
+  const detectDefaultTab = (): PlatformTab => {
+    if (isAndroidDevice()) return 'ANDROID';
+    if (isMacDevice()) return 'MAC';
+    return 'WINDOWS';
+  };
+
+  const [activeTab, setActiveTab] = useState<PlatformTab>(initialTab || detectDefaultTab());
   const [downloadUrls, setDownloadUrls] = useState(DEFAULT_DIRECT_DOWNLOADS);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
@@ -50,9 +58,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
   const { isInstallable, isInstalled, install } = usePWAInstall();
 
   React.useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
-    }
+    setActiveTab(initialTab || detectDefaultTab());
   }, [initialTab, isOpen]);
 
   const [hasRealApk, setHasRealApk] = useState(true);

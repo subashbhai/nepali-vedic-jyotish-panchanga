@@ -28,7 +28,9 @@ import {
   triggerDesktopDownloadUpdate,
   triggerDesktopRestartAndInstall,
   triggerDirectBrowserDownload,
-  triggerInAppOrDirectDownload
+  triggerInAppOrDirectDownload,
+  getTargetedUpdateAsset,
+  isAndroidDevice
 } from '../../utils/appVersionManager';
 
 interface AppUpdateNotificationModalProps {
@@ -73,6 +75,7 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
 
   const winAsset = remoteRelease?.assets?.find(a => a.platform === 'windows');
   const apkAsset = remoteRelease?.assets?.find(a => a.platform === 'android');
+  const targetedAsset = getTargetedUpdateAsset(remoteRelease);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
@@ -265,7 +268,11 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black text-xs shadow-lg flex items-center gap-2 cursor-pointer transition-all active:scale-95"
               >
                 <Download className="w-4 h-4" />
-                <span>यसै सफ्टवेयरमा सिधै डाउनलोड गर्नुहोस्</span>
+                <span>
+                  {targetedAsset.platform === 'android'
+                    ? 'सिधै APK डाउनलोड (.apk)'
+                    : 'यसै सफ्टवेयरमा सिधै डाउनलोड गर्नुहोस् (.exe)'}
+                </span>
               </button>
             )}
           </div>
@@ -290,6 +297,7 @@ export const AppUpdateFloatingBanner: React.FC<{
   const isDownloading = electronStatus.status === 'downloading';
 
   const [dismissed, setDismissed] = useState(false);
+  const targetedAsset = getTargetedUpdateAsset(remoteRelease);
 
   useEffect(() => {
     if (targetVersion) {
@@ -375,7 +383,11 @@ export const AppUpdateFloatingBanner: React.FC<{
               className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>सिधै डाउनलोड गर्नुहोस्</span>
+              <span>
+                {targetedAsset.platform === 'android'
+                  ? 'सिधै APK डाउनलोड (.apk)'
+                  : 'सिधै डाउनलोड गर्नुहोस् (.exe)'}
+              </span>
             </button>
           </>
         )}

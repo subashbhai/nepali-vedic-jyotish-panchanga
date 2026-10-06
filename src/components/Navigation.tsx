@@ -498,23 +498,40 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     <nav className="text-[#2D241E] dark:text-stone-100 transition-colors">
       <div className="max-w-[1700px] w-full mx-auto px-2 sm:px-3 py-1.5 flex items-center justify-between gap-1.5 sm:gap-2 relative">
 
-        {/* ☰ Mobile Hamburger Button — only on small screens */}
+        {/* ☰ Mobile / Tablet Hamburger Dropdown Button (3rd Image Style) */}
         <button
           type="button"
           onClick={() => setIsMobileDrawerOpen((prev) => !prev)}
-          className={`sm:hidden flex items-center justify-center w-9 h-9 rounded-xl border shadow-xs shrink-0 cursor-pointer transition-all duration-150 ${
+          className={`xl:hidden flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl border shadow-xs shrink-0 cursor-pointer transition-all duration-150 ${
             isMobileDrawerOpen
               ? 'bg-[#7A1C1C] text-amber-300 border-[#5C1515] ring-2 ring-amber-400/40'
-              : 'bg-stone-100/90 dark:bg-stone-800/90 border-[#E6E0D5] dark:border-stone-700 text-[#7A1C1C] dark:text-amber-400 active:scale-95'
+              : 'bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-100 active:scale-95'
           }`}
           aria-label={isMobileDrawerOpen ? 'मेनु बन्द गर्नुहोस्' : 'मेनु खोल्नुहोस्'}
           aria-expanded={isMobileDrawerOpen}
+          title="सम्पूर्ण मेनु सूची हेर्नुहोस् (Menu)"
         >
-          {isMobileDrawerOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {isMobileDrawerOpen ? (
+            <X className="w-5 h-5 text-current" />
+          ) : (
+            <svg
+              className="w-5 h-5 text-current"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          )}
         </button>
 
-        {/* Main Navigation Items - Compact Single Line Layout */}
-        <div className="hidden sm:flex items-center gap-0.5 md:gap-1 lg:gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5">
+        {/* Main Navigation Items - Compact Horizontally Scrollable Layout */}
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5">
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isSewa = item.id === 'sewa';
@@ -1710,12 +1727,12 @@ export const Navigation: React.FC<NavigationProps> = memo(({
         <>
           {/* Backdrop with subtle blur */}
           <div
-            className="fixed inset-0 bg-black/65 backdrop-blur-xs z-[9990] sm:hidden animate-in fade-in duration-200"
+            className="fixed inset-0 bg-black/65 backdrop-blur-xs z-[9990] xl:hidden animate-in fade-in duration-200"
             onClick={() => setIsMobileDrawerOpen(false)}
           />
 
           {/* Top-Down Scrollable Sheet Container */}
-          <div className="fixed top-0 left-0 right-0 max-h-[92vh] bg-white dark:bg-stone-900 z-[9995] shadow-2xl sm:hidden flex flex-col rounded-b-3xl border-b-4 border-amber-500 animate-in slide-in-from-top duration-300 ease-out overflow-hidden">
+          <div className="fixed top-0 left-0 right-0 max-h-[92vh] bg-white dark:bg-stone-900 z-[9995] shadow-2xl xl:hidden flex flex-col rounded-b-3xl border-b-4 border-amber-500 animate-in slide-in-from-top duration-300 ease-out overflow-hidden">
 
             {/* Menu Header with Om emblem and Close button */}
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#7A1C1C] via-[#931F1F] to-[#5C1515] text-white shrink-0 shadow-md">

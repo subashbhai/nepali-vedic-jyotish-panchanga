@@ -220,6 +220,144 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
   }
 }
 
+export type ClientDevicePlatform = 'android' | 'windows' | 'mac' | 'ios' | 'linux' | 'other';
+
+/**
+ * Accurately determines client OS / device platform for targeted updates and downloads
+ */
+export function getClientDevicePlatform(): ClientDevicePlatform {
+  if (typeof window === 'undefined') return 'other';
+
+  const ua = (navigator.userAgent || navigator.vendor || (window as any).opera || '').toLowerCase();
+
+  // 1. Capacitor Native Android/iOS check
+  const cap = (window as any).Capacitor;
+  if (cap?.getPlatform?.() === 'android') return 'android';
+  if (cap?.getPlatform?.() === 'ios') return 'ios';
+
+  // 2. Explicit URL Query/Storage overrides
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const appQuery = searchParams.get('app')?.toLowerCase();
+    const modeQuery = searchParams.get('mode')?.toLowerCase();
+    const platQuery = searchParams.get('platform')?.toLowerCase();
+
+    if (appQuery === 'apk' || appQuery === 'android' || platQuery === 'android' || modeQuery === 'android') {
+      return 'android';
+    }
+    if (appQuery === 'windows' || platQuery === 'windows' || modeQuery === 'windows') {
+      return 'windows';
+    }
+    if (appQuery === 'mac' || platQuery === 'mac' || modeQuery === 'mac') {
+      return 'mac';
+    }
+    if (appQuery === 'ios' || platQuery === 'ios' || modeQuery === 'ios') {
+      return 'ios';
+    }
+  } catch {}
+
+  // 3. User-Agent Detection (Order matters!)
+  if (/android/i.test(ua)) {
+    return 'android';
+  }
+  if (/iphone|ipad|ipod/i.test(ua)) {
+    return 'ios';
+  }
+  if (/macintosh|mac os x/i.test(ua)) {
+    return 'mac';
+  }
+  if (/win(dows|32|64)/i.test(ua) || Boolean((window as any).electronAPI?.isDesktop)) {
+    return 'windows';
+  }
+  if (/linux/i.test(ua)) {
+    return 'linux';
+  }
+
+  return 'other';
+}
+
+export function isAndroidDevice(): boolean {
+  return getClientDevicePlatform() === 'android';
+}
+
+export function isWindowsDevice(): boolean {
+  return getClientDevicePlatform() === 'windows' || isDesktopApp();
+}
+
+export function isMacDevice(): boolean {
+  return getClientDevicePlatform() === 'mac';
+}
+
+export function isIosDevice(): boolean {
+  return getClientDevicePlatform() === 'ios';
+}
+
+export interface TargetedUpdateAsset {
+  platform: ClientDevicePlatform;
+  downloadUrl: string;
+  fileName: string;
+  fileType: 'apk' | 'exe' | 'dmg' | 'zip' | 'other';
+  labelNepali: string;
+  labelEnglish: string;
+  size?: number;
+}
+
+/**
+ * Filter Engine: Returns the platform-targeted update asset for the current user's device.
+ * Guarantees Android users receive .apk, Windows users receive .exe, Mac users receive .dmg.
+ */
+export function getTargetedUpdateAsset(release: RemoteReleaseInfo | null): TargetedUpdateAsset {
+  const platform = getClientDevicePlatform();
+  const cleanVer = release?.version?.replace(/^v/i, '') || CURRENT_APP_VERSION;
+
+  if (platform === 'android') {
+    const apkAsset = release?.assets?.find(a => a.platform === 'android' || a.name.toLowerCase().endsWith('.apk'));
+    const downloadUrl = apkAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.androidApk;
+    const fileName = apkAsset?.name || 'nepali-vedic-jyotish-panchanga.apk';
+    return {
+      platform: 'android',
+      downloadUrl,
+      fileName,
+      fileType: 'apk',
+      labelNepali: 'Android APK (.apk)',
+      labelEnglish: 'Android APK',
+      size: apkAsset?.size || 29420663,
+    };
+  }
+
+  if (platform === 'mac') {
+    const macAsset = release?.assets?.find(a => a.platform === 'mac' || a.name.toLowerCase().endsWith('.dmg'));
+    const downloadUrl = macAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.macDmg;
+    const fileName = macAsset?.name || `nepali-vedic-jyotish-panchanga-${cleanVer}.dmg`;
+    return {
+      platform: 'mac',
+      downloadUrl,
+      fileName,
+      fileType: 'dmg',
+      labelNepali: 'Apple Mac (.dmg)',
+      labelEnglish: 'macOS Installer',
+      size: macAsset?.size || 143654912,
+    };
+  }
+
+  // Windows (Default for PC / Desktop)
+  const winAsset = release?.assets?.find(a => a.platform === 'windows' && a.name.toLowerCase().includes('setup'))
+    || release?.assets?.find(a => a.platform === 'windows')
+    || release?.assets?.find(a => a.name.toLowerCase().endsWith('.exe'));
+  const downloadUrl = winAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.windowsSetup;
+  const fileName = winAsset?.name || `nepali-vedic-jyotish-panchanga-setup-${cleanVer}.exe`;
+
+  return {
+    platform: 'windows',
+    downloadUrl,
+    fileName,
+    fileType: 'exe',
+    labelNepali: 'Windows Setup (.exe)',
+    labelEnglish: 'Windows Setup',
+    size: winAsset?.size || 137773998,
+  };
+}
+
 export function isDesktopApp(): boolean {
   if (typeof window === 'undefined') return false;
   const isElectron = Boolean((window as any).electronAPI?.isDesktop);
@@ -321,19 +459,18 @@ export function triggerDirectBrowserDownload(fileUrl: string, fileName?: string)
 }
 
 /**
- * Unified In-App Downloader
- * In Desktop: starts downloading inside the app with live percentage progress bar
- * In Web/PWA: triggers direct file download into Downloads folder without visiting GitHub
+ * Unified In-App / Platform-Filtered Downloader
+ * In Desktop Windows App: starts downloading inside the app with live percentage progress bar
+ * In Android APK / Browser: directly downloads the .apk installer without ever pulling the Windows .exe
+ * In Web Browser (Windows/Mac): triggers targeted browser direct download
  */
 export async function triggerInAppOrDirectDownload(release: RemoteReleaseInfo | null): Promise<void> {
-  const winAsset = release?.assets?.find(a => a.platform === 'windows')?.downloadUrl;
-  const targetUrl = winAsset || DEFAULT_DIRECT_DOWNLOADS.windowsSetup;
-  const fileName = release?.assets?.find(a => a.platform === 'windows')?.name || 'nepali-vedic-jyotish-panchanga-setup-1.0.0.exe';
+  const targeted = getTargetedUpdateAsset(release);
 
-  if (isDesktopApp()) {
-    await triggerDesktopDownloadUpdate(targetUrl);
+  if (isDesktopApp() && targeted.platform === 'windows') {
+    await triggerDesktopDownloadUpdate(targeted.downloadUrl);
   } else {
-    triggerDirectBrowserDownload(targetUrl, fileName);
+    triggerDirectBrowserDownload(targeted.downloadUrl, targeted.fileName);
   }
 }
 
