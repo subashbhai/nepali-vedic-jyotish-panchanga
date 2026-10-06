@@ -368,8 +368,7 @@ export function isDesktopApp(): boolean {
       searchParams.get('mode') === 'windows' || 
       searchParams.get('app') === 'desktop' || 
       searchParams.get('mode') === 'desktop';
-    const isStoredDesktop = localStorage.getItem('balananda_force_windows_app_shell') === 'true';
-    return isElectron || isDesktopQuery || isStoredDesktop;
+    return isElectron || isDesktopQuery;
   } catch {
     return isElectron;
   }

@@ -60,6 +60,9 @@ const ExpertApplicationView = lazy(() => import('./components/ExpertApplicationV
 const AarjeView = lazy(() => import('./components/AarjeView').then((m) => ({ default: m.AarjeView })));
 const PurchaseSubscriptionView = lazy(() => import('./components/PurchaseSubscriptionView').then((m) => ({ default: m.PurchaseSubscriptionView })));
 const VedicPasalMainView = lazy(() => import('./components/vedicPasal/VedicPasalMainView').then((m) => ({ default: m.VedicPasalMainView })));
+const ApplicationDownloadView = lazy(() => import('./components/downloads/ApplicationDownloadView').then((m) => ({ default: m.ApplicationDownloadView })));
+const DigitalLibraryView = lazy(() => import('./components/books/DigitalLibraryView').then((m) => ({ default: m.DigitalLibraryView })));
+const MediaDownloadView = lazy(() => import('./components/downloads/MediaDownloadView').then((m) => ({ default: m.MediaDownloadView })));
 const MySubscriptionView = lazy(() => import('./components/MySubscriptionView').then((m) => ({ default: m.MySubscriptionView })));
 const JyotishiDashboard = lazy(() => import('./components/JyotishiDashboard').then((m) => ({ default: m.JyotishiDashboard })));
 const JyotishMainView = lazy(() => import('./components/JyotishMainView').then((m) => ({ default: m.JyotishMainView })));
@@ -178,6 +181,9 @@ export const TAB_TO_HASH: Record<string, string> = {
   settings: 'settings',
   help: 'help',
   aarje: 'aarje',
+  app_download: 'app_download',
+  books_download: 'books_download',
+  media_download: 'media_download',
 };
 
 export const HASH_TO_TAB: Record<string, NavTab> = {
@@ -195,10 +201,16 @@ export const HASH_TO_TAB: Record<string, NavTab> = {
   'kharedi': 'kharedi',
   'pasal': 'kharedi',
   'store': 'kharedi',
-  'pustak': 'kharedi',
-  'books_download': 'kharedi',
-  'library': 'kharedi',
-  'digital_library': 'kharedi',
+  'pustak': 'books_download',
+  'books_download': 'books_download',
+  'library': 'books_download',
+  'digital_library': 'books_download',
+  'app_download': 'app_download',
+  'app': 'app_download',
+  'download_app': 'app_download',
+  'media_download': 'media_download',
+  'media': 'media_download',
+  'audio': 'media_download',
   'org_profile': 'org_profile',
   'calendar': 'calendar',
   'patro': 'calendar',
@@ -254,6 +266,8 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
   pasal: 'वैदिक पसल तथा पूजा सामग्री',
   pustak: '📚 पुस्तक डाउनलोड - बालानन्द वैदिक डिजिटल पुस्तकालय',
   books_download: '📚 पुस्तक डाउनलोड - बालानन्द वैदिक डिजिटल पुस्तकालय',
+  app_download: '📲 एप्लिकेसन डाउनलोड (Windows, Android, Mac, iOS)',
+  media_download: '🎵 मिडिया डाउनलोड - वैदिक मन्त्र, स्तोत्र, अडियो तथा वालपेपर',
   yajaman: 'यजमान तथा ग्राहक व्यवस्थापन',
   samachar: 'वैदिक पञ्चाङ्ग तथा चाडपर्व समाचार',
   org_profile: 'संस्थागत प्रोफाइल तथा परिचय',
@@ -1271,42 +1285,15 @@ export default function App() {
     };
   }, [navigateTab]);
 
-  // Optional dedicated mini shells (only if explicitly requested via query param ?view_shell=...)
-  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const explicitShell = urlParams?.get('view_shell');
-
-  if (explicitShell === 'windows_offline') {
-    return (
-      <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center font-serif text-amber-800">बालानन्द विन्डोज एप लोड हुँदैछ...</div>}>
-        <BalanandaWindowsAppShell
-          onExitToWeb={() => {
-            try {
-              const url = new URL(window.location.href);
-              url.searchParams.delete('view_shell');
-              window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
-            } catch {}
-            window.location.reload();
-          }}
-        />
-      </Suspense>
-    );
-  }
-
-  if (explicitShell === 'mobile_lite') {
-    return (
-      <Suspense fallback={<div className="min-h-screen bg-[#0E0A08] flex items-center justify-center font-serif text-amber-400">बालानन्द मोबाइल एप लोड हुँदैछ...</div>}>
-        <BalanandaMobileAppShell
-          onExitToWeb={() => {
-            try {
-              const url = new URL(window.location.href);
-              url.searchParams.delete('view_shell');
-              window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
-            } catch {}
-            window.location.reload();
-          }}
-        />
-      </Suspense>
-    );
+  // Ensure all application environments (Desktop, Mobile, Web) receive 100% full web features (No limited version)
+  // If legacy limited shell query param is present, silently clean it up
+  if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('view_shell')) {
+      urlParams.delete('view_shell');
+      const cleanUrl = window.location.pathname + (urlParams.toString() ? `?${urlParams.toString()}` : '') + window.location.hash;
+      window.history.replaceState({}, '', cleanUrl);
+    }
   }
 
   // If JYOTISH module is active, render full-screen workspace with no main dropdowns (free to explore)
@@ -1812,6 +1799,24 @@ export default function App() {
               orgProfile={orgProfile}
               onNavigateHome={() => navigateTab('dashboard')} 
             />
+          )}
+
+          {activeTab === 'app_download' && (
+            <ApplicationDownloadView
+              onOpenModal={() => setIsDownloadModalOpen(true)}
+              onNavigateHome={() => navigateTab('dashboard')}
+            />
+          )}
+
+          {activeTab === 'books_download' && (
+            <DigitalLibraryView
+              orgProfile={orgProfile}
+              onBackToStore={() => navigateTab('dashboard')}
+            />
+          )}
+
+          {activeTab === 'media_download' && (
+            <MediaDownloadView />
           )}
 
           {activeTab === 'my_subscription' && (
