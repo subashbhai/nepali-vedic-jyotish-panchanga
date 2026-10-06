@@ -447,3 +447,21 @@ export function handlePhoneticInputKeyDown(
     }
   }
 }
+
+/**
+ * Automatically transliterate any lingering Romanized English words on input blur
+ */
+export function handlePhoneticBlur(
+  currentValue: string,
+  onUpdate: (newValue: string) => void,
+  enabled: boolean = true
+) {
+  if (!enabled || !currentValue) return;
+  if (/[a-zA-Z]/.test(currentValue)) {
+    const converted = transliterateFullText(currentValue);
+    if (converted !== currentValue) {
+      onUpdate(converted);
+    }
+  }
+}
+

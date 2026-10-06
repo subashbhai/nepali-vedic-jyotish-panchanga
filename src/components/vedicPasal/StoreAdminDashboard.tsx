@@ -58,7 +58,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { compressAndResizeImage } from '../../utils/imageUtils';
-import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
+import { handlePhoneticInputKeyDown, handlePhoneticBlur } from '../../utils/nepaliTransliteration';
 import {
   PUJA_SAMAGRI_GALLERY_DATABASE,
   PUJA_GALLERY_CATEGORIES,
@@ -1144,6 +1144,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                     value={newCustomTitleNp}
                     onChange={e => setNewCustomTitleNp(e.target.value)}
                     onKeyDown={e => handlePhoneticInputKeyDown(e, newCustomTitleNp, setNewCustomTitleNp)}
+                    onBlur={() => handlePhoneticBlur(newCustomTitleNp, setNewCustomTitleNp)}
                     placeholder="उदा: श्री सत्यनारायण महापूजा प्याकेज"
                     className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2.5"
                   />
@@ -1202,6 +1203,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                   value={newCustomDesc}
                   onChange={e => setNewCustomDesc(e.target.value)}
                   onKeyDown={e => handlePhoneticInputKeyDown(e, newCustomDesc, setNewCustomDesc)}
+                  onBlur={() => handlePhoneticBlur(newCustomDesc, setNewCustomDesc)}
                   placeholder="पूजाको संक्षिप्त विधि वा महत्त्व (Roman मा लेखेर Space थिच्नुहोस्)"
                   rows={2}
                   className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl p-2.5"
@@ -1219,6 +1221,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                   value={newCustomSamagriText}
                   onChange={e => setNewCustomSamagriText(e.target.value)}
                   onKeyDown={e => handlePhoneticInputKeyDown(e, newCustomSamagriText, setNewCustomSamagriText)}
+                  onBlur={() => handlePhoneticBlur(newCustomSamagriText, setNewCustomSamagriText)}
                   placeholder={`तामाको कलश – १ थान\nशुद्ध गाईको घ्यू – ५०० ग्राम\nहवन सामग्री – १ केजी\nसमिधा काठ – २ केजी\nजौ-तिल र कुश – १ सेट`}
                   rows={4}
                   className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl p-2.5 font-sans"
@@ -1300,6 +1303,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                 value={gallerySearch}
                 onChange={e => setGallerySearch(e.target.value)}
                 onKeyDown={e => handlePhoneticInputKeyDown(e, gallerySearch, setGallerySearch)}
+                onBlur={() => handlePhoneticBlur(gallerySearch, setGallerySearch)}
                 placeholder="ग्यालरीमा खोज्नुहोस् (उदा: vivah, garbhadhana, bartabandha, rudraksha, kalash, ghee)..."
                 className="w-full pl-10 pr-4 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl text-xs sm:text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
@@ -1537,6 +1541,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                 value={editingProduct?.nameNepali || ''}
                 onChange={e => setEditingProduct({ ...editingProduct, nameNepali: e.target.value })}
                 onKeyDown={e => handlePhoneticInputKeyDown(e, editingProduct?.nameNepali || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), nameNepali: val })))}
+                onBlur={() => handlePhoneticBlur(editingProduct?.nameNepali || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), nameNepali: val })))}
                 placeholder="उदा: अगरबत्ती / agarbatti (space हान्नुहोस्)"
                 required
                 className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2"
@@ -1569,6 +1574,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                   value={editingProduct?.unit || 'थान'}
                   onChange={e => setEditingProduct({ ...editingProduct, unit: e.target.value })}
                   onKeyDown={e => handlePhoneticInputKeyDown(e, editingProduct?.unit || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), unit: val })))}
+                  onBlur={() => handlePhoneticBlur(editingProduct?.unit || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), unit: val })))}
                   placeholder="थान / kg / सेट"
                   className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl px-3 py-2"
                 />
@@ -1775,6 +1781,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
                 value={editingProduct?.shortDescription || ''}
                 onChange={e => setEditingProduct({ ...editingProduct, shortDescription: e.target.value })}
                 onKeyDown={e => handlePhoneticInputKeyDown(e, editingProduct?.shortDescription || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), shortDescription: val })))}
+                onBlur={() => handlePhoneticBlur(editingProduct?.shortDescription || '', (val) => setEditingProduct(prev => ({ ...(prev || {}), shortDescription: val })))}
                 placeholder="उदा: पूजाको लागि उपयुक्त सामग्री (roman मा लेखेर space थिच्नुहोस्)"
                 rows={2}
                 className="w-full bg-stone-50 dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 rounded-xl p-2"
