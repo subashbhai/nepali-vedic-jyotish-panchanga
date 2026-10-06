@@ -785,7 +785,7 @@ export default function App() {
       return;
     }
 
-    const isPublic = ['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(resolved);
+    const isPublic = PUBLIC_UNAUTH_NAV_IDS.has(resolved as NavTab);
     if (!rbacSession && !isPublic) {
       setIsRBACAuthModalOpen(true);
       return;
@@ -1456,7 +1456,7 @@ export default function App() {
               maintenanceMessage={currentPageControl.maintenanceMessage}
               onGoHome={() => navigateTab('dashboard')}
             />
-          ) : !rbacSession && !['dashboard', 'panchanga', 'jyotishi', 'vastu', 'kharedi', 'sewa', 'vivah', 'yajaman', 'calendar', 'samachar', 'date_converter', 'org_profile'].includes(activeTab) ? (
+          ) : !rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(activeTab) ? (
             <VedicLoginGateView
               onOpenSignIn={() => setIsRBACAuthModalOpen(true)}
               onOpenSignUp={() => setIsRBACAuthModalOpen(true)}

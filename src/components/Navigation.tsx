@@ -48,7 +48,9 @@ import {
   Smartphone,
   Apple,
   Menu,
-  X
+  X,
+  Laptop,
+  Music
 } from 'lucide-react';
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
 import { RBACSession, getUserDashboardTarget } from '../db/rbacStore';
@@ -74,6 +76,9 @@ export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
   'kharedi',
   'date_converter',
   'org_profile',
+  'app_download',
+  'books_download',
+  'media_download',
 ]);
 
 export const NORMAL_USER_ALLOWED_TABS = new Set<NavTab>([
@@ -93,7 +98,10 @@ export const NORMAL_USER_ALLOWED_TABS = new Set<NavTab>([
   'settings',
   'my_subscription',
   'apply_expert',
-  'help'
+  'help',
+  'app_download',
+  'books_download',
+  'media_download',
 ]);
 
 export type NavTab = 
