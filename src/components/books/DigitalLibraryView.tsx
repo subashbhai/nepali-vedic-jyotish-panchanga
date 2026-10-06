@@ -84,7 +84,7 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
               🏛️ बालानन्द डिजिटल पुस्तकालय
             </span>
             <span className="bg-white/15 text-amber-200 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-white/20">
-              नेपाली टीका सहित लेटरहेड PDF
+              नेपाली टीका सहित PDF पुस्तक
             </span>
           </div>
 
@@ -95,7 +95,7 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
           <p className="mt-2.5 text-xs sm:text-sm md:text-base text-amber-100/90 leading-relaxed max-w-3xl font-serif">
             हिन्दी भाषामा रहेका दुर्लभ धार्मिक ग्रन्थ तथा पूजा पद्धतिहरूलाई शुद्ध, सरल एवं प्रामाणिक 
             <span className="text-amber-300 font-bold"> नेपाली टीका </span> 
-            मा रूपान्तरण गरी, संस्थाको आधिकारिक लेटरहेडमा अनलाइन अध्ययन एवं 
+            मा रूपान्तरण गरी, अनलाइन अध्ययन एवं 
             <span className="text-amber-300 font-bold"> निःशुल्क A4 PDF </span> 
             डाउनलोड गर्न मिल्ने गरी प्रकाशन गरिएको छ।
           </p>
@@ -104,7 +104,7 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
           <div className="mt-5 pt-4 border-t border-white/15 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-amber-200/90">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
-              <span><strong>{toDevanagariNumerals(PUBLISHED_LETTERHEAD_BOOKS.length)}</strong> आधिकारिक लेटरहेड पुस्तकहरू</span>
+              <span><strong>{toDevanagariNumerals(PUBLISHED_LETTERHEAD_BOOKS.length)}</strong> आधिकारिक डिजिटल पुस्तकहरू</span>
             </div>
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-300" />
@@ -112,7 +112,7 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <Printer className="w-4 h-4 text-amber-300" />
-              <span>१-क्लिक A4 PDF लेटरहेड प्रिन्टिङ</span>
+              <span>१-क्लिक A4 PDF डाउनलोड</span>
             </div>
           </div>
         </div>
@@ -240,7 +240,7 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
                 className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-[#8B1E0F] hover:bg-[#A12312] text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 <Printer className="w-4 h-4 text-amber-300" />
-                <span>लेटरहेड PDF डाउनलोड</span>
+                <span>PDF डाउनलोड</span>
               </button>
             </div>
           </div>

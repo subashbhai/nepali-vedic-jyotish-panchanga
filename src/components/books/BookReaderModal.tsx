@@ -84,7 +84,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-bold bg-amber-400 text-stone-900 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  लेटरहेड पुस्तक संस्करण
+                  डिजिटल पुस्तक संस्करण
                 </span>
                 <span className="text-[11px] text-amber-200">
                   {book.categoryLabelNepali}
@@ -102,10 +102,10 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
               type="button"
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer"
-              title="लेटरहेड PDF डाउनलोड वा प्रिन्ट गर्नुहोस्"
+              title="PDF डाउनलोड वा प्रिन्ट गर्नुहोस्"
             >
               <Printer className="w-4 h-4" />
-              <span className="hidden sm:inline">लेटरहेड PDF / प्रिन्ट</span>
+              <span className="hidden sm:inline">PDF डाउनलोड / प्रिन्ट</span>
             </button>
 
             {/* Close Button */}
