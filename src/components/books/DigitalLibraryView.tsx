@@ -20,6 +20,7 @@ import { getCombinedBooksList } from '../../data/books/customBooksStore';
 import { BookReaderModal } from './BookReaderModal';
 import { OrganizationProfile } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
+import { handlePhoneticInputKeyDown, handlePhoneticBlur } from '../../utils/nepaliTransliteration';
 
 interface DigitalLibraryViewProps {
   orgProfile?: OrganizationProfile;
@@ -131,7 +132,9 @@ export const DigitalLibraryView: React.FC<DigitalLibraryViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ग्रन्थ, मन्त्र, विषय वा विधि खोज्नुहोस्..."
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
+              onBlur={() => handlePhoneticBlur(searchQuery, setSearchQuery)}
+              placeholder="ग्रन्थ, मन्त्र, विषय वा विधि खोज्नुहोस् (उदा: ganesh, rudri)..."
               className="w-full pl-9 pr-4 py-2 bg-[#FAF8F5] dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-[#8B1E0F]/30 outline-none"
             />
           </div>

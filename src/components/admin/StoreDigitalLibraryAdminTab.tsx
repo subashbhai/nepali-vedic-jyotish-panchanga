@@ -40,6 +40,7 @@ import {
 } from '../../utils/pdfTextExtractor';
 import { OrganizationProfile } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
+import { handlePhoneticInputKeyDown, handlePhoneticBlur } from '../../utils/nepaliTransliteration';
 
 interface StoreDigitalLibraryAdminTabProps {
   orgProfile?: OrganizationProfile;
@@ -528,14 +529,21 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
               <div className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                      पुस्तकको नेपाली शीर्षक <span className="text-red-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                        पुस्तकको नेपाली शीर्षक <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⌨️ Roman to Nepali (Space)
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={titleNepali}
                       onChange={(e) => setTitleNepali(e.target.value)}
-                      placeholder="उदा: श्री गणेश चालीसा एवं स्तोत्र, श्री हनुमान बाहुक"
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, titleNepali, setTitleNepali)}
+                      onBlur={() => handlePhoneticBlur(titleNepali, setTitleNepali)}
+                      placeholder="उदा: श्री गणेश चालीसा एवं स्तोत्र, श्री हनुमान बाहुक (shree ganesh)"
                       className="w-full px-4 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-sm focus:ring-2 focus:ring-amber-500 outline-hidden font-bold"
                       required
                     />
@@ -545,13 +553,20 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                      संस्कृत शीर्षक (वैकल्पिक)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                        संस्कृत शीर्षक (वैकल्पिक)
+                      </label>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⌨️ Roman to Nepali
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={titleSanskrit}
                       onChange={(e) => setTitleSanskrit(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, titleSanskrit, setTitleSanskrit)}
+                      onBlur={() => handlePhoneticBlur(titleSanskrit, setTitleSanskrit)}
                       placeholder="उदा: श्रीगणेशचालीसा स्तोत्रञ्च"
                       className="w-full px-4 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-sm focus:ring-2 focus:ring-amber-500 outline-hidden"
                     />
@@ -560,13 +575,20 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                      उपशीर्षक / ट्यागलाइन
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                        उपशीर्षक / ट्यागलाइन
+                      </label>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⌨️ Roman to Nepali
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={subtitleNepali}
                       onChange={(e) => setSubtitleNepali(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, subtitleNepali, setSubtitleNepali)}
+                      onBlur={() => handlePhoneticBlur(subtitleNepali, setSubtitleNepali)}
                       className="w-full px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden"
                     />
                   </div>
@@ -589,13 +611,20 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                      संस्करण (Edition)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                        संस्करण (Edition)
+                      </label>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⌨️ Roman to Nepali
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={edition}
                       onChange={(e) => setEdition(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, edition, setEdition)}
+                      onBlur={() => handlePhoneticBlur(edition, setEdition)}
                       className="w-full px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden"
                     />
                   </div>
@@ -603,38 +632,59 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                      मूल ग्रन्थकार / परम्परा
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                        मूल ग्रन्थकार / परम्परा
+                      </label>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⌨️ Roman to Nepali
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={authorOriginal}
                       onChange={(e) => setAuthorOriginal(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, authorOriginal, setAuthorOriginal)}
+                      onBlur={() => handlePhoneticBlur(authorOriginal, setAuthorOriginal)}
                       className="w-full px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                      नेपाली टीकाकार / सम्पादक
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                        नेपाली टीकाकार / सम्पादक
+                      </label>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⌨️ Roman to Nepali
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={translatorNepali}
                       onChange={(e) => setTranslatorNepali(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, translatorNepali, setTranslatorNepali)}
+                      onBlur={() => handlePhoneticBlur(translatorNepali, setTranslatorNepali)}
                       className="w-full px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                    पुस्तकको विस्तृत परिचय (Description)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                      पुस्तकको विस्तृत परिचय (Description)
+                    </label>
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                      ⌨️ Roman to Nepali (Space bar)
+                    </span>
+                  </div>
                   <textarea
                     rows={3}
                     value={descriptionNepali}
                     onChange={(e) => setDescriptionNepali(e.target.value)}
+                    onKeyDown={(e) => handlePhoneticInputKeyDown(e, descriptionNepali, setDescriptionNepali)}
+                    onBlur={() => handlePhoneticBlur(descriptionNepali, setDescriptionNepali)}
                     placeholder="यस ग्रन्थको महत्ता, विधि, फलश्रुति र परम्पराको बारेमा संक्षिप्त परिचय..."
                     className="w-full px-4 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden"
                   />
@@ -746,13 +796,25 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                     </div>
                   )}
 
-                  <textarea
-                    rows={6}
-                    value={rawBookText}
-                    onChange={(e) => setRawBookText(e.target.value)}
-                    placeholder="यहाँ पुस्तकको कुनै पनि अध्याय, हिन्दी टीका वा मूल मन्त्रहरू टाँस्नुहोस् (Paste text here)..."
-                    className="w-full p-3 rounded-xl border border-amber-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden font-serif"
-                  />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                        पुस्तकको कच्चा पाठ वा मन्त्र (Raw Text):
+                      </label>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⌨️ Roman to Nepali (Space bar)
+                      </span>
+                    </div>
+                    <textarea
+                      rows={6}
+                      value={rawBookText}
+                      onChange={(e) => setRawBookText(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, rawBookText, setRawBookText)}
+                      onBlur={() => handlePhoneticBlur(rawBookText, setRawBookText)}
+                      placeholder="यहाँ पुस्तकको कुनै पनि अध्याय, हिन्दी टीका वा मूल मन्त्रहरू टाँस्नुहोस् (Paste text here)..."
+                      className="w-full p-3 rounded-xl border border-amber-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden font-serif"
+                    />
+                  </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-[11px] text-amber-800 dark:text-amber-300">
@@ -843,13 +905,20 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                         {isExpanded && (
                           <div className="p-4 pt-0 space-y-4 border-t border-stone-200 dark:border-stone-800 mt-2">
                             <div>
-                              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                                अध्यायको शीर्षक (Nepali Title)
-                              </label>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                                  अध्यायको शीर्षक (Nepali Title)
+                                </label>
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                  ⌨️ Roman to Nepali (Space)
+                                </span>
+                              </div>
                               <input
                                 type="text"
                                 value={chap.titleNepali}
                                 onChange={(e) => handleUpdateChapter(idx, 'titleNepali', e.target.value)}
+                                onKeyDown={(e) => handlePhoneticInputKeyDown(e, chap.titleNepali, (v) => handleUpdateChapter(idx, 'titleNepali', v))}
+                                onBlur={() => handlePhoneticBlur(chap.titleNepali, (v) => handleUpdateChapter(idx, 'titleNepali', v))}
                                 className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs font-bold focus:ring-2 focus:ring-amber-500 outline-hidden"
                               />
                             </div>
@@ -861,14 +930,21 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                                   <label className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1 font-serif">
                                     <span>🕉️ मूल संस्कृत मन्त्र / श्लोकहरू (Verbatim)</span>
                                   </label>
-                                  <span className="text-[10px] text-stone-400">
-                                    {hasSanskrit ? 'संस्कृत मन्त्र उपस्थित' : 'खाली भएमा पूर्ण पृष्ठ नेपाली हुन्छ'}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                      ⌨️ Roman to Sanskrit
+                                    </span>
+                                    <span className="text-[10px] text-stone-400">
+                                      {hasSanskrit ? 'संस्कृत मन्त्र उपस्थित' : 'खाली भएमा पूर्ण पृष्ठ नेपाली हुन्छ'}
+                                    </span>
+                                  </div>
                                 </div>
                                 <textarea
                                   rows={8}
                                   value={chap.contentSanskrit || ''}
                                   onChange={(e) => handleUpdateChapter(idx, 'contentSanskrit', e.target.value)}
+                                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, chap.contentSanskrit || '', (v) => handleUpdateChapter(idx, 'contentSanskrit', v))}
+                                  onBlur={() => handlePhoneticBlur(chap.contentSanskrit || '', (v) => handleUpdateChapter(idx, 'contentSanskrit', v))}
                                   placeholder="॥ ॐ भूर्भुवः स्वः... (यदि संस्कृत मन्त्र छैन भने खाली छोड्नुहोस्)"
                                   className="w-full p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 text-stone-900 dark:text-stone-100 text-xs font-serif leading-relaxed focus:ring-2 focus:ring-amber-500 outline-hidden"
                                 />
@@ -880,14 +956,21 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                                   <label className="text-xs font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1">
                                     <span>🇳🇵 नेपाली टीका, भावार्थ तथा पूजा विधि</span>
                                   </label>
-                                  <span className="text-[10px] text-emerald-600 font-bold">
-                                    नेपाली भाषामा रूपान्तरित
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                      ⌨️ Roman to Nepali
+                                    </span>
+                                    <span className="text-[10px] text-emerald-600 font-bold">
+                                      नेपाली भाषामा रूपान्तरित
+                                    </span>
+                                  </div>
                                 </div>
                                 <textarea
                                   rows={8}
                                   value={chap.contentNepaliTika || ''}
                                   onChange={(e) => handleUpdateChapter(idx, 'contentNepaliTika', e.target.value)}
+                                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, chap.contentNepaliTika || '', (v) => handleUpdateChapter(idx, 'contentNepaliTika', v))}
+                                  onBlur={() => handlePhoneticBlur(chap.contentNepaliTika || '', (v) => handleUpdateChapter(idx, 'contentNepaliTika', v))}
                                   placeholder="यस मन्त्र वा अध्यायको विस्तृत नेपाली व्याख्या तथा पूजा विधि..."
                                   className="w-full p-3 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs font-serif leading-relaxed focus:ring-2 focus:ring-amber-500 outline-hidden"
                                 />

@@ -21,6 +21,7 @@ import { printElement } from '../../utils/pdfGenerator';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
 import { BookPatrikaPageFrame } from './BookPatrikaPageFrame';
 import { paginateBookIntoPages, PaginatedBookPage } from './bookPaginator';
+import { handlePhoneticInputKeyDown, handlePhoneticBlur } from '../../utils/nepaliTransliteration';
 
 interface BookReaderModalProps {
   book: DigitalReligiousBook | null;
@@ -169,6 +170,8 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
+              onBlur={() => handlePhoneticBlur(searchQuery, setSearchQuery)}
               placeholder="मन्त्र वा व्याख्या खोज्नुहोस्..."
               className="w-full pl-8 pr-3 py-1 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs focus:outline-none focus:border-[#166534]"
             />
