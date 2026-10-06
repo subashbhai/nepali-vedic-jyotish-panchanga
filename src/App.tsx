@@ -168,6 +168,11 @@ export const TAB_TO_HASH: Record<string, string> = {
   my_subscription: 'my_subscription',
   apply_expert: 'apply_expert',
   admin_control: 'admin_control',
+  store_admin: 'store_admin',
+  pos: 'pos',
+  news_editor: 'news_editor',
+  vivah_admin: 'vivah_admin',
+  whatsapp_admin: 'whatsapp_admin',
   knowledge: 'knowledge',
   ai_assistant: 'ai_assistant',
   settings: 'settings',
@@ -1393,6 +1398,7 @@ export default function App() {
                   hasUpdate={appUpdate.hasUpdate}
                   updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
                   onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
+                  onNavigateTab={(tab) => navigateTab(tab as any)}
                 />
 
                 {/* Main Navigation Tabs */}
@@ -1448,6 +1454,11 @@ export default function App() {
               onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
               onLogoutRBAC={handleLogoutRBAC}
               orgProfile={orgProfile}
+              onNavigateTab={(tab) => navigateTab(tab as any)}
+              onNavigateToAdmin={(tab) => {
+                setAdminInitialTab(tab || 'client_approvals');
+                navigateTab('admin_control');
+              }}
             />
           )}
 
