@@ -301,6 +301,77 @@ export function getRoleLabelNepali(role: SystemRole): string {
   }
 }
 
+export interface UserDashboardTarget {
+  tab: string;
+  labelNepali: string;
+  descriptionNepali: string;
+  badge: string;
+  moduleType: 'store' | 'pos' | 'admin' | 'news' | 'vivah' | 'yajaman';
+}
+
+export function getUserDashboardTarget(role?: string): UserDashboardTarget {
+  switch (role) {
+    case 'STORE_ADMIN':
+      return {
+        tab: 'store_admin',
+        labelNepali: 'वैदिक पसल स्टोर एडमिन ड्यासबोर्ड',
+        descriptionNepali: 'सामग्री, अर्डर, भुक्तानी, PDF ग्रन्थ तथा अटो-कभर व्यवस्थापन',
+        badge: 'Store Admin',
+        moduleType: 'store',
+      };
+    case 'POS_STAFF':
+      return {
+        tab: 'pos',
+        labelNepali: 'काउन्टर POS बिलिङ टर्मिनल',
+        descriptionNepali: 'काउन्टर प्रत्यक्ष बिक्री, इनभ्वाइस तथा रसिद प्रिन्ट',
+        badge: 'POS Terminal',
+        moduleType: 'pos',
+      };
+    case 'SUPER_ADMIN':
+    case 'ADMIN':
+      return {
+        tab: 'admin_control',
+        labelNepali: 'सुपरएडमिन नियन्त्रण कक्ष',
+        descriptionNepali: 'खरिद आवेदन रुजु, प्रयोगकर्ता तथा प्रणाली नियन्त्रण',
+        badge: 'Superadmin',
+        moduleType: 'admin',
+      };
+    case 'NEWS_EDITOR':
+      return {
+        tab: 'news_editor',
+        labelNepali: 'समाचार तथा लेख सम्पादक ड्यासबोर्ड',
+        descriptionNepali: 'पञ्चाङ्ग, चाडपर्व, खगोल तथा ज्योतिष समाचार प्रकाशन',
+        badge: 'News Editor',
+        moduleType: 'news',
+      };
+    case 'MARRIAGE_MODERATOR':
+      return {
+        tab: 'vivah_admin',
+        labelNepali: 'विवाह बायोडाटा सुपरभाइजर कक्ष',
+        descriptionNepali: 'वैवाहिक प्रोफाइल प्रमाणीकरण तथा वर-वधु म्याचिङ',
+        badge: 'Marriage Supervisor',
+        moduleType: 'vivah',
+      };
+    case 'MARRIAGE_USER':
+      return {
+        tab: 'vivah',
+        labelNepali: 'विवाह सेवा केन्द्र तथा प्रोफाइल',
+        descriptionNepali: 'मेरो बायोडाटा, मिल्ने वर-वधु तथा प्रस्तावहरू',
+        badge: 'Marriage Portal',
+        moduleType: 'vivah',
+      };
+    case 'CUSTOMER':
+    default:
+      return {
+        tab: 'yajaman',
+        labelNepali: 'यजमान सेवा ड्यासबोर्ड',
+        descriptionNepali: 'मेरो परामर्श, बुकिङ, चिना तथा अर्डरहरू',
+        badge: 'Yajaman Portal',
+        moduleType: 'yajaman',
+      };
+  }
+}
+
 // Auto Customer/User ID Generation
 export function generateNextCustomerId(role: SystemRole): string {
   const users = getStoredRBACUsers();

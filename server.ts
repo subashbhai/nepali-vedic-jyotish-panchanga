@@ -777,6 +777,52 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
     }
   });
 
+  // API Route for Contextual Word Restorer & Corrupted Font Auto-Correction
+  app.post("/api/pdf/repair-text", async (req, res) => {
+    try {
+      const { corruptedText } = req.body;
+      if (!corruptedText || !corruptedText.trim()) {
+        return res.status(400).json({ error: "Missing corrupted text." });
+      }
+
+      const ai = getGeminiClient();
+
+      const systemPrompt = `तपाईं एक अति-दक्ष वैदिक संस्कृत, नेपाली तथा हिन्दी धार्मिक ग्रन्थ पाण्डुलिपि विशेषज्ञ तथा टेक्स्ट रिस्टोरर (Ancient Corrupted Font & Word Restorer) हुनुहुन्छ।
+प्रयोगकर्ताले पुराना लेगेसी फन्ट (जस्तै DV-TTSurekh, ShreeLipi, APS, Chanakya आदि) बाट PDF एक्सट्र्याक्ट गर्दा अनौठा क्यारेक्टरहरू (जस्तै बक्स/कन्ट्रोल क्यारेक्टर, '', 'ß', '©', 'Ô', 'Mş', '≈', '°', 'हि', 'सँतामाता', 'ब"rोÔणा', 'झाजन', 'दख' आदि) भएको बिग्रिएको पाठ पठाएका छन्।
+
+तपाईंको मुख्य जिम्मेवारी:
+१. बिग्रिएका अनौठा अक्षरहरू (unusual letters) र समग्र प्रसङ्ग (context) लाई अध्ययन गरी कुन धार्मिक कथा, मन्त्र वा श्लोक हो पहिचान गर्नुहोस् (उदा: 'सँतामाता कहिसंस' -> 'सीतामाता कहीं छिप गईं', 'श्रँगरामचँ०"जँग' -> 'श्रीरामचन्द्रजी', 'ब"rोÔणांका' -> 'ब्राह्मणोंको', 'झाजन करुन लग' -> 'भोजन कराने लगे', 'पितरुांक§ दशा , न हि∞' -> 'पितरोंके दर्शन हुए', 'लज्जाके मारे आपके पास चली आईं' आदि)।
+२. सबै बिग्रिएका र विकृत शब्दहरूलाई शुद्ध, स्वाभाविक र व्याकरणसम्मत नेपाली देवनागरी युनिकोड शब्दहरूमा पुनर्निर्माण (Auto-generate clean readable words) गर्नुहोस्।
+३. यदि संस्कृत मूल श्लोक वा मन्त्र भए संस्कृतमै शुद्ध राख्नुहोस्, र व्याख्या वा कथा भए शुद्ध नेपाली/हिन्दी भाषामा स्वाभाविक वाक्य बनाउनुहोस्।
+४. कुनै पनि अङ्ग्रेजी व्याख्या, टिप्पणी वा भूमिका नलेख्नुहोस्। केवल १००% शुद्ध, पुनर्निर्मित देवनागरी पाठ मात्र आउटपुट गर्नुहोस्।`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: systemPrompt + "\n\n[बिग्रिएको पाठ]:\n" + corruptedText }],
+          },
+        ],
+        config: {
+          temperature: 0.1,
+        },
+      });
+
+      const repairedText = response.text || "";
+      return res.json({
+        success: true,
+        repairedText: repairedText.trim(),
+      });
+    } catch (err: any) {
+      console.error("Text Repair API Error:", err);
+      return res.status(500).json({
+        success: false,
+        error: err.message || "Failed to repair text.",
+      });
+    }
+  });
+
   // Health check API
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", app: "Nepali Vedic Jyotish & Panchanga" });

@@ -45,7 +45,10 @@ import {
 } from '../../utils/pdfTextExtractor';
 import {
   cleanAndDecodePdfText,
-  isChanakyaOrLegacyFont
+  isChanakyaOrLegacyFont,
+  hasUnusualOrCorruptedGlyphs,
+  repairAndGenerateCleanWords,
+  repairCorruptedGlyphsAndWords
 } from '../../utils/legacyFontDecoder';
 import { OrganizationProfile } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
@@ -106,6 +109,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
   const [isScanningOcr, setIsScanningOcr] = useState(false);
   const [scanProgress, setScanProgress] = useState<string | null>(null);
   const [isAutoFilledFromPdf, setIsAutoFilledFromPdf] = useState(false);
+  const [isRepairingWords, setIsRepairingWords] = useState(false);
 
   const refreshBooks = () => {
     setCustomBooks(getCustomBooks());
@@ -215,7 +219,10 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
       });
 
       if (result.text && result.text.trim()) {
-        const cleaned = cleanAndDecodePdfText(result.text);
+        let cleaned = cleanAndDecodePdfText(result.text);
+        if (hasUnusualOrCorruptedGlyphs(cleaned)) {
+          cleaned = repairCorruptedGlyphsAndWords(cleaned);
+        }
         setRawBookText(cleaned);
 
         // Auto-fill all book metadata into form
@@ -255,6 +262,56 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
     const fixed = cleanAndDecodePdfText(rawBookText);
     setRawBookText(fixed);
     showToast('✨ चाणक्य/क्रुतिदेव फन्ट सफलतापूर्वक शुद्ध देवनागरीमा रूपान्तरण भयो!');
+  };
+
+  // Contextual Auto Word Generator & AI Repair Engine
+  const handleAutoRepairWords = async () => {
+    if (!rawBookText.trim()) {
+      alert('कृपया पहिले कुनै पाठ टाँस्नुहोस् वा PDF फाइल छान्नुहोस्।');
+      return;
+    }
+    try {
+      setIsRepairingWords(true);
+      showToast('🧠 सन्दर्भ अनुसार बिग्रिएका शब्दहरू मिलाई शुद्ध देवनागरी बनाइँदैछ...');
+      const repaired = await repairAndGenerateCleanWords(rawBookText);
+      setRawBookText(repaired);
+      showToast('🎉 सबै असामान्य र बिग्रेका अक्षरहरू शुद्ध देवनागरी शब्दमा परिणत गरियो!');
+    } catch (err: any) {
+      console.error('Word repair error:', err);
+      const fallback = repairCorruptedGlyphsAndWords(cleanAndDecodePdfText(rawBookText));
+      setRawBookText(fallback);
+      showToast('✨ स्थानीय नियमहरूद्वारा बिग्रेका शब्दहरू शुद्ध गरियो!');
+    } finally {
+      setIsRepairingWords(false);
+    }
+  };
+
+  const handleRepairAllChapters = () => {
+    if (!chapters || chapters.length === 0) {
+      alert('कुनै अध्याय भेटिएन।');
+      return;
+    }
+    setChapters((prev) =>
+      prev.map((c) => ({
+        ...c,
+        titleNepali: c.titleNepali ? repairCorruptedGlyphsAndWords(cleanAndDecodePdfText(c.titleNepali)) : '',
+        contentSanskrit: c.contentSanskrit ? repairCorruptedGlyphsAndWords(cleanAndDecodePdfText(c.contentSanskrit)) : '',
+        contentNepaliTika: c.contentNepaliTika ? repairCorruptedGlyphsAndWords(cleanAndDecodePdfText(c.contentNepaliTika)) : '',
+      }))
+    );
+    showToast('✨ सबै अध्यायका बिग्रेका शब्दहरू शुद्ध युनिकोडमा परिणत गरियो!');
+  };
+
+  const handleRepairChapter = (idx: number) => {
+    const chap = chapters[idx];
+    if (!chap) return;
+    const newSanskrit = chap.contentSanskrit ? repairCorruptedGlyphsAndWords(cleanAndDecodePdfText(chap.contentSanskrit)) : '';
+    const newTika = chap.contentNepaliTika ? repairCorruptedGlyphsAndWords(cleanAndDecodePdfText(chap.contentNepaliTika)) : '';
+    const newTitle = chap.titleNepali ? repairCorruptedGlyphsAndWords(cleanAndDecodePdfText(chap.titleNepali)) : '';
+    setChapters((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, titleNepali: newTitle, contentSanskrit: newSanskrit, contentNepaliTika: newTika } : c))
+    );
+    showToast(`✨ अध्याय ${toDevanagariNumerals(idx + 1)} का बिग्रेका शब्दहरू शुद्ध गरियो!`);
   };
 
   // Auto detect & decode legacy fonts on paste
@@ -318,7 +375,10 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
       }
 
       if (extractedText && extractedText.trim().length > 0) {
-        const cleanDecoded = cleanAndDecodePdfText(extractedText);
+        let cleanDecoded = cleanAndDecodePdfText(extractedText);
+        if (hasUnusualOrCorruptedGlyphs(cleanDecoded)) {
+          cleanDecoded = repairCorruptedGlyphsAndWords(cleanDecoded);
+        }
         setRawBookText(cleanDecoded);
 
         // Auto-fill all book metadata into form
