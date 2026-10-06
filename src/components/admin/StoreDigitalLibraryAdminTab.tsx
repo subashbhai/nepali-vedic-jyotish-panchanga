@@ -34,6 +34,10 @@ import {
   parseAndTranslateRawBookChapter,
   translateHindiToNepali
 } from '../../utils/nepaliBookTranslatorEngine';
+import {
+  extractTextFromPdfFile,
+  isBinaryGarbage
+} from '../../utils/pdfTextExtractor';
 import { OrganizationProfile } from '../../types/astrology';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
 
@@ -83,6 +87,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
   // Raw bulk text / PDF input for auto extraction
   const [rawBookText, setRawBookText] = useState('');
   const [isProcessingText, setIsProcessingText] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<string | null>(null);
   const [expandedChapterIndex, setExpandedChapterIndex] = useState<number | null>(0);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
@@ -124,6 +129,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
       }
     ]);
     setRawBookText('');
+    setPdfProgress(null);
     setIsEditing(true);
     setActiveFormTab('details');
   };
@@ -142,6 +148,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
     setDescriptionNepali(book.descriptionNepali);
     setChapters(book.chapters || []);
     setRawBookText('');
+    setPdfProgress(null);
     setIsEditing(true);
     setActiveFormTab('details');
   };
@@ -152,6 +159,25 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
       deleteCustomBook(id);
       refreshBooks();
       showToast(`"${title}" सफलतापुर्वक हटाइयो।`);
+    }
+  };
+
+  // Clean all corrupted books from storage
+  const handleCleanCorruptedBooks = () => {
+    const current = getCustomBooks();
+    const corrupted = current.filter((b) =>
+      b.chapters?.some(
+        (c) => isBinaryGarbage(c.contentSanskrit || '') || isBinaryGarbage(c.contentNepaliTika || '')
+      )
+    );
+    if (corrupted.length === 0) {
+      alert('कुनै पनि भ्रष्ट (Corrupted) पुस्तक फेला परेन।');
+      return;
+    }
+    if (window.confirm(`के तपाईं बाइनरी बिग्रेका ${corrupted.length} वटा पुराना पुस्तकहरू हटाउन चाहनुहुन्छ?`)) {
+      corrupted.forEach((cb) => deleteCustomBook(cb.id));
+      refreshBooks();
+      showToast('भ्रष्ट पुस्तकहरू सफलतापूर्वक हटाइयो।');
     }
   };
 
@@ -168,19 +194,43 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
 
     try {
       setIsProcessingText(true);
-      const text = await file.text();
-      // If it's a plain text or text-based PDF
-      if (text && text.trim().length > 0) {
-        setRawBookText(text);
-        showToast(`फाइल "${file.name}" बाट पाठ सफलतापूर्वक लोड भयो। अब अटो अनुवाद थिच्नुहोस्।`);
+      const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+      let extractedText = '';
+
+      if (isPdf) {
+        setPdfProgress('PDF फाइल लोड गरिँदैछ...');
+        const result = await extractTextFromPdfFile(file, (p) => {
+          setPdfProgress(`पृष्ठ ${toDevanagariNumerals(p.current)} / ${toDevanagariNumerals(p.total)} बाट पाठ निकालिँदैछ...`);
+        });
+
+        if (result.isScanned) {
+          alert('चेतावनी: यो PDF स्क्यान गरिएको फोटो (Scanned Image) हुन सक्छ, जसमा डिजिटल अक्षरहरू भेटिएन। कृपया यस ग्रन्थको मूल पाठ तलको बक्समा कपी-पेस्ट गर्नुहोस्।');
+        }
+
+        extractedText = result.text;
       } else {
-        alert('फाइलबाट प्रत्यक्ष पाठ पढ्न सकिएन। कृपया फाइलको पाठ तलको बक्समा कपी-पेस्ट गर्नुहोस्।');
+        extractedText = await file.text();
       }
-    } catch (err) {
+
+      // Check for binary garbage characters
+      if (isBinaryGarbage(extractedText)) {
+        alert('त्रुटि: यो फाइलबाट बाइनरी फोहोर कोड प्राप्त भयो (कुनै पठनीय देवनागरी/संस्कृत पाठ भेटिएन)। कृपया शुद्ध डिजिटल टेक्स्ट फाइल प्रयोग गर्नुहोस् वा पाठ सिधै तल पेस्ट गर्नुहोस्।');
+        setRawBookText('');
+        return;
+      }
+
+      if (extractedText && extractedText.trim().length > 0) {
+        setRawBookText(extractedText);
+        showToast(`फाइल "${file.name}" बाट पाठ सफलतापूर्वक लोड भयो! अब "अटो अनुवाद" बटन थिच्नुहोस्।`);
+      } else {
+        alert('फाइलबाट कुनै पाठ फेला परेन। कृपया पाठ सिधै कपी गरेर तल टाँस्नुहोस्।');
+      }
+    } catch (err: any) {
       console.error('File read error:', err);
-      alert('फाइल पढ्न सकिएन। कृपया पाठ सिधै कपी गरेर तल टाँस्नुहोस्।');
+      alert('PDF फाइल पढ्न समस्या आयो: ' + (err?.message || 'कृपया पाठ सिधै कपी गरेर तल टाँस्नुहोस्।'));
     } finally {
       setIsProcessingText(false);
+      setPdfProgress(null);
       e.target.value = '';
     }
   };
@@ -189,6 +239,11 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
   const handleAutoProcessAndTranslate = () => {
     if (!rawBookText.trim()) {
       alert('कृपया पहिले कुनै PDF फाइल छान्नुहोस् वा पाठ बक्समा पुस्तकको सामग्री टाँस्नुहोस्।');
+      return;
+    }
+
+    if (isBinaryGarbage(rawBookText)) {
+      alert('त्रुटि: बक्समा बाइनरी बिग्रेका अक्षरहरू छन्। कृपया यसलाई हटाएर शुद्ध देवनागरी/संस्कृत/नेपाली पाठ मात्र राख्नुहोस्।');
       return;
     }
 
@@ -684,6 +739,13 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                     </div>
                   </div>
 
+                  {pdfProgress && (
+                    <div className="p-3 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-xl flex items-center gap-3 text-xs text-amber-900 dark:text-amber-200 font-bold animate-pulse">
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-700 dark:text-amber-300" />
+                      <span>{pdfProgress}</span>
+                    </div>
+                  )}
+
                   <textarea
                     rows={6}
                     value={rawBookText}
@@ -885,14 +947,31 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleAddNewBook}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>नयाँ धार्मिक ग्रन्थ थप्नुहोस्</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {customBooks.some((b) =>
+                b.chapters?.some(
+                  (c) => isBinaryGarbage(c.contentSanskrit || '') || isBinaryGarbage(c.contentNepaliTika || '')
+                )
+              ) && (
+                <button
+                  type="button"
+                  onClick={handleCleanCorruptedBooks}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-red-100 dark:bg-red-950/60 hover:bg-red-200 text-red-700 dark:text-red-300 rounded-xl text-xs font-bold transition-all cursor-pointer border border-red-300 dark:border-red-800"
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>⚠️ बिग्रेको/बाइनरी ग्रन्थ हटाउनुहोस्</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleAddNewBook}
+                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>नयाँ धार्मिक ग्रन्थ थप्नुहोस्</span>
+              </button>
+            </div>
           </div>
 
           {/* Cards Grid */}
