@@ -1,6 +1,7 @@
 import React from 'react';
 import { Product } from '../../types/vedicStoreTypes';
 import { Star, ShoppingCart, Eye, Heart, Check, Package, BookOpen, AlertTriangle } from 'lucide-react';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 interface ProductCardProps {
   product: Product;
@@ -34,10 +35,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       {/* Product Image Box */}
       <div className="relative aspect-[4/3] bg-stone-100 dark:bg-stone-900 overflow-hidden">
         <img
-          src={product.imageUrl}
+          src={getAssetUrl(product.imageUrl)}
           alt={product.nameNepali}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
+          onError={(e) => handleImageFallback(e, ['/images/puja_packages/ganesh_puja_poster.jpg', '/logo.png'])}
         />
 
         {/* Top Badges */}

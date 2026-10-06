@@ -20,6 +20,7 @@ import {
   getFilteredPujaGalleryItems
 } from '../../utils/pujaSamagriGalleryEngine';
 import { handlePhoneticInputKeyDown } from '../../utils/nepaliTransliteration';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 interface PujaSamagriGalleryModalProps {
   isOpen: boolean;
@@ -192,10 +193,11 @@ export const PujaSamagriGalleryModal: React.FC<PujaSamagriGalleryModalProps> = (
                     {/* Image Preview Box */}
                     <div className="relative aspect-[4/3] bg-stone-900 overflow-hidden">
                       <img
-                        src={item.imageUrl}
+                        src={getAssetUrl(item.imageUrl)}
                         alt={item.nameNepali}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
+                        onError={(e) => handleImageFallback(e, ['/images/puja_packages/ganesh_puja_poster.jpg', '/logo.png'])}
                       />
                       <span className="absolute bottom-1.5 left-1.5 bg-black/75 backdrop-blur-xs text-amber-300 text-[9.5px] font-bold px-2 py-0.5 rounded-md">
                         {item.categoryNameNepali}

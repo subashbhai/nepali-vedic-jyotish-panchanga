@@ -72,23 +72,46 @@ export function getAssetUrl(assetPath: string): string {
     }
   }
 
-  // Under file://, app:// (Electron scheme), capacitor://, or ionic:// protocols,
-  // convert root-relative '/assets/...' into relative './assets/...'
-  if (typeof window !== 'undefined' && window.location) {
-    const proto = window.location.protocol;
-    if (
-      proto === 'file:' ||
-      proto === 'app:' ||
-      proto === 'capacitor:' ||
-      proto === 'ionic:' ||
-      window.location.origin === 'null'
-    ) {
-      const clean = assetPath.startsWith('/') ? assetPath.slice(1) : assetPath;
-      return `./${clean}`;
-    }
+  // Normalize path without leading './' or '/'
+  let clean = assetPath.replace(/^(\.\/|\/)+/, '');
+  // Prevent double prefixing if repo name was already included
+  if (clean.startsWith('nepali-vedic-jyotish-panchanga/')) {
+    clean = clean.replace(/^nepali-vedic-jyotish-panchanga\//, '');
   }
 
-  return assetPath;
+  // Under file://, app:// (Electron scheme), capacitor://, or ionic:// protocols,
+  // convert root-relative into relative './...'
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol, origin, pathname } = window.location;
+    if (
+      protocol === 'file:' ||
+      protocol === 'app:' ||
+      protocol === 'capacitor:' ||
+      protocol === 'ionic:' ||
+      origin === 'null'
+    ) {
+      return `./${clean}`;
+    }
+
+    // GitHub Pages or subpath deployment:
+    // e.g., https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/
+    if (pathname.includes('/nepali-vedic-jyotish-panchanga')) {
+      return `${origin}/nepali-vedic-jyotish-panchanga/${clean}`;
+    }
+
+    // Generic GitHub Pages repo detection
+    if (origin.includes('.github.io')) {
+      const parts = pathname.split('/').filter(Boolean);
+      if (parts.length > 0 && !parts[0].includes('.')) {
+        return `${origin}/${parts[0]}/${clean}`;
+      }
+    }
+
+    // Standard web root (e.g. localhost or custom domain root)
+    return `/${clean}`;
+  }
+
+  return `./${clean}`;
 }
 
 export const DEFAULT_LOGO_URL = getAssetUrl('/logo.png');
@@ -114,14 +137,14 @@ export function handleImageFallback(
     return;
   }
 
-  // 2. Safe step resolution
+  // 2. Safe step resolution with getAssetUrl normalization
   const currentStep = parseInt(target.dataset.fallbackStep || '0', 10);
-  const fallbacks = fallbackUrls.length > 0 ? fallbackUrls : [
-    getAssetUrl('/logo.png'),
-    './logo.png',
-    './assets/logo.png',
-    getAssetUrl('/balananda-logo.png'),
+  const rawFallbacks = fallbackUrls.length > 0 ? fallbackUrls : [
+    '/logo.png',
+    '/assets/logo.png',
+    '/balananda-logo.png',
   ];
+  const fallbacks = rawFallbacks.map(url => getAssetUrl(url));
 
   if (currentStep < fallbacks.length) {
     target.dataset.fallbackStep = String(currentStep + 1);

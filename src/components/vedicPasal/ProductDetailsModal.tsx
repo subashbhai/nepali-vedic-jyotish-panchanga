@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../../types/vedicStoreTypes';
 import { X, Star, ShoppingCart, Check, Package, BookOpen, Truck, ShieldCheck, Heart, AlertTriangle, Minus, Plus } from 'lucide-react';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 interface ProductDetailsModalProps {
   product: Product | null;
@@ -63,9 +64,10 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
           <div className="space-y-3">
             <div className="aspect-[4/3] rounded-2xl bg-stone-100 dark:bg-stone-900 overflow-hidden relative border border-[#E6E0D5] dark:border-stone-800">
               <img
-                src={selectedImage}
+                src={getAssetUrl(selectedImage)}
                 alt={product.nameNepali}
                 className="w-full h-full object-cover"
+                onError={(e) => handleImageFallback(e, ['/images/puja_packages/ganesh_puja_poster.jpg', '/logo.png'])}
               />
               <button
                 type="button"
@@ -92,7 +94,12 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                         : 'border-transparent opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <img src={img} alt="thumbnail" className="w-full h-full object-cover" />
+                    <img 
+                      src={getAssetUrl(img)} 
+                      alt="thumbnail" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => handleImageFallback(e, ['/images/puja_packages/ganesh_puja_poster.jpg', '/logo.png'])}
+                    />
                   </button>
                 ))}
               </div>
