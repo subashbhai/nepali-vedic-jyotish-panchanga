@@ -52,12 +52,11 @@ import {
   Home
 } from 'lucide-react';
 
-import { DigitalLibraryView } from '../books/DigitalLibraryView';
 import { OrganizationProfile } from '../../types/astrology';
 
 interface VedicPasalMainViewProps {
   onNavigateHome?: () => void;
-  initialTab?: 'home' | 'books' | 'books_download' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin';
+  initialTab?: 'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin';
   isStandalone?: boolean;
   orgProfile?: OrganizationProfile;
 }
@@ -71,13 +70,12 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
   const [wishlist, setWishlist] = useState<string[]>([]);
 
   // Main Active Sub-Tab
-  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'books_download' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin'>(() => {
-    if (initialTab) return initialTab;
+  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin'>(() => {
+    if (initialTab && initialTab !== ('books_download' as any)) return initialTab;
     if (typeof window !== 'undefined') {
       const h = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
       if (h === 'store_admin' || h === 'pasal_admin' || h === 'library_admin' || h === 'digital_library_admin') return 'admin';
       if (h === 'pos' || h === 'pos_terminal') return 'pos';
-      if (h === 'pustak' || h === 'books_download' || h === 'library' || h === 'digital_library') return 'books_download';
     }
     return 'home';
   });
@@ -110,7 +108,7 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
     setRbacSession(getActiveRBACSession());
   }, [activeTab]);
 
-  const handleTabChange = (targetTab: 'home' | 'books' | 'books_download' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin') => {
+  const handleTabChange = (targetTab: 'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin') => {
     setAccessDeniedMsg(null);
 
     // Route Protection for Protected Dashboards
@@ -145,7 +143,6 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
       let targetHash = '#kharedi';
       if (targetTab === 'admin') targetHash = '#store_admin';
       else if (targetTab === 'pos') targetHash = '#pos';
-      else if (targetTab === 'books_download') targetHash = '#pustak';
       else if (targetTab === 'books') targetHash = '#kharedi';
 
       if (window.location.hash !== targetHash) {
@@ -312,18 +309,6 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
             <span>पसल होम</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => handleTabChange('books_download')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'books_download'
-                ? 'bg-[#8B1E0F] text-white shadow-sm'
-                : 'text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-amber-500" />
-            <span>📚 पुस्तक डाउनलोड</span>
-          </button>
 
           <button
             type="button"
@@ -667,14 +652,6 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
             </div>
           )}
         </div>
-      )}
-
-      {/* VIEW: Digital Library (Letterhead PDF Books & Download) */}
-      {activeTab === 'books_download' && (
-        <DigitalLibraryView
-          orgProfile={orgProfile}
-          onBackToStore={() => setActiveTab('home')}
-        />
       )}
 
       {/* VIEW: Books Store */}

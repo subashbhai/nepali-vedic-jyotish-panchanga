@@ -350,18 +350,11 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.setItem('balananda_force_windows_app_shell', 'true');
-                    window.dispatchEvent(new CustomEvent('windows-mode-changed'));
-                    onClose();
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-xs flex items-center justify-center gap-1.5 shrink-0 transition-transform hover:scale-102 cursor-pointer"
-                >
-                  <span>💻</span>
-                  <span>Windows एप प्रत्यक्ष अनुभव गर्नुहोस् (Live Preview)</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[11px] border border-emerald-300/60">
+                    वेबसाइटका सम्पूर्ण सुविधाहरू समावेश
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -375,10 +368,10 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                 </div>
                 <div>
                   <h4 className="font-bold text-base text-stone-900 dark:text-stone-100 font-serif">
-                    बालानन्द वैदिक ज्योतिष सेवा — Android मोबाइल एप
+                    बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग — Android मोबाइल एप
                   </h4>
                   <p className="text-xs text-stone-500">
-                    नेपाली वैदिक ज्योतिष तथा व्यक्तिगत ज्योतिष सेवा (Jyotish Services Only) • Android 8.0 देखि 15+
+                    वेबसाइटका सम्पूर्ण २०+ सुविधाहरू (पञ्चाङ्ग, कुण्डली, विवाह, वास्तु, पसल तथा ग्रन्थ) • १००% अफलाइन समर्थित
                   </p>
                 </div>
               </div>
