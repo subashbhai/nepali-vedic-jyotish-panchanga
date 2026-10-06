@@ -12,7 +12,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: "10mb" }));
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // Initialize Gemini AI client server-side
   const getGeminiClient = () => {
@@ -718,6 +719,62 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
       error: "Invalid or expired news editor token",
       messageNepali: "यो सक्रिय लिङ्क अमान्य वा म्याद सकिएको छ।",
     });
+  });
+
+  // API Route for Immediate PDF Page Scan & AI OCR for Sanskrit/Nepali religious texts
+  app.post("/api/pdf/scan-ocr", async (req, res) => {
+    try {
+      const { imageBase64, pageNumber } = req.body;
+      if (!imageBase64) {
+        return res.status(400).json({ error: "Missing image data for OCR." });
+      }
+
+      const ai = getGeminiClient();
+      const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9.-]+;base64,/, '');
+
+      const systemPrompt = `तपाईं एक अति-उच्च दक्षता भएको वैदिक संस्कृत, नेपाली तथा हिन्दी पाण्डुलिपि एवं धार्मिक ग्रन्थ OCR विशेषज्ञ (Transcriber) हुनुहुन्छ।
+दिइएको पुस्तकको स्क्यान गरिएको तस्विरलाई हेरेर त्यसमा रहेका सम्पूर्ण संस्कृत मन्त्र, श्लोक (संख्या जस्तै [१], [१०], [११] सहित), अध्याय शीर्षक र नेपाली/हिन्दी अर्थ वा टीकालाई अक्षरशः शुद्ध नेपाली देवनागरी युनिकोडमा पढ्नुहोस्।
+
+कडा नियमहरू:
+१. कुनै पनि श्लोक वा मन्त्र नछुटाई जस्ताको तस्तै उतार्नुहोस्।
+२. पुराना चाणक्य वा बाइनरी फन्टको कुनै पनि विकृति वा बिग्रेको कोड (mojibake) नराख्नुहोस्। १००% शुद्ध देवनागरी युनिकोड हुनुपर्दछ।
+३. यदि श्लोक छ भने संस्कृतमै र टीका/व्याख्या छ भने नेपाली/हिन्दीमै लेख्नुहोस्।
+४. केवल निकालिएको मूल पाठ मात्र आउटपुट गर्नुहोस्। कुनै अङ्ग्रेजी भूमिका वा 'Here is the transcript' नलेख्नुहोस्।`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: systemPrompt },
+              {
+                inlineData: {
+                  mimeType: "image/png",
+                  data: cleanBase64,
+                },
+              },
+            ],
+          },
+        ],
+        config: {
+          temperature: 0.1,
+        },
+      });
+
+      const extractedText = response.text || "";
+      return res.json({
+        success: true,
+        text: extractedText.trim(),
+        pageNumber: pageNumber || 1,
+      });
+    } catch (err: any) {
+      console.error("PDF Scan OCR Error:", err);
+      return res.status(500).json({
+        success: false,
+        error: err.message || "Failed to scan page via AI OCR.",
+      });
+    }
   });
 
   // Health check API

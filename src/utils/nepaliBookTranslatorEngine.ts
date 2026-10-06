@@ -7,6 +7,8 @@
  * 3. Preserves Sanskrit mantras, shlokas, and suktas 100% verbatim in pure Devanagari.
  */
 
+import { cleanAndDecodePdfText, isChanakyaOrLegacyFont } from './legacyFontDecoder';
+
 // Comprehensive Hindi to Nepali linguistic transformation dictionary
 const HINDI_TO_NEPALI_RULES: [RegExp, string][] = [
   // Auxiliary verbs & tenses
@@ -203,14 +205,18 @@ export interface ParsedChapterContent {
   notesNepali?: string;
 }
 
+
 /**
  * Automatically parses raw book text (e.g. from an uploaded PDF):
+ * - Auto-decodes Chanakya / Kruti Dev legacy fonts
  * - Separates Sanskrit shlokas/mantras
  * - Translates all Hindi explanations into Nepali
  * - Formats properly for the Patrika reader
  */
 export function parseAndTranslateRawBookChapter(rawText: string, defaultTitle: string = 'अध्याय'): ParsedChapterContent {
-  const lines = rawText.split('\n');
+  // Guarantee legacy font decoding
+  const normalizedText = cleanAndDecodePdfText(rawText || '');
+  const lines = normalizedText.split('\n');
   const sanskritLines: string[] = [];
   const commentaryLines: string[] = [];
 
