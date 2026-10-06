@@ -151,7 +151,6 @@ export const TAB_TO_HASH: Record<string, string> = {
   samachar: 'samachar',
   kharedi: 'pasal',
   pustak: 'pustak',
-  books_download: 'pustak',
   org_profile: 'org_profile',
   calendar: 'calendar',
   date_converter: 'date_converter',
