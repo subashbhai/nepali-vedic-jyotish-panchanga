@@ -87,7 +87,7 @@ import {
   formatNPRCurrency
 } from '../../db/subscriptionStore';
 
-import { getStoredRBACUsers, RBACUser, updateRBACUserStatus, editRBACUserDetails } from '../../db/rbacStore';
+import { getStoredRBACUsers, RBACUser, updateRBACUserStatus, editRBACUserDetails, setRBACSession, RBACSession } from '../../db/rbacStore';
 import { getStoredBookings, saveBookings } from '../../db/yajamanStore';
 import { INITIAL_DEMO_PRODUCTS } from '../../db/vedicStore';
 import { Booking, BookingStatus } from '../../types/yajamanTypes';
@@ -312,6 +312,21 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       };
       setAdminSession(newSession);
       setSession(newSession);
+
+      const rbac: RBACSession = {
+        token: 'superadmin_auth_sync_' + Date.now(),
+        userId: found.id || 'usr_superadmin_master',
+        username: found.username,
+        fullName: found.fullName,
+        role: 'SUPER_ADMIN',
+        roleNameNepali: found.roleNameNepali || 'मुख्य प्रशासक (Super Admin)',
+        status: 'active',
+        permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
+        createdAtISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(rbac);
+
       logAdminAction(
         found.username,
         found.roleNameNepali,
