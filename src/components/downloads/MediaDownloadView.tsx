@@ -19,7 +19,9 @@ import {
   Maximize2,
   Disc3,
   Radio,
-  Check
+  Check,
+  Film,
+  Video as VideoIcon
 } from 'lucide-react';
 import {
   VEDIC_MEDIA_ITEMS,
@@ -33,8 +35,9 @@ const CATEGORY_TABS: { key: MediaCategory; label: string; icon: string }[] = [
   { key: 'all', label: 'सम्पूर्ण मिडिया', icon: '✨' },
   { key: 'mantra', label: 'वैदिक मन्त्र', icon: '🕉️' },
   { key: 'stotra', label: 'स्तोत्र पाठ', icon: '📜' },
-  { key: 'wallpaper', label: 'धार्मिक 4K वालपेपर', icon: '🖼️' },
+  { key: 'video', label: 'धार्मिक भिडियो कथा', icon: '🎬' },
   { key: 'infographic', label: 'चार्ट तथा मण्डल', icon: '📊' },
+  { key: 'wallpaper', label: 'धार्मिक 4K वालपेपर', icon: '🖼️' },
 ];
 
 export const MediaDownloadView: React.FC = () => {
@@ -46,6 +49,7 @@ export const MediaDownloadView: React.FC = () => {
   const [duration, setDuration] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [previewImage, setPreviewImage] = useState<VedicMediaItem | null>(null);
+  const [activePlayingVideo, setActivePlayingVideo] = useState<VedicMediaItem | null>(null);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -83,6 +87,14 @@ export const MediaDownloadView: React.FC = () => {
     }
   };
 
+  const handleOpenVideo = (item: VedicMediaItem) => {
+    if (isPlaying) {
+      setIsPlaying(false);
+      if (audioRef.current) audioRef.current.pause();
+    }
+    setActivePlayingVideo(item);
+  };
+
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime);
@@ -107,9 +119,34 @@ export const MediaDownloadView: React.FC = () => {
     return fn;
   };
 
-  // Safe guaranteed 1-click Direct Download (No new page, no redirect, direct MP3 file)
+  // Safe guaranteed 1-click Direct Download (No new page, no redirect, direct file)
   const handleDownload = async (item: VedicMediaItem) => {
     const finalFileName = getCleanTargetFileName(item);
+
+    // 1. Video download / open
+    if (item.type === 'video') {
+      window.open(item.downloadUrl, '_blank', 'noopener,noreferrer');
+      setDownloadNotice(`"${item.titleNepali}" भिडियो खुल्दैछ...`);
+      setTimeout(() => setDownloadNotice(null), 4000);
+      return;
+    }
+
+    // 2. Direct SVG Data URI (Yantras & Mandalas) 100% instant offline vector download
+    if (item.downloadUrl.startsWith('data:')) {
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = item.downloadUrl;
+      a.download = finalFileName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+      }, 1000);
+      setDownloadNotice(`✓ "${item.titleNepali}" सफलतापूर्वक डिभाइसमा डाउनलोड भयो (${finalFileName})`);
+      setTimeout(() => setDownloadNotice(null), 4500);
+      return;
+    }
+
     const resolvedUrl = item.type === 'image' ? getAssetUrl(item.downloadUrl) : item.downloadUrl;
 
     setDownloadingId(item.id);
@@ -155,9 +192,70 @@ export const MediaDownloadView: React.FC = () => {
     }
   };
 
-  // Direct MP3 File Sharing (Files ONLY, NO link URL, NO website text)
+  // Direct Sharing
   const handleShare = async (item: VedicMediaItem) => {
     const finalFileName = getCleanTargetFileName(item);
+
+    // 1. Video Sharing: Shares Title + Video Link smoothly
+    if (item.type === 'video') {
+      setSharingId(item.id);
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: item.titleNepali,
+            text: `${item.titleNepali}\n${item.descriptionNepali}`,
+            url: item.downloadUrl,
+          });
+          setCopiedId(item.id);
+          setDownloadNotice(`✓ "${item.titleNepali}" भिडियो सफलतापूर्वक सेयर गरियो!`);
+        } catch (err) {
+          if ((err as Error)?.name !== 'AbortError') {
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(item.downloadUrl);
+              setCopiedId(item.id);
+              setDownloadNotice(`✓ "${item.titleNepali}" भिडियो लिंक क्लिपबोर्डमा प्रतिलिपि गरियो!`);
+            }
+          }
+        }
+      } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(item.downloadUrl);
+        setCopiedId(item.id);
+        setDownloadNotice(`✓ "${item.titleNepali}" भिडियो लिंक क्लिपबोर्डमा प्रतिलिपि गरियो!`);
+      }
+      setSharingId(null);
+      setTimeout(() => {
+        setCopiedId(null);
+        setDownloadNotice(null);
+      }, 4500);
+      return;
+    }
+
+    // 2. SVG Data URI Sharing (Yantras & Mandalas)
+    if (item.downloadUrl.startsWith('data:')) {
+      setSharingId(item.id);
+      try {
+        const response = await fetch(item.downloadUrl);
+        const blob = await response.blob();
+        const file = new File([blob], finalFileName, { type: 'image/svg+xml' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file] });
+          setCopiedId(item.id);
+          setDownloadNotice(`✓ "${item.titleNepali}" मण्डल फाइल सेयर गरियो!`);
+        } else {
+          handleDownload(item);
+        }
+      } catch {
+        handleDownload(item);
+      } finally {
+        setSharingId(null);
+        setTimeout(() => {
+          setCopiedId(null);
+          setDownloadNotice(null);
+        }, 4500);
+      }
+      return;
+    }
+
     const resolvedUrl = item.type === 'image' ? getAssetUrl(item.downloadUrl) : item.downloadUrl;
 
     setSharingId(item.id);
@@ -180,7 +278,6 @@ export const MediaDownloadView: React.FC = () => {
         setDownloadNotice(`✓ "${item.titleNepali}" अडियो फाइल सफलतापूर्वक सेयर गरियो!`);
       } else {
         // Fallback for browsers without direct file-sharing API (e.g. desktop Chrome):
-        // Automatically save/download the MP3 file directly so the user has the audio file to attach!
         const blobUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
@@ -216,7 +313,9 @@ export const MediaDownloadView: React.FC = () => {
         item.titleNepali.toLowerCase().includes(q) ||
         (item.titleSanskrit && item.titleSanskrit.toLowerCase().includes(q)) ||
         item.descriptionNepali.toLowerCase().includes(q) ||
-        item.categoryLabel.toLowerCase().includes(q);
+        item.categoryLabel.toLowerCase().includes(q) ||
+        (item.videoSpeakerOrSource && item.videoSpeakerOrSource.toLowerCase().includes(q)) ||
+        (item.badge && item.badge.toLowerCase().includes(q));
 
       return matchesCategory && matchesSearch;
     });
@@ -244,11 +343,11 @@ export const MediaDownloadView: React.FC = () => {
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-black font-serif tracking-tight leading-tight text-white">
-            मन्त्र स्तोत्र अडियो तथा 4K देव वालपेपरहरू
+            मन्त्र, स्तोत्र, धार्मिक भिडियो एवं वैदिक यन्त्र मण्डलहरू
           </h1>
 
           <p className="text-xs sm:text-base text-cyan-100/90 leading-relaxed font-sans">
-            शुद्ध वैदिक स्वर सहितका <span className="font-bold text-cyan-300">४५+ मन्त्र तथा स्तोत्र अडियो पाठ</span> (रुद्राष्टाध्यायी, चण्डी, महामृत्युञ्जय, सहस्रनाम) र विभिन्न देवी-देवताका <span className="text-amber-300 font-bold">दिव्य 4K UHD वालपेपरहरू</span> १-क्लिकमा निःशुल्क डाउनलोड तथा प्ले गर्नुहोस्।
+            शुद्ध वैदिक स्वर सहितका <span className="font-bold text-cyan-300">४५+ मन्त्र तथा स्तोत्र पाठ</span>, रामलीला, कृष्ण चरित्र, प्रेमानन्द जी महाराज एवं पण्डितहरूका <span className="text-emerald-300 font-bold">२१+ धार्मिक भिडियो कथा</span>, देवी-देवताका <span className="text-amber-300 font-bold">२४+ पवित्र वैदिक यन्त्र एवं मण्डल</span> र <span className="text-yellow-300 font-bold">३४+ 4K देव वालपेपरहरू</span> १-क्लिकमा निःशुल्क डाउनलोड, अवलोकन तथा प्ले गर्नुहोस्।
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-2.5 text-xs">
@@ -257,8 +356,16 @@ export const MediaDownloadView: React.FC = () => {
               <span>४५+ मन्त्र एवं स्तोत्र MP3</span>
             </span>
             <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
+              <Film className="w-4 h-4 text-emerald-300" />
+              <span>२१+ धार्मिक भिडियो कथा (५+ मिनेट)</span>
+            </span>
+            <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-amber-300" />
+              <span>२४+ पवित्र यन्त्र तथा मण्डल</span>
+            </span>
+            <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
               <ImageIcon className="w-4 h-4 text-cyan-300" />
-              <span>34+ 4K UHD देव वालपेपर</span>
+              <span>३४+ 4K UHD देव वालपेपर</span>
             </span>
             <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-amber-300" />
@@ -288,7 +395,7 @@ export const MediaDownloadView: React.FC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handlePhoneticInputKeyDown}
               onBlur={handlePhoneticBlur}
-              placeholder="मन्त्र, स्तोत्र, शिव, दुर्गा, गणेश वा वालपेपर खोज्नुहोस् (उदा: रुद्री, राम, कृष्ण)..."
+              placeholder="मन्त्र, स्तोत्र, भिडियो, प्रेमानन्द, रामलीला, कृष्ण, यन्त्र वा वालपेपर खोज्नुहोस्..."
               className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs sm:text-sm text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
             {searchQuery && (
@@ -349,6 +456,7 @@ export const MediaDownloadView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredItems.map(item => {
           const isAudio = item.type === 'audio';
+          const isVideo = item.type === 'video';
           const isCurrentActive = activePlayingItem?.id === item.id;
           const isCurrentPlaying = isCurrentActive && isPlaying;
 
@@ -358,12 +466,55 @@ export const MediaDownloadView: React.FC = () => {
               className={`rounded-2xl border transition-all flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-xl group ${
                 isCurrentActive
                   ? 'bg-cyan-50/70 dark:bg-cyan-950/40 border-cyan-400 ring-2 ring-cyan-400/50'
+                  : isVideo
+                  ? 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 hover:border-red-400 dark:hover:border-red-500/50'
                   : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 hover:border-cyan-300 dark:hover:border-stone-700'
               }`}
             >
-              {/* Media Preview (Visual Thumbnail for images / Wave banner for Audio) */}
+              {/* Media Preview (Visual Thumbnail for images & videos / Wave banner for Audio) */}
               <div className="relative">
-                {item.thumbnailUrl ? (
+                {isVideo ? (
+                  <div
+                    onClick={() => handleOpenVideo(item)}
+                    className="relative h-48 sm:h-56 w-full bg-stone-950 overflow-hidden cursor-pointer group/thumb"
+                  >
+                    <img
+                      src={getAssetUrl(item.thumbnailUrl || '/assets/deities/radha_krishna.jpg')}
+                      alt={item.titleNepali}
+                      className="w-full h-full object-cover opacity-85 group-hover/thumb:opacity-95 group-hover/thumb:scale-105 transition-all duration-500"
+                      loading="lazy"
+                      onError={(e) => handleImageFallback(e, ['/assets/deities/radha_krishna.jpg', '/logo.png'])}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/30 flex items-center justify-center">
+                      <div className="w-14 h-14 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-2xl group-hover/thumb:scale-110 group-hover/thumb:bg-red-500 transition-all">
+                        <Play className="w-7 h-7 fill-white ml-1" />
+                      </div>
+                    </div>
+
+                    {/* Top badges */}
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-lg bg-red-600 text-white text-[10px] font-bold shadow-md flex items-center gap-1">
+                        <Film className="w-3 h-3" />
+                        <span>{item.badge || 'भिडियो'}</span>
+                      </span>
+                      {item.language && (
+                        <span className="px-2 py-0.5 rounded-lg bg-stone-900/80 backdrop-blur-xs text-amber-300 text-[10px] font-bold border border-amber-400/30">
+                          {item.language}
+                        </span>
+                      )}
+                    </div>
+
+                    <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-xs text-white text-[10px] font-mono font-bold border border-white/20">
+                      {item.durationOrDim}
+                    </span>
+
+                    {item.videoSpeakerOrSource && (
+                      <span className="absolute bottom-2 left-2 right-2 px-2.5 py-1 rounded-lg bg-stone-900/90 backdrop-blur-xs text-cyan-300 text-[11px] font-semibold truncate border border-cyan-500/20">
+                        🎙️ {item.videoSpeakerOrSource}
+                      </span>
+                    )}
+                  </div>
+                ) : item.thumbnailUrl ? (
                   <div
                     onClick={() => !isAudio && setPreviewImage(item)}
                     className="relative h-56 sm:h-64 w-full bg-stone-100 dark:bg-stone-800 overflow-hidden cursor-pointer group/thumb"
@@ -378,13 +529,19 @@ export const MediaDownloadView: React.FC = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-black/20 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-3">
                       <span className="px-3 py-1.5 rounded-xl bg-white/90 text-stone-900 text-xs font-bold flex items-center gap-1.5 shadow-lg">
                         <Eye className="w-3.5 h-3.5" />
-                        <span>4K पूर्ण दृश्य हेर्नुहोस्</span>
+                        <span>{item.category === 'infographic' ? 'यन्त्र मण्डल ठूलो पार्नुहोस्' : '4K पूर्ण दृश्य हेर्नुहोस्'}</span>
                       </span>
                     </div>
 
                     <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono font-bold">
                       {item.durationOrDim}
                     </span>
+
+                    {item.badge && (
+                      <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-lg bg-amber-400 text-stone-950 text-[10px] font-bold shadow-md">
+                        {item.badge}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div className="h-28 bg-gradient-to-br from-cyan-900/40 to-blue-900/30 dark:from-stone-800 dark:to-cyan-950/30 p-4 flex flex-col justify-between relative overflow-hidden">
@@ -409,13 +566,13 @@ export const MediaDownloadView: React.FC = () => {
                         समय अवधि: {item.durationOrDim}
                       </span>
                     </div>
-                  </div>
-                )}
 
-                {item.badge && (
-                  <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-lg bg-amber-400 text-stone-950 text-[10px] font-bold shadow-md">
-                    {item.badge}
-                  </span>
+                    {item.badge && (
+                      <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-lg bg-amber-400 text-stone-950 text-[10px] font-bold shadow-md">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -439,7 +596,16 @@ export const MediaDownloadView: React.FC = () => {
 
                 {/* Actions */}
                 <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
-                  {isAudio ? (
+                  {isVideo ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenVideo(item)}
+                      className="flex-1 py-2 px-3 rounded-xl font-bold text-xs bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>भिडियो हेर्नुहोस्</span>
+                    </button>
+                  ) : isAudio ? (
                     <button
                       type="button"
                       onClick={() => handleTogglePlay(item)}
@@ -468,7 +634,7 @@ export const MediaDownloadView: React.FC = () => {
                       className="flex-1 py-2 px-3 rounded-xl font-bold text-xs bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-800 dark:text-stone-200 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>प्रिभ्यु</span>
+                      <span>{item.category === 'infographic' ? 'यन्त्र हेर्नुहोस्' : 'प्रिभ्यु'}</span>
                     </button>
                   )}
 
@@ -476,11 +642,24 @@ export const MediaDownloadView: React.FC = () => {
                     type="button"
                     onClick={() => handleDownload(item)}
                     disabled={downloadingId === item.id}
-                    className="py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95 disabled:opacity-60"
-                    title={`${item.titleNepali} सिधै डाउनलोड गर्नुहोस्`}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95 disabled:opacity-60 ${
+                      isVideo
+                        ? 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-700 dark:text-stone-300'
+                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                    }`}
+                    title={isVideo ? 'भिडियो स्रोत खोल्नुहोस्' : `${item.titleNepali} डाउनलोड गर्नुहोस्`}
                   >
-                    <Download className={`w-3.5 h-3.5 ${downloadingId === item.id ? 'animate-bounce' : ''}`} />
-                    <span>{downloadingId === item.id ? 'डाउनलोड...' : 'डाउनलोड'}</span>
+                    {isVideo ? (
+                      <>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>हेर्नुहोस्</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className={`w-3.5 h-3.5 ${downloadingId === item.id ? 'animate-bounce' : ''}`} />
+                        <span>{downloadingId === item.id ? 'डाउनलोड...' : 'डाउनलोड'}</span>
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -488,7 +667,7 @@ export const MediaDownloadView: React.FC = () => {
                     onClick={() => handleShare(item)}
                     disabled={sharingId === item.id}
                     className="p-2 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer disabled:opacity-60 transition-colors"
-                    title="अडियो / मिडिया फाइल सिधै सेयर गर्नुहोस्"
+                    title={isVideo ? 'भिडियो सेयर गर्नुहोस्' : 'फाइल सिधै सेयर गर्नुहोस्'}
                   >
                     {sharingId === item.id ? (
                       <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
@@ -582,19 +761,24 @@ export const MediaDownloadView: React.FC = () => {
         </div>
       )}
 
-      {/* 5. 4K Wallpaper Preview Lightbox Modal */}
+      {/* 5. 4K Wallpaper & Yantra Preview Lightbox Modal */}
       {previewImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-stone-950/90 backdrop-blur-md animate-fadeIn">
           <div className="relative max-w-4xl w-full bg-stone-900 rounded-3xl overflow-hidden shadow-2xl border-2 border-amber-400/80 flex flex-col max-h-[92vh]">
             {/* Modal Header */}
             <div className="p-4 bg-stone-950/80 flex items-center justify-between border-b border-stone-800 text-white">
               <div className="min-w-0 pr-4">
-                <h3 className="font-bold font-serif text-base text-amber-300 truncate">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-amber-400 text-stone-950 text-[10px] font-bold">
+                    {previewImage.badge || 'पवित्र मण्डल'}
+                  </span>
+                  <span className="text-xs text-stone-400 font-mono">
+                    {previewImage.durationOrDim} • {previewImage.fileSizeText}
+                  </span>
+                </div>
+                <h3 className="font-bold font-serif text-base text-amber-300 truncate mt-1">
                   {previewImage.titleNepali}
                 </h3>
-                <p className="text-xs text-stone-400 font-mono">
-                  {previewImage.durationOrDim} • {previewImage.fileSizeText}
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -604,7 +788,7 @@ export const MediaDownloadView: React.FC = () => {
                   className="py-2 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md"
                 >
                   <Download className="w-4 h-4" />
-                  <span>4K डाउनलोड गर्नुहोस्</span>
+                  <span>{previewImage.category === 'infographic' ? 'यन्त्र SVG डाउनलोड' : '4K डाउनलोड गर्नुहोस्'}</span>
                 </button>
                 <button
                   type="button"
@@ -628,8 +812,104 @@ export const MediaDownloadView: React.FC = () => {
 
             {/* Modal Footer */}
             <div className="p-3 bg-stone-950 text-xs text-stone-400 flex items-center justify-between">
-              <span>{previewImage.descriptionNepali}</span>
-              <span className="font-bold text-emerald-400">१००% उच्च गुणस्तर (Ultra High Definition)</span>
+              <span className="truncate pr-4">{previewImage.descriptionNepali}</span>
+              <span className="font-bold text-emerald-400 shrink-0">१००% उच्च गुणस्तर (Ultra High Definition)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. High-Definition Spiritual Video Player Modal */}
+      {activePlayingVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-stone-950/95 backdrop-blur-md animate-fadeIn">
+          <div className="relative max-w-4xl w-full bg-stone-900 rounded-3xl overflow-hidden shadow-2xl border-2 border-red-500/80 flex flex-col max-h-[95vh]">
+            {/* Modal Header */}
+            <div className="p-4 bg-stone-950/90 flex items-center justify-between border-b border-stone-800 text-white">
+              <div className="min-w-0 pr-4">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider">
+                    {activePlayingVideo.badge || 'भिडियो'}
+                  </span>
+                  {activePlayingVideo.language && (
+                    <span className="px-2 py-0.5 rounded bg-stone-800 text-amber-300 text-[10px] font-bold border border-amber-400/30">
+                      {activePlayingVideo.language}
+                    </span>
+                  )}
+                  <span className="text-xs text-stone-400 font-mono">
+                    अवधि: {activePlayingVideo.durationOrDim}
+                  </span>
+                </div>
+                <h3 className="font-bold font-serif text-base sm:text-lg text-amber-300 truncate mt-1">
+                  {activePlayingVideo.titleNepali}
+                </h3>
+                {activePlayingVideo.videoSpeakerOrSource && (
+                  <p className="text-xs text-cyan-300 font-sans truncate">
+                    प्रवचन / वाचक: {activePlayingVideo.videoSpeakerOrSource}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleShare(activePlayingVideo)}
+                  className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 cursor-pointer"
+                  title="भिडियो सेयर गर्नुहोस्"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePlayingVideo(null)}
+                  className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 cursor-pointer"
+                  title="बन्द गर्नुहोस्"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Video Frame */}
+            <div className="relative w-full aspect-video bg-black flex items-center justify-center">
+              {activePlayingVideo.videoEmbedUrl ? (
+                <iframe
+                  src={`${activePlayingVideo.videoEmbedUrl}?autoplay=1&rel=0`}
+                  title={activePlayingVideo.titleNepali}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="text-center p-6 text-stone-300">
+                  <p>भिडियो लोड हुन सकेन</p>
+                  <a
+                    href={activePlayingVideo.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-3 px-4 py-2 rounded-xl bg-red-600 text-white font-bold text-xs"
+                  >
+                    YouTube मा हेर्नुहोस्
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-stone-950 text-xs text-stone-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-stone-800">
+              <p className="line-clamp-2 max-w-2xl text-stone-400">
+                {activePlayingVideo.descriptionNepali}
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={activePlayingVideo.downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>बाह्य लिङ्कमा खोल्नुहोस्</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { getAssetUrl } from '../../utils/assetHelper';
+import { SACRED_VEDIC_YANTRAS_DATABASE } from '../../utils/vedicYantraGenerator';
 
-export type MediaCategory = 'all' | 'mantra' | 'stotra' | 'wallpaper' | 'infographic';
+export type MediaCategory = 'all' | 'mantra' | 'stotra' | 'wallpaper' | 'infographic' | 'video';
 
 export interface VedicMediaItem {
   id: string;
@@ -8,7 +9,7 @@ export interface VedicMediaItem {
   titleSanskrit?: string;
   category: MediaCategory;
   categoryLabel: string;
-  type: 'audio' | 'image';
+  type: 'audio' | 'image' | 'video';
   descriptionNepali: string;
   fileSizeText: string;
   durationOrDim: string;
@@ -16,6 +17,9 @@ export interface VedicMediaItem {
   fileName: string;
   thumbnailUrl?: string;
   badge?: string;
+  videoEmbedUrl?: string;
+  videoSpeakerOrSource?: string;
+  language?: 'नेपाली' | 'हिन्दी' | 'संस्कृत';
 }
 
 const RAW_VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
@@ -1053,7 +1057,7 @@ const RAW_VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
     titleNepali: 'श्री यन्त्र महामेरु एवं नव आवरण मण्डल इन्फोग्राफिक',
     titleSanskrit: 'श्री यन्त्र - विन्दु, त्रिकोण, अष्टकोण, दशार, चतुर्दशार',
     category: 'infographic',
-    categoryLabel: 'चार्ट तथा इन्फोग्राफिक्स',
+    categoryLabel: 'चार्ट तथा मण्डल',
     type: 'image',
     descriptionNepali: 'ब्रह्माण्डको उत्पत्ति र शक्तिको प्रतीक श्री यन्त्रको वैज्ञानिक एवं ज्यामितीय विश्लेषण।',
     fileSizeText: '850 KB',
@@ -1068,7 +1072,7 @@ const RAW_VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
     titleNepali: 'बालानन्द वैदिक ज्योतिष प्रतीक एवं पञ्चाङ्ग मण्डल',
     titleSanskrit: 'वेदचक्षुर्ज्योतिषं शास्त्रम्',
     category: 'infographic',
-    categoryLabel: 'चार्ट तथा इन्फोग्राफिक्स',
+    categoryLabel: 'चार्ट तथा मण्डल',
     type: 'image',
     descriptionNepali: 'वैदिक ज्योतिष, काल गणना एवं सूर्य-चन्द्र पञ्चाङ्गको आधिकारिक संस्थागत इन्फोग्राफिक।',
     fileSizeText: '1.4 MB',
@@ -1077,14 +1081,420 @@ const RAW_VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
     fileName: 'balananda-vedic-jyotish-mandala-4k.png',
     thumbnailUrl: '/assets/logo.png',
     badge: 'पञ्चाङ्ग मण्डल'
+  },
+
+  // ==========================================
+  // ५. धार्मिक भिडियो कथा, रामलीला, कृष्ण चरित्र एवं सन्त वाणी (२१ वटा भिडियोहरू - ५+ मिनेट)
+  // ==========================================
+  {
+    id: 'video_ramayan_ep01_janma',
+    titleNepali: 'रामानन्द सागर रामायण - श्री राम जन्मोत्सव एवं बाललीला (भाग १)',
+    titleSanskrit: 'श्री रामचन्द्र कृपालु भजु मन हरण भवभय दारुणम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'रामानन्द सागरद्वारा निर्देशित कालजयी रामायणको पहिलो भाग: भगवान् श्रीरामको अलौकिक जन्म, नामकरण संस्कार र बाललीलाको दिव्य कथा।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '४२:१५ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=dsLUAP58ARc',
+    fileName: 'ramayan_ep1_ram_janma_balleela.mp4',
+    thumbnailUrl: '/assets/deities/ram_darbar.jpg',
+    badge: 'रामलीला',
+    videoSpeakerOrSource: 'रामानन्द सागर (रामायण)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/dsLUAP58ARc',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_shri_krishna_ep01_janma',
+    titleNepali: 'श्रीकृष्ण लीला - भगवान् श्रीकृष्ण प्राकट्य एवं वासुदेव गोकुल यात्रा (भाग १)',
+    titleSanskrit: 'सुदेवसुतं देवं कंसचाणूरमर्दनम् देवकीपरमानन्दं कृष्णं वन्दे जगद्गुरुम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'रामानन्द सागरको श्रीकृष्ण महागाथा: मथुरा कारागारमा चतुर्भुज नारायण रूप प्राकट्य, यमुना पार गरी गोकुल प्रस्थान र नन्दोत्सव।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '४५:२० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=kS6vJ93x0wU',
+    fileName: 'shri_krishna_janma_gokul_leela.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'कृष्ण चरित्र',
+    videoSpeakerOrSource: 'रामानन्द सागर (श्रीकृष्ण)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/kS6vJ93x0wU',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_premanand_naam_jaap',
+    titleNepali: 'पूज्य प्रेमानन्द जी महाराज - नाम जपको वास्तविक रहस्य र मन एकाग्र गर्ने उपाय',
+    titleSanskrit: 'हरे कृष्ण हरे कृष्ण कृष्ण कृष्ण हरे हरे • हरे राम हरे राम राम राम हरे हरे',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'वृन्दावनका पूज्य सन्त श्री हित प्रेमानन्द गोविन्द शरण जी महाराजको दिव्य एकान्तिक वार्तालाप। नाम जपले कसरी जीवनका सारा दुःख र पाप नष्ट गर्दछ?',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '१८:४० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=nyd-xznCpJc',
+    fileName: 'premanand_ji_naam_jaap_rahasya.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'सत्सङ्ग वाणी',
+    videoSpeakerOrSource: 'पूज्य श्री प्रेमानन्द जी महाराज (भजन मार्ग)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/nyd-xznCpJc',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_dinbandhu_bhagawat_katha',
+    titleNepali: 'पण्डित दिनबन्धु पोखरेल - श्रीमद्भागवत महापुराण: जीवन परिवर्तन गर्ने अमृत कथा',
+    titleSanskrit: 'सच्चिदानन्दरूपाय विश्वोत्पत्त्यादिहेतवे तापत्रयविनाशाय श्रीकृष्णाय वयं नुमः',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'प्रसिद्ध भागवत वाचक पण्डित दिनबन्धु पोखरेलज्यूद्वारा व्याख्या गरिएको भागवतको सार, मानव जीवनको उद्देश्य र आत्मशान्तिको मार्ग।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२८:५० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=-_m4OSTO2LA',
+    fileName: 'dinbandhu_pokharel_bhagawat_katha.mp4',
+    thumbnailUrl: '/assets/deities/vishnu_vaikuntha.jpg',
+    badge: 'नेपाली कथा',
+    videoSpeakerOrSource: 'पं. दिनबन्धु पोखरेल',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/-_m4OSTO2LA',
+    language: 'नेपाली'
+  },
+  {
+    id: 'video_dinbandhu_chinta_mukti',
+    titleNepali: 'पण्डित दिनबन्धु पोखरेल - मनमा चिन्ता किन बढ्छ? तनाव र अशान्तिबाट मुक्तिका उपाय',
+    titleSanskrit: 'शान्ताकारं भुजगशयनं पद्मनाभं सुरेशं विश्वाधारं गगनसदृशं मेघवर्णं शुभाङ्गम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'मानव जीवनमा चिन्ता, भय, निराशा र अशान्ति उत्पन्न हुनाका कारणहरू र वैदिक अध्यात्मबाट कसरी स्थायी शान्ति प्राप्त गर्ने?',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२१:१५ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=qnHgU1PZEBc',
+    fileName: 'dinbandhu_pokharel_chinta_mukti.mp4',
+    thumbnailUrl: '/assets/deities/hanuman_sanjeevani.jpg',
+    badge: 'नेपाली प्रवचन',
+    videoSpeakerOrSource: 'पं. दिनबन्धु पोखरेल',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/qnHgU1PZEBc',
+    language: 'नेपाली'
+  },
+  {
+    id: 'video_dinbandhu_mata_pita_sewa',
+    titleNepali: 'पण्डित दिनबन्धु पोखरेल - माता-पिताको सेवा नै साक्षात् भगवान्‌को पूजा',
+    titleSanskrit: 'मातृदेवो भव पितृदेवो भव आचार्यदेवो भव',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'माता-पिता र गुरुको सेवाको शास्त्रीय महिमा, पारिवारिक सद्भाव र सन्तानको वास्तविक कर्तव्यबारे भावुक र ज्ञानवर्धक प्रवचन।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२५:३० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=XgbOwwWumM8',
+    fileName: 'dinbandhu_pokharel_mata_pita_sewa.mp4',
+    thumbnailUrl: '/assets/deities/shiva_kailash.jpg',
+    badge: 'नेपाली प्रवचन',
+    videoSpeakerOrSource: 'पं. दिनबन्धु पोखरेल',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/XgbOwwWumM8',
+    language: 'नेपाली'
+  },
+  {
+    id: 'video_premanand_krodha_ahankar',
+    titleNepali: 'पूज्य प्रेमानन्द जी महाराज - काम, क्रोध र अहंकारलाई कसरी जित्ने? (अमृत वाणी)',
+    titleSanskrit: 'काम एष क्रोध एष रजोगुणसमुद्भवः महाशनो महापाप्मा विद्ध्येनमिह वैरिणम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'मनमा उठ्ने वासना, रिस, ईर्ष्या र अहंकारलाई सन्त मार्गदर्शन र भगवत् चिन्तनद्वारा परास्त गरी चित्त निर्मल बनाउने अध्यात्मिक साधना।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '१५:२२ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=WJ_Q_xVl4fM',
+    fileName: 'premanand_krodha_ahankar_mukti.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'सत्सङ्ग वाणी',
+    videoSpeakerOrSource: 'पूज्य श्री प्रेमानन्द जी महाराज (भजन मार्ग)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/WJ_Q_xVl4fM',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_premanand_grihastha_bhakti',
+    titleNepali: 'पूज्य प्रेमानन्द जी महाराज - घर-परिवार चलाउँदै भगवान्‌को भक्ति कसरी गर्ने?',
+    titleSanskrit: 'यत्करोषि यदश्नासि यज्जुहोषि ददासि यत् यत्तपस्यसि कौन्तेय तत्कुरुष्व मदर्पणम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'गृहस्थ आश्रममा बसेर सांसारिक जिम्मेवारी, रोजगार र पारिवारिक धर्म पूरा गर्दै कसरी भगवान्‌को अनन्य भक्त भई मोक्ष प्राप्त गर्न सकिन्छ?',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '१६:४८ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=T48G1VfXn40',
+    fileName: 'premanand_grihastha_bhakti.mp4',
+    thumbnailUrl: '/assets/deities/venkateswara.jpg',
+    badge: 'सत्सङ्ग वाणी',
+    videoSpeakerOrSource: 'पूज्य श्री प्रेमानन्द जी महाराज (साधन पथ)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/T48G1VfXn40',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_premanand_radha_kripa',
+    titleNepali: 'पूज्य प्रेमानन्द जी महाराज - श्री राधा रानीको अगाध कृपा र वृन्दावन महिमा',
+    titleSanskrit: 'राधा साध्यं साधनं यस्य राधा मन्त्रो राधा मन्त्रदात्री च राधा',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'श्री राधा नामको अलौकिक शक्ति, वृन्दावन धामको दिव्य रस, प्रेमाभक्ति र भगवान् श्रीकृष्णको कृपा प्राप्त गर्ने परमोच्च माध्यम।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२०:१० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=0G6Y3-0_gZ0',
+    fileName: 'premanand_radha_kripa_mahiman.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'सत्सङ्ग वाणी',
+    videoSpeakerOrSource: 'पूज्य श्री प्रेमानन्द जी महाराज (वृन्दावन रस महिमा)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/0G6Y3-0_gZ0',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_ramayan_sita_swayamvar',
+    titleNepali: 'रामानन्द सागर रामायण - जनकपुर शिव धनुष भङ्ग एवं सीता स्वयंवर लीला',
+    titleSanskrit: 'तोरेउ धनु राम रघुराई - जय जय जय रघुबीर गोसाईं',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'जनकपुर धामको रंगभूमिमा भगवान् श्रीरामले पिनाक शिव धनुष उठाएर प्रत्यञ्चा चढाउँदा भएको धनुष भङ्ग र सीता-राम विवाहोत्सव लीला।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '३९:४० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=9NfBvU2M4u8',
+    fileName: 'ramayan_sita_swayamvar_dhanush_bhang.mp4',
+    thumbnailUrl: '/assets/deities/ram_darbar.jpg',
+    badge: 'रामलीला',
+    videoSpeakerOrSource: 'रामानन्द सागर (रामायण)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/9NfBvU2M4u8',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_ramayan_hanuman_lanka_dahan',
+    titleNepali: 'रामायण - वीर हनुमानद्वारा लङ्का दहन एवं माता सीता दर्शन',
+    titleSanskrit: 'अतुलितबलधामं हेमशैलाभदेहं दनुजवनकृशानुं ज्ञानिनामाम्रगण्यम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'अशोक वाटिकामा माता जानकीको दर्शन, चूडामणि प्राप्ति, मेघनादसँग युद्ध र पुच्छरमा आगो लगाएर सुनको लङ्का भस्म गर्ने वीर मारुतिको पराक्रम।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '३४:१२ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=F4lqXvL_iWk',
+    fileName: 'ramayan_hanuman_lanka_dahan.mp4',
+    thumbnailUrl: '/assets/deities/hanuman_sanjeevani.jpg',
+    badge: 'रामलीला',
+    videoSpeakerOrSource: 'रामानन्द सागर (रामायण)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/F4lqXvL_iWk',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_ramayan_ravan_vadh',
+    titleNepali: 'रामायण - महायुद्धमा रावण वध एवं विजयदशमी उत्सव',
+    titleSanskrit: 'रामो विग्रहवान् धर्मः साधुः सत्यपराक्रमः राजा सर्वस्य लोकस्य देवानां मघवानिव',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'असत्यमाथि सत्यको, अत्याचारमाथि धर्मको अन्तिम विजय: मर्यादा पुरुषोत्तम प्रभु श्रीरामद्वारा दस टाउके लङ्केश रावणको संहार।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '४१:५० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=H0d8z8T1HGs',
+    fileName: 'ramayan_ravan_vadh_vijayadashami.mp4',
+    thumbnailUrl: '/assets/deities/ram_darbar.jpg',
+    badge: 'रामलीला',
+    videoSpeakerOrSource: 'रामानन्द सागर (रामायण)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/H0d8z8T1HGs',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_krishna_makhan_chori',
+    titleNepali: 'श्रीकृष्ण लीला - माखन चोरी, बाललीला एवं यमलार्जुन उद्धार',
+    titleSanskrit: 'माखन चोर नन्द किशोर यशोदा नन्दन गोपिका प्रियतम',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'गोकुलमा यशोदानन्दन कन्हैयाको मनमोहक माखन चोरी, गोपीहरूको प्रेम, माता यशोदाद्वारा ओखलमा बाँधिनु र यमलार्जुन वृक्षको उद्धार कथा।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '३६:२० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=u8X4Uq0k72g',
+    fileName: 'krishna_makhan_chori_balleela.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'कृष्ण चरित्र',
+    videoSpeakerOrSource: 'रामानन्द सागर (श्रीकृष्ण)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/u8X4Uq0k72g',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_krishna_govardhan_leela',
+    titleNepali: 'श्रीकृष्ण लीला - इन्द्रको घमण्ड भङ्ग एवं गोवर्धन पर्वत धारण लीला',
+    titleSanskrit: 'गोवर्धनधरो धीरो गोपीजनमनोहरः कंसारिर्गरुडारूढो वैकुण्ठपतिरव्ययः',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'ब्रजवासीको रक्षार्थ सात दिनसम्म कान्छी औंलामा गिरिराज गोवर्धन उठाएर देवराज इन्द्रको मुसलधारे वर्षा र अहंकार नाश गरेको अलौकिक लीला।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '३८:०५ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=fW3yV6H_1kA',
+    fileName: 'krishna_govardhan_parvat_leela.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'कृष्ण चरित्र',
+    videoSpeakerOrSource: 'रामानन्द सागर (श्रीकृष्ण)',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/fW3yV6H_1kA',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_krishna_sudama_charitra',
+    titleNepali: 'पण्डित रमेश महाराज - श्रीकृष्ण र सुदामाको निःस्वार्थ प्रेम एवं मित्रता',
+    titleSanskrit: 'अरे द्वारपालों कन्हैया से कह दो कि दर पे सुदामा गरीब आ गया है',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'द्वारिकाधीश श्रीकृष्ण र गरिब विप्र सुदामाको अलौकिक निःस्वार्थ मित्रता, चार मुठी चामल अर्पण र प्रभुद्वारा दुई लोकको ऐश्वर्य दान।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '३२:१५ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=5a2d8Bq5T4M',
+    fileName: 'krishna_sudama_mitrata_katha.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'भक्ति कथा',
+    videoSpeakerOrSource: 'पं. रमेश महाराज',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/5a2d8Bq5T4M',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_shiv_samudra_manthan',
+    titleNepali: 'पण्डित प्रदीप ढकाल - शिव महापुराण: समुद्र मन्थन एवं नीलकण्ठ महादेव',
+    titleSanskrit: 'नीलकण्ठाय नमः • हलाहलं विषं घोरं जगद्रक्षार्थमपिबत्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'देवता र दानवद्वारा क्षीरसागर मन्थन, कालकूट हलाहल विषको उत्पत्ति र समस्त चराचर जगत् रक्षाका लागि देवाधिदेव महादेवको विष पान।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२६:४० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=3qM_4T2h8wU',
+    fileName: 'shiv_mahapuran_samudra_manthan.mp4',
+    thumbnailUrl: '/assets/deities/shiva_kailash.jpg',
+    badge: 'नेपाली कथा',
+    videoSpeakerOrSource: 'पं. प्रदीप ढकाल',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/3qM_4T2h8wU',
+    language: 'नेपाली'
+  },
+  {
+    id: 'video_bhagavad_gita_sar',
+    titleNepali: 'श्रीमद्भगवद्गीता सम्पूर्ण सार - भगवान् श्रीकृष्णको अमर उपदेश (१८ अध्याय)',
+    titleSanskrit: 'सर्वधर्मान्परित्यज्य मामेकं शरणं व्रज अहं त्वा सर्वपापेभ्यो मोक्षयिष्यामि मा शुचः',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'कुरुक्षेत्रको धर्मभूमिमा विषादग्रस्त धनुर्धर अर्जुनलाई भगवान् श्रीकृष्णले दिनुभएको कर्मयोग, ज्ञानयोग र भक्तियोगको अमर मार्गदर्शन।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '४८:१० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=K8vU2X3x1Ys',
+    fileName: 'shrimad_bhagavad_gita_sampurna_sar.mp4',
+    thumbnailUrl: '/assets/deities/radha_krishna.jpg',
+    badge: 'गीता ज्ञान',
+    videoSpeakerOrSource: 'वैदिक ज्ञान मण्डल',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/K8vU2X3x1Ys',
+    language: 'हिन्दी'
+  },
+  {
+    id: 'video_narasimha_avatar_katha',
+    titleNepali: 'भक्त प्रह्लाद एवं भगवान् नृसिंह अवतार पौराणिक कथा',
+    titleSanskrit: 'उग्रं वीरं महाविष्णुं ज्वलन्तं सर्वतोमुखम् नृसिंहं भीषणं भद्रं मृत्युमृत्युं नमाम्यहम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'अहंकारी दैत्यराज हिरण्यकशिपुको अत्याचार, खम्बाबाट उग्र नृसिंह भगवान्‌को प्राकट्य र परम भक्त प्रह्लादको अटल निष्ठाको पौराणिक कथा।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२४:३५ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=9wZ1v4Q2Y3c',
+    fileName: 'narasimha_avatar_bhakta_prahlad.mp4',
+    thumbnailUrl: '/assets/deities/narasimha.jpg',
+    badge: 'पौराणिक कथा',
+    videoSpeakerOrSource: 'पौराणिक कथा सङ्ग्रह',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/9wZ1v4Q2Y3c',
+    language: 'नेपाली'
+  },
+  {
+    id: 'video_garuda_puran_rahasya',
+    titleNepali: 'गरुड पुराण - मृत्यु पश्चात जीवात्माको यात्रा एवं कर्मको फल (नेपाली प्रवचन)',
+    titleSanskrit: 'गरुड पुराणम् - जीवात्मनो गतिश्चैव कर्मफलविपाकः शुभाशुभम्',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'गरुड पुराण अनुसार देहत्याग पछि जीवात्माको यमलोक यात्रा, वैतरणी नदी, सत्कर्म र पापकर्मको फल तथा मोक्ष प्राप्तिको शास्त्रीय विधान।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '३१:२० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=1kL8w5Y7oX9',
+    fileName: 'garuda_puran_mrityu_rahasya_nepali.mp4',
+    thumbnailUrl: '/assets/deities/venkateswara.jpg',
+    badge: 'नेपाली प्रवचन',
+    videoSpeakerOrSource: 'पं. धर्मराज शास्त्री',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/1kL8w5Y7oX9',
+    language: 'नेपाली'
+  },
+  {
+    id: 'video_buddha_shanti_sandesh',
+    titleNepali: 'भगवान् बुद्धको जीवन चरित्र एवं शान्ति सन्देश (लुम्बिनी नेपाल)',
+    titleSanskrit: 'बुद्धं शरणं गच्छामि • धर्मं शरणं गच्छामि • सङ्घं शरणं गच्छामि',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'कपिलवस्तु लुम्बिनीमा राजकुमार सिद्धार्थको जन्म, वैराग्य, बोधिवृक्षमुनि बुद्धत्व प्राप्ति र अष्टाङ्गिक मार्गको विश्वशान्ति उपदेश।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२२:५० मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=4bN9w8K2zX0',
+    fileName: 'bhagawan_buddha_charitra_shanti_sandesh.mp4',
+    thumbnailUrl: '/assets/deities/saraswati.jpg',
+    badge: 'शान्ति सन्देश',
+    videoSpeakerOrSource: 'धम्म प्रवचन',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/4bN9w8K2zX0',
+    language: 'नेपाली'
+  },
+  {
+    id: 'video_shri_sukt_lakshmi_katha',
+    titleNepali: 'महालक्ष्मी प्राकट्य एवं समुद्र मन्थन कथा (धन, ऐश्वर्य एवं सुख शान्ति)',
+    titleSanskrit: 'ॐ श्रीं ह्रीं क्लीं त्रिभुवन महालक्ष्म्यै अस्मांक दारिद्र्य नाशय प्रसीद प्रसीद',
+    category: 'video',
+    categoryLabel: 'धार्मिक भिडियो कथा',
+    type: 'video',
+    descriptionNepali: 'क्षीरसागर मन्थनबाट कमलमा विराजमान माता महालक्ष्मीको दिव्य प्राकट्य, भगवान् विष्णुसँग वरमाला र भक्तहरूलाई अष्टलक्ष्मी वरदान।',
+    fileSizeText: 'HD भिडियो',
+    durationOrDim: '२७:१५ मिनेट',
+    downloadUrl: 'https://www.youtube.com/watch?v=7xG5m8Y1zW4',
+    fileName: 'mahalakshmi_praakatya_katha.mp4',
+    thumbnailUrl: '/assets/deities/lakshmi_devi.jpg',
+    badge: 'लक्ष्मी कथा',
+    videoSpeakerOrSource: 'वैदिक पौराणिक सङ्ग्रह',
+    videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/7xG5m8Y1zW4',
+    language: 'नेपाली'
   }
 ];
 
-export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = RAW_VEDIC_MEDIA_ITEMS.map(item => ({
-  ...item,
-  downloadUrl: item.type === 'image' ? getAssetUrl(item.downloadUrl) : item.downloadUrl,
-  thumbnailUrl: item.thumbnailUrl ? getAssetUrl(item.thumbnailUrl) : undefined,
-  fileName: item.type === 'audio'
-    ? (item.fileName.startsWith('balananda_baidik_') ? item.fileName : `balananda_baidik_${item.fileName}`)
-    : item.fileName,
+// Convert 22 Sacred Vedic Yantras & Mandalas into VedicMediaItem
+const SACRED_YANTRA_MEDIA_ITEMS: VedicMediaItem[] = SACRED_VEDIC_YANTRAS_DATABASE.map(y => ({
+  id: y.id,
+  titleNepali: y.titleNepali,
+  titleSanskrit: y.titleSanskrit,
+  category: 'infographic',
+  categoryLabel: 'चार्ट तथा मण्डल',
+  type: 'image',
+  descriptionNepali: y.descriptionNepali,
+  fileSizeText: y.fileSizeText,
+  durationOrDim: y.durationOrDim,
+  downloadUrl: y.svgDataUri,
+  fileName: y.fileName,
+  thumbnailUrl: y.svgDataUri,
+  badge: y.badge
 }));
+
+export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
+  ...RAW_VEDIC_MEDIA_ITEMS.map(item => ({
+    ...item,
+    downloadUrl: item.type === 'image' && !item.downloadUrl.startsWith('data:')
+      ? getAssetUrl(item.downloadUrl)
+      : item.downloadUrl,
+    thumbnailUrl: item.thumbnailUrl
+      ? (item.thumbnailUrl.startsWith('data:') ? item.thumbnailUrl : getAssetUrl(item.thumbnailUrl))
+      : undefined,
+    fileName: item.type === 'audio'
+      ? (item.fileName.startsWith('balananda_baidik_') ? item.fileName : `balananda_baidik_${item.fileName}`)
+      : item.fileName,
+  })),
+  ...SACRED_YANTRA_MEDIA_ITEMS
+];
