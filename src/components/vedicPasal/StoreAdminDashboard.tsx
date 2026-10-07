@@ -70,6 +70,7 @@ import { PujaSamagriGalleryModal } from './PujaSamagriGalleryModal';
 import { PujaSamagriListModal } from './PujaSamagriListModal';
 import { InvoiceModal } from './InvoiceModal';
 import { StoreDigitalLibraryAdminTab } from '../admin/StoreDigitalLibraryAdminTab';
+import { StoreMediaAdminTab } from '../admin/StoreMediaAdminTab';
 
 interface StoreAdminDashboardProps {
   products: Product[];
@@ -85,7 +86,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
   onRefreshData,
 }) => {
   const [adminSubTab, setAdminSubTab] = useState<
-    'overview' | 'esewa_approval' | 'products' | 'orders' | 'inventory' | 'audit_logs' | 'coupons' | 'gallery' | 'digital_library_admin'
+    'overview' | 'esewa_approval' | 'products' | 'orders' | 'inventory' | 'audit_logs' | 'coupons' | 'gallery' | 'digital_library_admin' | 'media_downloads'
   >('overview');
 
   // Audit and Inventory logs
@@ -500,6 +501,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
           { id: 'audit_logs', label: `📜 अडिट लगहरू (${auditLogs.length})` },
           { id: 'coupons', label: `🎟️ कुपन (${coupons.length})` },
           { id: 'digital_library_admin', label: '📚 डिजिटल पुस्तकालय एवं PDF अपलोडर' },
+          { id: 'media_downloads', label: '🎬 मिडिया, फोटो र भिडियो व्यवस्थापक' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -1488,6 +1490,11 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
       {/* View 9: Digital Library Admin & PDF Uploader */}
       {adminSubTab === 'digital_library_admin' && (
         <StoreDigitalLibraryAdminTab />
+      )}
+
+      {/* View 10: Vedic Media, Photo & Video Manager */}
+      {adminSubTab === 'media_downloads' && (
+        <StoreMediaAdminTab />
       )}
 
       {/* Image Preview Modal */}
