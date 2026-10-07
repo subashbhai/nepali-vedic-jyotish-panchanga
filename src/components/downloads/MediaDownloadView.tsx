@@ -483,7 +483,7 @@ export const MediaDownloadView: React.FC = () => {
                       alt={item.titleNepali}
                       className="w-full h-full object-cover opacity-85 group-hover/thumb:opacity-95 group-hover/thumb:scale-105 transition-all duration-500"
                       loading="lazy"
-                      onError={(e) => handleImageFallback(e, ['/assets/deities/radha_krishna.jpg', '/logo.png'])}
+                      onError={(e) => handleImageFallback(e, ['/assets/deities/radha_krishna.jpg', '/assets/deities/ganesha.jpg'])}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/30 flex items-center justify-center">
                       <div className="w-14 h-14 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-2xl group-hover/thumb:scale-110 group-hover/thumb:bg-red-500 transition-all">
@@ -524,7 +524,7 @@ export const MediaDownloadView: React.FC = () => {
                       alt={item.titleNepali}
                       className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-500"
                       loading="lazy"
-                      onError={(e) => handleImageFallback(e, ['/assets/deities/shiva_kailash.jpg', '/logo.png'])}
+                      onError={(e) => handleImageFallback(e, ['/assets/deities/shiva_kailash.jpg', '/assets/deities/ganesha.jpg'])}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-black/20 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-3">
                       <span className="px-3 py-1.5 rounded-xl bg-white/90 text-stone-900 text-xs font-bold flex items-center gap-1.5 shadow-lg">
@@ -806,7 +806,7 @@ export const MediaDownloadView: React.FC = () => {
                 src={getAssetUrl(previewImage.downloadUrl)}
                 alt={previewImage.titleNepali}
                 className="max-h-[72vh] w-auto object-contain rounded-xl shadow-2xl border border-stone-800"
-                onError={(e) => handleImageFallback(e, ['/assets/deities/shiva_kailash.jpg', '/logo.png'])}
+                onError={(e) => handleImageFallback(e, ['/assets/deities/shiva_kailash.jpg', '/assets/deities/ganesha.jpg'])}
               />
             </div>
 
