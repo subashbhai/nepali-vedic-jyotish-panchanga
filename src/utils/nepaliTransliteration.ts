@@ -180,7 +180,146 @@ const EXACT_WORD_MAP: Record<string, string> = {
   biratnagar: 'विराटनगर',
   lalitpur: 'ललितपुर',
   bhaktapur: 'भक्तपुर',
+
+  // Deities, Saints & Devotion
+  ram: 'राम',
+  rama: 'राम',
+  sita: 'सीता',
+  krishna: 'कृष्ण',
+  krisna: 'कृष्ण',
+  radha: 'राधा',
+  shiva: 'शिव',
+  siva: 'शिव',
+  mahadev: 'महादेव',
+  vishnu: 'विष्णु',
+  visnu: 'विष्णु',
+  narayan: 'नारायण',
+  ganesh: 'गणेश',
+  ganesha: 'गणेश',
+  hanuman: 'हनुमान',
+  durga: 'दुर्गा',
+  laxmi: 'लक्ष्मी',
+  lakshmi: 'लक्ष्मी',
+  saraswati: 'सरस्वती',
+  kali: 'काली',
+  bhagwan: 'भगवान्',
+  bhagawan: 'भगवान्',
+  prabhu: 'प्रभु',
+  ishwar: 'ईश्वर',
+  iswar: 'ईश्वर',
+  premanand: 'प्रेमानन्द',
+  premananda: 'प्रेमानन्द',
+  maharaj: 'महाराज',
+  maharaja: 'महाराज',
+  swami: 'स्वामी',
+  sadhu: 'साधु',
+  sant: 'सन्त',
+  dinbandhu: 'दिनबन्धु',
+  pokharel: 'पोखरेल',
+  pandit: 'पण्डित',
+  panditji: 'पण्डितजी',
+  guruji: 'गुरुजी',
+  acharya: 'आचार्य',
+  subash: 'सुवास',
+  bhattarai: 'भट्टराई',
+
+  // Media, Katha & Mandap
+  video: 'भिडियो',
+  audio: 'अडियो',
+  photo: 'फोटो',
+  link: 'लिङ्क',
+  katha: 'कथा',
+  pravachan: 'प्रवचन',
+  vani: 'वाणी',
+  baani: 'बानी',
+  bani: 'बानी',
+  leela: 'लीला',
+  lila: 'लीला',
+  charitra: 'चरित्र',
+  prasanga: 'प्रसङ्ग',
+  prasang: 'प्रसङ्ग',
+  bhajan: 'भजन',
+  kirtan: 'कीर्तन',
+  keertan: 'कीर्तन',
+  mandap: 'मण्डप',
+  mandapa: 'मण्डप',
+  rekhankan: 'रेखांकन',
+  rekhi: 'रेखी',
+  yajna: 'यज्ञ',
+  yagya: 'यज्ञ',
+  kunda: 'कुण्ड',
+  kund: 'कुण्ड',
+  gobar: 'गोबर',
+  bhumi: 'भूमि',
+  lipeko: 'लिपेको',
+  lipnu: 'लिप्नु',
+  mandal: 'मण्डल',
+  mandala: 'मण्डल',
+  sarvatobhadra: 'सर्वतोभद्र',
+  navagraha: 'नवग्रह',
+  lingatobhadra: 'लिङ्गतोभद्र',
+  matrika: 'मातृका',
+  chousathi: 'चौसठ्ठी',
+  yogini: 'योगिनी',
+
+  // Astrology & Family
+  faladesh: 'फलादेश',
+  sadesati: 'साढेसाती',
+  rashifal: 'राशिफल',
+  sharma: 'शर्मा',
+  adhikari: 'अधिकारी',
+  paudel: 'पौडेल',
+  thapa: 'थापा',
+  pandey: 'पाण्डे',
+  upadhyaya: 'उपाध्याय',
+  dahal: 'दाहाल',
+  koirala: 'कोइराला',
+  shrestha: 'श्रेष्ठ',
+  joshi: 'जोशी',
+  magar: 'मगर',
+  rai: 'राई',
+  tamang: 'तामाङ',
+  gurung: 'गुरुङ',
+  chaudhary: 'चौधरी',
+  aama: 'आमा',
+  buba: 'बुबा',
+  daju: 'दाजु',
+  bhai: 'भाइ',
+  didi: 'दीदी',
+  bahini: 'बहिनी',
+  chhora: 'छोरा',
+  chhori: 'छोरी',
+  shreeman: 'श्रीमान्',
+  shriman: 'श्रीमान्',
+  shreemati: 'श्रीमती',
+  shrimati: 'श्रीमती',
+  vivah: 'विवाह',
+  lagan: 'लगन',
+  sait: 'साइत',
+  muhurta: 'मुहूर्त',
+  muhurat: 'मुहूर्त',
+  admin: 'एडमिन',
 };
+
+/**
+ * Safely updates an input or textarea value in a React-compatible manner
+ * so controlled components immediately pick up the change.
+ */
+export function setNativeInputValue(element: HTMLInputElement | HTMLTextAreaElement, value: string) {
+  const isTextArea = element instanceof HTMLTextAreaElement;
+  const setter = isTextArea
+    ? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+    : Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+
+  if (setter) {
+    setter.call(element, value);
+  } else {
+    element.value = value;
+  }
+
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+}
 
 // Character mappings
 const VOWELS_INITIAL: Record<string, string> = {
