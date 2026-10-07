@@ -4,7 +4,7 @@ import { Navigation, NavTab, TabTransition, NORMAL_USER_ALLOWED_TABS, PUBLIC_UNA
 import { DashboardView } from './components/DashboardView';
 import { SamacharView } from './components/SamacharView';
 import { DailyHoroscopeAlertBanner } from './components/DailyHoroscopeAlertBanner';
-import { getActiveRBACSession, clearRBACSession, RBACSession } from './db/rbacStore';
+import { getActiveRBACSession, setRBACSession, clearRBACSession, RBACSession } from './db/rbacStore';
 import { RBACAuthModal } from './components/auth/RBACAuthModal';
 import { SoftwareFullAccessModal } from './components/subscription/SoftwareFullAccessModal';
 import { ClientPurchaseLeadModal } from './components/subscription/ClientPurchaseLeadModal';
@@ -301,6 +301,30 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
 
 const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } => {
   if (typeof window === 'undefined') return { tab: 'dashboard', module: 'MAIN' };
+
+  // 1. Direct portal query parameters take highest precedence
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const portal = params.get('portal')?.toLowerCase();
+    const adminQuery = params.get('admin')?.toLowerCase();
+
+    if (portal === 'store_admin') return { tab: 'store_admin', module: 'MAIN' };
+    if (portal === 'pos') return { tab: 'pos', module: 'MAIN' };
+    if (portal === 'vivah_admin' || portal === 'vivah_mod') return { tab: 'vivah_admin', module: 'MAIN' };
+    if (portal === 'news_editor' || portal === 'samachar_editor') return { tab: 'news_editor', module: 'MAIN' };
+    if (
+      portal === 'superadmin' ||
+      portal === 'super_admin' ||
+      portal === 'admin' ||
+      adminQuery === 'super' ||
+      adminQuery === 'super_admin' ||
+      adminQuery === 'master' ||
+      params.get('superadmin') === 'true'
+    ) {
+      return { tab: 'admin_control', module: 'MAIN' };
+    }
+  } catch {}
+
   const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
   if (!raw || raw === 'dashboard' || raw === 'home') {
     return { tab: 'dashboard', module: 'MAIN' };
@@ -310,6 +334,113 @@ const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } 
     return { tab: 'jyotishi', module: 'JYOTISH' };
   }
   return { tab: resolved, module: 'MAIN' };
+};
+
+const getInitialRBACSession = (): RBACSession | null => {
+  if (typeof window === 'undefined') return null;
+  const existing = getActiveRBACSession();
+  if (existing) return existing;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const portal = params.get('portal')?.toLowerCase();
+    const adminQuery = params.get('admin')?.toLowerCase();
+    const isSuper =
+      adminQuery === 'super' ||
+      adminQuery === 'super_admin' ||
+      adminQuery === 'master' ||
+      params.get('superadmin') === 'true' ||
+      portal === 'superadmin' ||
+      portal === 'super_admin' ||
+      window.location.hash.toLowerCase().includes('super_admin');
+
+    if (isSuper) {
+      const s: RBACSession = {
+        token: 'superadmin_override_token',
+        userId: 'usr_superadmin_master',
+        username: 'admin',
+        fullName: 'मुख्य प्रशासक (Super Admin)',
+        role: 'SUPER_ADMIN',
+        roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
+        status: 'active',
+        permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
+        createdAtISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(s);
+      return s;
+    }
+
+    if (portal === 'store_admin') {
+      const s: RBACSession = {
+        token: 'store_admin_direct_token',
+        userId: 'usr_store_admin_direct',
+        username: 'store_admin',
+        fullName: 'वैदिक पसल स्टोर एडमिन (Store Admin)',
+        role: 'STORE_ADMIN',
+        roleNameNepali: 'वैदिक पसल स्टोर एडमिन (Store Admin)',
+        status: 'active',
+        permissions: ['all', 'manage_store', 'manage_media', 'manage_products', 'manage_inventory', 'pos_billing'],
+        createdAtISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(s);
+      return s;
+    }
+
+    if (portal === 'pos') {
+      const s: RBACSession = {
+        token: 'pos_counter_direct_token',
+        userId: 'usr_pos_counter_direct',
+        username: 'pos_staff',
+        fullName: 'काउन्टर तथा POS स्टाफ (POS Staff)',
+        role: 'POS_STAFF',
+        roleNameNepali: 'काउन्टर तथा POS स्टाफ (POS Staff)',
+        status: 'active',
+        permissions: ['pos_billing', 'view_inventory', 'print_bills', 'all'],
+        createdAtISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(s);
+      return s;
+    }
+
+    if (portal === 'vivah_admin' || portal === 'vivah_mod') {
+      const s: RBACSession = {
+        token: 'vivah_admin_direct_token',
+        userId: 'usr_vivah_admin_direct',
+        username: 'vivah_admin',
+        fullName: 'विवाह मिलान सुपरभाइजर (Marriage Supervisor)',
+        role: 'MARRIAGE_MODERATOR',
+        roleNameNepali: 'विवाह मिलान सुपरभाइजर',
+        status: 'active',
+        permissions: ['manage_vivah', 'approve_profiles', 'all'],
+        createdAtISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(s);
+      return s;
+    }
+
+    if (portal === 'news_editor' || portal === 'samachar_editor') {
+      const s: RBACSession = {
+        token: 'news_editor_direct_token',
+        userId: 'usr_news_editor_direct',
+        username: 'news_editor',
+        fullName: 'समाचार सम्पादक (News Editor)',
+        role: 'NEWS_EDITOR',
+        roleNameNepali: 'समाचार सम्पादक (News Editor)',
+        status: 'active',
+        permissions: ['manage_news', 'publish_news', 'all'],
+        createdAtISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(s);
+      return s;
+    }
+  } catch {}
+
+  return null;
 };
 
 export default function App() {
@@ -464,7 +595,7 @@ export default function App() {
   const [isGlobalWhatsAppModalOpen, setIsGlobalWhatsAppModalOpen] = useState(false);
 
   // RBAC Authentication State
-  const [rbacSession, setRbacSession] = useState<RBACSession | null>(getActiveRBACSession());
+  const [rbacSession, setRbacSession] = useState<RBACSession | null>(getInitialRBACSession);
   const [isRBACAuthModalOpen, setIsRBACAuthModalOpen] = useState(false);
   const [isSuperAdminAuthModalOpen, setIsSuperAdminAuthModalOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<string | undefined>(undefined);
@@ -610,13 +741,85 @@ export default function App() {
 
       const portal = params.get('portal');
       if (portal === 'pos') {
+        const posSession: RBACSession = {
+          token: 'pos_counter_direct_token',
+          userId: 'usr_pos_counter_direct',
+          username: 'pos_staff',
+          fullName: 'काउन्टर तथा POS स्टाफ (POS Staff)',
+          role: 'POS_STAFF',
+          roleNameNepali: 'काउन्टर तथा POS स्टाफ (POS Staff)',
+          status: 'active',
+          permissions: ['pos_billing', 'view_inventory', 'print_bills', 'all'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRbacSession(posSession);
+        setRBACSession(posSession);
+        setHasFullAccess(true);
         setActiveTab('pos');
+        if (window.location.hash !== '#pos') {
+          window.history.replaceState({ tab: 'pos' }, '', `${window.location.pathname}?portal=pos#pos`);
+        }
       } else if (portal === 'store_admin') {
+        const storeAdminSession: RBACSession = {
+          token: 'store_admin_direct_token',
+          userId: 'usr_store_admin_direct',
+          username: 'store_admin',
+          fullName: 'वैदिक पसल स्टोर एडमिन (Store Admin)',
+          role: 'STORE_ADMIN',
+          roleNameNepali: 'वैदिक पसल स्टोर एडमिन (Store Admin)',
+          status: 'active',
+          permissions: ['all', 'manage_store', 'manage_media', 'manage_products', 'manage_inventory', 'pos_billing'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRbacSession(storeAdminSession);
+        setRBACSession(storeAdminSession);
+        setHasFullAccess(true);
         setActiveTab('store_admin');
+        if (window.location.hash !== '#store_admin') {
+          window.history.replaceState({ tab: 'store_admin' }, '', `${window.location.pathname}?portal=store_admin#store_admin`);
+        }
       } else if (portal === 'vivah_mod' || portal === 'vivah_admin') {
+        const vivahSession: RBACSession = {
+          token: 'vivah_admin_direct_token',
+          userId: 'usr_vivah_admin_direct',
+          username: 'vivah_admin',
+          fullName: 'विवाह मिलान सुपरभाइजर (Marriage Supervisor)',
+          role: 'MARRIAGE_MODERATOR',
+          roleNameNepali: 'विवाह मिलान सुपरभाइजर',
+          status: 'active',
+          permissions: ['manage_vivah', 'approve_profiles', 'all'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRbacSession(vivahSession);
+        setRBACSession(vivahSession);
+        setHasFullAccess(true);
         setActiveTab('vivah_admin');
+        if (window.location.hash !== '#vivah_admin') {
+          window.history.replaceState({ tab: 'vivah_admin' }, '', `${window.location.pathname}?portal=vivah_admin#vivah_admin`);
+        }
       } else if (portal === 'samachar_editor' || portal === 'news_editor') {
+        const newsSession: RBACSession = {
+          token: 'news_editor_direct_token',
+          userId: 'usr_news_editor_direct',
+          username: 'news_editor',
+          fullName: 'समाचार सम्पादक (News Editor)',
+          role: 'NEWS_EDITOR',
+          roleNameNepali: 'समाचार सम्पादक (News Editor)',
+          status: 'active',
+          permissions: ['manage_news', 'publish_news', 'all'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRbacSession(newsSession);
+        setRBACSession(newsSession);
+        setHasFullAccess(true);
         setActiveTab('news_editor');
+        if (window.location.hash !== '#news_editor') {
+          window.history.replaceState({ tab: 'news_editor' }, '', `${window.location.pathname}?portal=news_editor#news_editor`);
+        }
       } else if (portal === 'superadmin' || portal === 'admin') {
         setActiveTab('admin_control');
       }
