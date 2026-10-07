@@ -115,6 +115,7 @@ import { AdminClientApprovalsSection } from './sections/AdminClientApprovalsSect
 import { AdminTargetedPushNotificationSection } from './sections/AdminTargetedPushNotificationSection';
 import { AdminVivahSection } from './sections/AdminVivahSection';
 import { AdminAdvertisementSection } from './sections/AdminAdvertisementSection';
+import { StoreMediaAdminTab } from './StoreMediaAdminTab';
 import { getStoredClientLeads, ClientLead } from '../../db/clientLeadStore';
 import {
   getStoredVivahProfiles,
@@ -529,7 +530,8 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
         { id: 'vivah_portal', label: 'विवाह मञ्च ब्याकइन्ड', icon: HeartHandshake, badge: vivahPendingCount > 0 ? `${vivahPendingCount}` : null },
         { id: 'bookings', label: 'सेवा बुकिङ व्यवस्थापन', icon: Calendar, badge: pendingBookingsCount > 0 ? pendingBookingsCount : null },
         { id: 'patrika', label: 'केन्द्रीय कुण्डली & पत्रिका', icon: FileText },
-        { id: 'store_pos', label: 'वैदिक पसल र POS काउन्टर', icon: ShoppingBag }
+        { id: 'store_pos', label: 'वैदिक पसल र POS काउन्टर', icon: ShoppingBag },
+        { id: 'media_downloads', label: 'मिडिया, फोटो र भिडियो व्यवस्थापक', icon: Layers, badge: 'नयाँ' }
       ]
     },
     {
@@ -863,6 +865,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
             {activeTab === 'memberships' && <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />}
             {activeTab === 'patrika' && <AdminPatrikaSection />}
             {activeTab === 'store_pos' && <AdminStorePosSection products={INITIAL_DEMO_PRODUCTS} orders={[]} onRefresh={loadAllData} />}
+            {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
             {activeTab === 'notifications' && <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />}
             {activeTab === 'reports' && <AdminReportSection />}
             {activeTab === 'security_audit' && <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />}

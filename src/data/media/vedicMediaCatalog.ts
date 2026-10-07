@@ -1513,7 +1513,7 @@ const SACRED_YANTRA_MEDIA_ITEMS: VedicMediaItem[] = SACRED_VEDIC_YANTRAS_DATABAS
   badge: y.badge
 }));
 
-export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
+export const BASE_VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
   ...RAW_VEDIC_MEDIA_ITEMS.map(item => ({
     ...item,
     downloadUrl: item.type === 'image' && !item.downloadUrl.startsWith('data:')
@@ -1528,3 +1528,202 @@ export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
   })),
   ...SACRED_YANTRA_MEDIA_ITEMS
 ];
+
+// ============================================================================
+// DYNAMIC MEDIA STORAGE, EDITING & OVERRIDES (FOR STORE & SUPER ADMIN)
+// ============================================================================
+
+const CUSTOM_MEDIA_KEY = 'balananda_custom_media_items_v2';
+const OVERRIDES_KEY = 'balananda_edited_media_overrides_v2';
+const DELETED_IDS_KEY = 'balananda_deleted_media_ids_v2';
+
+export function getCustomMediaItems(): VedicMediaItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_MEDIA_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomMediaItem(item: VedicMediaItem): void {
+  if (typeof window === 'undefined') return;
+  const current = getCustomMediaItems();
+  const updated = [item, ...current.filter(i => i.id !== item.id)];
+  localStorage.setItem(CUSTOM_MEDIA_KEY, JSON.stringify(updated));
+  window.dispatchEvent(new CustomEvent('vedic-media-catalog-updated'));
+}
+
+export function getMediaOverrides(): Record<string, Partial<VedicMediaItem>> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(OVERRIDES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveMediaOverride(id: string, updates: Partial<VedicMediaItem>): void {
+  if (typeof window === 'undefined') return;
+  const current = getMediaOverrides();
+  current[id] = { ...(current[id] || {}), ...updates };
+  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(current));
+  window.dispatchEvent(new CustomEvent('vedic-media-catalog-updated'));
+}
+
+export function resetMediaOverride(id: string): void {
+  if (typeof window === 'undefined') return;
+  const current = getMediaOverrides();
+  delete current[id];
+  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(current));
+  window.dispatchEvent(new CustomEvent('vedic-media-catalog-updated'));
+}
+
+export function getDeletedMediaIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(DELETED_IDS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function deleteMediaItem(id: string): void {
+  if (typeof window === 'undefined') return;
+  // If custom, delete directly
+  const custom = getCustomMediaItems();
+  if (custom.some(i => i.id === id)) {
+    const updated = custom.filter(i => i.id !== id);
+    localStorage.setItem(CUSTOM_MEDIA_KEY, JSON.stringify(updated));
+  } else {
+    // If base item, add to deleted IDs
+    const deleted = getDeletedMediaIds();
+    if (!deleted.includes(id)) {
+      deleted.push(id);
+      localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(deleted));
+    }
+  }
+  window.dispatchEvent(new CustomEvent('vedic-media-catalog-updated'));
+}
+
+export function restoreMediaItem(id: string): void {
+  if (typeof window === 'undefined') return;
+  const deleted = getDeletedMediaIds();
+  const updated = deleted.filter(i => i !== id);
+  localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(updated));
+  window.dispatchEvent(new CustomEvent('vedic-media-catalog-updated'));
+}
+
+/**
+ * Returns complete combined catalog: Custom uploaded items + Base items with all Admin overrides applied!
+ */
+export function getAllVedicMediaItems(): VedicMediaItem[] {
+  const custom = getCustomMediaItems();
+  const overrides = getMediaOverrides();
+  const deleted = new Set(getDeletedMediaIds());
+
+  const combined = [...custom, ...BASE_VEDIC_MEDIA_ITEMS];
+  return combined
+    .filter(item => !deleted.has(item.id))
+    .map(item => {
+      const override = overrides[item.id];
+      return override ? { ...item, ...override } : item;
+    });
+}
+
+export const VEDIC_MEDIA_ITEMS: VedicMediaItem[] = getAllVedicMediaItems();
+
+/**
+ * Convert any YouTube watch URL, shorts URL, or embed URL into a clean, privacy-enhanced embed URL
+ */
+export function formatVideoEmbedUrl(url: string): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.includes('youtube.com/embed/') || trimmed.includes('youtube-nocookie.com/embed/')) {
+    return trimmed;
+  }
+  const match = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (match && match[1]) {
+    return `https://www.youtube-nocookie.com/embed/${match[1]}`;
+  }
+  return trimmed;
+}
+
+/**
+ * Extract YouTube thumbnail from video URL if possible
+ */
+export function getYouTubeThumbnailUrl(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (match && match[1]) {
+    return `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
+  }
+  return null;
+}
+
+/**
+ * Smart automatic Nepali description generator for uploaded photos and videos
+ */
+export function generateVedicDescription(title: string, category: string, speaker?: string): string {
+  const t = title.toLowerCase();
+  if (category === 'video') {
+    if (t.includes('राम') || t.includes('रामायण')) {
+      return `मर्यादा पुरुषोत्तम भगवान् श्रीरामको पावन चरित्र, धर्म, सत्य र निष्ठाको प्रेरणादायी पावन कथा। सम्पूर्ण परिवारका लागि आत्मिक शान्ति, सद्बुद्धि र संस्कार प्रदायक।`;
+    }
+    if (t.includes('कृष्ण') || t.includes('गोकुल') || t.includes('गोवर्धन') || t.includes('माखन')) {
+      return `परम आनन्दमय भगवान् श्रीकृष्णको अलौकिक बाललीला एवं धर्म स्थापनाको दिव्य कथा। भक्ति रस, निष्काम प्रेम र मोक्षको परम रहस्य।`;
+    }
+    if (t.includes('प्रेमानन्द') || speaker?.toLowerCase().includes('प्रेमानन्द')) {
+      return `वृन्दावनका पूज्य सन्त श्री हित प्रेमानन्द गोविन्द शरण जी महाराजको दिव्य एकान्तिक वार्तालाप एवं अमृत वाणी। नाम जपको अलौकिक शक्ति र सांसारिक कष्ट निवारण।`;
+    }
+    if (t.includes('दिनबन्धु') || speaker?.toLowerCase().includes('दिनबन्धु')) {
+      return `प्रख्यात भागवत वाचक पण्डित दिनबन्धु पोखरेलज्यूद्वारा व्याख्या गरिएको श्रीमद्भागवतको अमृत सार, मनको शान्ति एवं जीवन रूपान्तरणकारी उपदेश।`;
+    }
+    if (t.includes('शिव') || t.includes('महादेव') || t.includes('रुद्र')) {
+      return `देवाधिदेव महादेव शिव शङ्करको अलौकिक महिमा, कालकूट विष पान एवं जगत् रक्षाको पावन कथा। सर्वकष्ट निवारक एवं आत्मज्ञान प्रदायक।`;
+    }
+    if (t.includes('गीता')) {
+      return `भगवान् श्रीकृष्णले कुरुक्षेत्रको धर्मभूमिमा दिनुभएको सम्पूर्ण १८ अध्यायको दिव्य कर्मयोग, ज्ञानयोग र भक्तियोगको अमर आध्यात्मिक मार्गदर्शन।`;
+    }
+    if (t.includes('सुदामा')) {
+      return `द्वारिकाधीश भगवान् श्रीकृष्ण र विप्र सुदामाको निःस्वार्थ निष्काम मित्रता, समर्पण र भक्तिरसको मर्मस्पर्शी पौराणिक कथा।`;
+    }
+    return `वैदिक सनातन शास्त्रीय परम्परा अनुसार वाचित पावन धार्मिक कथा एवं सन्त प्रवचन। आत्मिक शान्ति, ज्ञान र धर्म वृद्धिको दिव्य माध्यम।`;
+  }
+
+  // Images / Wallpapers / Mandalas
+  if (t.includes('गणेश') || t.includes('विनायक')) {
+    return `सर्वविघ्नहर्ता, रिद्धि-सिद्धि प्रदायक भगवान् श्री गणेशको अलौकिक एवं दिव्य स्वरूप। नित्य दर्शनले विघ्न बाधा नाश र सर्वकार्य सिद्धि हुने शास्त्रीय विश्वास।`;
+  }
+  if (t.includes('शिव') || t.includes('महादेव') || t.includes('कैलाश')) {
+    return `देवाधिदेव महादेव कैलाशपति भगवान् शिवको शान्त एवं ध्यानमग्न दिव्य स्वरूप। रोग, भय एवं नकारात्मक ऊर्जा निवारक पवित्र दर्शन।`;
+  }
+  if (t.includes('दुर्गा') || t.includes('काली') || t.includes('भगवती') || t.includes('चण्डी')) {
+    return `दुष्ट संहारक एवं भक्त रक्षक जगज्जननी भगवती दुर्गा माताको अलौकिक तेजमय स्वरूप। पारिवारिक सुख, शान्ति, रोगमुक्ति र अभय प्रदायक।`;
+  }
+  if (t.includes('लक्ष्मी') || t.includes('कनकधारा')) {
+    return `अष्टैश्वर्य, धन, धान्य र सौभाग्य प्रदायक माता महालक्ष्मीको कमलोद्भव दिव्य स्वरूप। घर-परिवारमा स्थायी समृद्धि, शान्ति र श्री-वृद्धि प्रदायक।`;
+  }
+  if (t.includes('मण्डप') || t.includes('रेखी') || t.includes('यज्ञ') || t.includes('कुण्ड') || t.includes('वेदी')) {
+    return `गोबरले लिपेको पवित्र भूमिमा वैदिक विधिपूर्वक पिठो, अबिर, केशरीको शास्त्रीय रेखी द्वारा निर्मित पवित्र मण्डल। सर्वयज्ञ र देव पूजनको अलौकिक दर्शन।`;
+  }
+  if (t.includes('सर्वतोभद्र')) {
+    return `गोबरको पवित्र भूमिमा पञ्चरङ्गी चूर्ण (रेखी) द्वारा निर्मित शास्त्रीय सर्वतोभद्र मण्डल, कमल दल एवं कलश स्थापन।`;
+  }
+  if (t.includes('नवग्रह')) {
+    return `गोबरले लिपेको वेदीमा श्वेत रेखीद्वारा ९ ग्रहका शास्त्रीय ज्यामितीय कोष्ठक रेखाङ्कन, सप्तधान्य एवं दीप पूजन।`;
+  }
+  if (t.includes('हनुमान') || t.includes('मारुति') || t.includes('बजरंग')) {
+    return `अतुलित बलशाली, अष्टसिद्धि नौ निधि के दाता वीर मारुति नन्दन हनुमानजीको संकटमोचन एवं आरोग्य प्रदायक स्वरूप।`;
+  }
+  if (t.includes('सूर्य')) {
+    return `प्रत्यक्ष देवता भगवान् सूर्य नारायणको आरोग्य, तेज, आयु एवं आत्मबल प्रदायक प्रातःकालीन दिव्य स्वरूप।`;
+  }
+  if (t.includes('सरस्वती')) {
+    return `विद्या, बुद्धि, ज्ञान र संगीतकी अधिष्ठात्री देवी भगवती सरस्वतीको श्वेतपद्मासना दिव्य स्वरूप।`;
+  }
+  return `वैदिक सनातन धर्म र शास्त्रीय परम्परा अनुसार उच्च गुणस्तर (4K UHD) मा तयार पारिएको पवित्र धार्मिक स्वरूप।`;
+}

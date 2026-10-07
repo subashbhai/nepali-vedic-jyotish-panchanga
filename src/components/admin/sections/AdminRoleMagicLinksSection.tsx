@@ -17,7 +17,13 @@ import {
   Store,
   HeartHandshake,
   Newspaper,
-  Shield
+  Shield,
+  Globe,
+  Crown,
+  BookOpen,
+  Film,
+  Compass,
+  Layers
 } from 'lucide-react';
 import {
   MagicLinkRole,
@@ -42,6 +48,52 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
 
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  // GitHub & Direct Access Links states
+  const [copiedDirectId, setCopiedDirectId] = useState<string | null>(null);
+  const [customTarget, setCustomTarget] = useState<string>('admin_super');
+  const [customParam, setCustomParam] = useState<string>('');
+
+  const getBaseAppUrl = () => {
+    if (typeof window === 'undefined') return 'https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/';
+    const path = window.location.origin + window.location.pathname;
+    return path.endsWith('/') ? path : `${path}/`;
+  };
+
+  const baseAppUrl = getBaseAppUrl();
+
+  const handleCopyDirectLink = (url: string, id: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedDirectId(id);
+    setStatusMsg(`लिङ्क कपी भयो: ${url}`);
+    setTimeout(() => {
+      setCopiedDirectId(null);
+      setStatusMsg(null);
+    }, 3000);
+  };
+
+  const getCustomGeneratedUrl = (): string => {
+    switch (customTarget) {
+      case 'admin_super':
+        return `${baseAppUrl}?admin=super${customParam ? `&${customParam.replace(/^[?&]/, '')}` : ''}`;
+      case 'store_admin':
+        return `${baseAppUrl}?portal=store_admin${customParam ? `&${customParam.replace(/^[?&]/, '')}` : ''}`;
+      case 'pos':
+        return `${baseAppUrl}?portal=pos${customParam ? `&${customParam.replace(/^[?&]/, '')}` : ''}`;
+      case 'vivah_admin':
+        return `${baseAppUrl}?portal=vivah_admin${customParam ? `&${customParam.replace(/^[?&]/, '')}` : ''}`;
+      case 'jyotishi':
+        return `${baseAppUrl}#jyotishi${customParam ? `?${customParam.replace(/^[?&]/, '')}` : ''}`;
+      case 'media_download':
+        return `${baseAppUrl}#media_download${customParam ? `?${customParam.replace(/^[?&]/, '')}` : ''}`;
+      case 'books_download':
+        return `${baseAppUrl}#books_download${customParam ? `?${customParam.replace(/^[?&]/, '')}` : ''}`;
+      case 'patrika':
+        return `${baseAppUrl}#patrika${customParam ? `?${customParam.replace(/^[?&]/, '')}` : ''}`;
+      default:
+        return `${baseAppUrl}?portal=${customTarget}${customParam ? `&${customParam.replace(/^[?&]/, '')}` : ''}`;
+    }
+  };
 
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +180,272 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
           <span>{statusMsg}</span>
         </div>
       )}
+
+      {/* 🌟 1. DIRECT GITHUB PAGES SUPER ADMIN & ESSENTIAL WORKSTATIONS HUB */}
+      <div className="bg-gradient-to-br from-stone-900 via-stone-950 to-[#2A1810] text-white border-2 border-amber-500/60 rounded-3xl p-5 sm:p-7 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/40">
+              <Globe className="w-4 h-4 text-amber-400" />
+              <span>GitHub Pages एवं प्रत्यक्ष पहुँच (Direct Live Links)</span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-bold font-serif text-amber-100">
+              सुपरएडमिन तथा मुख्य मोड्युलहरूको स्थायी प्रत्यक्ष लिङ्क
+            </h3>
+            <p className="text-xs text-stone-300">
+              तलका लिङ्कहरू ब्राउजरमा खोल्नासाथ कुनै अवरोध वा लगइन फारम बिना सिधै सम्बन्धित ड्यासबोर्ड खुल्नेछ।
+            </p>
+          </div>
+
+          <div className="px-3 py-1.5 rounded-xl bg-stone-800/80 border border-stone-700 text-[11px] font-mono text-stone-300">
+            Base: <span className="text-amber-400 font-bold">{baseAppUrl}</span>
+          </div>
+        </div>
+
+        {/* 👑 VIP Highlight Card: GitHub Super Admin Direct URL */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-950/70 via-amber-950/40 to-stone-900 border-2 border-amber-400/80 shadow-lg space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-stone-950 shadow-md">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm sm:text-base font-black text-amber-200 font-serif">
+                  👑 सुपर एडमिन प्रत्यक्ष लिङ्क (Direct Super Admin Link)
+                </h4>
+                <p className="text-[11px] text-amber-100/80">
+                  यो लिङ्कबाट सिधै सुपरएडमिन कमान्ड सेन्टर, सम्पूर्ण ब्लक र नियन्त्रण कक्ष खुल्छ।
+                </p>
+              </div>
+            </div>
+            <span className="hidden sm:inline-block px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/40">
+              ✓ Active 24/7
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-black/60 p-2.5 rounded-xl border border-amber-500/30">
+            <input
+              type="text"
+              readOnly
+              value={`${baseAppUrl}?admin=super`}
+              className="flex-1 bg-transparent text-amber-300 font-mono text-xs px-2 py-1 outline-none select-all"
+            />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleCopyDirectLink(`${baseAppUrl}?admin=super`, 'super_admin_direct')}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                {copiedDirectId === 'super_admin_direct' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-stone-950" />
+                    <span>कपी भयो!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>लिङ्क कपी</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={getWhatsAppShareUrl(`${baseAppUrl}?admin=super`, 'सुपरएडमिन', 'सुपरएडमिन कमान्ड सेन्टर')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer"
+                title="WhatsApp मा सेयर गर्नुहोस्"
+              >
+                <Share2 className="w-4 h-4" />
+              </a>
+              <a
+                href={`${baseAppUrl}?admin=super`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 transition-colors cursor-pointer"
+                title="नयाँ ट्याबमा परीक्षण गर्नुहोस्"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Grid of Permanent Workstation Links */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[
+            {
+              id: 'store_admin_card',
+              title: '🏬 स्टोर एडमिन (Store & Media)',
+              url: `${baseAppUrl}?portal=store_admin`,
+              desc: 'पसल सामान, अर्डर, फोटो अपलोड तथा भिडियो म्यानेजर',
+              color: 'border-amber-500/40 bg-stone-900/80 hover:border-amber-400'
+            },
+            {
+              id: 'pos_counter_card',
+              title: '🛍️ काउन्टर POS टर्मिनल (POS Cashier)',
+              url: `${baseAppUrl}?portal=pos`,
+              desc: 'द्रुत काउन्टर बिलिङ, थर्मल रसिद र दैनिक बिक्री',
+              color: 'border-emerald-500/40 bg-stone-900/80 hover:border-emerald-400'
+            },
+            {
+              id: 'vivah_admin_card',
+              title: '💍 विवाह एडमिन मञ्च (Matrimony Admin)',
+              url: `${baseAppUrl}?portal=vivah_admin`,
+              desc: 'विवाह बायोडाटा प्रमाणीकरण, सम्पर्क विवरण र साइत',
+              color: 'border-rose-500/40 bg-stone-900/80 hover:border-rose-400'
+            },
+            {
+              id: 'media_download_card',
+              title: '🎬 मिडिया तथा भिडियो डाउनलोड',
+              url: `${baseAppUrl}#media_download`,
+              desc: 'वैदिक मन्त्र, स्तोत्र पाठ, 4K वालपेपर र भिडियो कथा',
+              color: 'border-cyan-500/40 bg-stone-900/80 hover:border-cyan-400'
+            },
+            {
+              id: 'books_download_card',
+              title: '📚 डिजिटल पुस्तकालय (Vedic PDFs)',
+              url: `${baseAppUrl}#books_download`,
+              desc: '५०+ वैदिक ग्रन्थहरू, वेद, पुराण, कर्मकाण्ड पुस्तकहरू',
+              color: 'border-indigo-500/40 bg-stone-900/80 hover:border-indigo-400'
+            },
+            {
+              id: 'jyotishi_card',
+              title: '🔮 ज्योतिषी कुण्डली पोर्टल',
+              url: `${baseAppUrl}#jyotishi`,
+              desc: 'विस्तृत कुण्डली विश्लेषण, दशाफल, अष्टकवर्ग र परामर्श',
+              color: 'border-yellow-500/40 bg-stone-900/80 hover:border-yellow-400'
+            },
+          ].map(w => (
+            <div
+              key={w.id}
+              className={`p-3.5 rounded-2xl border ${w.color} transition-all flex flex-col justify-between space-y-2.5`}
+            >
+              <div>
+                <h5 className="font-bold text-xs text-white">{w.title}</h5>
+                <p className="text-[10px] text-stone-400 mt-0.5 line-clamp-1">{w.desc}</p>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-black/50 p-1.5 rounded-xl border border-stone-800">
+                <input
+                  type="text"
+                  readOnly
+                  value={w.url}
+                  className="flex-1 bg-transparent text-[11px] font-mono text-stone-300 px-1 outline-none select-all truncate"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCopyDirectLink(w.url, w.id)}
+                  className="p-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 cursor-pointer"
+                  title="लिङ्क कपी गर्नुहोस्"
+                >
+                  {copiedDirectId === w.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+                <a
+                  href={w.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 cursor-pointer"
+                  title="नयाँ ट्याबमा खोल्नुहोस्"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 🛠️ 2. CUSTOM DIRECT LINK GENERATOR */}
+        <div className="bg-stone-900/90 border border-stone-800 p-4 sm:p-5 rounded-2xl space-y-3.5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <h4 className="text-xs sm:text-sm font-bold text-amber-200 font-serif">
+              कस्टम मोड्युल लिङ्क जेनेरेटर (Generate Custom Direct URL)
+            </h4>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block text-stone-400 text-[11px] font-bold mb-1">
+                प्रवेश गर्ने मोड्युल / पोर्टल छान्नुहोस्:
+              </label>
+              <select
+                value={customTarget}
+                onChange={e => setCustomTarget(e.target.value)}
+                className="w-full bg-stone-950 border border-stone-700 rounded-xl p-2 text-stone-200 text-xs font-sans outline-none focus:border-amber-500"
+              >
+                <option value="admin_super">👑 सुपरएडमिन (?admin=super)</option>
+                <option value="store_admin">🏬 स्टोर एडमिन (?portal=store_admin)</option>
+                <option value="pos">🛍️ POS काउन्टर (?portal=pos)</option>
+                <option value="vivah_admin">💍 विवाह एडमिन (?portal=vivah_admin)</option>
+                <option value="media_download">🎬 मिडिया डाउनलोड (#media_download)</option>
+                <option value="books_download">📚 डिजिटल पुस्तकालय (#books_download)</option>
+                <option value="jyotishi">🔮 ज्योतिषी पोर्टल (#jyotishi)</option>
+                <option value="patrika">📜 कुण्डली पत्रिका (#patrika)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-stone-400 text-[11px] font-bold mb-1">
+                अतिरिक्त प्यारामिटर (Optional Extra Parameter, उदा: tab=products):
+              </label>
+              <input
+                type="text"
+                value={customParam}
+                onChange={e => setCustomParam(e.target.value)}
+                placeholder="tab=inventory वा subtab=orders"
+                className="w-full bg-stone-950 border border-stone-700 rounded-xl p-2 text-stone-200 text-xs font-mono outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Generated Result */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-black/60 p-2.5 rounded-xl border border-amber-500/30">
+            <input
+              type="text"
+              readOnly
+              value={getCustomGeneratedUrl()}
+              className="flex-1 bg-transparent text-emerald-400 font-mono text-xs px-2 py-1 outline-none select-all"
+            />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleCopyDirectLink(getCustomGeneratedUrl(), 'custom_gen_link')}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                {copiedDirectId === 'custom_gen_link' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>कपी भयो!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>कपी गर्नुहोस्</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={getWhatsAppShareUrl(getCustomGeneratedUrl(), 'सहकर्मी', 'बालानन्द प्रत्यक्ष लिङ्क')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors cursor-pointer"
+                title="WhatsApp मा सेयर गर्नुहोस्"
+              >
+                <Share2 className="w-4 h-4" />
+              </a>
+              <a
+                href={getCustomGeneratedUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 transition-colors cursor-pointer"
+                title="नयाँ ट्याबमा खोल्नुहोस्"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 1-Click Quick Generator Grid for All Management Workstations */}
       <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border-2 border-amber-400/50 dark:border-amber-700/50 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">

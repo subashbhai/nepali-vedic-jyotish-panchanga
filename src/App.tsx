@@ -620,15 +620,28 @@ export default function App() {
         setActiveTab('admin_control');
       }
 
-      // 2. Superadmin Direct Secret Link: ?superadmin_portal=true or ?secret_admin=balananda or ?admin_token=...
-      if (
+      // 2. Superadmin Direct Link (Works from GitHub Pages, localhost, APK): ?admin=super or ?superadmin=true or ?portal=superadmin or #super_admin
+      const adminQuery = params.get('admin')?.toLowerCase();
+      const isSuperAdminLink =
+        adminQuery === 'super' ||
+        adminQuery === 'super_admin' ||
+        adminQuery === 'master' ||
+        params.get('superadmin') === 'true' ||
+        params.get('super_admin') === 'true' ||
+        portal === 'superadmin' ||
+        portal === 'super_admin' ||
         superAdminPortal === 'true' ||
         secretAdmin === 'balananda' ||
         adminToken === 'BALANANDA-SUPERADMIN-OVERRIDE-TOKEN' ||
         adminToken === 'SJS-SUPER-ADMIN-MASTER-KEY' ||
         adminToken === 'balananda' ||
-        adminToken === 'admin'
-      ) {
+        adminToken === 'admin' ||
+        (typeof window !== 'undefined' && (
+          window.location.hash.toLowerCase().includes('super_admin') ||
+          window.location.hash.toLowerCase().includes('superadmin')
+        ));
+
+      if (isSuperAdminLink) {
         const superAdminSession: RBACSession = {
           token: 'superadmin_override_token',
           userId: 'usr_superadmin_master',

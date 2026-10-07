@@ -26,7 +26,9 @@ import {
 import {
   VEDIC_MEDIA_ITEMS,
   VedicMediaItem,
-  MediaCategory
+  MediaCategory,
+  getAllVedicMediaItems,
+  formatVideoEmbedUrl
 } from '../../data/media/vedicMediaCatalog';
 import { handlePhoneticInputKeyDown, handlePhoneticBlur } from '../../utils/nepaliTransliteration';
 import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
@@ -41,6 +43,7 @@ const CATEGORY_TABS: { key: MediaCategory; label: string; icon: string }[] = [
 ];
 
 export const MediaDownloadView: React.FC = () => {
+  const [catalogItems, setCatalogItems] = useState<VedicMediaItem[]>(getAllVedicMediaItems);
   const [selectedCategory, setSelectedCategory] = useState<MediaCategory>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activePlayingItem, setActivePlayingItem] = useState<VedicMediaItem | null>(null);
@@ -56,6 +59,19 @@ export const MediaDownloadView: React.FC = () => {
   const [sharingId, setSharingId] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Live synchronisation with Store Admin and Super Admin edits/uploads
+  useEffect(() => {
+    const handleCatalogUpdate = () => {
+      setCatalogItems(getAllVedicMediaItems());
+    };
+    window.addEventListener('vedic-media-catalog-updated', handleCatalogUpdate);
+    window.addEventListener('storage', handleCatalogUpdate);
+    return () => {
+      window.removeEventListener('vedic-media-catalog-updated', handleCatalogUpdate);
+      window.removeEventListener('storage', handleCatalogUpdate);
+    };
+  }, []);
 
   // Synchronize audio element playback
   useEffect(() => {
@@ -123,11 +139,9 @@ export const MediaDownloadView: React.FC = () => {
   const handleDownload = async (item: VedicMediaItem) => {
     const finalFileName = getCleanTargetFileName(item);
 
-    // 1. Video download / open
+    // 1. Video play strictly in in-app player (No 2nd page, no redirect)
     if (item.type === 'video') {
-      window.open(item.downloadUrl, '_blank', 'noopener,noreferrer');
-      setDownloadNotice(`"${item.titleNepali}" भिडियो खुल्दैछ...`);
-      setTimeout(() => setDownloadNotice(null), 4000);
+      handleOpenVideo(item);
       return;
     }
 
@@ -306,7 +320,7 @@ export const MediaDownloadView: React.FC = () => {
   };
 
   const filteredItems = useMemo(() => {
-    return VEDIC_MEDIA_ITEMS.filter(item => {
+    return catalogItems.filter(item => {
       const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch = !q ||
@@ -319,7 +333,7 @@ export const MediaDownloadView: React.FC = () => {
 
       return matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, catalogItems]);
 
   return (
     <div className="w-full space-y-8 animate-fadeIn pb-32 max-w-7xl mx-auto px-3 sm:px-4">
@@ -415,8 +429,8 @@ export const MediaDownloadView: React.FC = () => {
           {CATEGORY_TABS.map(tab => {
             const isSelected = selectedCategory === tab.key;
             const count = tab.key === 'all'
-              ? VEDIC_MEDIA_ITEMS.length
-              : VEDIC_MEDIA_ITEMS.filter(i => i.category === tab.key).length;
+              ? catalogItems.length
+              : catalogItems.filter(i => i.category === tab.key).length;
 
             return (
               <button
@@ -509,10 +523,16 @@ export const MediaDownloadView: React.FC = () => {
                     </span>
 
                     {item.videoSpeakerOrSource && (
-                      <span className="absolute bottom-2 left-2 right-2 px-2.5 py-1 rounded-lg bg-stone-900/90 backdrop-blur-xs text-cyan-300 text-[11px] font-semibold truncate border border-cyan-500/20">
+                      <span className="absolute bottom-2 left-2 max-w-[58%] px-2.5 py-1 rounded-lg bg-stone-900/90 backdrop-blur-xs text-cyan-300 text-[11px] font-semibold truncate border border-cyan-500/20">
                         🎙️ {item.videoSpeakerOrSource}
                       </span>
                     )}
+
+                    {/* Video Card RHS Watermark */}
+                    <div className="absolute bottom-2.5 right-2 z-10 pointer-events-none flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-xs border border-white/20 text-white/95 text-[10px] font-bold font-serif shadow-sm">
+                      <span className="text-amber-400">🕉️</span>
+                      <span>बालानन्द</span>
+                    </div>
                   </div>
                 ) : item.thumbnailUrl ? (
                   <div
@@ -542,6 +562,12 @@ export const MediaDownloadView: React.FC = () => {
                         {item.badge}
                       </span>
                     )}
+
+                    {/* Image Card Bottom Small Watermark */}
+                    <div className="absolute bottom-2 inset-x-0 mx-auto w-fit z-10 pointer-events-none flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-xs border border-white/15 text-white/90 text-[10px] font-semibold font-serif shadow-sm">
+                      <span className="text-amber-400">🕉️</span>
+                      <span>बालानन्द वैदिक ज्योतिष</span>
+                    </div>
                   </div>
                 ) : (
                   <div className="h-28 bg-gradient-to-br from-cyan-900/40 to-blue-900/30 dark:from-stone-800 dark:to-cyan-950/30 p-4 flex flex-col justify-between relative overflow-hidden">
@@ -800,14 +826,18 @@ export const MediaDownloadView: React.FC = () => {
               </div>
             </div>
 
-            {/* Image Full Container */}
-            <div className="flex-1 overflow-auto p-2 sm:p-4 flex items-center justify-center bg-black/60">
+            {/* Image Full Container with subtle bottom watermark */}
+            <div className="relative flex-1 overflow-auto p-2 sm:p-4 flex items-center justify-center bg-black/70">
               <img
                 src={getAssetUrl(previewImage.downloadUrl)}
                 alt={previewImage.titleNepali}
                 className="max-h-[72vh] w-auto object-contain rounded-xl shadow-2xl border border-stone-800"
                 onError={(e) => handleImageFallback(e, ['/assets/deities/shiva_kailash.jpg', '/assets/deities/ganesha.jpg'])}
               />
+              <div className="absolute bottom-4 inset-x-0 mx-auto w-fit pointer-events-none z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/75 backdrop-blur-xs border border-white/20 text-white/90 text-xs font-bold font-serif shadow-lg">
+                <span className="text-amber-400">🕉️</span>
+                <span>बालानन्द वैदिक ज्योतिष • Balananda Vedic Jyotish</span>
+              </div>
             </div>
 
             {/* Modal Footer */}
@@ -819,7 +849,7 @@ export const MediaDownloadView: React.FC = () => {
         </div>
       )}
 
-      {/* 6. High-Definition Spiritual Video Player Modal */}
+      {/* 6. High-Definition Spiritual Video Player Modal (Strictly In-App Player) */}
       {activePlayingVideo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-stone-950/95 backdrop-blur-md animate-fadeIn">
           <div className="relative max-w-4xl w-full bg-stone-900 rounded-3xl overflow-hidden shadow-2xl border-2 border-red-500/80 flex flex-col max-h-[95vh]">
@@ -869,30 +899,33 @@ export const MediaDownloadView: React.FC = () => {
               </div>
             </div>
 
-            {/* Video Frame */}
-            <div className="relative w-full aspect-video bg-black flex items-center justify-center">
-              {activePlayingVideo.videoEmbedUrl ? (
-                <iframe
-                  src={`${activePlayingVideo.videoEmbedUrl}?autoplay=1&rel=0`}
-                  title={activePlayingVideo.titleNepali}
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="text-center p-6 text-stone-300">
-                  <p>भिडियो लोड हुन सकेन</p>
-                  <a
-                    href={activePlayingVideo.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-3 px-4 py-2 rounded-xl bg-red-600 text-white font-bold text-xs"
-                  >
-                    YouTube मा हेर्नुहोस्
-                  </a>
+            {/* Video Frame strictly inside own in-app player with Bottom RHS Watermark */}
+            {(() => {
+              const videoSrc = formatVideoEmbedUrl(activePlayingVideo.videoEmbedUrl || activePlayingVideo.downloadUrl);
+              return (
+                <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
+                  {videoSrc ? (
+                    <iframe
+                      src={`${videoSrc}?autoplay=1&rel=0`}
+                      title={activePlayingVideo.titleNepali}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <div className="text-center p-6 text-stone-300">
+                      <p>भिडियो लोड हुन सकेन</p>
+                    </div>
+                  )}
+
+                  {/* Video Player Bottom RHS Watermark */}
+                  <div className="absolute bottom-3 right-3 pointer-events-none z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-xs border border-white/20 text-white/95 text-[11px] font-bold font-serif shadow-lg">
+                    <span className="text-amber-400">🕉️</span>
+                    <span>बालानन्द वैदिक ज्योतिष</span>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Modal Footer */}
             <div className="p-3.5 bg-stone-950 text-xs text-stone-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-stone-800">
@@ -900,15 +933,10 @@ export const MediaDownloadView: React.FC = () => {
                 {activePlayingVideo.descriptionNepali}
               </p>
               <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={activePlayingVideo.downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>बाह्य लिङ्कमा खोल्नुहोस्</span>
-                </a>
+                <span className="px-3 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>इन-एप HD प्लेयर (In-App Player)</span>
+                </span>
               </div>
             </div>
           </div>
