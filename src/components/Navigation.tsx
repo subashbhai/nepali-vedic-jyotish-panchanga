@@ -53,7 +53,7 @@ import {
   Music
 } from 'lucide-react';
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
-import { RBACSession, getUserDashboardTarget } from '../db/rbacStore';
+import { RBACSession } from '../db/rbacStore';
 import { evaluateSubscriptionStatus, is3DayTrialActive, start3DayTrial, is7DayTrialActive } from '../db/subscriptionStore';
 import { is24HourTrialActive, isClientPurchaseApproved } from '../db/clientLeadStore';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
@@ -378,7 +378,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [sewaDropdownPosition, setSewaDropdownPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
   const [isUnifiedSettingsOpen, setIsUnifiedSettingsOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
@@ -389,7 +388,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const sewaMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const unifiedSettingsRef = useRef<HTMLDivElement>(null);
-  const userMenuRef = useRef<HTMLDivElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   const isSuperOrStoreAdmin =
@@ -438,9 +436,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       }
       if (unifiedSettingsRef.current && !unifiedSettingsRef.current.contains(e.target as Node)) {
         setIsUnifiedSettingsOpen(false);
-      }
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setIsUserMenuOpen(false);
       }
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
         setIsDownloadDropdownOpen(false);
@@ -1186,198 +1181,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             showTriggerButton={false}
           />
 
-          {/* Right Action: RBAC Session status badge or Sign In */}
+          {/* Right Action: Settings when logged in (User Profile & Workstations are in Header.tsx), or Sign In when logged out */}
           {rbacSession ? (
             <div className="pl-1.5 sm:pl-2 border-l border-stone-200 dark:border-stone-800 flex items-center gap-1.5 shrink-0">
-              {/* Post-sign-in user status pill & dropdown */}
-              <div className="relative z-50" ref={userMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsUserMenuOpen(!isUserMenuOpen);
-                    setIsSettingsMenuOpen(false);
-                    setIsUnifiedSettingsOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100/90 dark:bg-stone-800 dark:hover:bg-stone-700/80 border border-amber-200/80 hover:border-amber-400 dark:border-stone-700 rounded-xl cursor-pointer transition-all shadow-xs group select-none"
-                  title="मेरो खाता तथा ड्यासबोर्ड (My Dashboard) खोल्न क्लिक गर्नुहोस्"
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-                  <div className="flex flex-col text-left">
-                    <span className="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight truncate max-w-[100px] xl:max-w-[125px]">
-                      {rbacSession.fullName}
-                    </span>
-                    <span className="text-[10px] text-[#7A1C1C] dark:text-amber-400 font-semibold leading-tight truncate">
-                      {rbacSession.roleNameNepali}
-                    </span>
-                  </div>
-                  <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180 text-amber-600' : 'group-hover:translate-y-0.5'}`} />
-                </button>
-
-                {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border-2 border-amber-300 dark:border-stone-700 p-2.5 z-[100] animate-in fade-in slide-in-from-top-2">
-                    {/* User Profile Header Card */}
-                    <div className="p-3 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/50 dark:from-stone-800 dark:via-stone-800/90 dark:to-stone-800/60 rounded-xl border border-amber-200/70 dark:border-stone-700 mb-2">
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-stone-950 font-black flex items-center justify-center shrink-0 text-sm shadow-xs border border-amber-300">
-                          {rbacSession.fullName ? rbacSession.fullName.charAt(0).toUpperCase() : 'U'}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-xs text-stone-900 dark:text-stone-100 truncate">
-                              {rbacSession.fullName}
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="सक्रिय सत्र (Online)" />
-                          </div>
-                          <span className="text-[10px] font-bold text-[#7A1C1C] dark:text-amber-300 block truncate">
-                            {rbacSession.roleNameNepali}
-                          </span>
-                          <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate font-mono">
-                            @{rbacSession.username}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 🌟 1. Primary Highlight: "My Dashboard" submenu */}
-                    <div className="py-1 space-y-1">
-                      <div className="px-2 py-0.5 text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider flex items-center justify-between">
-                        <span>कार्यक्षेत्र (Workstation)</span>
-                        <span className="text-[9px] text-emerald-600 font-semibold">सक्रिय</span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          const target = getUserDashboardTarget(rbacSession.role);
-                          if (target.tab === 'admin_control' && onNavigateToAdmin) {
-                            onNavigateToAdmin('client_approvals');
-                          } else {
-                            onTabChange(target.tab as NavTab);
-                          }
-                        }}
-                        className="w-full text-left p-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg flex items-start gap-3 cursor-pointer transition-all transform hover:scale-[1.01] group border border-amber-300"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-white/20 text-white flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                          <LayoutDashboard className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-black text-xs">
-                              ✨ मेरो ड्यासबोर्ड (My Dashboard)
-                            </span>
-                            <span className="text-[9px] bg-white/25 px-1.5 py-0.5 rounded font-bold font-mono">
-                              खुल्छ ↗
-                            </span>
-                          </div>
-                          <p className="text-[11px] font-bold text-amber-100 truncate mt-0.5">
-                            {getUserDashboardTarget(rbacSession.role).labelNepali}
-                          </p>
-                          <p className="text-[10px] text-white/80 line-clamp-1 mt-0.5">
-                            {getUserDashboardTarget(rbacSession.role).descriptionNepali}
-                          </p>
-                        </div>
-                      </button>
-
-                      {/* If Super Admin, show quick access to other backend modules */}
-                      {(rbacSession.role === 'SUPER_ADMIN' || rbacSession.role === 'STORE_ADMIN') && (
-                        <div className="pt-2 border-t border-stone-100 dark:border-stone-800 space-y-1">
-                          <div className="px-2 py-0.5 text-[9px] font-bold text-stone-500 dark:text-stone-400 uppercase">
-                            द्रुत पहुँच (Quick Access):
-                          </div>
-
-                          {rbacSession.role !== 'STORE_ADMIN' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsUserMenuOpen(false);
-                                onTabChange('store_admin');
-                              }}
-                              className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
-                              <span>🏬 स्टोर एवं डिजिटल पुस्तकालय एडमिन</span>
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              onTabChange('pos');
-                            }}
-                            className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                          >
-                            <ShoppingBag className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>💳 काउन्टर POS बिलिङ टर्मिनल</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              onTabChange('news_editor');
-                            }}
-                            className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                          >
-                            <Newspaper className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>📰 समाचार तथा लेख सम्पादक</span>
-                          </button>
-
-                          {rbacSession.role === 'SUPER_ADMIN' && onNavigateToAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsUserMenuOpen(false);
-                                onNavigateToAdmin('client_approvals');
-                              }}
-                              className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-[#7A1C1C] dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <Crown className="w-3.5 h-3.5 text-amber-600" />
-                              <span>👑 सुपरएडमिन नियन्त्रण कक्ष</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Letterhead & System Settings */}
-                      {onOpenSettingsModal && (
-                        <div className="pt-1.5 border-t border-stone-100 dark:border-stone-800">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              onOpenSettingsModal('letterhead');
-                            }}
-                            className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-medium text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
-                            <span>📋 लेटरहेड ब्यानर सेटिङ</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Logout Action */}
-                      {onLogoutRBAC && (
-                        <div className="pt-2 border-t border-stone-200 dark:border-stone-800">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              onLogoutRBAC();
-                            }}
-                            className="w-full text-left p-2 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2.5 cursor-pointer transition-colors"
-                          >
-                            <LogOut className="w-4 h-4 text-red-500" />
-                            <span>सत्र बन्द / लगआउट (Logout)</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* Post-Sign-In Settings Dropdown with Letterhead Banner Settings inside */}
               <div className="relative z-50" ref={settingsMenuRef}>
                 <motion.button
