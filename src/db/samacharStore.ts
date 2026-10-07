@@ -6,6 +6,7 @@ import { PlanetPosition } from '../types/astrology';
 import { generateLiveGrahaGocharNews, GrahaGocharNewsArticle } from '../utils/grahaGocharNewsEngine';
 import { syncAndPruneShastriyaNews } from '../utils/shastriyaNewsEngine';
 import { convertADToBS } from '../utils/nepaliCalendar';
+import { getAppBaseUrl } from '../utils/urlHelper';
 
 export type SamacharCategory =
   | 'panchanga'      // पञ्चाङ्ग तथा खगोलीय घटना
@@ -565,8 +566,8 @@ export function generateNewsEditorMagicToken(params: {
   tokens.unshift(tokenRecord);
   saveMagicTokens(tokens);
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const activeLinkUrl = `${origin}/?admin_token=${token}&section=samachar_editor`;
+  const baseUrl = getAppBaseUrl();
+  const activeLinkUrl = `${baseUrl}?admin_token=${token}&section=samachar_editor`;
 
   return { tokenRecord, activeLinkUrl };
 }

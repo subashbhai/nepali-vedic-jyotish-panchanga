@@ -56,6 +56,7 @@ import {
   NepaliFestivalArtInfo 
 } from '../utils/deityAndFestivalArtEngine';
 import { getAssetUrl, handleImageFallback } from '../utils/assetHelper';
+import { getAppBaseUrl } from '../utils/urlHelper';
 
 interface SamacharViewProps {
   todayTransitPlanets?: PlanetPosition[];
@@ -290,14 +291,16 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
   };
 
   const handleCopyShareLink = (title: string, slug: string) => {
-    const url = `${window.location.origin}/?tab=samachar&slug=${encodeURIComponent(slug)}`;
+    const baseUrl = getAppBaseUrl();
+    const url = `${baseUrl}?tab=samachar&slug=${encodeURIComponent(slug)}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
   const handleShareStoredWhatsApp = (art: SamacharArticle) => {
-    const shareUrl = `${window.location.origin}/?tab=samachar&slug=${encodeURIComponent(art.slug)}`;
+    const baseUrl = getAppBaseUrl();
+    const shareUrl = `${baseUrl}?tab=samachar&slug=${encodeURIComponent(art.slug)}`;
     const text = `*📜 ${art.title}*\n\n` +
       `${art.summary}\n\n` +
       `📅 *मिति:* वि.सं. ${art.publishedAtBS}\n` +
@@ -307,7 +310,8 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
   };
 
   const handleShareGrahaWhatsApp = (art: GrahaGocharNewsArticle) => {
-    const shareUrl = `${window.location.origin}/?tab=samachar&planet=${encodeURIComponent(art.planet)}`;
+    const baseUrl = getAppBaseUrl();
+    const shareUrl = `${baseUrl}?tab=samachar&planet=${encodeURIComponent(art.planet)}`;
     const text = `*📰 ${art.headline}*\n\n` +
       `🪐 *ग्रह स्थिति:* ${art.planet} (${art.currentRashi} राशि, ${art.degreeStr}, ${art.nakshatra} नक्षत्र, चरण ${art.pada})\n` +
       `✨ *अवस्था:* ${art.motionStatus}\n\n` +
@@ -317,7 +321,8 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
   };
 
   const handleShareRashiWhatsApp = (rashiName: string) => {
-    const shareUrl = `${window.location.origin}/?tab=samachar&rashi=${selectedRashiId}`;
+    const baseUrl = getAppBaseUrl();
+    const shareUrl = `${baseUrl}?tab=samachar&rashi=${selectedRashiId}`;
     const text = `*♈ ${rashiName} राशि - आजको प्रत्यक्ष ९ ग्रह गोचर फलादेश*\n\n` +
       `📊 *समग्र गोचर अनुकूलता:* ${consolidatedReport.overallScorePercent}% (${consolidatedReport.overallNature})\n` +
       `🪐 *शनि स्थिति:* ${consolidatedReport.sadeSatiOrDhaiyyaStatus}\n` +

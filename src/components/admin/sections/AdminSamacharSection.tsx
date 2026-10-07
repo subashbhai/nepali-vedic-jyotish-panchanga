@@ -40,8 +40,8 @@ import {
   buildWhatsAppMessageForEditor,
   getWhatsAppShareUrl,
   getEmailShareUrl
-} from '../../../db/samacharStore';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
+import { getAppBaseUrl } from '../../../utils/urlHelper';
 
 export const AdminSamacharSection: React.FC<{
   orgName?: string;
@@ -659,8 +659,8 @@ export const AdminSamacharSection: React.FC<{
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {magicTokens.map((tok) => {
                       const isExpired = new Date(tok.expiresAt).getTime() < Date.now();
-                      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                      const fullUrl = `${origin}/?admin_token=${tok.token}&section=samachar_editor`;
+                      const baseUrl = getAppBaseUrl();
+                      const fullUrl = `${baseUrl}?admin_token=${tok.token}&section=samachar_editor`;
 
                       return (
                         <div

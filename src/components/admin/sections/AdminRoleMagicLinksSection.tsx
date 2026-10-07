@@ -33,6 +33,7 @@ import {
   revokeRoleMagicToken,
   getRoleNameNepaliFromMagicRole
 } from '../../../db/roleMagicTokenStore';
+import { getAppBaseUrl } from '../../../utils/urlHelper';
 
 export const AdminRoleMagicLinksSection: React.FC = () => {
   const [tokens, setTokens] = useState<RoleMagicTokenRecord[]>(getStoredRoleMagicTokens());
@@ -54,13 +55,7 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
   const [customTarget, setCustomTarget] = useState<string>('admin_super');
   const [customParam, setCustomParam] = useState<string>('');
 
-  const getBaseAppUrl = () => {
-    if (typeof window === 'undefined') return 'https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/';
-    const path = window.location.origin + window.location.pathname;
-    return path.endsWith('/') ? path : `${path}/`;
-  };
-
-  const baseAppUrl = getBaseAppUrl();
+  const baseAppUrl = getAppBaseUrl();
 
   const handleCopyDirectLink = (url: string, id: string) => {
     navigator.clipboard.writeText(url);
@@ -778,8 +773,7 @@ export const AdminRoleMagicLinksSection: React.FC = () => {
               <tbody className="divide-y divide-stone-100 dark:divide-stone-800/60">
                 {tokens.map(t => {
                   const isExpired = new Date(t.expiresAt).getTime() < Date.now();
-                  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-                  const linkUrl = `${origin}/?magic_role=${t.role}&magic_token=${t.token}`;
+                  const linkUrl = `${baseAppUrl}?magic_role=${t.role}&magic_token=${t.token}`;
 
                   return (
                     <tr key={t.token} className="hover:bg-stone-50/60 dark:hover:bg-stone-800/40 transition-colors">

@@ -5,13 +5,32 @@
     <title>बालानन्द ज्योतिष तथा पञ्चाङ्ग</title>
     <script>
       // GitHub Pages SPA redirect fix
-      // 404 भएपछि यसले root मा redirect गर्छ जसले React app load गर्छ
+      // If requested on GitHub Pages without the repository path, or on deep route 404,
+      // redirect immediately to the full repo path while preserving search params & hash
       var l = window.location;
-      l.replace(
-        l.protocol + '//' + l.host + l.pathname.split('/').slice(0, 2).join('/') +
-        '/?/' + l.pathname.slice(1) + l.search + l.hash
-      );
+      var repo = 'nepali-vedic-jyotish-panchanga';
+      var host = l.host;
+      var pathname = l.pathname || '/';
+
+      if (host.indexOf('github.io') !== -1) {
+        if (pathname.indexOf(repo) === -1) {
+          // Prepend repo path
+          var cleanPath = pathname.replace(/^\/+/, '');
+          var targetPath = '/' + repo + '/' + cleanPath;
+          l.replace(l.protocol + '//' + host + targetPath + l.search + l.hash);
+        } else {
+          // Inside repo, redirect to repo root with SPA path
+          l.replace(l.protocol + '//' + host + '/' + repo + '/' + l.search + l.hash);
+        }
+      } else {
+        l.replace(l.protocol + '//' + host + '/' + l.search + l.hash);
+      }
     </script>
   </head>
-  <body></body>
+  <body>
+    <div style="font-family: sans-serif; text-align: center; padding: 40px; color: #555;">
+      <h2>पुनर्निर्देशन हुँदैछ (Redirecting)...</h2>
+      <p>बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग लोड हुँदैछ...</p>
+    </div>
+  </body>
 </html>
