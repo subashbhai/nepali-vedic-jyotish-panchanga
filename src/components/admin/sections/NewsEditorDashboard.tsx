@@ -57,6 +57,7 @@ import {
   getEmailShareUrl
 } from '../../../db/samacharStore';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
+import { getAppBaseUrl } from '../../../utils/urlHelper';
 import { compressAndResizeImage } from '../../../utils/imageUtils';
 import { handlePhoneticInputKeyDown } from '../../../utils/nepaliTransliteration';
 
@@ -1209,8 +1210,8 @@ export const NewsEditorDashboard: React.FC<NewsEditorDashboardProps> = ({
             ) : (
               magicTokens.map((tok) => {
                 const isExpired = new Date(tok.expiresAt).getTime() < Date.now();
-                const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                const fullUrl = `${origin}/?admin_token=${tok.token}&section=samachar_editor`;
+                const baseUrl = getAppBaseUrl();
+                const fullUrl = `${baseUrl}?admin_token=${tok.token}&section=samachar_editor`;
 
                 return (
                   <div

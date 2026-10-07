@@ -1,3 +1,5 @@
+import { getAppBaseUrl } from '../utils/urlHelper';
+
 export type MagicLinkRole = 'ADMIN' | 'STORE_ADMIN' | 'POS_STAFF' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR' | 'SUPER_ADMIN';
 
 export interface RoleMagicTokenRecord {
@@ -87,8 +89,8 @@ export function generateRoleMagicToken(
   tokens.unshift(tokenRecord);
   saveRoleMagicTokens(tokens);
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const activeLinkUrl = `${origin}/?magic_role=${role}&magic_token=${token}`;
+  const baseUrl = getAppBaseUrl();
+  const activeLinkUrl = `${baseUrl}?magic_role=${role}&magic_token=${token}`;
 
   return { tokenRecord, activeLinkUrl };
 }
