@@ -31,10 +31,10 @@ import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 
 const CATEGORY_TABS: { key: MediaCategory; label: string; icon: string }[] = [
   { key: 'all', label: 'सम्पूर्ण मिडिया', icon: '✨' },
-  { key: 'mantra', label: 'वैदिक मन्त्र (१८)', icon: '🕉️' },
-  { key: 'stotra', label: 'स्तोत्र पाठ (२७)', icon: '📜' },
-  { key: 'wallpaper', label: 'धार्मिक 4K वालपेपर (३४)', icon: '🖼️' },
-  { key: 'infographic', label: 'चार्ट तथा मण्डल (१७)', icon: '📊' },
+  { key: 'mantra', label: 'वैदिक मन्त्र', icon: '🕉️' },
+  { key: 'stotra', label: 'स्तोत्र पाठ', icon: '📜' },
+  { key: 'wallpaper', label: 'धार्मिक 4K वालपेपर', icon: '🖼️' },
+  { key: 'infographic', label: 'चार्ट तथा मण्डल', icon: '📊' },
 ];
 
 export const MediaDownloadView: React.FC = () => {
@@ -244,11 +244,11 @@ export const MediaDownloadView: React.FC = () => {
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-black font-serif tracking-tight leading-tight text-white">
-            मन्त्र स्तोत्र अडियो, 4K देव वालपेपर तथा चार्टहरू
+            मन्त्र स्तोत्र अडियो तथा 4K देव वालपेपरहरू
           </h1>
 
           <p className="text-xs sm:text-base text-cyan-100/90 leading-relaxed font-sans">
-            शुद्ध वैदिक स्वर सहितका <span className="font-bold text-cyan-300">४५+ मन्त्र तथा स्तोत्र अडियो पाठ</span> (रुद्राष्टाध्यायी, चण्डी, महामृत्युञ्जय, सहस्रनाम) र विभिन्न देवी-देवताका <span className="text-amber-300 font-bold">५०+ उच्च-रिजोलुसन 4K वालपेपर एवं पूजा मण्डल चार्टहरू</span> १-क्लिकमा निःशुल्क डाउनलोड तथा प्ले गर्नुहोस्।
+            शुद्ध वैदिक स्वर सहितका <span className="font-bold text-cyan-300">४५+ मन्त्र तथा स्तोत्र अडियो पाठ</span> (रुद्राष्टाध्यायी, चण्डी, महामृत्युञ्जय, सहस्रनाम) र विभिन्न देवी-देवताका <span className="text-amber-300 font-bold">दिव्य 4K UHD वालपेपरहरू</span> १-क्लिकमा निःशुल्क डाउनलोड तथा प्ले गर्नुहोस्।
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-2.5 text-xs">
@@ -258,7 +258,7 @@ export const MediaDownloadView: React.FC = () => {
             </span>
             <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
               <ImageIcon className="w-4 h-4 text-cyan-300" />
-              <span>५०+ 4K UHD देव वालपेपर एवं चार्ट</span>
+              <span>34+ 4K UHD देव वालपेपर</span>
             </span>
             <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-amber-300" />
