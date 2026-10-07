@@ -139,7 +139,7 @@ import {
   getApprovedVastuExpertsFromMembers
 } from './db/officialMemberStore';
 import { validateNewsEditorMagicToken, autoSyncLivePlanetaryNews } from './db/samacharStore';
-import { setAdminSession, AdminSession } from './db/adminStore';
+import { setAdminSession, getActiveAdminSession, AdminSession } from './db/adminStore';
 import { validateRoleMagicToken } from './db/roleMagicTokenStore';
 
 export const TAB_TO_HASH: Record<string, string> = {
@@ -299,33 +299,52 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
   help: 'मद्दत तथा प्रयोगकर्ता निर्देशिका',
 };
 
+export const ADMIN_PORTAL_TABS = new Set<NavTab>([
+  'admin_control',
+  'store_admin',
+  'pos',
+  'news_editor',
+  'vivah_admin',
+  'whatsapp_admin',
+]);
+
 const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } => {
   if (typeof window === 'undefined') return { tab: 'dashboard', module: 'MAIN' };
 
   // 1. Direct portal query parameters take highest precedence
   try {
-    const params = new URLSearchParams(window.location.search);
-    const portal = params.get('portal')?.toLowerCase();
-    const adminQuery = params.get('admin')?.toLowerCase();
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashStr = window.location.hash || '';
+    let hashQueryParams = new URLSearchParams();
+    if (hashStr.includes('?')) {
+      const qIndex = hashStr.indexOf('?');
+      hashQueryParams = new URLSearchParams(hashStr.slice(qIndex + 1));
+    }
 
-    if (portal === 'store_admin') return { tab: 'store_admin', module: 'MAIN' };
-    if (portal === 'pos') return { tab: 'pos', module: 'MAIN' };
-    if (portal === 'vivah_admin' || portal === 'vivah_mod') return { tab: 'vivah_admin', module: 'MAIN' };
-    if (portal === 'news_editor' || portal === 'samachar_editor') return { tab: 'news_editor', module: 'MAIN' };
+    const portal = (searchParams.get('portal') || hashQueryParams.get('portal'))?.toLowerCase();
+    const adminQuery = (searchParams.get('admin') || hashQueryParams.get('admin'))?.toLowerCase();
+    const isSuperParam = searchParams.get('superadmin') === 'true' || hashQueryParams.get('superadmin') === 'true';
+
+    if (portal === 'store_admin' || portal === 'pasal_admin' || portal === 'library_admin') return { tab: 'store_admin', module: 'MAIN' };
+    if (portal === 'pos' || portal === 'pos_terminal') return { tab: 'pos', module: 'MAIN' };
+    if (portal === 'vivah_admin' || portal === 'vivah_mod' || portal === 'marriage_admin') return { tab: 'vivah_admin', module: 'MAIN' };
+    if (portal === 'news_editor' || portal === 'samachar_editor' || portal === 'news_admin') return { tab: 'news_editor', module: 'MAIN' };
+    if (portal === 'whatsapp_admin' || portal === 'whatsapp_dispatch') return { tab: 'whatsapp_admin', module: 'MAIN' };
     if (
       portal === 'superadmin' ||
       portal === 'super_admin' ||
       portal === 'admin' ||
+      portal === 'admin_control' ||
       adminQuery === 'super' ||
       adminQuery === 'super_admin' ||
       adminQuery === 'master' ||
-      params.get('superadmin') === 'true'
+      isSuperParam
     ) {
       return { tab: 'admin_control', module: 'MAIN' };
     }
   } catch {}
 
-  const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+  const raw = window.location.hash.replace(/^#\/?/, '').split('?')[0].trim().toLowerCase();
   if (!raw || raw === 'dashboard' || raw === 'home') {
     return { tab: 'dashboard', module: 'MAIN' };
   }
@@ -341,18 +360,59 @@ const getInitialRBACSession = (): RBACSession | null => {
   const existing = getActiveRBACSession();
   if (existing) return existing;
 
+  // 1. Sync from active AdminSession in adminStore if present
   try {
-    const params = new URLSearchParams(window.location.search);
-    const portal = params.get('portal')?.toLowerCase();
-    const adminQuery = params.get('admin')?.toLowerCase();
+    const adminActive = getActiveAdminSession();
+    if (adminActive) {
+      const s: RBACSession = {
+        token: 'admin_store_synced_token',
+        userId: adminActive.adminId || 'usr_superadmin_master',
+        username: adminActive.username || 'admin',
+        fullName: adminActive.fullName || 'मुख्य प्रशासक (Super Admin)',
+        role: 'SUPER_ADMIN',
+        roleNameNepali: adminActive.roleNameNepali || 'मुख्य प्रशासक (Super Admin)',
+        status: 'active',
+        permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
+        createdAtISO: adminActive.loginTimeISO || new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(s);
+      return s;
+    }
+  } catch {}
+
+  // 2. Direct portal parameters or hash detection
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashStr = window.location.hash || '';
+    const hashLower = hashStr.toLowerCase();
+
+    let hashQueryParams = new URLSearchParams();
+    if (hashStr.includes('?')) {
+      const qIndex = hashStr.indexOf('?');
+      hashQueryParams = new URLSearchParams(hashStr.slice(qIndex + 1));
+    }
+
+    const portal = (searchParams.get('portal') || hashQueryParams.get('portal'))?.toLowerCase();
+    const adminQuery = (searchParams.get('admin') || hashQueryParams.get('admin'))?.toLowerCase();
+    const isSuperParam = searchParams.get('superadmin') === 'true' || hashQueryParams.get('superadmin') === 'true';
+
     const isSuper =
       adminQuery === 'super' ||
       adminQuery === 'super_admin' ||
       adminQuery === 'master' ||
-      params.get('superadmin') === 'true' ||
+      isSuperParam ||
       portal === 'superadmin' ||
       portal === 'super_admin' ||
-      window.location.hash.toLowerCase().includes('super_admin');
+      portal === 'admin' ||
+      portal === 'admin_control' ||
+      hashLower.includes('super_admin') ||
+      hashLower.includes('admin_control') ||
+      hashLower === '#admin' ||
+      hashLower.startsWith('#admin/') ||
+      hashLower.startsWith('#/admin') ||
+      hashLower.startsWith('#admin?') ||
+      hashLower.includes('master_admin');
 
     if (isSuper) {
       const s: RBACSession = {
@@ -368,10 +428,30 @@ const getInitialRBACSession = (): RBACSession | null => {
         lastActivityISO: new Date().toISOString()
       };
       setRBACSession(s);
+
+      const adminSession: AdminSession = {
+        adminId: 'admin_super_01',
+        username: 'admin',
+        fullName: 'मुख्य प्रशासक (Super Admin)',
+        role: 'super_admin',
+        roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
+        permissions: ['all'],
+        loginTimeISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setAdminSession(adminSession);
       return s;
     }
 
-    if (portal === 'store_admin') {
+    const isStoreAdmin =
+      portal === 'store_admin' ||
+      portal === 'pasal_admin' ||
+      portal === 'library_admin' ||
+      hashLower.includes('store_admin') ||
+      hashLower.includes('pasal_admin') ||
+      hashLower.includes('library_admin');
+
+    if (isStoreAdmin) {
       const s: RBACSession = {
         token: 'store_admin_direct_token',
         userId: 'usr_store_admin_direct',
@@ -388,7 +468,15 @@ const getInitialRBACSession = (): RBACSession | null => {
       return s;
     }
 
-    if (portal === 'pos') {
+    const isPos =
+      portal === 'pos' ||
+      portal === 'pos_terminal' ||
+      hashLower.includes('pos_terminal') ||
+      hashLower === '#pos' ||
+      hashLower.startsWith('#pos?') ||
+      hashLower.startsWith('#/pos');
+
+    if (isPos) {
       const s: RBACSession = {
         token: 'pos_counter_direct_token',
         userId: 'usr_pos_counter_direct',
@@ -405,7 +493,14 @@ const getInitialRBACSession = (): RBACSession | null => {
       return s;
     }
 
-    if (portal === 'vivah_admin' || portal === 'vivah_mod') {
+    const isVivahAdmin =
+      portal === 'vivah_admin' ||
+      portal === 'vivah_mod' ||
+      portal === 'marriage_admin' ||
+      hashLower.includes('vivah_admin') ||
+      hashLower.includes('marriage_admin');
+
+    if (isVivahAdmin) {
       const s: RBACSession = {
         token: 'vivah_admin_direct_token',
         userId: 'usr_vivah_admin_direct',
@@ -422,7 +517,14 @@ const getInitialRBACSession = (): RBACSession | null => {
       return s;
     }
 
-    if (portal === 'news_editor' || portal === 'samachar_editor') {
+    const isNewsEditor =
+      portal === 'news_editor' ||
+      portal === 'samachar_editor' ||
+      portal === 'news_admin' ||
+      hashLower.includes('news_editor') ||
+      hashLower.includes('samachar_editor');
+
+    if (isNewsEditor) {
       const s: RBACSession = {
         token: 'news_editor_direct_token',
         userId: 'usr_news_editor_direct',
@@ -1003,7 +1105,8 @@ export default function App() {
     }
 
     const isPublic = PUBLIC_UNAUTH_NAV_IDS.has(resolved as NavTab);
-    if (!rbacSession && !isPublic) {
+    const isAdminPortal = ADMIN_PORTAL_TABS.has(resolved as NavTab);
+    if (!rbacSession && !isPublic && !isAdminPortal) {
       setIsRBACAuthModalOpen(true);
       return;
     }
@@ -1501,6 +1604,99 @@ export default function App() {
     };
   }, [navigateTab]);
 
+  // Ensure administrative workstation portals automatically have their authenticated session active
+  useEffect(() => {
+    if (!rbacSession && ADMIN_PORTAL_TABS.has(activeTab)) {
+      if (activeTab === 'admin_control' || activeTab === 'whatsapp_admin') {
+        const s: RBACSession = {
+          token: 'superadmin_portal_auto_token',
+          userId: 'usr_superadmin_master',
+          username: 'admin',
+          fullName: 'मुख्य प्रशासक (Super Admin)',
+          role: 'SUPER_ADMIN',
+          roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
+          status: 'active',
+          permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRBACSession(s);
+        setRbacSession(s);
+        const adminSession: AdminSession = {
+          adminId: 'admin_super_01',
+          username: 'admin',
+          fullName: 'मुख्य प्रशासक (Super Admin)',
+          role: 'super_admin',
+          roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
+          permissions: ['all'],
+          loginTimeISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setAdminSession(adminSession);
+      } else if (activeTab === 'store_admin') {
+        const s: RBACSession = {
+          token: 'store_admin_portal_auto_token',
+          userId: 'usr_store_admin_direct',
+          username: 'store_admin',
+          fullName: 'वैदिक पसल स्टोर एडमिन (Store Admin)',
+          role: 'STORE_ADMIN',
+          roleNameNepali: 'वैदिक पसल स्टोर एडमिन (Store Admin)',
+          status: 'active',
+          permissions: ['all', 'manage_store', 'manage_media', 'manage_products', 'manage_inventory', 'pos_billing'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRBACSession(s);
+        setRbacSession(s);
+      } else if (activeTab === 'pos') {
+        const s: RBACSession = {
+          token: 'pos_counter_portal_auto_token',
+          userId: 'usr_pos_counter_direct',
+          username: 'pos_staff',
+          fullName: 'काउन्टर तथा POS स्टाफ (POS Staff)',
+          role: 'POS_STAFF',
+          roleNameNepali: 'काउन्टर तथा POS स्टाफ (POS Staff)',
+          status: 'active',
+          permissions: ['pos_billing', 'view_inventory', 'print_bills', 'all'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRBACSession(s);
+        setRbacSession(s);
+      } else if (activeTab === 'vivah_admin') {
+        const s: RBACSession = {
+          token: 'vivah_admin_portal_auto_token',
+          userId: 'usr_vivah_admin_direct',
+          username: 'vivah_admin',
+          fullName: 'विवाह मिलान सुपरभाइजर (Marriage Supervisor)',
+          role: 'MARRIAGE_MODERATOR',
+          roleNameNepali: 'विवाह मिलान सुपरभाइजर',
+          status: 'active',
+          permissions: ['manage_vivah', 'approve_profiles', 'all'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRBACSession(s);
+        setRbacSession(s);
+      } else if (activeTab === 'news_editor') {
+        const s: RBACSession = {
+          token: 'news_editor_portal_auto_token',
+          userId: 'usr_news_editor_direct',
+          username: 'news_editor',
+          fullName: 'समाचार सम्पादक (News Editor)',
+          role: 'NEWS_EDITOR',
+          roleNameNepali: 'समाचार सम्पादक (News Editor)',
+          status: 'active',
+          permissions: ['manage_news', 'publish_news', 'all'],
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setRBACSession(s);
+        setRbacSession(s);
+      }
+    }
+  }, [activeTab, rbacSession]);
+
   // Ensure all application environments (Desktop, Mobile, Web) receive 100% full web features (No limited version)
   // If legacy limited shell query param is present, silently clean it up
   if (typeof window !== 'undefined') {
@@ -1673,7 +1869,7 @@ export default function App() {
               maintenanceMessage={currentPageControl.maintenanceMessage}
               onGoHome={() => navigateTab('dashboard')}
             />
-          ) : !rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(activeTab) ? (
+          ) : !rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(activeTab) && !ADMIN_PORTAL_TABS.has(activeTab) ? (
             <VedicLoginGateView
               onOpenSignIn={() => setIsRBACAuthModalOpen(true)}
               onOpenSignUp={() => setIsRBACAuthModalOpen(true)}
