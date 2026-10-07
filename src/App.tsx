@@ -89,6 +89,7 @@ import { DailyWhatsAppReminderBanner } from './components/common/DailyWhatsAppRe
 import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBanner';
 import { DeviceUpdateNotificationBanner } from './components/common/DeviceUpdateNotificationBanner';
 import { PageMaintenanceView } from './components/common/PageMaintenanceView';
+import { GlobalNepaliInputManager } from './components/common/GlobalNepaliInputManager';
 import { getStoredPageServiceConfig } from './db/pageServiceControlStore';
 
 import { 
@@ -2153,6 +2154,9 @@ export default function App() {
           isOpen={isApkPromptModalOpen}
           onClose={() => setIsApkPromptModalOpen(false)}
         />
+
+        {/* Global Romanized English to Nepali Unicode Transliteration Manager */}
+        <GlobalNepaliInputManager />
       </Suspense>
     </div>
   );

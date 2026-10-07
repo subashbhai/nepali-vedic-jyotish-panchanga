@@ -20,7 +20,8 @@ import {
   Save,
   Video,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import {
   VedicMediaItem,
@@ -84,6 +85,8 @@ export const StoreMediaAdminTab: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [editBadge, setEditBadge] = useState('');
   const [editThumbnail, setEditThumbnail] = useState('');
+  const [isFetchingVideoMeta, setIsFetchingVideoMeta] = useState(false);
+  const [isFetchingEditMeta, setIsFetchingEditMeta] = useState(false);
 
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -243,15 +246,171 @@ export const StoreMediaAdminTab: React.FC = () => {
     if (photoFileInputRef.current) photoFileInputRef.current.value = '';
   };
 
-  // Handle Video URL change and auto fetch thumbnail / embed URL
+  /**
+   * Automatically fetch video metadata (Title, Speaker, Thumbnail, Language, Badge, Description)
+   * from YouTube or external video links using oEmbed / noembed.
+   */
+  const fetchAndExtractVideoMetadata = async (rawUrl: string) => {
+    const url = (rawUrl || '').trim();
+    if (!url) return null;
+
+    // Extract YouTube ID if any
+    const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+    const videoId = ytMatch ? ytMatch[1] : null;
+
+    let title = '';
+    let author = '';
+    let thumb = videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '';
+
+    // 1. Try noembed (CORS enabled public oEmbed provider)
+    try {
+      const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.title) {
+          title = data.title;
+          author = data.author_name || '';
+          if (data.thumbnail_url) thumb = data.thumbnail_url;
+        }
+      }
+    } catch (err) {
+      // ignore and try fallback
+    }
+
+    // 2. Try YouTube direct oEmbed fallback
+    if (!title && videoId) {
+      try {
+        const res = await fetch(
+          `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.title) {
+            title = data.title;
+            author = data.author_name || '';
+            if (data.thumbnail_url) thumb = data.thumbnail_url;
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    // 3. Fallback title if videoId exists
+    if (!title && videoId) {
+      title = 'वैदिक धार्मिक कथा एवं सत्सङ्ग वाणी';
+    }
+
+    if (!title && !videoId) return null;
+
+    // Detect Speaker / Author
+    let detectedSpeaker = author;
+    if (!detectedSpeaker || detectedSpeaker === 'YouTube') {
+      if (/प्रेमानन्द|premanand/i.test(title)) detectedSpeaker = 'पूज्य श्री प्रेमानन्द जी महाराज';
+      else if (/दिनबन्धु|pokharel/i.test(title)) detectedSpeaker = 'पं. दिनबन्धु पोखरेल';
+      else if (/अनिरुद्धाचार्य|aniruddhacharya/i.test(title)) detectedSpeaker = 'पूज्य अनिरुद्धाचार्य जी महाराज';
+      else if (/राघवाचार्य|raghavacharya/i.test(title)) detectedSpeaker = 'पूज्य राघवाचार्य जी';
+      else if (/रामानन्द|ramananad/i.test(title)) detectedSpeaker = 'स्वामी रामानन्द';
+      else detectedSpeaker = 'सन्त वाचक';
+    }
+
+    // Detect Language
+    let detectedLang: 'नेपाली' | 'हिन्दी' | 'संस्कृत' = 'हिन्दी';
+    const nepaliMarkers = /नेपाल|नेपाली|पोखरेल|दिनबन्धु|भट्टराई|कथावाचन|छन्|छ|भएको|गरेको|हुनेछ|काठमाडौँ/i;
+    const sanskritMarkers = /स्तोत्रम्|मन्त्र|सूक्तम्|सङ्गीत|संस्कृत/i;
+
+    if (sanskritMarkers.test(title)) {
+      detectedLang = 'संस्कृत';
+    } else if (nepaliMarkers.test(title) || nepaliMarkers.test(detectedSpeaker)) {
+      detectedLang = 'नेपाली';
+    } else {
+      detectedLang = 'हिन्दी';
+    }
+
+    // Detect Badge
+    let detectedBadge = 'सत्सङ्ग वाणी';
+    if (/कथा|प्रसंग|चरित्र|लीला/i.test(title)) detectedBadge = 'कथा प्रवचन';
+    else if (/भजन|कीर्तन|धून|आरती/i.test(title)) detectedBadge = 'भजन लीला';
+    else if (/वाणी|सत्संग|सत्सङ्ग|उपदेश/i.test(title)) detectedBadge = 'सत्सङ्ग वाणी';
+    else if (/मन्त्र|स्तोत्र|जाप|जप/i.test(title)) detectedBadge = 'मन्त्र साधना';
+    else if (/दर्शन|तीर्थ|मन्दिर/i.test(title)) detectedBadge = 'तीर्थ दर्शन';
+
+    // Rich Devotional Description
+    const description = generateVedicDescription(title, 'video', detectedSpeaker);
+
+    return {
+      title,
+      speaker: detectedSpeaker,
+      thumbnailUrl: thumb,
+      language: detectedLang,
+      badge: detectedBadge,
+      description,
+      duration: '१५:०० मिनेट'
+    };
+  };
+
+  // Auto fill form fields from URL (Add Video or Edit Video)
+  const handleAutoFillFromUrl = async (url: string, isEdit: boolean = false) => {
+    const cleanUrl = (url || '').trim();
+    if (!cleanUrl || cleanUrl.length < 8) return;
+
+    if (isEdit) setIsFetchingEditMeta(true);
+    else setIsFetchingVideoMeta(true);
+
+    try {
+      const meta = await fetchAndExtractVideoMetadata(cleanUrl);
+      if (meta) {
+        if (isEdit) {
+          setEditTitle(meta.title);
+          if (meta.speaker) setEditSpeaker(meta.speaker);
+          if (meta.thumbnailUrl) setEditThumbnail(meta.thumbnailUrl);
+          setEditLanguage(meta.language);
+          setEditBadge(meta.badge);
+          setEditDescription(meta.description);
+          if (!editDuration) setEditDuration(meta.duration);
+          showNotice(`✓ "${meta.title.substring(0, 35)}..." विवरण लिङ्कबाट स्वतः भरियो!`);
+        } else {
+          setVideoTitle(meta.title);
+          if (meta.speaker) setVideoSpeaker(meta.speaker);
+          if (meta.thumbnailUrl) setVideoThumbnailUrl(meta.thumbnailUrl);
+          setVideoLanguage(meta.language);
+          setVideoBadge(meta.badge);
+          setVideoDescription(meta.description);
+          if (!videoDuration) setVideoDuration(meta.duration);
+          showNotice(`✓ "${meta.title.substring(0, 35)}..." विवरण लिङ्कबाट स्वतः भरियो!`);
+        }
+      }
+    } catch (e) {
+      console.warn('Auto fetch video error:', e);
+    } finally {
+      if (isEdit) setIsFetchingEditMeta(false);
+      else setIsFetchingVideoMeta(false);
+    }
+  };
+
+  // Handle Video URL change in Add Video form
   const handleVideoUrlChange = (url: string) => {
     setVideoUrlInput(url);
     const autoThumb = getYouTubeThumbnailUrl(url);
     if (autoThumb && !videoThumbnailUrl) {
       setVideoThumbnailUrl(autoThumb);
     }
-    if (videoTitle && !videoDescription) {
-      setVideoDescription(generateVedicDescription(videoTitle, 'video', videoSpeaker));
+    // Auto-fetch if valid YouTube link entered
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      handleAutoFillFromUrl(url, false);
+    }
+  };
+
+  // Handle Video URL change in Edit Video modal
+  const handleEditUrlChange = (url: string) => {
+    setEditUrl(url);
+    const autoThumb = getYouTubeThumbnailUrl(url);
+    if (autoThumb && !editThumbnail) {
+      setEditThumbnail(autoThumb);
+    }
+    // Auto-fetch if valid YouTube link entered
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      handleAutoFillFromUrl(url, true);
     }
   };
 
@@ -672,22 +831,49 @@ export const StoreMediaAdminTab: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                  भिडियो लिङ्क (YouTube / MP4 URL) *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                    भिडियो लिङ्क (YouTube / MP4 URL) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleAutoFillFromUrl(videoUrlInput, false)}
+                    disabled={isFetchingVideoMeta || !videoUrlInput.trim()}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-[11px] flex items-center gap-1 shadow-sm cursor-pointer transition-colors"
+                  >
+                    {isFetchingVideoMeta ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>विवरण खोज्दैछ...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>⚡ लिङ्कबाट स्वतः भर्नुहोस्</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="relative">
                   <LinkIcon className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="url"
                     value={videoUrlInput}
                     onChange={(e) => handleVideoUrlChange(e.target.value)}
+                    onPaste={(e) => {
+                      const text = e.clipboardData.getData('text');
+                      if (text) {
+                        setVideoUrlInput(text);
+                        handleAutoFillFromUrl(text, false);
+                      }
+                    }}
                     placeholder="https://www.youtube.com/watch?v=... वा embed link"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 font-mono"
                     required
                   />
                 </div>
-                <p className="text-[11px] text-stone-500 mt-1">
-                  YouTube को साधारण लिङ्क राखे पनि प्रणालीले यसलाई स्वतः सुरक्षित embed लिङ्कमा बदल्नेछ।
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                  <span>⚡ लिङ्क राख्नासाथ शीर्षक, वाचक, थम्बनेल र धार्मिक विवरण स्वतः भरिनेछ।</span>
                 </p>
               </div>
 
@@ -1056,16 +1242,47 @@ export const StoreMediaAdminTab: React.FC = () => {
 
             <form onSubmit={handleSaveVideoEdit} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
               <div>
-                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
-                  भिडियो लिङ्क (YouTube / Embed URL) *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-stone-700 dark:text-stone-300">
+                    भिडियो लिङ्क (YouTube / Embed URL) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleAutoFillFromUrl(editUrl, true)}
+                    disabled={isFetchingEditMeta || !editUrl.trim()}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-[11px] flex items-center gap-1 shadow-sm cursor-pointer transition-colors"
+                  >
+                    {isFetchingEditMeta ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>विवरण खोज्दैछ...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>⚡ लिङ्कबाट स्वतः भर्नुहोस्</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={editUrl}
-                  onChange={(e) => setEditUrl(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 font-mono text-xs"
+                  onChange={(e) => handleEditUrlChange(e.target.value)}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData('text');
+                    if (text) {
+                      setEditUrl(text);
+                      handleAutoFillFromUrl(text, true);
+                    }
+                  }}
+                  placeholder="https://www.youtube.com/watch?v=... वा embed link"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 font-mono text-xs focus:ring-2 focus:ring-cyan-500"
                   required
                 />
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                  <span>⚡ नयाँ लिङ्क राख्नासाथ वा पेस्ट गर्नासाथ शीर्षक, वाचक, थम्बनेल र धार्मिक विवरण स्वतः भरिनेछ।</span>
+                </p>
               </div>
 
               <div>
