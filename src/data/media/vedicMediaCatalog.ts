@@ -1050,37 +1050,67 @@ const RAW_VEDIC_MEDIA_ITEMS: VedicMediaItem[] = [
   },
 
   // ==========================================
-  // ४. वैदिक मण्डल तथा यन्त्र चार्ट (VEDIC MANDALAS & YANTRAS)
+  // ४. वैदिक मण्डल तथा यज्ञ रेखाङ्कन (VEDIC MANDAP REKHANKAN & YANTRAS)
   // ==========================================
   {
-    id: 'chart_shree_yantra_mahameru',
-    titleNepali: 'श्री यन्त्र महामेरु एवं नव आवरण मण्डल इन्फोग्राफिक',
-    titleSanskrit: 'श्री यन्त्र - विन्दु, त्रिकोण, अष्टकोण, दशार, चतुर्दशार',
+    id: 'mandapa_yajna_rekhankan_gobar',
+    titleNepali: 'वैदिक यज्ञ मण्डप रेखाङ्कन (गोबरले लिपेको भूमिमा पवित्र रेखी)',
+    titleSanskrit: 'मण्डप रेखाङ्कनम् - वेदी कुण्ड मण्डल स्थापनम्',
     category: 'infographic',
     categoryLabel: 'चार्ट तथा मण्डल',
     type: 'image',
-    descriptionNepali: 'ब्रह्माण्डको उत्पत्ति र शक्तिको प्रतीक श्री यन्त्रको वैज्ञानिक एवं ज्यामितीय विश्लेषण।',
-    fileSizeText: '850 KB',
-    durationOrDim: '3000 x 3000 (Vector HD)',
-    downloadUrl: '/icon.svg',
-    fileName: 'shree-yantra-mahameru-chart.svg',
-    thumbnailUrl: '/icon.svg',
-    badge: 'श्री यन्त्र'
+    descriptionNepali: 'गोबरले लिपेको पवित्र भूमिमा पिठो, अबिर र केशरीले हालिएको शास्त्रीय यज्ञ मण्डप रेखी, हवन कुण्ड एवं पूर्ण कर्मकाण्ड वेदी।',
+    fileSizeText: '1.2 MB (4K UHD)',
+    durationOrDim: '3840 x 2880 (4K UHD)',
+    downloadUrl: '/assets/mandalas/yajna_mandapa_rekhankan_4k.jpg',
+    fileName: 'yajna_mandapa_rekhankan_gobar_bhumi_4k.jpg',
+    thumbnailUrl: '/assets/mandalas/yajna_mandapa_rekhankan_4k.jpg',
+    badge: 'मण्डप रेखी'
   },
   {
-    id: 'chart_balananda_insignia',
-    titleNepali: 'बालानन्द वैदिक ज्योतिष प्रतीक एवं पञ्चाङ्ग मण्डल',
-    titleSanskrit: 'वेदचक्षुर्ज्योतिषं शास्त्रम्',
+    id: 'sarvatobhadra_mandala_gobar',
+    titleNepali: 'सर्वतोभद्र मण्डल रेखाङ्कन (गोबरको भूमिमा पञ्चरङ्गी रेखी)',
+    titleSanskrit: 'सर्वतोभद्र मण्डलम् - अष्टोत्तरशत कोष्ठकम्',
     category: 'infographic',
     categoryLabel: 'चार्ट तथा मण्डल',
     type: 'image',
-    descriptionNepali: 'वैदिक ज्योतिष, काल गणना एवं सूर्य-चन्द्र पञ्चाङ्गको आधिकारिक संस्थागत इन्फोग्राफिक।',
-    fileSizeText: '1.4 MB',
-    durationOrDim: '3840 x 2160 (4K UHD)',
-    downloadUrl: '/assets/logo.png',
-    fileName: 'balananda-vedic-jyotish-mandala-4k.png',
-    thumbnailUrl: '/assets/logo.png',
-    badge: 'पञ्चाङ्ग मण्डल'
+    descriptionNepali: 'गोबरले लिपेको पवित्र भूमिमा पञ्चरङ्गी चूर्ण (रेखी) द्वारा निर्मित शास्त्रीय सर्वतोभद्र मण्डल, कमल दल एवं कलश स्थापन।',
+    fileSizeText: '1.2 MB (4K UHD)',
+    durationOrDim: '3840 x 3840 (4K UHD)',
+    downloadUrl: '/assets/mandalas/sarvatobhadra_mandala_rekhi_4k.jpg',
+    fileName: 'sarvatobhadra_mandala_rekhi_4k.jpg',
+    thumbnailUrl: '/assets/mandalas/sarvatobhadra_mandala_rekhi_4k.jpg',
+    badge: 'सर्वतोभद्र रेखी'
+  },
+  {
+    id: 'navagraha_mandala_gobar',
+    titleNepali: 'नवग्रह मण्डल रेखाङ्कन (गोबरले लिपेको भूमिमा ९ ग्रह रेखी एवं धान्य)',
+    titleSanskrit: 'नवग्रह मण्डलम् - सूर्य सोमादि ग्रहाणां पीठ स्थापनम्',
+    category: 'infographic',
+    categoryLabel: 'चार्ट तथा मण्डल',
+    type: 'image',
+    descriptionNepali: 'गोबरले लिपेको वेदीमा श्वेत रेखीद्वारा ९ ग्रहका शास्त्रीय ज्यामितीय कोष्ठक रेखाङ्कन, सप्तधान्य एवं दीप पूजन।',
+    fileSizeText: '1.2 MB (4K UHD)',
+    durationOrDim: '3840 x 3840 (4K UHD)',
+    downloadUrl: '/assets/mandalas/navagraha_mandala_rekhi_4k.jpg',
+    fileName: 'navagraha_mandala_rekhi_gobar_4k.jpg',
+    thumbnailUrl: '/assets/mandalas/navagraha_mandala_rekhi_4k.jpg',
+    badge: 'नवग्रह रेखी'
+  },
+  {
+    id: 'yajna_kunda_rekhankan_vedi',
+    titleNepali: 'यज्ञ वेदी तथा कुण्ड मेखला रेखाङ्कन (गोबरको भूमिमा कुण्ड रेखी)',
+    titleSanskrit: 'यज्ञकुण्ड रेखाङ्कनम् - त्रिमेखला वेदी स्थापनम्',
+    category: 'infographic',
+    categoryLabel: 'चार्ट तथा मण्डल',
+    type: 'image',
+    descriptionNepali: 'गोबरको पवित्र लिपाईमा त्रिमेखला युक्त चतुरस्र कुण्ड, स्वस्तिक रेखाङ्कन, समिधा, घृतपात्र एवं वैदिक कर्मकाण्ड सङ्ग्रह।',
+    fileSizeText: '1.0 MB (4K UHD)',
+    durationOrDim: '3840 x 2880 (4K UHD)',
+    downloadUrl: '/assets/mandalas/yajna_kunda_rekhankan_4k.jpg',
+    fileName: 'yajna_kunda_rekhankan_4k.jpg',
+    thumbnailUrl: '/assets/mandalas/yajna_kunda_rekhankan_4k.jpg',
+    badge: 'कुण्ड रेखी'
   },
 
   // ==========================================
