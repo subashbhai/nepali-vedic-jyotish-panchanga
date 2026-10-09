@@ -176,29 +176,45 @@ export const GlobalNepaliInputManager: React.FC = () => {
     };
   }, [isEnabled]);
 
+  // Check if admin command center is active
+  const [isAdminPresent, setIsAdminPresent] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = () => {
+      const el = document.querySelector('[data-admin-command-center]');
+      const isHashAdmin = typeof window !== 'undefined' && window.location.hash.includes('admin');
+      setIsAdminPresent(!!el || isHashAdmin);
+    };
+    checkAdmin();
+    const timer = setInterval(checkAdmin, 800);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <>
-      {/* Discreet Floating Typing Pill */}
-      <div className="fixed bottom-4 left-4 z-40 print:hidden select-none flex items-center gap-2 animate-fadeIn">
-        <button
-          type="button"
-          onClick={toggleNepaliTyping}
-          title="नेपाली युनिकोड टाइपिङ स्विच गर्नुहोस् (Shortcut: Ctrl+M)"
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transition-all border backdrop-blur-md cursor-pointer ${
-            isEnabled
-              ? 'bg-amber-950/85 text-amber-200 border-amber-500/50 hover:bg-amber-900/90 shadow-amber-950/30'
-              : 'bg-stone-900/85 text-stone-400 border-stone-700/60 hover:bg-stone-800 shadow-stone-950/30'
-          }`}
-        >
-          <span className="text-sm">{isEnabled ? '🇳🇵' : '🇬🇧'}</span>
-          <span>{isEnabled ? 'नेपाली टाइपिङ [Ctrl+M]' : 'English [Ctrl+M]'}</span>
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isEnabled ? 'bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse' : 'bg-stone-500'
+      {/* Discreet Floating Typing Pill (Hidden inside Super Admin Command Center) */}
+      {!isAdminPresent && (
+        <div className="fixed bottom-4 left-4 z-40 print:hidden select-none flex items-center gap-2 animate-fadeIn">
+          <button
+            type="button"
+            onClick={toggleNepaliTyping}
+            title="नेपाली युनिकोड टाइपिङ स्विच गर्नुहोस् (Shortcut: Ctrl+M)"
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transition-all border backdrop-blur-md cursor-pointer ${
+              isEnabled
+                ? 'bg-amber-950/85 text-amber-200 border-amber-500/50 hover:bg-amber-900/90 shadow-amber-950/30'
+                : 'bg-stone-900/85 text-stone-400 border-stone-700/60 hover:bg-stone-800 shadow-stone-950/30'
             }`}
-          />
-        </button>
-      </div>
+          >
+            <span className="text-sm">{isEnabled ? '🇳🇵' : '🇬🇧'}</span>
+            <span>{isEnabled ? 'नेपाली टाइपिङ [Ctrl+M]' : 'English [Ctrl+M]'}</span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isEnabled ? 'bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse' : 'bg-stone-500'
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Floating Status Toast */}
       {toastMessage && (

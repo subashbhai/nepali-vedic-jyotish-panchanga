@@ -57,17 +57,27 @@ import { fromDevanagariNumerals } from '../../utils/nepaliCalendar';
 interface UserControlMasterViewProps {
   onBackToDashboard?: () => void;
   onLogoutAdmin?: () => void;
+  hideHeader?: boolean;
+  initialSubTab?: 'user_list' | 'menu_switchboard' | 'rbac_staff';
 }
 
 export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
   onBackToDashboard,
-  onLogoutAdmin
+  onLogoutAdmin,
+  hideHeader = false,
+  initialSubTab = 'user_list'
 }) => {
   // Sub-tab selection:
   // 1) user_list (User List, Signup, Menu Selection, Validity & Preview Cards)
   // 2) menu_switchboard (Dedicated Full Menu Open/Close/Lock Switchboard)
   // 3) rbac_staff (Staff & RBAC Accounts Directory)
-  const [activeSubTab, setActiveSubTab] = useState<'user_list' | 'menu_switchboard' | 'rbac_staff'>('user_list');
+  const [activeSubTab, setActiveSubTab] = useState<'user_list' | 'menu_switchboard' | 'rbac_staff'>(initialSubTab);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // RBAC staff state
   const [rbacUsers, setRbacUsers] = useState<RBACUser[]>(() => {
@@ -307,7 +317,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
   }, [allFeaturesFlat]);
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] text-slate-800 font-sans flex flex-col selection:bg-blue-200">
+    <div className={hideHeader ? "w-full text-slate-800 font-sans flex flex-col" : "min-h-screen bg-[#F0F4F8] text-slate-800 font-sans flex flex-col selection:bg-blue-200"}>
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -317,108 +327,110 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
         </div>
       )}
 
-      {/* TOP HEADER COMMAND BAR (Full-page with Back to Super Admin & Sub-menus) */}
-      <header className="bg-[#0B192C] text-white px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md border-b border-slate-800 shrink-0 sticky top-0 z-50">
-        {/* Left: Back button + Brand & Dashboard title */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {onBackToDashboard && (
+      {/* TOP HEADER COMMAND BAR (Hidden when embedded in Super Admin Control Center) */}
+      {!hideHeader && (
+        <header className="bg-[#0B192C] text-white px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md border-b border-slate-800 shrink-0 sticky top-0 z-50">
+          {/* Left: Back button + Brand & Dashboard title */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {onBackToDashboard && (
+              <button
+                type="button"
+                onClick={onBackToDashboard}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 transition-all shrink-0"
+                title="सुपरएडमिन ड्यासबोर्डमा फर्कनुहोस्"
+              >
+                <ArrowLeft className="w-4 h-4 text-slate-950 stroke-[3]" />
+                <span className="hidden sm:inline">सुपरएडमिनमा फर्कनुहोस्</span>
+                <span className="sm:hidden">फर्कनुहोस्</span>
+              </button>
+            )}
+
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40 shrink-0">
+              <span className="text-lg sm:text-xl leading-none">ॐ</span>
+            </div>
+
+            <div>
+              <div className="font-extrabold text-xs sm:text-base tracking-wide text-white flex items-center gap-1.5 sm:gap-2">
+                <span>प्रयोगकर्ता नियन्त्रण (User Control)</span>
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-blue-600 text-blue-100 shrink-0">
+                  Full Page
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 hidden md:block">
+                केन्द्रीय नियन्त्रण कक्ष — मोबाइल दर्ता, पासवर्ड जेनेरेसन & मेनु Open/Close/Lock
+              </p>
+            </div>
+          </div>
+
+          {/* Center Sub-menu Tabs (३ मुख्य मोड्युलहरू) */}
+          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 overflow-x-auto max-w-full">
             <button
               type="button"
-              onClick={onBackToDashboard}
-              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 transition-all shrink-0"
-              title="सुपरएडमिन ड्यासबोर्डमा फर्कनुहोस्"
+              onClick={() => setActiveSubTab('user_list')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSubTab === 'user_list'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
             >
-              <ArrowLeft className="w-4 h-4 text-slate-950 stroke-[3]" />
-              <span className="hidden sm:inline">सुपरएडमिनमा फर्कनुहोस्</span>
-              <span className="sm:hidden">फर्कनुहोस्</span>
+              <Smartphone className="w-3.5 h-3.5 shrink-0" />
+              <span>१. मोबाइल दर्ता & पासवर्ड</span>
             </button>
-          )}
 
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40 shrink-0">
-            <span className="text-lg sm:text-xl leading-none">ॐ</span>
-          </div>
-
-          <div>
-            <div className="font-extrabold text-xs sm:text-base tracking-wide text-white flex items-center gap-1.5 sm:gap-2">
-              <span>प्रयोगकर्ता नियन्त्रण (User Control)</span>
-              <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-blue-600 text-blue-100 shrink-0">
-                Full Page
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 hidden md:block">
-              केन्द्रीय नियन्त्रण कक्ष — मोबाइल दर्ता, पासवर्ड जेनेरेसन & मेनु Open/Close/Lock
-            </p>
-          </div>
-        </div>
-
-        {/* Center Sub-menu Tabs (३ मुख्य मोड्युलहरू) */}
-        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 overflow-x-auto max-w-full">
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('user_list')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeSubTab === 'user_list'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <Smartphone className="w-3.5 h-3.5 shrink-0" />
-            <span>१. मोबाइल दर्ता & पासवर्ड</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('menu_switchboard')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeSubTab === 'menu_switchboard'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5 shrink-0" />
-            <span>२. मेनु स्विचबोर्ड (Open/Close/Lock)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              reloadRbacUsers();
-              setActiveSubTab('rbac_staff');
-            }}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeSubTab === 'rbac_staff'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5 shrink-0" />
-            <span>३. कर्मचारी तथा RBAC खाता</span>
-          </button>
-        </div>
-
-        {/* Right: Notifications & Super Admin Profile */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
-            <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-blue-400">
-              SA
-            </div>
-            <div className="hidden lg:block text-left text-[11px] leading-tight">
-              <span className="font-bold block text-white">Super Admin</span>
-              <span className="text-[9px] text-slate-400">सुपरएडमिन</span>
-            </div>
-          </div>
-          {onLogoutAdmin && (
             <button
               type="button"
-              onClick={onLogoutAdmin}
-              className="p-1.5 rounded-lg text-rose-300 hover:text-white hover:bg-rose-950/60 text-xs flex items-center gap-1 cursor-pointer transition-colors"
-              title="लगआउट"
+              onClick={() => setActiveSubTab('menu_switchboard')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSubTab === 'menu_switchboard'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <Sliders className="w-3.5 h-3.5 shrink-0" />
+              <span>२. मेनु स्विचबोर्ड (Open/Close/Lock)</span>
             </button>
-          )}
-        </div>
-      </header>
+
+            <button
+              type="button"
+              onClick={() => {
+                reloadRbacUsers();
+                setActiveSubTab('rbac_staff');
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSubTab === 'rbac_staff'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>३. कर्मचारी तथा RBAC खाता</span>
+            </button>
+          </div>
+
+          {/* Right: Notifications & Super Admin Profile */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
+              <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-blue-400">
+                SA
+              </div>
+              <div className="hidden lg:block text-left text-[11px] leading-tight">
+                <span className="font-bold block text-white">Super Admin</span>
+                <span className="text-[9px] text-slate-400">सुपरएडमिन</span>
+              </div>
+            </div>
+            {onLogoutAdmin && (
+              <button
+                type="button"
+                onClick={onLogoutAdmin}
+                className="p-1.5 rounded-lg text-rose-300 hover:text-white hover:bg-rose-950/60 text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                title="लगआउट"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </header>
+      )}
 
       {/* MAIN CONTAINER: FULL CONTENT CANVAS */}
       <div className="flex-1 flex overflow-hidden w-full">
@@ -1391,10 +1403,12 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
             </div>
           </div>
 
-              {/* BOTTOM FOOTER BANNER (Exact match to screenshot) */}
-              <footer className="bg-[#0B192C] text-white py-3 px-4 rounded-2xl shadow-md text-center text-xs font-bold tracking-wider border border-slate-800">
-                <span>सुरक्षित पहुँच | पूर्ण नियन्त्रण | तपाईँको सेवा, हाम्रो प्रतिबद्धता</span>
-              </footer>
+              {/* BOTTOM FOOTER BANNER */}
+              {!hideHeader && (
+                <footer className="bg-[#0B192C] text-white py-3 px-4 rounded-2xl shadow-md text-center text-xs font-bold tracking-wider border border-slate-800">
+                  <span>सुरक्षित पहुँच | पूर्ण नियन्त्रण | तपाईँको सेवा, हाम्रो प्रतिबद्धता</span>
+                </footer>
+              )}
             </>
           )}
         </main>
