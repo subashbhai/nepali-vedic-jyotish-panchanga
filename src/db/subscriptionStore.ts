@@ -776,10 +776,10 @@ export function evaluateSubscriptionStatus(): SubscriptionStatusEvaluation {
     }
   }
 
-  // 3. 3-Day Trial Check
+  // 3. 7-Day Trial Check
   if (account.currentPlanId === 'trial' && account.trialStartedAtISO) {
     const trialStartMs = new Date(account.trialStartedAtISO).getTime();
-    const trialDurationMs = 3 * 24 * 60 * 60 * 1000; // 3 Days = 72 Hours
+    const trialDurationMs = 7 * 24 * 60 * 60 * 1000; // Exactly 7 Days = 168 Hours
     const trialExpireMs = trialStartMs + trialDurationMs;
 
     if (nowMs < trialExpireMs) {
@@ -795,7 +795,7 @@ export function evaluateSubscriptionStatus(): SubscriptionStatusEvaluation {
 
       return {
         effectivePlanId: 'trial',
-        planNameNepali: '३ दिने परीक्षण',
+        planNameNepali: '७ दिने पूर्ण निःशुल्क परीक्षण',
         isActive: true,
         isTrial: true,
         isTrialExpired: false,
@@ -804,12 +804,12 @@ export function evaluateSubscriptionStatus(): SubscriptionStatusEvaluation {
         remainingDays,
         remainingHoursInTrial: remainingHours,
         expiresDateBS: expBS,
-        formattedMessageNepali: `तपाईंको ३ दिने परीक्षण सक्रिय छ। बाँकी समय: ${timeText}। (प्रिन्ट सुविधा समावेश छैन)`,
+        formattedMessageNepali: `तपाईंको ७ दिने पूर्ण सफ्टवेयर परीक्षण (Full Access) सक्रिय छ। बाँकी समय: ${timeText}।`,
       };
     } else {
       return {
         effectivePlanId: 'free',
-        planNameNepali: '३ दिने परीक्षण समाप्त',
+        planNameNepali: '७ दिने परीक्षण समाप्त',
         isActive: false,
         isTrial: false,
         isTrialExpired: true,
@@ -818,7 +818,7 @@ export function evaluateSubscriptionStatus(): SubscriptionStatusEvaluation {
         remainingDays: 0,
         remainingHoursInTrial: 0,
         expiresDateBS: null,
-        formattedMessageNepali: 'तपाईंको ३ दिने निःशुल्क परीक्षण अवधि समाप्त भएको छ। निरन्तर प्रयोगका लागि सदस्यता योजना चयन गर्नुहोस्।',
+        formattedMessageNepali: 'तपाईंको ७ दिने निःशुल्क परीक्षण अवधि समाप्त भएको छ। सम्पूर्ण ज्योतिष तथा वास्तु सुविधाहरू प्रयोग गर्न सदस्यता खरिद गर्नुहोस्।',
       };
     }
   }
@@ -840,12 +840,12 @@ export function evaluateSubscriptionStatus(): SubscriptionStatusEvaluation {
 }
 
 /**
- * Start 3-Day Free Trial (Triggered strictly when user explicitly clicks to activate)
+ * Start 7-Day Free Trial (Full software access for Jyotish & Vastu)
  */
-export function start3DayTrial(): UserSubscriptionAccount {
+export function start7DayTrial(): UserSubscriptionAccount {
   const account = getStoredUserSubscription();
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000); // Exactly 3 days (72 hours)
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Exactly 7 days (168 hours)
 
   const updated: UserSubscriptionAccount = {
     ...account,
@@ -859,13 +859,15 @@ export function start3DayTrial(): UserSubscriptionAccount {
     window.dispatchEvent(new CustomEvent('software-trial-updated', { 
       detail: { isTrial: true, expiresAtISO: expiresAt.toISOString() } 
     }));
+    window.dispatchEvent(new CustomEvent('software-full-access-updated', { 
+      detail: { hasFullAccess: true } 
+    }));
   }
   return updated;
 }
 
-// Backward-compatible alias
-export const start7DayTrial = start3DayTrial;
-export const start48HourTrial = start3DayTrial;
+export const start3DayTrial = start7DayTrial;
+export const start48HourTrial = start7DayTrial;
 
 /**
  * Check if 3-day trial is currently active

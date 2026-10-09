@@ -186,7 +186,7 @@ export const INITIAL_SEED_USERS: RBACUser[] = [
     username: '9841755199',
     phone: '9841755199',
     fullName: 'subash khanal',
-    passwordHash: hashPassword('Jyotish#8758'),
+    passwordHash: hashPassword('3AACKE84'),
     role: 'CUSTOMER',
     roleNameNepali: 'ग्राहक (आजीवन सदस्य)',
     status: 'active',
@@ -247,13 +247,16 @@ export function getStoredRBACUsers(): RBACUser[] {
 
     let changed = false;
     for (const seed of INITIAL_SEED_USERS) {
-      const exists = parsed.some((u: RBACUser) => {
+      const idx = parsed.findIndex((u: RBACUser) => {
         const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
         const seedMob = seed.phone.replace(/\D/g, '').slice(-10);
         return (uMob && uMob === seedMob) || (u.username && u.username.toLowerCase() === seed.username.toLowerCase());
       });
-      if (!exists) {
+      if (idx === -1) {
         parsed.unshift(seed);
+        changed = true;
+      } else if (seed.phone === '9841755199' && parsed[idx].passwordHash !== hashPassword('3AACKE84')) {
+        parsed[idx].passwordHash = hashPassword('3AACKE84');
         changed = true;
       }
     }
