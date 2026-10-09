@@ -365,7 +365,8 @@ export function calculatePeriodExpiry(period: SubscriptionPeriod): { timestamp: 
   if (period !== 'lifetime') {
     try {
       const adStr = targetDate.toISOString().split('T')[0];
-      bs = convertADToBS(adStr);
+      const res = convertADToBS(adStr);
+      bs = res?.formattedBS || (typeof res === 'object' ? `${res.year}-${res.month}-${res.day}` : String(res));
     } catch {
       bs = `${yearsToAdd} वर्षपछि`;
     }
@@ -490,6 +491,16 @@ export const DEFAULT_DEMO_CLIENT_POLICIES: ClientAccessRecord[] = [
   }
 ];
 
+// Helper to safely format BS date to string
+export function sanitizeBSDateString(val: any, fallback: string = ''): string {
+  if (!val) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') {
+    return val.formattedBS || (val.year && val.month && val.day ? `${val.year}-${val.month}-${val.day}` : fallback);
+  }
+  return String(val);
+}
+
 // Load all client policies
 export function loadAllClientPolicies(): ClientAccessRecord[] {
   try {
@@ -501,7 +512,23 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      let needsPersist = false;
+      const sanitized = parsed.map((r: any) => {
+        const cleanCreatedAtBS = sanitizeBSDateString(r.createdAtBS, '२०८१-०१-०१');
+        const cleanExpiresAtBS = sanitizeBSDateString(r.expiresAtBS, 'आजीवन (Lifetime)');
+        if (typeof r.createdAtBS === 'object' || typeof r.expiresAtBS === 'object') {
+          needsPersist = true;
+        }
+        return {
+          ...r,
+          createdAtBS: cleanCreatedAtBS,
+          expiresAtBS: cleanExpiresAtBS
+        };
+      });
+      if (needsPersist) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+      }
+      return sanitized;
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_DEMO_CLIENT_POLICIES));
     return DEFAULT_DEMO_CLIENT_POLICIES;
@@ -515,8 +542,13 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
 export function saveAllClientPolicies(records: ClientAccessRecord[]): void {
   try {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    window.dispatchEvent(new CustomEvent('client-policies-updated', { detail: { records } }));
+    const sanitized = records.map(r => ({
+      ...r,
+      createdAtBS: sanitizeBSDateString(r.createdAtBS, '२०८१-०१-०१'),
+      expiresAtBS: sanitizeBSDateString(r.expiresAtBS, 'आजीवन (Lifetime)')
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+    window.dispatchEvent(new CustomEvent('client-policies-updated', { detail: { records: sanitized } }));
     try {
       const bc = new BroadcastChannel('balananda_client_policy_channel');
       bc.postMessage({ type: 'POLICIES_UPDATED', timestamp: Date.now() });
@@ -596,7 +628,8 @@ export function registerOrUpdateClientPolicy(params: {
 
   let todayBS = '२०८१-०१-०१';
   try {
-    todayBS = convertADToBS(new Date().toISOString().split('T')[0]);
+    const todayRes = convertADToBS(new Date().toISOString().split('T')[0]);
+    todayBS = sanitizeBSDateString(todayRes, '२०८१-०१-०१');
   } catch {}
 
   let targetRecord: ClientAccessRecord;
