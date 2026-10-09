@@ -247,6 +247,72 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
     }
   });
 
+  // API Route for AI Monthly Horoscope Generation
+  app.post("/api/ai/monthly-horoscope", async (req, res) => {
+    try {
+      const { rashiName, yearBS, monthName, profile } = req.body;
+      const ai = getGeminiClient();
+
+      const systemInstruction = `तपाईं नेपालका विद्वान् ज्योतिषाचार्य हुनुहुन्छ। विक्रम संवत् ${yearBS} को ${monthName} महिनाका लागि ${rashiName} राशिको प्रामाणिक, शास्त्रीय र व्यावहारिक मासिक राशिफल नेपाली भाषामा JSON ढाँचामा तयार गर्नुहोस्।`;
+      const prompt = `विक्रम संवत् ${yearBS} को ${monthName} महिनाका लागि ${rashiName} राशिको समग्र मासिक फलादेश, करियर, वित्त, प्रेम/परिवार, शिक्षा, स्वास्थ्य, अनुकूल अवधि, साधना सुझाव सहित JSON मा दिनुहोस्।`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.7-flash",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          temperature: 0.7,
+        },
+      });
+
+      let json = {};
+      try {
+        json = JSON.parse(response.text || "{}");
+      } catch {
+        json = { overallSummary: response.text };
+      }
+
+      return res.json({ success: true, horoscope: json });
+    } catch (error: any) {
+      console.error("AI Monthly Horoscope API Error:", error);
+      return res.status(500).json({ error: error.message || "Monthly Horoscope generation failed." });
+    }
+  });
+
+  // API Route for AI Yearly Horoscope Generation
+  app.post("/api/ai/yearly-horoscope", async (req, res) => {
+    try {
+      const { rashiName, yearBS, profile } = req.body;
+      const ai = getGeminiClient();
+
+      const systemInstruction = `तपाईं नेपालका विद्वान् ज्योतिषाचार्य हुनुहुन्छ। विक्रम संवत् ${yearBS} सालका लागि ${rashiName} राशिको प्रामाणिक, शास्त्रीय र विस्तृत वार्षिक राशिफल नेपाली भाषामा JSON ढाँचामा तयार गर्नुहोस्।`;
+      const prompt = `विक्रम संवत् ${yearBS} सालका लागि ${rashiName} राशिको समग्र वार्षिक फलादेश, प्रमुख ग्रहगोचर (गुरु, शनि, राहु-केतु), करियर, धन, शिक्षा, प्रेम/विवाह, सम्पत्ति, स्वास्थ्य र वार्षिक आध्यात्मिक उपाय सहित JSON मा दिनुहोस्।`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.7-flash",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          temperature: 0.7,
+        },
+      });
+
+      let json = {};
+      try {
+        json = JSON.parse(response.text || "{}");
+      } catch {
+        json = { yearlyOverview: response.text };
+      }
+
+      return res.json({ success: true, horoscope: json });
+    } catch (error: any) {
+      console.error("AI Yearly Horoscope API Error:", error);
+      return res.status(500).json({ error: error.message || "Yearly Horoscope generation failed." });
+    }
+  });
+
   // ==============================================================
   // DAILY HOROSCOPE EMAIL NOTIFICATION & SUBSCRIPTION SYSTEM
   // ==============================================================
