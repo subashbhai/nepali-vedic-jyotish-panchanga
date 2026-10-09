@@ -43,6 +43,8 @@ interface BirthInputModalProps {
   onClose: () => void;
   onSave: (profile: BirthDetails) => void;
   initialProfile?: BirthDetails | null;
+  savedProfiles?: BirthDetails[];
+  onSelectExistingProfile?: (profile: BirthDetails) => void;
 }
 
 export const BirthInputModal: React.FC<BirthInputModalProps> = ({
@@ -50,6 +52,8 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
   onClose,
   onSave,
   initialProfile,
+  savedProfiles,
+  onSelectExistingProfile,
 }) => {
   // --- Form States based on screenshot design ---
   const [name, setName] = useState('ओम बहादुर सुब्बा');
@@ -120,6 +124,11 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
   const [duplicateMatch, setDuplicateMatch] = useState<BirthDetails | null>(null);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
 
+  // Saved profiles selection states
+  const [savedProfilesList, setSavedProfilesList] = useState<BirthDetails[]>([]);
+  const [selectedSavedProfileId, setSelectedSavedProfileId] = useState<string>('');
+  const [activeLoadedProfile, setActiveLoadedProfile] = useState<BirthDetails | null>(null);
+
   // City dropdown list options
   const cityOptions = [
     { label: 'मोरङ - Morang', name: 'मोरङ', district: 'मोरङ', lat: 26.65, long: 87.35, tz: 5.75 },
@@ -140,139 +149,186 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
     { label: 'नयाँ दिल्ली - New Delhi', name: 'नयाँ दिल्ली', district: 'दिल्ली', lat: 28.6139, long: 77.209, tz: 5.5 },
   ];
 
+  const populateProfileIntoForm = (prof: BirthDetails) => {
+    setName(prof.name || '');
+    
+    // Parse BS Date if exists
+    if (prof.dateBS) {
+      const bsMatch = prof.dateBS.match(/(\d{4})[^\d]+(\d{1,2})[^\d]+(\d{1,2})/);
+      if (bsMatch) {
+        setYear(fromDevanagariNumerals(bsMatch[1]));
+        setMonth(fromDevanagariNumerals(bsMatch[2]));
+        setGate(fromDevanagariNumerals(bsMatch[3]));
+        setEra('BS');
+      } else if (prof.dateAD) {
+        const parts = prof.dateAD.split('-');
+        if (parts.length === 3) {
+          setYear(parts[0]);
+          setMonth(String(parseInt(parts[1], 10)));
+          setGate(String(parseInt(parts[2], 10)));
+          setEra('AD');
+        }
+      }
+    } else if (prof.dateAD) {
+      const parts = prof.dateAD.split('-');
+      if (parts.length === 3) {
+        setYear(parts[0]);
+        setMonth(String(parseInt(parts[1], 10)));
+        setGate(String(parseInt(parts[2], 10)));
+        setEra('AD');
+      }
+    }
+
+    // Parse Time
+    if (prof.time) {
+      const timeParts = prof.time.split(':');
+      if (timeParts.length >= 2) {
+        let h = parseInt(timeParts[0], 10);
+        const m = parseInt(timeParts[1], 10);
+        const s = parseInt(prof.timeSeconds || '0', 10);
+
+        if (h >= 12) {
+          setAmPm('PM');
+          if (h > 12) h -= 12;
+        } else {
+          setAmPm('AM');
+          if (h === 0) h = 12;
+        }
+
+        setHour(String(h));
+        setMinute(String(m));
+        setSecond(String(s));
+      }
+    }
+
+    if (prof.gender) setGender(prof.gender);
+    if (prof.location) {
+      setCountry(prof.location.country || 'नेपाल');
+      const locName = prof.location.name || prof.location.district || 'काठमाडौँ';
+      setSelectedCity(locName);
+      setLocationQuery(locName);
+      setLatitude(prof.location.latitude || 27.7172);
+      setLongitude(prof.location.longitude || 85.324);
+      setTimeZone(prof.location.timeZone || 5.75);
+      setSelectedLocation({
+        name: locName,
+        englishName: prof.location.englishName,
+        district: prof.location.district,
+        province: prof.location.province,
+        country: prof.location.country || 'नेपाल',
+        latitude: prof.location.latitude || 27.7172,
+        longitude: prof.location.longitude || 85.324,
+        timeZone: prof.location.timeZone || 5.75,
+        region: prof.location.region || 'nepal',
+        flag: prof.location.flag || '🇳🇵',
+      });
+    }
+
+    if (prof.phone) setPhone(prof.phone);
+    if (prof.email) setEmail(prof.email);
+    if (prof.notes) setNotes(prof.notes);
+    if (prof.fatherDetails?.name) setFatherName(prof.fatherDetails.name);
+    if (prof.fatherDetails?.gotra) setGotra(prof.fatherDetails.gotra);
+    if (prof.motherDetails?.name) setMotherName(prof.motherDetails.name);
+    if (prof.familyMembers) setFamilyMembers(prof.familyMembers);
+  };
+
+  const resetToNewForm = () => {
+    setSelectedSavedProfileId('');
+    setActiveLoadedProfile(null);
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayBS = convertADToBSFull(`${yyyy}-${mm}-${dd}`);
+
+    setName('');
+    setYear(String(todayBS.year));
+    setMonth(String(todayBS.month));
+    setGate(String(todayBS.day));
+    setEra('BS');
+
+    let nowH = now.getHours();
+    const nowM = now.getMinutes();
+    const nowS = now.getSeconds();
+    const nowAmPm = nowH >= 12 ? 'PM' : 'AM';
+    if (nowH > 12) nowH -= 12;
+    if (nowH === 0) nowH = 12;
+
+    setHour(String(nowH));
+    setMinute(String(nowM));
+    setSecond(String(nowS));
+    setAmPm(nowAmPm);
+
+    setGender('male');
+    setSelectedCity('काठमाडौँ (Kathmandu)');
+    setLocationQuery('काठमाडौँ');
+    setCountry('नेपाल');
+    setLatitude(27.7172);
+    setLongitude(85.324);
+    setTimeZone(5.75);
+    setSelectedLocation({
+      name: 'काठमाडौँ (Kathmandu)',
+      englishName: 'Kathmandu',
+      district: 'काठमाडौँ',
+      province: 'बागमती',
+      country: 'नेपाल',
+      latitude: 27.7172,
+      longitude: 85.324,
+      timeZone: 5.75,
+      region: 'nepal',
+      flag: '🇳🇵',
+    });
+
+    setFatherName('');
+    setMotherName('');
+    setGotra('');
+    setPhone('');
+    setEmail('');
+    setNotes('');
+    setFamilyMembers([]);
+    setDuplicateMatch(null);
+    setShowDuplicateWarning(false);
+  };
+
   // Initialize form when editing or opening
   useEffect(() => {
-    if (initialProfile) {
-      setName(initialProfile.name || '');
-      
-      // Parse BS Date if exists
-      if (initialProfile.dateBS) {
-        const bsMatch = initialProfile.dateBS.match(/(\d{4})[^\d]+(\d{1,2})[^\d]+(\d{1,2})/);
-        if (bsMatch) {
-          setYear(fromDevanagariNumerals(bsMatch[1]));
-          setMonth(fromDevanagariNumerals(bsMatch[2]));
-          setGate(fromDevanagariNumerals(bsMatch[3]));
-          setEra('BS');
-        } else if (initialProfile.dateAD) {
-          const parts = initialProfile.dateAD.split('-');
-          if (parts.length === 3) {
-            setYear(parts[0]);
-            setMonth(String(parseInt(parts[1], 10)));
-            setGate(String(parseInt(parts[2], 10)));
-            setEra('AD');
-          }
-        }
+    if (isOpen) {
+      try {
+        const stored = (savedProfiles && savedProfiles.length > 0) ? savedProfiles : getStoredProfiles();
+        const cleanList = (stored || []).filter((p) => p.id !== 'live_current_moment');
+        setSavedProfilesList(cleanList);
+      } catch {
+        setSavedProfilesList([]);
       }
 
-      // Parse Time
-      if (initialProfile.time) {
-        const timeParts = initialProfile.time.split(':');
-        if (timeParts.length >= 2) {
-          let h = parseInt(timeParts[0], 10);
-          const m = parseInt(timeParts[1], 10);
-          const s = parseInt(initialProfile.timeSeconds || '0', 10);
-
-          if (h >= 12) {
-            setAmPm('PM');
-            if (h > 12) h -= 12;
-          } else {
-            setAmPm('AM');
-            if (h === 0) h = 12;
-          }
-
-          setHour(String(h));
-          setMinute(String(m));
-          setSecond(String(s));
-        }
+      if (initialProfile) {
+        setSelectedSavedProfileId(initialProfile.id);
+        setActiveLoadedProfile(initialProfile);
+        populateProfileIntoForm(initialProfile);
+      } else {
+        setSelectedSavedProfileId('');
+        setActiveLoadedProfile(null);
+        resetToNewForm();
       }
-
-      if (initialProfile.gender) setGender(initialProfile.gender);
-      if (initialProfile.location) {
-        setCountry(initialProfile.location.country || 'नेपाल');
-        const locName = initialProfile.location.name || initialProfile.location.district || 'काठमाडौँ';
-        setSelectedCity(locName);
-        setLocationQuery(locName);
-        setLatitude(initialProfile.location.latitude || 27.7172);
-        setLongitude(initialProfile.location.longitude || 85.324);
-        setTimeZone(initialProfile.location.timeZone || 5.75);
-        setSelectedLocation({
-          name: locName,
-          englishName: initialProfile.location.englishName,
-          district: initialProfile.location.district,
-          province: initialProfile.location.province,
-          country: initialProfile.location.country || 'नेपाल',
-          latitude: initialProfile.location.latitude || 27.7172,
-          longitude: initialProfile.location.longitude || 85.324,
-          timeZone: initialProfile.location.timeZone || 5.75,
-          region: initialProfile.location.region || 'nepal',
-          flag: initialProfile.location.flag || '🇳🇵',
-        });
-      }
-
-      if (initialProfile.phone) setPhone(initialProfile.phone);
-      if (initialProfile.email) setEmail(initialProfile.email);
-      if (initialProfile.notes) setNotes(initialProfile.notes);
-      if (initialProfile.fatherDetails?.name) setFatherName(initialProfile.fatherDetails.name);
-      if (initialProfile.fatherDetails?.gotra) setGotra(initialProfile.fatherDetails.gotra);
-      if (initialProfile.motherDetails?.name) setMotherName(initialProfile.motherDetails.name);
-      if (initialProfile.familyMembers) setFamilyMembers(initialProfile.familyMembers);
-    } else {
-      // New Kundali: Clear form and populate today's Nepali Date & current time
-      const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const todayBS = convertADToBSFull(`${yyyy}-${mm}-${dd}`);
-
-      setName('');
-      setYear(String(todayBS.year));
-      setMonth(String(todayBS.month));
-      setGate(String(todayBS.day));
-      setEra('BS');
-
-      let nowH = now.getHours();
-      const nowM = now.getMinutes();
-      const nowS = now.getSeconds();
-      const nowAmPm = nowH >= 12 ? 'PM' : 'AM';
-      if (nowH > 12) nowH -= 12;
-      if (nowH === 0) nowH = 12;
-
-      setHour(String(nowH));
-      setMinute(String(nowM));
-      setSecond(String(nowS));
-      setAmPm(nowAmPm);
-
-      setGender('male');
-      setSelectedCity('काठमाडौँ (Kathmandu)');
-      setLocationQuery('काठमाडौँ');
-      setCountry('नेपाल');
-      setLatitude(27.7172);
-      setLongitude(85.324);
-      setTimeZone(5.75);
-      setSelectedLocation({
-        name: 'काठमाडौँ (Kathmandu)',
-        englishName: 'Kathmandu',
-        district: 'काठमाडौँ',
-        province: 'बागमती',
-        country: 'नेपाल',
-        latitude: 27.7172,
-        longitude: 85.324,
-        timeZone: 5.75,
-        region: 'nepal',
-        flag: '🇳🇵',
-      });
-
-      setFatherName('');
-      setMotherName('');
-      setGotra('');
-      setPhone('');
-      setEmail('');
-      setNotes('');
-      setFamilyMembers([]);
-      setDuplicateMatch(null);
-      setShowDuplicateWarning(false);
     }
-  }, [initialProfile, isOpen]);
+  }, [isOpen, initialProfile, savedProfiles]);
+
+  const handleSelectSavedProfile = (profileId: string) => {
+    if (!profileId) {
+      resetToNewForm();
+      return;
+    }
+    const found = savedProfilesList.find(p => p.id === profileId);
+    if (found) {
+      setSelectedSavedProfileId(found.id);
+      setActiveLoadedProfile(found);
+      populateProfileIntoForm(found);
+      if (onSelectExistingProfile) {
+        onSelectExistingProfile(found);
+      }
+    }
+  };
 
   // Selected City Data
   const currentCityObj = cityOptions.find(c => c.label === selectedCity) || cityOptions[0];
@@ -365,8 +421,10 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
     const formattedTimeStr = `${String(h24).padStart(2, '0')}:${String(numM).padStart(2, '0')}`;
     const formattedSecStr = String(numS).padStart(2, '0');
 
-    // Duplicate check
-    if (!initialProfile && !forceNew) {
+    const targetBase = initialProfile || activeLoadedProfile;
+
+    // Duplicate check only if completely new
+    if (!targetBase && !forceNew) {
       const allProfiles = getStoredProfiles();
       const existing = allProfiles.find(
         (p) =>
@@ -382,7 +440,7 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
 
     const existingCount = getStoredProfiles().length;
     const jatakSerialNo =
-      initialProfile?.jatakSerialNo || `जातक-${String(existingCount + 1).padStart(3, '०')}`;
+      targetBase?.jatakSerialNo || `जातक-${String(existingCount + 1).padStart(3, '०')}`;
 
     const locationData: LocationData = {
       name: selectedLocation.name || selectedCity || 'काठमाडौँ',
@@ -399,8 +457,8 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
     };
 
     const newProfile: BirthDetails = {
-      id: initialProfile?.id || `profile_${Date.now()}`,
-      customerId: initialProfile?.customerId || `ग्राह-${String(existingCount + 1).padStart(3, '०')}`,
+      id: targetBase?.id || `profile_${Date.now()}`,
+      customerId: targetBase?.customerId || `ग्राह-${String(existingCount + 1).padStart(3, '०')}`,
       jatakSerialNo,
       name: name.trim(),
       gender,
@@ -413,7 +471,7 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
       email: email.trim(),
       notes: notes.trim(),
       category: 'Client',
-      createdAt: initialProfile?.createdAt || new Date().toISOString(),
+      createdAt: targetBase?.createdAt || new Date().toISOString(),
       fatherDetails: {
         name: fatherName.trim(),
         gotra: gotra.trim(),
@@ -534,8 +592,13 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
         <div className="bg-stone-50 dark:bg-stone-800 px-4 py-3 border-b border-stone-200 dark:border-stone-700 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-stone-800 dark:text-stone-100">
-              {initialProfile ? 'जातक विवरण परिमार्जन' : 'नयाँ कुण्डली प्रविष्टि'}
+              {initialProfile || activeLoadedProfile ? 'जातक विवरण परिमार्जन' : 'नयाँ कुण्डली प्रविष्टि'}
             </span>
+            {activeLoadedProfile && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-medium">
+                सुरक्षित कुण्डली
+              </span>
+            )}
           </div>
           <button
             type="button"
@@ -568,6 +631,75 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
         {/* Main Form matching exact screenshot layout */}
         <form onSubmit={(e) => handleSaveProfile(e, false)} className="p-4 space-y-3.5 text-xs">
           
+          {/* 0. पहिले नै सुरक्षित भएका कुण्डलीहरू छान्ने विकल्प */}
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50/50 dark:from-stone-850 dark:to-stone-800 border border-amber-200 dark:border-amber-800/60 rounded-lg p-2.5 space-y-2 shadow-xs">
+            <div className="flex items-center justify-between">
+              <label 
+                htmlFor="saved-kundali-select" 
+                className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200"
+              >
+                <FolderOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>पहिले नै सुरक्षित कुण्डली छान्नुहोस्:</span>
+                {savedProfilesList.length > 0 && (
+                  <span className="text-[10px] bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 px-1.5 py-0.2 rounded-full font-bold">
+                    {savedProfilesList.length}
+                  </span>
+                )}
+              </label>
+
+              {activeLoadedProfile && (
+                <button
+                  type="button"
+                  onClick={resetToNewForm}
+                  className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium hover:underline cursor-pointer bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800/60 transition-colors"
+                  title="फारम खाली गरी नयाँ कुण्डली प्रविष्ट गर्नुहोस्"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ नयाँ खाली प्रविष्टि</span>
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <select
+                id="saved-kundali-select"
+                value={selectedSavedProfileId}
+                onChange={(e) => handleSelectSavedProfile(e.target.value)}
+                className="w-full bg-white dark:bg-stone-900 border border-amber-300 dark:border-stone-700 rounded px-2.5 py-1.5 pr-8 text-xs text-stone-800 dark:text-stone-100 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none appearance-none cursor-pointer"
+              >
+                <option value="">
+                  {savedProfilesList.length === 0 
+                    ? '-- कुनै सुरक्षित कुण्डली फेला परेन (नयाँ प्रविष्टि गर्नुहोस्) --' 
+                    : '-- नयाँ कुण्डली लेख्नुहोस् (वा यहाँबाट सुरक्षित छान्नुहोस्) --'}
+                </option>
+                {savedProfilesList.map((p) => {
+                  const dateInfo = p.dateBS ? `वि.सं. ${p.dateBS}` : (p.dateAD ? `ई.सं. ${p.dateAD}` : '');
+                  const timeInfo = p.time ? `${p.time}` : '';
+                  const placeInfo = p.location?.name ? `${p.location.name}` : '';
+                  const extra = [dateInfo, timeInfo, placeInfo].filter(Boolean).join(' • ');
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {extra ? `(${extra})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              <ChevronDown className="w-4 h-4 text-amber-700 dark:text-stone-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {activeLoadedProfile && (
+              <div className="flex items-center justify-between text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded border border-emerald-200 dark:border-emerald-800/50">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>चयन गरिएको: <strong>{activeLoadedProfile.name}</strong></span>
+                </span>
+                <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono">
+                  {activeLoadedProfile.jatakSerialNo || activeLoadedProfile.customerId || ''}
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* 1. पुरा नाम */}
           <div className="space-y-1">
             <label className="block text-stone-600 dark:text-stone-300 font-normal">

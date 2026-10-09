@@ -10,7 +10,7 @@
  * - Full synchronization with user signup and RBAC login
  */
 
-import { convertADToBS } from '../utils/nepaliCalendar';
+import { convertADToBS, fromDevanagariNumerals } from '../utils/nepaliCalendar';
 
 export type AccessState = 'open' | 'close' | 'lock';
 export type SubscriptionPeriod = '1_year' | '5_years' | 'lifetime';
@@ -527,12 +527,39 @@ export function saveAllClientPolicies(records: ClientAccessRecord[]): void {
   }
 }
 
-// Find client policy by mobile number
-export function getClientPolicyByMobile(mobile: string): ClientAccessRecord | null {
-  const clean = mobile.replace(/\D/g, '');
-  if (!clean) return null;
+// Find client policy by mobile number, loginId, or full name
+export function getClientPolicyByMobile(identifier: string): ClientAccessRecord | null {
+  if (!identifier) return null;
+  const latinized = fromDevanagariNumerals(String(identifier)).trim();
+  const cleanDigits = latinized.replace(/\D/g, '');
+  const last10 = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+  const cleanLower = latinized.toLowerCase();
+
   const all = loadAllClientPolicies();
-  return all.find(r => r.mobile === clean) || null;
+  return all.find(r => {
+    const rMob = (r.mobile || '').replace(/\D/g, '');
+    const rLast10 = rMob.length >= 10 ? rMob.slice(-10) : rMob;
+
+    // 1. Match mobile digits
+    if (cleanDigits && rMob) {
+      if (cleanDigits === rMob) return true;
+      if (last10 && rLast10 && last10 === rLast10) return true;
+    }
+
+    // 2. Match loginId
+    if (r.loginId && r.loginId.trim().toLowerCase() === cleanLower) return true;
+
+    // 3. Match raw mobile string
+    if (r.mobile && r.mobile.trim().toLowerCase() === cleanLower) return true;
+
+    // 4. Match full name
+    if (r.fullName && r.fullName.trim().toLowerCase() === cleanLower) return true;
+
+    // 5. Match ID
+    if (r.id && r.id.toLowerCase() === cleanLower) return true;
+
+    return false;
+  }) || null;
 }
 
 /**
@@ -546,15 +573,21 @@ export function registerOrUpdateClientPolicy(params: {
   period?: SubscriptionPeriod;
   permissions?: Record<string, AccessState>;
 }): { success: boolean; record: ClientAccessRecord; generatedPassword?: string } {
-  const cleanMobile = params.mobile.replace(/\D/g, '');
+  const latinized = fromDevanagariNumerals(String(params.mobile || '')).trim();
+  const rawDigits = latinized.replace(/\D/g, '');
+  const cleanMobile = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
+
   if (!cleanMobile) {
     throw new Error('कृपया मान्य मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
   }
 
   const all = loadAllClientPolicies();
-  const existingIdx = all.findIndex(r => r.mobile === cleanMobile);
+  const existingIdx = all.findIndex(r => {
+    const rMob = (r.mobile || '').replace(/\D/g, '');
+    return rMob === cleanMobile || (r.loginId && params.loginId && r.loginId.toLowerCase() === params.loginId.toLowerCase());
+  });
 
-  const plainPass = params.password || generateLicenseCodePassword();
+  const plainPass = (params.password || generateLicenseCodePassword()).trim();
   const period = params.period || '1_year';
   const expiry = calculatePeriodExpiry(period);
 
@@ -571,10 +604,10 @@ export function registerOrUpdateClientPolicy(params: {
   if (existingIdx > -1) {
     targetRecord = {
       ...all[existingIdx],
-      fullName: params.fullName || all[existingIdx].fullName,
-      loginId: params.loginId || all[existingIdx].loginId || cleanMobile,
-      passwordPlain: params.password ? params.password : all[existingIdx].passwordPlain,
-      passwordHash: params.password ? hashPassword(params.password) : all[existingIdx].passwordHash,
+      fullName: (params.fullName || all[existingIdx].fullName).trim(),
+      loginId: (params.loginId || all[existingIdx].loginId || cleanMobile).trim(),
+      passwordPlain: plainPass,
+      passwordHash: hashPassword(plainPass),
       period,
       expiresAtTimestamp: expiry.timestamp,
       expiresAtBS: expiry.bsDate,
@@ -585,8 +618,8 @@ export function registerOrUpdateClientPolicy(params: {
     targetRecord = {
       id: `client_${Date.now()}_${cleanMobile.slice(-4)}`,
       mobile: cleanMobile,
-      fullName: params.fullName || 'नयाँ प्रयोगकर्ता',
-      loginId: params.loginId || cleanMobile,
+      fullName: (params.fullName || 'नयाँ प्रयोगकर्ता').trim(),
+      loginId: (params.loginId || cleanMobile).trim(),
       passwordPlain: plainPass,
       passwordHash: hashPassword(plainPass),
       createdAtISO: new Date().toISOString(),
@@ -608,16 +641,15 @@ export function registerOrUpdateClientPolicy(params: {
  * Verify client login with single-device enforcement
  */
 export function verifyClientMobileLogin(
-  mobile: string,
+  mobileOrLoginId: string,
   plainPassword: string
 ): { success: boolean; message: string; record?: ClientAccessRecord } {
-  const cleanMobile = mobile.replace(/\D/g, '');
-  const policy = getClientPolicyByMobile(cleanMobile);
+  const policy = getClientPolicyByMobile(mobileOrLoginId);
 
   if (!policy) {
     return {
       success: false,
-      message: 'यो मोबाइल नम्बर दर्ता भएको छैन। कृपया पहिले साइन अप वा सुपरएडमिनसँग सम्पर्क गर्नुहोस्।'
+      message: 'यो मोबाइल नम्बर वा प्रयोगकर्ता नाम दर्ता भएको छैन। कृपया पहिले साइन अप वा सुपरएडमिनसँग सम्पर्क गर्नुहोस्।'
     };
   }
 
@@ -628,13 +660,25 @@ export function verifyClientMobileLogin(
     };
   }
 
+  const trimmedPass = (plainPassword || '').trim();
+
   // Check password
-  const enteredHash = hashPassword(plainPassword);
-  if (enteredHash !== policy.passwordHash && plainPassword !== policy.passwordPlain) {
+  const enteredHash = hashPassword(trimmedPass);
+  const isMatch = 
+    trimmedPass === policy.passwordPlain ||
+    enteredHash === policy.passwordHash ||
+    trimmedPass === policy.passwordHash;
+
+  if (!isMatch) {
     return {
       success: false,
       message: 'गलत पासवर्ड! कृपया सुपरएडमिनले दिएको सही पासवर्ड राख्नुहोस्।'
     };
+  }
+
+  // Auto-repair passwordHash if needed
+  if (policy.passwordPlain && policy.passwordHash !== hashPassword(policy.passwordPlain)) {
+    policy.passwordHash = hashPassword(policy.passwordPlain);
   }
 
   // Check Expiration

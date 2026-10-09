@@ -2,6 +2,7 @@ import { convertADToBS } from '../utils/nepaliCalendar';
 import { verifyPassword } from '../utils/cryptoUtils';
 import { BirthDetails } from '../types/astrology';
 import { verifyClientMobileLogin, getClientPolicyByMobile } from './menuControlStore';
+import { authenticateUnifiedUser } from './unifiedSecurityBridge';
 
 export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
 
@@ -527,172 +528,39 @@ export function registerRBACAccount(
   };
 }
 
-// Login Verification with Role Enforcement & Account Status Guard
+// Login Verification with Universal Cross-Module Authentication & Role Enforcement
 export function authenticateRBACUser(
   identifier: string, // phone or username
   passwordSecret: string,
   expectedRole?: SystemRole
 ): { success: boolean; message: string; session?: RBACSession; user?: RBACUser } {
-  const users = getStoredRBACUsers();
-  const cleanId = identifier.trim();
-  const cleanDigits = cleanId.replace(/\D/g, '');
+  // 1. Delegate to the Universal Unified Security Bridge (searches Menu Control & RBAC)
+  const res = authenticateUnifiedUser(identifier, passwordSecret);
 
-  // 1. Check Mobile Access Control Policy (Single Device Lock & Granular Permissions)
-  if (cleanDigits.length >= 10) {
-    const existingPolicy = getClientPolicyByMobile(cleanDigits);
-    if (existingPolicy) {
-      const mobRes = verifyClientMobileLogin(cleanDigits, passwordSecret);
-      if (!mobRes.success) {
-        return {
-          success: false,
-          message: mobRes.message
-        };
-      }
-
-      // If mobile user verified, resolve or create their RBAC user
-      let matchedUser = users.find(u => u.phone === cleanDigits || u.username === cleanDigits);
-      if (!matchedUser) {
-        matchedUser = {
-          id: mobRes.record?.id || `user_${Date.now()}`,
-          username: cleanDigits,
-          phone: cleanDigits,
-          fullName: mobRes.record?.fullName || 'ग्राहक सदस्य',
-          passwordHash: mobRes.record?.passwordHash || '',
-          role: 'CUSTOMER',
-          roleNameNepali: 'ग्राहक (मोबाइल अनुमति)',
-          status: 'active',
-          permissions: DEFAULT_ROLE_PERMISSIONS.CUSTOMER,
-          createdAtISO: mobRes.record?.createdAtISO || new Date().toISOString(),
-          createdAtBS: mobRes.record?.createdAtBS || '२०८१-०१-०१',
-          mobileVerified: true,
-          emailVerified: false
-        };
-        users.push(matchedUser);
-        saveRBACUsers(users);
-      }
-
-      const session: RBACSession = {
-        token: `BLN-MOB-${cleanDigits}-${Date.now()}`,
-        userId: matchedUser.id,
-        username: cleanDigits,
-        fullName: matchedUser.fullName,
-        role: matchedUser.role,
-        roleNameNepali: matchedUser.roleNameNepali,
-        status: 'active',
-        permissions: matchedUser.permissions,
-        createdAtISO: new Date().toISOString(),
-        lastActivityISO: new Date().toISOString()
-      };
-      setRBACSession(session);
-
-      return {
-        success: true,
-        message: 'सफलतापूर्वक लगइन भयो!',
-        session,
-        user: matchedUser
-      };
-    }
-  }
-
-  const foundUser = users.find(
-    u => u.phone === cleanId || u.username === cleanId || (u.email && u.email === cleanId)
-  );
-
-  if (!foundUser) {
+  if (!res.success || !res.session || !res.user) {
     return {
       success: false,
-      message: 'गलत प्रयोगकर्ता नाम वा फोन नम्बर।'
+      message: res.message
     };
   }
 
-  if (!verifyPassword(passwordSecret, foundUser.passwordHash)) {
+  // 2. Strict Role Check if specified
+  if (expectedRole && res.user.role !== expectedRole) {
     return {
       success: false,
-      message: 'गलत पासवर्ड। कृपया पुनः प्रयास गर्नुहोस्।'
+      message: `तपाईंको खाता '${getRoleLabelNepali(res.user.role)}' हो। '${getRoleLabelNepali(expectedRole)}' लगइनबाट प्रवेश गर्न मिल्दैन।`
     };
   }
 
-  // Strict Role Check if specified
-  if (expectedRole && foundUser.role !== expectedRole) {
-    return {
-      success: false,
-      message: `तपाईंको खाता '${getRoleLabelNepali(foundUser.role)}' हो। '${getRoleLabelNepali(expectedRole)}' लगइनबाट प्रवेश गर्न मिल्दैन।`
-    };
-  }
-
-  // Account Status Enforcement
-  if (foundUser.status === 'pending') {
-    return {
-      success: false,
-      message: 'तपाईंको खाता हाल Super Admin को प्रमाणीकरणको पर्खाइमा (Pending) छ। स्वीकृत भएपछि मात्र लगइन सम्भव छ।'
-    };
-  }
-
-  if (foundUser.status === 'rejected') {
-    return {
-      success: false,
-      message: `तपाईंको खाता आवेदन अस्वीकृत (Rejected) गरिएको छ। कारण: ${foundUser.statusReason || 'प्रशासनिक निर्णय'}`
-    };
-  }
-
-  if (foundUser.status === 'suspended') {
-    return {
-      success: false,
-      message: `तपाईंको खाता निलम्बित (Suspended) गरिएको छ। कृपया Super Admin सँग सम्पर्क गर्नुहोस्। कारण: ${foundUser.statusReason || 'सुरक्षा समीक्षा'}`
-    };
-  }
-
-  if (foundUser.status === 'disabled') {
-    return {
-      success: false,
-      message: 'तपाईंको खाता निष्कृय (Disabled) पारिएको छ।'
-    };
-  }
-
-  // Update Last Login
-  const todayAD = new Date().toISOString().split('T')[0];
-  const bsDate = convertADToBS(todayAD).formattedBS;
-  foundUser.lastLoginISO = new Date().toISOString();
-  foundUser.lastLoginBS = bsDate;
-
-  saveRBACUsers(users.map(u => u.id === foundUser.id ? foundUser : u));
-
-  // Create Session
-  const session: RBACSession = {
-    token: `sess_${foundUser.role.toLowerCase()}_${Date.now()}_${foundUser.id}`,
-    userId: foundUser.id,
-    username: foundUser.username,
-    fullName: foundUser.fullName,
-    role: foundUser.role,
-    roleNameNepali: foundUser.roleNameNepali,
-    status: foundUser.status,
-    permissions: foundUser.permissions,
-    customerId: foundUser.customerId,
-    birthProfileId: foundUser.birthProfileId,
-    birthDetails: foundUser.birthDetails,
-    createdAtISO: new Date().toISOString(),
-    lastActivityISO: new Date().toISOString()
-  };
-
-  setRBACSession(session);
-
-  logRBACAuditAction({
-    userId: foundUser.id,
-    username: foundUser.username,
-    role: foundUser.role,
-    action: 'USER_LOGIN',
-    module: 'AUTH',
-    target: foundUser.fullName,
-    details: `${foundUser.roleNameNepali} लगइन सफल भयो।`
-  });
-
+  // 3. Return verified unified session
   return {
     success: true,
-    message: 'लगइन सफल भयो। स्वागत छ!',
-    session,
-    user: foundUser
+    message: res.message,
+    session: res.session,
+    user: res.user
   };
 }
+
 
 // Super Admin User Approval / Rejection / Suspension Management
 export function updateRBACUserStatus(
