@@ -292,7 +292,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
     if (['pages_services', 'samachar_editor', 'samachar', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
     if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
-    if (['user_control', 'menu_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
+    if (['user_list', 'menu_switchboard', 'user_control', 'menu_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
     if (['client_approvals', 'finance', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
     if (['daily_whatsapp', 'whatsapp', 'targeted_push', 'notifications', 'geo_monitor'].includes(tab)) return 'block_communication';
     if (['settings', 'pricing', 'security_audit', 'audit', 'reports', 'backup'].includes(tab)) return 'block_settings_security';
@@ -695,13 +695,14 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       icon: Users,
       accentColor: 'from-emerald-500/20 to-teal-600/10 border-emerald-500/40 text-emerald-400',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-      defaultTab: 'user_control',
+      defaultTab: 'user_list',
       items: [
-        { id: 'user_control', label: 'प्रयोगकर्ता नियन्त्रण & पासवर्ड (User Control)', icon: Smartphone, badge: 'Full Page' },
-        { id: 'experts', label: 'प्रमाणित विशेषज्ञहरू (Jyotish & Purohit)', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
-        { id: 'yajaman', label: 'यजमान ग्राहक प्रोफाइल', icon: UserCheck },
-        { id: 'staff_rbac', label: 'कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
-        { id: 'role_magic_links', label: 'सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
+        { id: 'user_list', label: '१. मोबाइल दर्ता & पासवर्ड', icon: Smartphone, badge: 'दर्ता' },
+        { id: 'menu_switchboard', label: '२. मेनु स्विचबोर्ड (Open/Lock)', icon: Sliders, badge: 'स्विचबोर्ड' },
+        { id: 'experts', label: '३. प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
+        { id: 'yajaman', label: '४. यजमान ग्राहक प्रोफाइल', icon: UserCheck },
+        { id: 'staff_rbac', label: '५. कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
+        { id: 'role_magic_links', label: '६. सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
       ]
     },
     {
@@ -799,7 +800,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   };
 
   return (
-    <div className="h-screen bg-[#0C0A09] text-stone-100 flex flex-col font-sans overflow-hidden">
+    <div data-admin-command-center="true" className="h-screen bg-[#0C0A09] text-stone-100 flex flex-col font-sans overflow-hidden">
       {/* ── TOP HEADER COMMAND BAR (Always clean & spacious) ── */}
       <header className="shrink-0 bg-stone-900/95 border-b border-stone-800 z-40 backdrop-blur-md px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-lg">
         {/* Left: Brand & Title */}
@@ -1319,11 +1320,27 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                 {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
 
                 {/* ── BLOCK 4: USERS & EXPERTS MANAGEMENT ── */}
-                {(activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
+                {(activeTab === 'user_list' || activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
                   <UserControlMasterView
+                    hideHeader={true}
+                    initialSubTab="user_list"
                     onBackToDashboard={handleBackToDashboard}
                     onLogoutAdmin={handleLogout}
                   />
+                )}
+                {activeTab === 'menu_switchboard' && (
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
+                    <div className="border-b border-slate-100 pb-3">
+                      <h2 className="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-2">
+                        <Sliders className="w-5 h-5 text-blue-600" />
+                        <span>मेनु तथा ग्राहक पहुँच नियन्त्रण (Full Menu Switchboard)</span>
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        सफ्टवेयरका सबै मेनु र उपमेनुहरूलाई ग्राहक अनुसार १. Open (खुल्ला) २. Close (बन्द) ३. Lock (लक) गर्नुहोस्
+                      </p>
+                    </div>
+                    <MenuControlPanel />
+                  </div>
                 )}
                 {activeTab === 'experts' && (
                   <AdminExpertSection
