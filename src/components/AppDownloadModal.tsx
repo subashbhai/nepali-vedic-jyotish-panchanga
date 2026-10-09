@@ -28,6 +28,7 @@ import {
 } from '../utils/appVersionManager';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { ApkDownloadPromptModal } from './common/ApkDownloadPromptModal';
+import { getCurrentOfficialRelease, SoftwareReleaseRecord } from '../db/softwareReleaseStore';
 
 export type PlatformTab = 'WINDOWS' | 'ANDROID' | 'MAC' | 'IOS';
 
@@ -81,6 +82,42 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
         ? `http://${localIp || '192.168.1.67'}:${window.location.port || '3000'}/?action=download-apk`
         : `${window.location.origin}${window.location.pathname}?action=download-apk`)
     : '/?action=download-apk';
+
+  const [winRelease, setWinRelease] = useState<SoftwareReleaseRecord | null>(() => getCurrentOfficialRelease('windows'));
+  const [androidRelease, setAndroidRelease] = useState<SoftwareReleaseRecord | null>(() => getCurrentOfficialRelease('android'));
+  const [macRelease, setMacRelease] = useState<SoftwareReleaseRecord | null>(() => getCurrentOfficialRelease('mac'));
+
+  useEffect(() => {
+    const syncReleases = () => {
+      const wr = getCurrentOfficialRelease('windows');
+      const ar = getCurrentOfficialRelease('android');
+      const mr = getCurrentOfficialRelease('mac');
+      setWinRelease(wr);
+      setAndroidRelease(ar);
+      setMacRelease(mr);
+
+      setDownloadUrls((prev) => ({
+        ...prev,
+        windowsSetup: wr?.storageKey || prev.windowsSetup,
+        androidApk: ar?.storageKey || prev.androidApk,
+        macDmg: mr?.storageKey || prev.macDmg,
+      }));
+    };
+
+    syncReleases();
+    window.addEventListener('software-release-updated', syncReleases);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('balananda_software_release_channel');
+      bc.onmessage = () => syncReleases();
+    } catch {}
+
+    return () => {
+      window.removeEventListener('software-release-updated', syncReleases);
+      try { bc?.close(); } catch {}
+    };
+  }, []);
 
   // Synchronize latest release asset URLs from GitHub if available
   useEffect(() => {
