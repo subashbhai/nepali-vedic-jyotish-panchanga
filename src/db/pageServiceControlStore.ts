@@ -1,4 +1,5 @@
 import { convertADToBS } from '../utils/nepaliCalendar';
+import { checkFeatureAccess } from './menuControlStore';
 
 export type PageStatus = 'active' | 'maintenance' | 'disabled';
 export type AccessLevel = 'public' | 'registered_only' | 'paid_only' | 'admin_only';
@@ -382,6 +383,11 @@ export function savePageServiceConfig(config: PageServiceMasterConfig): void {
     config.lastUpdatedBS = getTodayBSString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     window.dispatchEvent(new CustomEvent('page-service-control-updated', { detail: config }));
+    try {
+      const bc = new BroadcastChannel('balananda_page_service_control_channel');
+      bc.postMessage({ type: 'PAGE_SERVICE_UPDATED', timestamp: Date.now() });
+      bc.close();
+    } catch {}
   } catch (e) {
     console.error('Error saving page service config:', e);
   }
@@ -445,3 +451,189 @@ export function resetPageServiceConfigToDefault(): PageServiceMasterConfig {
   savePageServiceConfig(defaults);
   return defaults;
 }
+
+/**
+ * Maps a Navigation tabKey (e.g. 'yajaman', 'kharedi', 'jyotishi', etc.)
+ * to its corresponding feature ID in menuControlStore.
+ */
+export function mapTabKeyToFeatureId(tabKey: string): string {
+  switch (tabKey) {
+    case 'jyotishi':
+    case 'kundali':
+      return 'kundali';
+    case 'vastu':
+      return 'vastu_project';
+    case 'pasal':
+    case 'kharedi':
+      return 'kharedi';
+    case 'samachar':
+      return 'samachar';
+    case 'vivah':
+      return 'vivah';
+    case 'yajaman':
+      return 'yajaman';
+    case 'date_converter':
+      return 'date_converter';
+    case 'calendar':
+    case 'patro':
+      return 'calendar';
+    case 'panchanga':
+      return 'panchanga';
+    case 'books_download':
+    case 'knowledge':
+    case 'pustak':
+      return 'books_download';
+    case 'faladesh':
+      return 'faladesh';
+    case 'dasha':
+      return 'dasha';
+    case 'gochar':
+      return 'gochar';
+    case 'navamsha':
+      return 'navamsha';
+    case 'muhurta':
+      return 'muhurta';
+    case 'prashna':
+      return 'prashna';
+    case 'ankajyotish':
+      return 'ankajyotish';
+    case 'kpjyotish':
+      return 'kpjyotish';
+    case 'neemajyotish':
+      return 'neemajyotish';
+    case 'rashifal':
+      return 'rashifal';
+    case 'ai_assistant':
+      return 'ai_assistant';
+    default:
+      return tabKey;
+  }
+}
+
+/**
+ * Determines if a tab should be visible in the navigation bar/menu.
+ * INTERLINKED:
+ * 1. Super Admin always sees everything.
+ * 2. If a specific user mobile policy has this feature set to 'open', it OVERRIDES the global hidden flag and shows on their device.
+ * 3. If user mobile policy has this feature set to 'close', it is hidden.
+ * 4. Otherwise, respects the global Page Control setting (hideInNavigation checkbox / disabled status).
+ */
+export function isTabVisibleInNavigation(tabKey: string): { visible: boolean; isUserOverride: boolean } {
+  // 1. Super Admin check
+  if (typeof window !== 'undefined') {
+    try {
+      const rbacRaw = localStorage.getItem('balananda_rbac_active_session_v1');
+      if (rbacRaw) {
+        const r = JSON.parse(rbacRaw);
+        if (r?.role === 'SUPER_ADMIN' || r?.role === 'ADMIN') {
+          return { visible: true, isUserOverride: false };
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Check user-specific policy first (Interlinked with User Control by Mobile)
+  const featId = mapTabKeyToFeatureId(tabKey);
+  const userAccess = checkFeatureAccess(featId);
+
+  if (userAccess.hasPersonalPolicy) {
+    if (userAccess.state === 'open') {
+      // User Control has explicitly OPENED this feature for this mobile number!
+      // This device MUST show and open it immediately, bypassing global hidden flag!
+      return { visible: true, isUserOverride: true };
+    }
+    if (userAccess.state === 'close') {
+      // User Control has explicitly CLOSED this feature for this mobile number!
+      return { visible: false, isUserOverride: true };
+    }
+    if (userAccess.state === 'lock') {
+      return { visible: true, isUserOverride: true };
+    }
+  }
+
+  // 3. Global Page Control Check
+  const cfg = getStoredPageServiceConfig();
+  const page = cfg.pages?.find(p => p.tabKey === tabKey);
+  if (page) {
+    // If unticked in "शीर्ष मेनु बारमा देखाउने" OR status is "disabled" (बन्द)
+    if (page.hideInNavigation || page.status === 'disabled') {
+      return { visible: false, isUserOverride: false };
+    }
+  }
+
+  return { visible: true, isUserOverride: false };
+}
+
+/**
+ * Determines if a page is accessible when opened/navigated to.
+ */
+export function isPageAccessible(tabKey: string): {
+  accessible: boolean;
+  reasonNepali: string;
+  isMaintenance: boolean;
+  isDisabled: boolean;
+} {
+  // Super Admin check
+  if (typeof window !== 'undefined') {
+    try {
+      const rbacRaw = localStorage.getItem('balananda_rbac_active_session_v1');
+      if (rbacRaw) {
+        const r = JSON.parse(rbacRaw);
+        if (r?.role === 'SUPER_ADMIN' || r?.role === 'ADMIN') {
+          return { accessible: true, reasonNepali: '', isMaintenance: false, isDisabled: false };
+        }
+      }
+    } catch {}
+  }
+
+  const featId = mapTabKeyToFeatureId(tabKey);
+  const userAccess = checkFeatureAccess(featId);
+
+  // If user has specific permission in User Control:
+  if (userAccess.hasPersonalPolicy) {
+    if (userAccess.state === 'open') {
+      return { accessible: true, reasonNepali: '', isMaintenance: false, isDisabled: false };
+    }
+    if (userAccess.state === 'close') {
+      return {
+        accessible: false,
+        reasonNepali: userAccess.reasonNepali || 'यो सुविधा तपाईंको खाताको लागि बन्द गरिएको छ।',
+        isMaintenance: false,
+        isDisabled: true
+      };
+    }
+    if (userAccess.state === 'lock') {
+      return {
+        accessible: false,
+        reasonNepali: userAccess.reasonNepali || 'यो प्रिमियम सुविधा लक गरिएको छ। खोल्नका लागि सुपरएडमिनबाट अनुमति लिनुहोस्।',
+        isMaintenance: false,
+        isDisabled: false
+      };
+    }
+  }
+
+  // Global Page Control check
+  const cfg = getStoredPageServiceConfig();
+  const page = cfg.pages?.find(p => p.tabKey === tabKey);
+  if (page) {
+    if (page.status === 'maintenance') {
+      return {
+        accessible: false,
+        reasonNepali: page.maintenanceMessage || 'यो पृष्ठ हाल मर्मतसम्भारमा छ।',
+        isMaintenance: true,
+        isDisabled: false
+      };
+    }
+    if (page.status === 'disabled') {
+      return {
+        accessible: false,
+        reasonNepali: 'यो पृष्ठ / सेवा हाल मुख्य प्रशासकद्वारा बन्द गरिएको छ।',
+        isMaintenance: false,
+        isDisabled: true
+      };
+    }
+  }
+
+  return { accessible: true, reasonNepali: '', isMaintenance: false, isDisabled: false };
+}
+

@@ -269,6 +269,19 @@ function resolveInitialAdminSession(): AdminSession | null {
   return null;
 }
 
+// Helper to map tab to block
+function getBlockIdFromTab(tab?: string): string | null {
+  if (!tab || tab === 'overview' || tab === 'dashboard') return null;
+  if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
+  if (['pages_services', 'samachar_editor', 'samachar', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
+  if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
+  if (['user_list', 'menu_switchboard', 'user_control', 'menu_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
+  if (['client_approvals', 'finance', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
+  if (['daily_whatsapp', 'whatsapp', 'targeted_push', 'notifications', 'geo_monitor'].includes(tab)) return 'block_communication';
+  if (['settings', 'pricing', 'security_audit', 'audit', 'reports', 'backup'].includes(tab)) return 'block_settings_security';
+  return null;
+}
+
 export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = ({
   onClose,
   onNavigateApp,
@@ -285,19 +298,6 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
-
-  // Helper to map tab to block
-  const getBlockIdFromTab = (tab?: string): string | null => {
-    if (!tab || tab === 'overview' || tab === 'dashboard') return null;
-    if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
-    if (['pages_services', 'samachar_editor', 'samachar', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
-    if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
-    if (['user_list', 'menu_switchboard', 'user_control', 'menu_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
-    if (['client_approvals', 'finance', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
-    if (['daily_whatsapp', 'whatsapp', 'targeted_push', 'notifications', 'geo_monitor'].includes(tab)) return 'block_communication';
-    if (['settings', 'pricing', 'security_audit', 'audit', 'reports', 'backup'].includes(tab)) return 'block_settings_security';
-    return null;
-  };
 
   // Block State: null indicates the Master Overview Dashboard with the 7 Primary Block Cards
   const [activeBlockId, setActiveBlockId] = useState<string | null>(() => getBlockIdFromTab(initialTab));
@@ -502,109 +502,6 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     logAdminAction(session?.username || 'admin', session?.roleNameNepali || 'Super Admin', 'system', 'सेवा बुकिङ ओभरराइड', bookingId, 'Booking', `स्थिति ${newStatus} बनाइयो।`);
   };
 
-  // If not logged in -> Display Dedicated Super Admin Login Modal Screen
-  if (!session) {
-    return (
-      <div className="min-h-screen bg-[#0C0A09] flex items-center justify-center p-4 font-sans text-stone-100">
-        <div className="max-w-md w-full bg-stone-900 border border-amber-500/30 rounded-3xl p-8 shadow-2xl relative overflow-hidden space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-700 rounded-2xl mx-auto flex items-center justify-center shadow-lg border border-amber-400/40">
-              <ShieldCheck className="w-10 h-10 text-stone-950" />
-            </div>
-            <h1 className="text-xl font-bold font-serif text-amber-400 tracking-wide mt-2">
-              SUPER ADMIN CONTROL CENTER
-            </h1>
-            <p className="text-xs text-stone-400">
-              बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा — केन्द्रीय कमान्ड कक्ष
-            </p>
-          </div>
-
-          {loginError && (
-            <div className="bg-rose-950/80 border border-rose-800 text-rose-300 p-3 rounded-xl text-xs flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
-              <span>{loginError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4 text-xs">
-            <div>
-              <label className="block text-stone-300 font-bold mb-1.5">प्रशासक प्रयोगकर्ता नाम (Username)</label>
-              <input
-                type="text"
-                required
-                value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="admin"
-                className="w-full bg-stone-950 border border-stone-800 focus:border-amber-500 rounded-xl p-3 text-stone-100 outline-none transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-stone-300 font-bold mb-1.5">सुरक्षित पासकोड (Password)</label>
-              <input
-                type="password"
-                required
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-stone-950 border border-stone-800 focus:border-amber-500 rounded-xl p-3 text-stone-100 outline-none transition-colors"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-black rounded-xl text-xs shadow-lg transition-all cursor-pointer uppercase tracking-wider"
-            >
-              कमान्ड कक्षमा प्रवेश गर्नुहोस्
-            </button>
-          </form>
-
-          <div className="text-center pt-2 border-t border-stone-800 space-y-2">
-            <p className="text-[10px] text-stone-500">
-              विकासकर्ता डिफल्ट साँचो: <code className="text-amber-400 font-mono">admin</code> / <code className="text-amber-400 font-mono">SukdevAdmin#2081</code>
-            </p>
-            {onClose && (
-              <div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="text-xs text-amber-400 hover:text-amber-300 underline font-semibold cursor-pointer"
-                >
-                  ← सामान्य एपमा फर्किनुहोस्
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 403 Security Check
-  if (session.role !== 'super_admin' && session.role !== 'admin') {
-    return (
-      <div className="min-h-screen bg-[#0C0A09] flex items-center justify-center p-4 text-stone-100">
-        <div className="max-w-md w-full bg-stone-900 border border-rose-800 p-8 rounded-3xl text-center space-y-4">
-          <XCircle className="w-16 h-16 text-rose-500 mx-auto" />
-          <h2 className="text-lg font-bold text-rose-400">403 ACCESS DENIED</h2>
-          <p className="text-xs text-stone-400">
-            तपाईंसँग मुख्य प्रशासक (Super Admin) नियन्त्रण कक्षमा पहुँच गर्ने अनुमति छैन।
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <button onClick={handleLogout} className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-bold cursor-pointer">
-              बाहिरिनुहोस्
-            </button>
-            {onClose && (
-              <button onClick={onClose} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold cursor-pointer">
-                सामान्य एपमा फर्किनुहोस्
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Calculated Stats (Safely guarded against null/undefined arrays)
   const pendingExpertsCount = (officialMembers || []).filter(m => m && (m.status === 'pending' || m.approvalStatus === 'Pending')).length;
   const activeExpertsCount = (officialMembers || []).filter(m => m && (m.status === 'approved' || m.approvalStatus === 'Approved')).length;
@@ -798,6 +695,109 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     setActiveBlockId(bId);
     setActiveTab(tabId);
   };
+
+  // If not logged in -> Display Dedicated Super Admin Login Modal Screen
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-[#0C0A09] flex items-center justify-center p-4 font-sans text-stone-100">
+        <div className="max-w-md w-full bg-stone-900 border border-amber-500/30 rounded-3xl p-8 shadow-2xl relative overflow-hidden space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-700 rounded-2xl mx-auto flex items-center justify-center shadow-lg border border-amber-400/40">
+              <ShieldCheck className="w-10 h-10 text-stone-950" />
+            </div>
+            <h1 className="text-xl font-bold font-serif text-amber-400 tracking-wide mt-2">
+              SUPER ADMIN CONTROL CENTER
+            </h1>
+            <p className="text-xs text-stone-400">
+              बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा — केन्द्रीय कमान्ड कक्ष
+            </p>
+          </div>
+
+          {loginError && (
+            <div className="bg-rose-950/80 border border-rose-800 text-rose-300 p-3 rounded-xl text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4 text-xs">
+            <div>
+              <label className="block text-stone-300 font-bold mb-1.5">प्रशासक प्रयोगकर्ता नाम (Username)</label>
+              <input
+                type="text"
+                required
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="admin"
+                className="w-full bg-stone-950 border border-stone-800 focus:border-amber-500 rounded-xl p-3 text-stone-100 outline-none transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-stone-300 font-bold mb-1.5">सुरक्षित पासकोड (Password)</label>
+              <input
+                type="password"
+                required
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-stone-950 border border-stone-800 focus:border-amber-500 rounded-xl p-3 text-stone-100 outline-none transition-colors"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-black rounded-xl text-xs shadow-lg transition-all cursor-pointer uppercase tracking-wider"
+            >
+              कमान्ड कक्षमा प्रवेश गर्नुहोस्
+            </button>
+          </form>
+
+          <div className="text-center pt-2 border-t border-stone-800 space-y-2">
+            <p className="text-[10px] text-stone-500">
+              विकासकर्ता डिफल्ट साँचो: <code className="text-amber-400 font-mono">admin</code> / <code className="text-amber-400 font-mono">SukdevAdmin#2081</code>
+            </p>
+            {onClose && (
+              <div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-xs text-amber-400 hover:text-amber-300 underline font-semibold cursor-pointer"
+                >
+                  ← सामान्य एपमा फर्किनुहोस्
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 403 Security Check
+  if (session.role !== 'super_admin' && session.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-[#0C0A09] flex items-center justify-center p-4 text-stone-100">
+        <div className="max-w-md w-full bg-stone-900 border border-rose-800 p-8 rounded-3xl text-center space-y-4">
+          <XCircle className="w-16 h-16 text-rose-500 mx-auto" />
+          <h2 className="text-lg font-bold text-rose-400">403 ACCESS DENIED</h2>
+          <p className="text-xs text-stone-400">
+            तपाईंसँग मुख्य प्रशासक (Super Admin) नियन्त्रण कक्षमा पहुँच गर्ने अनुमति छैन।
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={handleLogout} className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-bold cursor-pointer">
+              बाहिरिनुहोस्
+            </button>
+            {onClose && (
+              <button onClick={onClose} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold cursor-pointer">
+                सामान्य एपमा फर्किनुहोस्
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-admin-command-center="true" className="h-screen bg-[#0C0A09] text-stone-100 flex flex-col font-sans overflow-hidden">

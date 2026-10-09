@@ -61,7 +61,7 @@ import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
-import { getStoredPageServiceConfig } from '../db/pageServiceControlStore';
+import { getStoredPageServiceConfig, isTabVisibleInNavigation } from '../db/pageServiceControlStore';
 import { checkFeatureAccess } from '../db/menuControlStore';
 import { ChangePasswordModal } from './auth/ChangePasswordModal';
 
@@ -487,23 +487,49 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   };
 
   const [pageServiceCfg, setPageServiceCfg] = useState(getStoredPageServiceConfig);
+  const [navVersion, setNavVersion] = useState(0);
 
   useEffect(() => {
-    const handleCfg = () => setPageServiceCfg(getStoredPageServiceConfig());
+    const handleCfg = () => {
+      setPageServiceCfg(getStoredPageServiceConfig());
+      setNavVersion((v) => v + 1);
+    };
+
+    let pageBc: BroadcastChannel | null = null;
+    let policyBc: BroadcastChannel | null = null;
+    try {
+      pageBc = new BroadcastChannel('balananda_page_service_control_channel');
+      pageBc.onmessage = handleCfg;
+    } catch {}
+    try {
+      policyBc = new BroadcastChannel('balananda_client_policy_channel');
+      policyBc.onmessage = handleCfg;
+    } catch {}
+
     window.addEventListener('page-service-control-updated', handleCfg);
-    return () => window.removeEventListener('page-service-control-updated', handleCfg);
+    window.addEventListener('client-policies-updated', handleCfg);
+    window.addEventListener('storage', handleCfg);
+
+    return () => {
+      window.removeEventListener('page-service-control-updated', handleCfg);
+      window.removeEventListener('client-policies-updated', handleCfg);
+      window.removeEventListener('storage', handleCfg);
+      if (pageBc) pageBc.close();
+      if (policyBc) policyBc.close();
+    };
   }, []);
 
-  const hiddenNavKeys = useMemo(() => {
-    return new Set(pageServiceCfg.pages.filter(p => p.hideInNavigation).map(p => p.tabKey));
-  }, [pageServiceCfg]);
-
   // When not logged in: only show first screen public menus (गृहपृष्ठ, पञ्चाङ्ग, पात्रो, समाचार, मिति रूपान्तरण, संस्था प्रोफाइल)
-  // When logged in: show all menus (except pages hidden by Super Admin)
-  const baseNavItems = rbacSession
-    ? MAIN_NAV_ITEMS
-    : MAIN_NAV_ITEMS.filter((item) => PUBLIC_UNAUTH_NAV_IDS.has(item.id));
-  const visibleNavItems = baseNavItems.filter((item) => !hiddenNavKeys.has(item.id));
+  // When logged in: show all menus (respecting Page Control switchboard + User Control per-mobile overrides)
+  const baseNavItems = useMemo(() => {
+    return rbacSession
+      ? MAIN_NAV_ITEMS
+      : MAIN_NAV_ITEMS.filter((item) => PUBLIC_UNAUTH_NAV_IDS.has(item.id));
+  }, [rbacSession]);
+
+  const visibleNavItems = useMemo(() => {
+    return baseNavItems.filter((item) => isTabVisibleInNavigation(item.id).visible);
+  }, [baseNavItems, pageServiceCfg, navVersion]);
 
   return (
     <nav className="text-[#2D241E] dark:text-stone-100 transition-colors">
@@ -1655,90 +1681,98 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   ⚡ द्रुत पहुँच (Quick Access)
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      onTabChange('dashboard');
-                    }}
-                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
-                      activeTab === 'dashboard' && activeModule === 'MAIN'
-                        ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
-                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
-                      <Home className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold block truncate">गृहपृष्ठ</span>
-                      <span className="text-[10px] opacity-75 block truncate">ड्यासबोर्ड</span>
-                    </div>
-                  </button>
+                  {isTabVisibleInNavigation('dashboard').visible && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('dashboard');
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                        activeTab === 'dashboard' && activeModule === 'MAIN'
+                          ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                          : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Home className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold block truncate">गृहपृष्ठ</span>
+                        <span className="text-[10px] opacity-75 block truncate">ड्यासबोर्ड</span>
+                      </div>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      onTabChange('panchanga');
-                    }}
-                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
-                      activeTab === 'panchanga' && activeModule === 'MAIN'
-                        ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
-                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold block truncate">पञ्चाङ्ग</span>
-                      <span className="text-[10px] opacity-75 block truncate">दैनिक तिथि/मुहूर्त</span>
-                    </div>
-                  </button>
+                  {isTabVisibleInNavigation('panchanga').visible && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('panchanga');
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                        activeTab === 'panchanga' && activeModule === 'MAIN'
+                          ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                          : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold block truncate">पञ्चाङ्ग</span>
+                        <span className="text-[10px] opacity-75 block truncate">दैनिक तिथि/मुहूर्त</span>
+                      </div>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      if (onEnterJyotish) onEnterJyotish();
-                      else onTabChange('jyotishi');
-                    }}
-                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
-                      activeModule === 'JYOTISH' || activeTab === 'jyotishi'
-                        ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
-                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-red-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold block truncate">ज्योतिष सेवा</span>
-                      <span className="text-[10px] opacity-75 block truncate">कुण्डली/फलादेश</span>
-                    </div>
-                  </button>
+                  {isTabVisibleInNavigation('jyotishi').visible && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onEnterJyotish) onEnterJyotish();
+                        else onTabChange('jyotishi');
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                        activeModule === 'JYOTISH' || activeTab === 'jyotishi'
+                          ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                          : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-red-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold block truncate">ज्योतिष सेवा</span>
+                        <span className="text-[10px] opacity-75 block truncate">कुण्डली/फलादेश</span>
+                      </div>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      onTabChange('vastu');
-                    }}
-                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
-                      activeTab === 'vastu'
-                        ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
-                        : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-emerald-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                      <Compass className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold block truncate">वास्तु सेवा</span>
-                      <span className="text-[10px] opacity-75 block truncate">कम्पास/अडिट</span>
-                    </div>
-                  </button>
+                  {isTabVisibleInNavigation('vastu').visible && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('vastu');
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                        activeTab === 'vastu'
+                          ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                          : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-emerald-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <Compass className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold block truncate">वास्तु सेवा</span>
+                        <span className="text-[10px] opacity-75 block truncate">कम्पास/अडिट</span>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -91,7 +91,7 @@ import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBann
 import { DeviceUpdateNotificationBanner } from './components/common/DeviceUpdateNotificationBanner';
 import { PageMaintenanceView } from './components/common/PageMaintenanceView';
 import { GlobalNepaliInputManager } from './components/common/GlobalNepaliInputManager';
-import { getStoredPageServiceConfig } from './db/pageServiceControlStore';
+import { getStoredPageServiceConfig, isPageAccessible } from './db/pageServiceControlStore';
 
 import { 
   BirthDetails, 
@@ -599,18 +599,45 @@ export default function App() {
 
   // Super Admin Page & Service Master Control Configuration
   const [pageServiceConfig, setPageServiceConfig] = useState(getStoredPageServiceConfig);
+  const [pageAccessVersion, setPageAccessVersion] = useState(0);
 
   useEffect(() => {
     const handlePageServiceUpdate = () => {
       setPageServiceConfig(getStoredPageServiceConfig());
+      setPageAccessVersion((v) => v + 1);
     };
+
+    let pageBc: BroadcastChannel | null = null;
+    let policyBc: BroadcastChannel | null = null;
+    try {
+      pageBc = new BroadcastChannel('balananda_page_service_control_channel');
+      pageBc.onmessage = handlePageServiceUpdate;
+    } catch {}
+    try {
+      policyBc = new BroadcastChannel('balananda_client_policy_channel');
+      policyBc.onmessage = handlePageServiceUpdate;
+    } catch {}
+
     window.addEventListener('page-service-control-updated', handlePageServiceUpdate);
-    return () => window.removeEventListener('page-service-control-updated', handlePageServiceUpdate);
+    window.addEventListener('client-policies-updated', handlePageServiceUpdate);
+    window.addEventListener('storage', handlePageServiceUpdate);
+
+    return () => {
+      window.removeEventListener('page-service-control-updated', handlePageServiceUpdate);
+      window.removeEventListener('client-policies-updated', handlePageServiceUpdate);
+      window.removeEventListener('storage', handlePageServiceUpdate);
+      if (pageBc) pageBc.close();
+      if (policyBc) policyBc.close();
+    };
   }, []);
 
   const currentPageControl = useMemo(() => {
     return pageServiceConfig.pages?.find(p => p.tabKey === activeTab);
   }, [pageServiceConfig, activeTab]);
+
+  const activePageAccess = useMemo(() => {
+    return isPageAccessible(activeTab);
+  }, [activeTab, pageServiceConfig, pageAccessVersion]);
 
   // Automatically trigger APK download prompt modal when opened with ?action=download-apk or ?download=apk (e.g. from QR scan)
   useEffect(() => {
@@ -1911,10 +1938,10 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-[1700px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6 flex-1 w-full flex flex-col min-h-0">
-          {currentPageControl?.status === 'maintenance' && !rbacSession ? (
+          {!activePageAccess.accessible ? (
             <PageMaintenanceView
-              pageTitle={currentPageControl.titleNepali}
-              maintenanceMessage={currentPageControl.maintenanceMessage}
+              pageTitle={currentPageControl?.titleNepali || 'यो सेवा'}
+              maintenanceMessage={activePageAccess.reasonNepali || currentPageControl?.maintenanceMessage}
               onGoHome={() => navigateTab('dashboard')}
             />
           ) : !rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(activeTab) && !ADMIN_PORTAL_TABS.has(activeTab) ? (
