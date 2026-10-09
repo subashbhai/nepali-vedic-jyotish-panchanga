@@ -1,7 +1,7 @@
 import { convertADToBS } from '../utils/nepaliCalendar';
 import { verifyPassword } from '../utils/cryptoUtils';
 import { BirthDetails } from '../types/astrology';
-import { verifyClientMobileLogin, getClientPolicyByMobile } from './menuControlStore';
+import { verifyClientMobileLogin, getClientPolicyByMobile, hashPassword } from './menuControlStore';
 import { authenticateUnifiedUser } from './unifiedSecurityBridge';
 
 export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
@@ -179,8 +179,26 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, string[]> = {
   ]
 };
 
-// Default Initial Accounts - Zero members by default
-export const INITIAL_SEED_USERS: RBACUser[] = [];
+// Default Initial Accounts - Seeded with subash khanal
+export const INITIAL_SEED_USERS: RBACUser[] = [
+  {
+    id: 'client_subash_khanal',
+    username: '9841755199',
+    phone: '9841755199',
+    fullName: 'subash khanal',
+    passwordHash: hashPassword('Jyotish#8758'),
+    role: 'CUSTOMER',
+    roleNameNepali: 'ग्राहक (आजीवन सदस्य)',
+    status: 'active',
+    customerId: 'CUST-984175',
+    permissions: DEFAULT_ROLE_PERMISSIONS.CUSTOMER,
+    createdAtISO: '2025-01-01T10:00:00.000Z',
+    createdAtBS: '२०८१-०९-१७',
+    mobileVerified: true,
+    emailVerified: false,
+    savedAddresses: []
+  }
+];
 
 const PURGE_FLAG_KEY = 'balananda_members_purged_zero_v3';
 
@@ -190,7 +208,7 @@ const PURGE_FLAG_KEY = 'balananda_members_purged_zero_v3';
 export function purgeAllMembersAndLicenses(): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEYS.USERS, '[]');
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_SEED_USERS));
     localStorage.removeItem(STORAGE_KEYS.SESSION);
     localStorage.removeItem('balananda_rbac_active_session_v1');
     localStorage.setItem('balananda_client_leads_v2', '[]');
@@ -221,13 +239,31 @@ export function getStoredRBACUsers(): RBACUser[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
     if (!raw) {
-      saveRBACUsers([]);
-      return [];
+      saveRBACUsers(INITIAL_SEED_USERS);
+      return INITIAL_SEED_USERS;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return INITIAL_SEED_USERS;
+
+    let changed = false;
+    for (const seed of INITIAL_SEED_USERS) {
+      const exists = parsed.some((u: RBACUser) => {
+        const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
+        const seedMob = seed.phone.replace(/\D/g, '').slice(-10);
+        return (uMob && uMob === seedMob) || (u.username && u.username.toLowerCase() === seed.username.toLowerCase());
+      });
+      if (!exists) {
+        parsed.unshift(seed);
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveRBACUsers(parsed);
+    }
+    return parsed;
   } catch (e) {
     console.error('Failed to parse RBAC users:', e);
-    return [];
+    return INITIAL_SEED_USERS;
   }
 }
 

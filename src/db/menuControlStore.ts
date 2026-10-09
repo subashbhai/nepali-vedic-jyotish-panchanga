@@ -398,6 +398,21 @@ export function generateLicenseCodePassword(): string {
 
 export const DEFAULT_DEMO_CLIENT_POLICIES: ClientAccessRecord[] = [
   {
+    id: 'client_subash_khanal',
+    mobile: '9841755199',
+    fullName: 'subash khanal',
+    loginId: '9841755199',
+    passwordPlain: 'Jyotish#8758',
+    passwordHash: hashPassword('Jyotish#8758'),
+    createdAtISO: '2025-01-01T10:00:00.000Z',
+    createdAtBS: '२०८१-०९-१७',
+    period: 'lifetime',
+    expiresAtTimestamp: Date.now() + 50 * 365 * 24 * 60 * 60 * 1000,
+    expiresAtBS: 'आजीवन (Lifetime)',
+    status: 'active',
+    permissions: getDefaultPermissionsMap()
+  },
+  {
     id: 'client_demo_subash',
     mobile: '9866416556',
     fullName: 'Subash Bhandari',
@@ -525,6 +540,20 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
           expiresAtBS: cleanExpiresAtBS
         };
       });
+
+      // Ensure essential default accounts (e.g. Subash Khanal 9841755199) always exist
+      for (const def of DEFAULT_DEMO_CLIENT_POLICIES) {
+        const defDigits = def.mobile.replace(/\D/g, '').slice(-10);
+        const exists = sanitized.some((c: any) => {
+          const cMob = (c.mobile || '').replace(/\D/g, '').slice(-10);
+          return (cMob && cMob === defDigits) || (c.loginId && def.loginId && c.loginId.toLowerCase() === def.loginId.toLowerCase());
+        });
+        if (!exists) {
+          sanitized.unshift(def);
+          needsPersist = true;
+        }
+      }
+
       if (needsPersist) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
       }

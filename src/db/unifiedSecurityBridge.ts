@@ -19,7 +19,8 @@ import {
   hashPassword,
   getOrCreateDeviceId,
   calculatePeriodExpiry,
-  getDefaultPermissionsMap
+  getDefaultPermissionsMap,
+  getClientPolicyByMobile
 } from './menuControlStore';
 
 import { 
@@ -111,7 +112,19 @@ export function matchesClientRecord(record: ClientAccessRecord, identifier: stri
 export function findClientAccessRecord(identifier: string): ClientAccessRecord | null {
   if (!identifier) return null;
   const policies = loadAllClientPolicies();
-  return policies.find(r => matchesClientRecord(r, identifier)) || null;
+  const direct = policies.find(r => matchesClientRecord(r, identifier));
+  if (direct) return direct;
+
+  const norm = normalizeIdentifier(identifier);
+  if (norm.last10Digits) {
+    const by10 = policies.find(r => {
+      const rMob = normalizeIdentifier(r.mobile).last10Digits;
+      return rMob && rMob === norm.last10Digits;
+    });
+    if (by10) return by10;
+  }
+
+  return getClientPolicyByMobile(identifier);
 }
 
 /**
@@ -382,7 +395,13 @@ export function authenticateUnifiedUser(
   syncAllSecurityStores();
 
   // ── STEP 1: Search in Client Access Policies (Menu Control) ──
-  const clientPolicy = findClientAccessRecord(cleanId);
+  let clientPolicy = findClientAccessRecord(cleanId);
+  if (!clientPolicy && norm.last10Digits) {
+    clientPolicy = findClientAccessRecord(norm.last10Digits);
+  }
+  if (!clientPolicy) {
+    clientPolicy = getClientPolicyByMobile(identifier);
+  }
 
   if (clientPolicy) {
     // Check status
@@ -398,13 +417,19 @@ export function authenticateUnifiedUser(
     const isPasswordCorrect = 
       trimmedPassword === clientPolicy.passwordPlain ||
       enteredHash === clientPolicy.passwordHash ||
-      trimmedPassword === clientPolicy.passwordHash;
+      trimmedPassword === clientPolicy.passwordHash ||
+      (clientPolicy.passwordPlain && enteredHash === hashPassword(clientPolicy.passwordPlain));
 
     if (!isPasswordCorrect) {
       return {
         success: false,
         message: 'गलत पासवर्ड! कृपया सुपरएडमिनले दिएको सही पासवर्ड राख्नुहोस्।'
       };
+    }
+
+    // Auto-repair passwordHash if needed
+    if (clientPolicy.passwordPlain && clientPolicy.passwordHash !== enteredHash && trimmedPassword === clientPolicy.passwordPlain) {
+      clientPolicy.passwordHash = enteredHash;
     }
 
     // Check Expiration
@@ -431,7 +456,7 @@ export function authenticateUnifiedUser(
     clientPolicy.lastLoginISO = new Date().toISOString();
 
     const allClients = loadAllClientPolicies();
-    const idx = allClients.findIndex(c => c.id === clientPolicy.id || c.mobile === clientPolicy.mobile);
+    const idx = allClients.findIndex(c => c.id === clientPolicy!.id || c.mobile === clientPolicy!.mobile);
     if (idx >= 0) {
       allClients[idx] = clientPolicy;
       saveAllClientPolicies(allClients);
@@ -440,8 +465,9 @@ export function authenticateUnifiedUser(
     // Resolve or sync RBAC user
     const rbacUsers = getStoredRBACUsers();
     let rbacUser = rbacUsers.find(u => 
-      u.phone === clientPolicy.mobile || 
-      (u.username && u.username.toLowerCase() === (clientPolicy.loginId || clientPolicy.mobile).toLowerCase())
+      (u.phone && normalizeIdentifier(u.phone).last10Digits === normalizeIdentifier(clientPolicy!.mobile).last10Digits) ||
+      (u.username && u.username.toLowerCase() === (clientPolicy!.loginId || clientPolicy!.mobile).toLowerCase()) ||
+      (u.username && normalizeIdentifier(u.username).last10Digits === normalizeIdentifier(clientPolicy!.mobile).last10Digits)
     );
 
     if (!rbacUser) {
@@ -513,13 +539,15 @@ export function authenticateUnifiedUser(
     };
   }
 
-  // ── STEP 2: Search in RBAC Users Store (Staff, Astrologers, Admins, Super Admin) ──
+  // ── STEP 2: Search in RBAC Users Store (Staff, Astrologers, Admins, Super Admin, Customers) ──
   const rbacUsers = getStoredRBACUsers();
   const cleanLower = cleanId.toLowerCase();
 
   const foundUser = rbacUsers.find(u => 
     (u.phone && normalizeIdentifier(u.phone).last10Digits === norm.last10Digits) ||
+    (u.phone && normalizeIdentifier(u.phone).cleanDigits === norm.cleanDigits) ||
     (u.username && u.username.toLowerCase() === cleanLower) ||
+    (u.username && normalizeIdentifier(u.username).last10Digits === norm.last10Digits) ||
     (u.email && u.email.toLowerCase() === cleanLower) ||
     (u.fullName && u.fullName.toLowerCase() === cleanLower)
   );
@@ -535,7 +563,8 @@ export function authenticateUnifiedUser(
   const enteredHash = hashPassword(trimmedPassword);
   const isPassValid = 
     enteredHash === foundUser.passwordHash || 
-    trimmedPassword === foundUser.passwordHash;
+    trimmedPassword === foundUser.passwordHash ||
+    trimmedPassword === (foundUser as any).passwordPlain;
 
   if (!isPassValid) {
     return {

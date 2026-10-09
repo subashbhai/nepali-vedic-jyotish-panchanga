@@ -197,6 +197,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
     syncSecurityAccount(updatedRecord);
     const updatedList = clients.map(c => c.mobile === mobile ? updatedRecord : c);
     setClients(updatedList);
+    saveAllClientPolicies(updatedList);
     showToast(`${target.fullName} को स्थिति ${newStatus === 'active' ? 'सक्रिय' : 'निलम्बित'} बनाइयो।`);
   };
 
@@ -1505,6 +1506,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
                   syncSecurityAccount(updatedRecord);
                   const updated = clients.map(c => (c.mobile === editingClient.mobile || c.id === editingClient.id) ? updatedRecord : c);
                   setClients(updated);
+                  saveAllClientPolicies(updated);
                   setEditingClient(null);
                   showToast('प्रयोगकर्ता विवरण तथा पासवर्ड अद्यावधिक भयो!');
                 }}
