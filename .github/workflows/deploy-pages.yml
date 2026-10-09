@@ -34,8 +34,8 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (Fast CI mode)
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build web app (Vite only — server build skip)
         run: npx vite build

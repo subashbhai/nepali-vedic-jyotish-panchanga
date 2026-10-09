@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Download,
   Monitor,
@@ -17,7 +17,10 @@ import {
   Layers,
   ArrowRight,
   Flame,
-  Check
+  Check,
+  AlertCircle,
+  Copy,
+  Lock
 } from 'lucide-react';
 import {
   DEFAULT_DIRECT_DOWNLOADS,
@@ -30,6 +33,10 @@ import {
   getApkDirectDownloadUrl
 } from '../../utils/appVersionManager';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import {
+  getCurrentOfficialRelease,
+  SoftwareReleaseRecord
+} from '../../db/softwareReleaseStore';
 
 interface ApplicationDownloadViewProps {
   onOpenModal?: () => void;
@@ -44,14 +51,51 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
   const [remoteVer, setRemoteVer] = useState<string>(`v${CURRENT_APP_VERSION}`);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedChecksum, setCopiedChecksum] = useState<string | null>(null);
   const { isInstallable, isInstalled, install } = usePWAInstall();
+
+  // Dynamic official releases from Super Admin Store
+  const [winRelease, setWinRelease] = useState<SoftwareReleaseRecord | null>(() => getCurrentOfficialRelease('windows'));
+  const [androidRelease, setAndroidRelease] = useState<SoftwareReleaseRecord | null>(() => getCurrentOfficialRelease('android'));
+  const [macRelease, setMacRelease] = useState<SoftwareReleaseRecord | null>(() => getCurrentOfficialRelease('mac'));
+
+  const refreshOfficialReleases = useCallback(() => {
+    const wr = getCurrentOfficialRelease('windows');
+    const ar = getCurrentOfficialRelease('android');
+    const mr = getCurrentOfficialRelease('mac');
+    setWinRelease(wr);
+    setAndroidRelease(ar);
+    setMacRelease(mr);
+    if (wr?.softwareVersion) {
+      setRemoteVer(`v${wr.softwareVersion}`);
+    } else if (ar?.softwareVersion) {
+      setRemoteVer(`v${ar.softwareVersion}`);
+    }
+  }, []);
 
   const isAndroid = isAndroidDevice();
 
   useEffect(() => {
+    refreshOfficialReleases();
+
+    const handleUpdate = () => {
+      refreshOfficialReleases();
+    };
+
+    window.addEventListener('software-release-updated', handleUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('balananda_software_release_channel');
+      bc.onmessage = () => {
+        refreshOfficialReleases();
+      };
+    } catch {}
+
+    // Also check github releases as secondary fallback
     checkLatestRelease().then((rel) => {
       if (rel) {
-        if (rel.version) setRemoteVer(rel.version.startsWith('v') ? rel.version : `v${rel.version}`);
+        if (!winRelease && rel.version) setRemoteVer(rel.version.startsWith('v') ? rel.version : `v${rel.version}`);
         const setupAsset = rel.assets?.find(a => a.name.includes('setup') && a.name.endsWith('.exe'))?.downloadUrl;
         const portableAsset = rel.assets?.find(a => !a.name.includes('setup') && a.name.endsWith('.exe'))?.downloadUrl;
         const apkAsset = rel.assets?.find(a => a.name.endsWith('.apk'))?.downloadUrl;
@@ -68,7 +112,14 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
         }));
       }
     });
-  }, []);
+
+    return () => {
+      window.removeEventListener('software-release-updated', handleUpdate);
+      try {
+        bc?.close();
+      } catch {}
+    };
+  }, [refreshOfficialReleases, winRelease]);
 
   const handleDownload = (url: string, filename: string, label: string) => {
     setDownloadNotice(`${label} को डाउनलोड सुरु भयो...`);
@@ -78,14 +129,20 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
     }, 4500);
   };
 
+  const handleCopyChecksum = (hash: string) => {
+    navigator.clipboard.writeText(hash);
+    setCopiedChecksum(hash);
+    setTimeout(() => setCopiedChecksum(null), 2500);
+  };
+
   const handleCopyApkLink = () => {
-    const apkUrl = downloadUrls.androidApk || getApkDirectDownloadUrl();
+    const apkUrl = androidRelease?.storageKey || downloadUrls.androidApk || getApkDirectDownloadUrl();
     navigator.clipboard.writeText(apkUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  const apkDirectUrl = downloadUrls.androidApk || getApkDirectDownloadUrl();
+  const apkDirectUrl = androidRelease?.storageKey || downloadUrls.androidApk || getApkDirectDownloadUrl();
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const qrTargetUrl = `${currentOrigin}${typeof window !== 'undefined' ? window.location.pathname : ''}?action=download-apk`;
 
@@ -99,7 +156,7 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
         <div className="relative z-10 max-w-3xl space-y-3">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider shadow-sm">
             <Sparkles className="w-4 h-4" />
-            <span>आधिकारिक एप्लिकेसन डाउनलोड केन्द्र (App Downloads)</span>
+            <span>आधिकारिक एप्लिकेसन डाउनलोड केन्द्र (Official App Downloads)</span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-black font-serif tracking-tight leading-tight text-white">
@@ -113,7 +170,11 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
           <div className="pt-2 flex flex-wrap items-center gap-2.5 text-xs">
             <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>पछिल्लो संस्करण: {remoteVer}</span>
+              <span>
+                {winRelease || androidRelease
+                  ? `आधिकारिक संस्करण: v${winRelease?.softwareVersion || androidRelease?.softwareVersion}`
+                  : `पछिल्लो संस्करण: ${remoteVer}`}
+              </span>
             </span>
             <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
               <WifiOff className="w-4 h-4 text-amber-300" />
@@ -121,7 +182,7 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
             </span>
             <span className="px-3 py-1 rounded-xl bg-white/15 border border-white/25 font-bold flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span>भाइरसमुक्त र सुरक्षित</span>
+              <span>SHA-256 प्रमाणित</span>
             </span>
           </div>
         </div>
@@ -153,12 +214,19 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                     <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100">
                       Windows PC
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 text-[10px] font-bold">
-                      कम्प्युटर एप
-                    </span>
+                    {winRelease?.isOfficialCurrent ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>आधिकारिक</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 text-[10px] font-bold">
+                        कम्प्युटर एप
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-stone-500 dark:text-stone-400">
-                    Windows 10, 11 (64-bit / 32-bit)
+                    Windows 10, 11 (64-bit / 32-bit) {winRelease ? `• v${winRelease.softwareVersion} (${winRelease.fileSizeFormatted})` : ''}
                   </p>
                 </div>
               </div>
@@ -182,34 +250,68 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                 <span>वेबसाइटका सम्पूर्ण सुविधाहरू १००% अफलाइन उपलब्ध</span>
               </li>
             </ul>
+
+            {/* SHA-256 Checksum Pill */}
+            {winRelease?.sha256Checksum && (
+              <div className="pt-1">
+                <div className="bg-stone-50 dark:bg-stone-950 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2 text-[11px]">
+                  <div className="truncate text-stone-500 dark:text-stone-400 font-mono">
+                    <span className="font-bold text-stone-700 dark:text-stone-300">SHA-256: </span>
+                    <span>{winRelease.sha256Checksum.slice(0, 18)}...{winRelease.sha256Checksum.slice(-8)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyChecksum(winRelease.sha256Checksum)}
+                    className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-amber-400 hover:text-stone-950 transition-colors shrink-0 text-stone-700 dark:text-stone-300 cursor-pointer"
+                    title="SHA-256 कपी गर्नुहोस्"
+                  >
+                    {copiedChecksum === winRelease.sha256Checksum ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-6 space-y-2.5">
-            <button
-              type="button"
-              onClick={() => handleDownload(
-                downloadUrls.windowsSetup,
-                `nepali-vedic-jyotish-panchanga-setup-${CURRENT_APP_VERSION}.exe`,
-                'Windows Setup Installer (.exe)'
-              )}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-            >
-              <Download className="w-5 h-5" />
-              <span>Windows Setup (.exe) डाउनलोड गर्नुहोस्</span>
-            </button>
+            {winRelease ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(
+                    winRelease.storageKey,
+                    winRelease.originalFilename,
+                    'Windows Official Setup (.exe)'
+                  )}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                >
+                  <Download className="w-5 h-5" />
+                  <span>आधिकारिक Windows Setup (.exe) डाउनलोड ({winRelease.fileSizeFormatted})</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => handleDownload(
-                downloadUrls.windowsPortable,
-                `nepali-vedic-jyotish-panchanga-${CURRENT_APP_VERSION}.exe`,
-                'Windows Portable (.exe)'
-              )}
-              className="w-full py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
-            >
-              <HardDrive className="w-4 h-4" />
-              <span>पोर्टेबल संस्करण (.exe - No Install) डाउनलोड</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(
+                    downloadUrls.windowsPortable,
+                    `nepali-vedic-jyotish-panchanga-${winRelease.softwareVersion}.exe`,
+                    'Windows Portable (.exe)'
+                  )}
+                  className="w-full py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <HardDrive className="w-4 h-4" />
+                  <span>पोर्टेबल संस्करण (.exe - No Install) डाउनलोड</span>
+                </button>
+              </>
+            ) : (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-stone-700 dark:text-amber-200 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300 text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>हाल कुनै आधिकारिक विन्डोज रिलिज प्रकाशित छैन</span>
+                </div>
+                <p className="text-stone-600 dark:text-stone-400 leading-relaxed">
+                  सुपर प्रशासकले नयाँ संस्करण अपलोड तथा प्रकाशित गरेपछि यहाँ स्वतः प्रत्यक्ष डाउनलोड उपलब्ध हुनेछ।
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -230,12 +332,19 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                     <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100">
                       Android APK
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
-                      मोबाइल एप (.apk)
-                    </span>
+                    {androidRelease?.isOfficialCurrent ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>आधिकारिक</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
+                        मोबाइल एप (.apk)
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-stone-500 dark:text-stone-400">
-                    Samsung, Xiaomi, Vivo, Oppo, Realme, etc.
+                    Samsung, Xiaomi, Vivo, Oppo, Realme, etc. {androidRelease ? `• v${androidRelease.softwareVersion} (${androidRelease.fileSizeFormatted})` : ''}
                   </p>
                 </div>
               </div>
@@ -259,42 +368,76 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                 <span>पूर्ण अफलाइन क्यास समर्थन तथा द्रुत रेस्पोन्स</span>
               </li>
             </ul>
+
+            {/* SHA-256 Checksum Pill */}
+            {androidRelease?.sha256Checksum && (
+              <div className="pt-1">
+                <div className="bg-stone-50 dark:bg-stone-950 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2 text-[11px]">
+                  <div className="truncate text-stone-500 dark:text-stone-400 font-mono">
+                    <span className="font-bold text-stone-700 dark:text-stone-300">SHA-256: </span>
+                    <span>{androidRelease.sha256Checksum.slice(0, 18)}...{androidRelease.sha256Checksum.slice(-8)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyChecksum(androidRelease.sha256Checksum)}
+                    className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-amber-400 hover:text-stone-950 transition-colors shrink-0 text-stone-700 dark:text-stone-300 cursor-pointer"
+                    title="SHA-256 कपी गर्नुहोस्"
+                  >
+                    {copiedChecksum === androidRelease.sha256Checksum ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-6 space-y-2.5">
-            <button
-              type="button"
-              onClick={() => handleDownload(
-                apkDirectUrl,
-                'nepali-vedic-jyotish-panchanga.apk',
-                'Android APK (.apk)'
-              )}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 animate-pulse"
-            >
-              <Download className="w-5 h-5" />
-              <span>सिधै Android APK (.apk) डाउनलोड गर्नुहोस्</span>
-            </button>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleCopyApkLink}
-                className="flex-1 py-2 px-3 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <ExternalLink className="w-4 h-4" />}
-                <span>{copiedLink ? 'लिङ्क कपी भयो!' : 'APK लिङ्क कपी गर्नुहोस्'}</span>
-              </button>
-
-              {isInstallable && !isInstalled && (
+            {androidRelease ? (
+              <>
                 <button
                   type="button"
-                  onClick={install}
-                  className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  onClick={() => handleDownload(
+                    apkDirectUrl,
+                    androidRelease.originalFilename || 'nepali-vedic-jyotish-panchanga.apk',
+                    'Android APK (.apk)'
+                  )}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 animate-pulse"
                 >
-                  <span>होमस्क्रिनमा थप्नुहोस्</span>
+                  <Download className="w-5 h-5" />
+                  <span>सिधै Android APK (.apk) डाउनलोड गर्नुहोस् ({androidRelease.fileSizeFormatted})</span>
                 </button>
-              )}
-            </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyApkLink}
+                    className="flex-1 py-2 px-3 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <ExternalLink className="w-4 h-4" />}
+                    <span>{copiedLink ? 'लिङ्क कपी भयो!' : 'APK लिङ्क कपी गर्नुहोस्'}</span>
+                  </button>
+
+                  {isInstallable && !isInstalled && (
+                    <button
+                      type="button"
+                      onClick={install}
+                      className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <span>होमस्क्रिनमा थप्नुहोस्</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-stone-700 dark:text-amber-200 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300 text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>हाल कुनै आधिकारिक एन्ड्रोइड रिलिज प्रकाशित छैन</span>
+                </div>
+                <p className="text-stone-600 dark:text-stone-400 leading-relaxed">
+                  सुपर प्रशासकले नयाँ APK संस्करण प्रकाशित गरेपछि यहाँ स्वतः उपलब्ध हुनेछ।
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -311,12 +454,19 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                     <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100">
                       Apple Mac
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-300 text-[10px] font-bold">
-                      macOS (.dmg)
-                    </span>
+                    {macRelease?.isOfficialCurrent ? (
+                      <span className="px-2 py-0.5 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-300 text-[10px] font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        <span>आधिकारिक</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-300 text-[10px] font-bold">
+                        macOS (.dmg)
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-stone-500 dark:text-stone-400">
-                    Apple Silicon (M1/M2/M3/M4) तथा Intel Mac
+                    Apple Silicon (M1/M2/M3/M4) तथा Intel Mac {macRelease ? `• v${macRelease.softwareVersion} (${macRelease.fileSizeFormatted})` : ''}
                   </p>
                 </div>
               </div>
@@ -336,21 +486,53 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                 <span>रेडिमेड उच्च रिजोलुसन देवनागरी फन्ट सपोर्ट</span>
               </li>
             </ul>
+
+            {/* SHA-256 Checksum Pill */}
+            {macRelease?.sha256Checksum && (
+              <div className="pt-1">
+                <div className="bg-stone-50 dark:bg-stone-950 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2 text-[11px]">
+                  <div className="truncate text-stone-500 dark:text-stone-400 font-mono">
+                    <span className="font-bold text-stone-700 dark:text-stone-300">SHA-256: </span>
+                    <span>{macRelease.sha256Checksum.slice(0, 18)}...{macRelease.sha256Checksum.slice(-8)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyChecksum(macRelease.sha256Checksum)}
+                    className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-amber-400 hover:text-stone-950 transition-colors shrink-0 text-stone-700 dark:text-stone-300 cursor-pointer"
+                    title="SHA-256 कपी गर्नुहोस्"
+                  >
+                    {copiedChecksum === macRelease.sha256Checksum ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-6">
-            <button
-              type="button"
-              onClick={() => handleDownload(
-                downloadUrls.macDmg,
-                `nepali-vedic-jyotish-panchanga-${CURRENT_APP_VERSION}.dmg`,
-                'Apple Mac DMG (.dmg)'
-              )}
-              className="w-full py-3.5 px-4 rounded-2xl bg-stone-900 hover:bg-black text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-            >
-              <Download className="w-5 h-5" />
-              <span>Apple Mac DMG (.dmg) डाउनलोड गर्नुहोस्</span>
-            </button>
+            {macRelease ? (
+              <button
+                type="button"
+                onClick={() => handleDownload(
+                  macRelease.storageKey,
+                  macRelease.originalFilename,
+                  'Apple Mac DMG (.dmg)'
+                )}
+                className="w-full py-3.5 px-4 rounded-2xl bg-stone-900 hover:bg-black text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+              >
+                <Download className="w-5 h-5" />
+                <span>Apple Mac DMG (.dmg) डाउनलोड ({macRelease.fileSizeFormatted})</span>
+              </button>
+            ) : (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-stone-700 dark:text-amber-200 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300 text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>हाल कुनै आधिकारिक macOS रिलिज प्रकाशित छैन</span>
+                </div>
+                <p className="text-stone-600 dark:text-stone-400 leading-relaxed">
+                  सुपर प्रशासकले नयाँ macOS DMG संस्करण प्रकाशित गरेपछि यहाँ स्वतः उपलब्ध हुनेछ।
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

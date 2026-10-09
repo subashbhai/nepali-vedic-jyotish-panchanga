@@ -865,6 +865,122 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
     return res.status(404).send("APK file not found on server.");
   });
 
+  // Helper to load releases from disk or fallback
+  const getDiskReleases = () => {
+    try {
+      const p = path.join(process.cwd(), "public", "releases.json");
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, "utf-8");
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.error("Failed to read public/releases.json:", e);
+    }
+    return [];
+  };
+
+  // Endpoint: GET /api/software/current-release
+  app.get("/api/software/current-release", (req, res) => {
+    try {
+      const platform = (req.query.platform as string) || "windows";
+      const releases = getDiskReleases();
+      
+      const official = releases.find((r: any) => 
+        r.releaseStatus === "published" && 
+        r.isOfficialCurrent && 
+        (platform === "all" || r.platform === platform)
+      ) || releases.find((r: any) => 
+        r.releaseStatus === "published" && 
+        (platform === "all" || r.platform === platform)
+      );
+
+      if (!official) {
+        return res.status(200).json({
+          success: false,
+          published: false,
+          message: "हाल यस प्लेटफर्मका लागि कुनै आधिकारिक रिलिज प्रकाशित गरिएको छैन।",
+          platform
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        published: true,
+        release: official
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint: POST /api/software/releases (Save updated releases to disk)
+  app.post("/api/software/releases", (req, res) => {
+    try {
+      const { releases } = req.body;
+      if (!Array.isArray(releases)) {
+        return res.status(400).json({ success: false, error: "Invalid releases array format." });
+      }
+      const targetPath = path.join(process.cwd(), "public", "releases.json");
+      fs.writeFileSync(targetPath, JSON.stringify(releases, null, 2), "utf-8");
+      return res.json({ success: true, count: releases.length });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint: GET /api/download/software (Single official download resolver)
+  app.get("/api/download/software", (req, res) => {
+    try {
+      const platform = (req.query.platform as string) || "windows";
+      const releases = getDiskReleases();
+      const official = releases.find((r: any) => 
+        r.releaseStatus === "published" && 
+        r.isOfficialCurrent && 
+        (platform === "all" || r.platform === platform)
+      ) || releases.find((r: any) => 
+        r.releaseStatus === "published" && 
+        (platform === "all" || r.platform === platform)
+      );
+
+      if (!official) {
+        return res.status(404).json({
+          success: false,
+          error: "हाल कुनै आधिकारिक सफ्टवेयर रिलिज फेला परेन।",
+          platform
+        });
+      }
+
+      const storageKey = official.storageKey || "";
+      const filename = official.originalFilename || `balananda-software-${official.softwareVersion}.exe`;
+
+      // Check if local file in downloads
+      if (storageKey.startsWith("./downloads/") || storageKey.startsWith("/downloads/") || official.platform === "android") {
+        const localName = path.basename(storageKey.split("?")[0]) || "nepali-vedic-jyotish-panchanga.apk";
+        const localPath = path.join(process.cwd(), "public", "downloads", localName);
+        if (fs.existsSync(localPath)) {
+          const contentType = localName.endsWith(".apk") 
+            ? "application/vnd.android.package-archive" 
+            : "application/octet-stream";
+          res.setHeader("Content-Type", contentType);
+          res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+          return res.sendFile(localPath);
+        }
+      }
+
+      // If it's a URL (e.g. GitHub release), redirect
+      if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
+        return res.redirect(302, storageKey);
+      }
+
+      return res.status(404).json({
+        success: false,
+        error: "सफ्टवेयर फाइल भण्डार फेला परेन।"
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Vite middleware for development or static serving for production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
