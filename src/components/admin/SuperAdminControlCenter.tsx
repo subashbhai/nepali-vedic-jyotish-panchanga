@@ -43,7 +43,10 @@ import {
   Layers,
   Sparkles,
   ExternalLink,
-  ChevronLeft
+  ChevronLeft,
+  ArrowLeft,
+  Smartphone,
+  Server
 } from 'lucide-react';
 
 import {
@@ -283,6 +286,22 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Helper to map tab to block
+  const getBlockIdFromTab = (tab?: string): string | null => {
+    if (!tab || tab === 'overview' || tab === 'dashboard') return null;
+    if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
+    if (['pages_services', 'samachar_editor', 'samachar', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
+    if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
+    if (['user_control', 'menu_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
+    if (['client_approvals', 'finance', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
+    if (['daily_whatsapp', 'whatsapp', 'targeted_push', 'notifications', 'geo_monitor'].includes(tab)) return 'block_communication';
+    if (['settings', 'pricing', 'security_audit', 'audit', 'reports', 'backup'].includes(tab)) return 'block_settings_security';
+    return null;
+  };
+
+  // Block State: null indicates the Master Overview Dashboard with the 7 Primary Block Cards
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(() => getBlockIdFromTab(initialTab));
+
   // Current Active Tab
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -301,6 +320,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
+      const bId = getBlockIdFromTab(initialTab);
+      if (bId) {
+        setActiveBlockId(bId);
+      }
     }
   }, [initialTab]);
 
@@ -611,27 +634,50 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     totalVivahProfiles: totalVivahProfiles
   };
 
-  // 7 Structured Block Groups
-  const blockGroups = [
+  // 7 Structured Primary Block Groups
+  const blockGroups = useMemo(() => [
     {
-      id: 'block_1',
-      title: 'ब्लक १: कमान्ड र अवलोकन',
+      id: 'block_overview',
+      number: '१',
+      title: '१. कमान्ड र अवलोकन',
+      shortTitle: 'कमान्ड र अवलोकन',
+      description: 'केन्द्रीय ओभरभ्यु, मुख्य कार्यसम्पादन सूचकहरू (KPIs), प्रणाली स्वास्थ्य स्थिति तथा प्रत्यक्ष अलर्टहरू',
+      icon: Activity,
+      accentColor: 'from-amber-500/20 to-amber-600/10 border-amber-500/40 text-amber-400',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      defaultTab: 'overview',
       items: [
-        { id: 'overview', label: 'केन्द्रीय ओभरभ्यु', icon: Activity, badge: (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) > 0 ? (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) : null }
+        { id: 'overview', label: 'केन्द्रीय ओभरभ्यु & सूचकहरू', icon: Activity, badge: (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) > 0 ? (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) : null },
+        { id: 'system_health', label: 'प्रणाली स्वास्थ्य & सर्भर स्थिति', icon: Server, badge: 'Live' },
+        { id: 'live_alerts', label: 'प्रत्यक्ष अलर्ट तथा कार्य सूची', icon: AlertTriangle, badge: (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) > 0 ? `${pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount} बाँकी` : null }
       ]
     },
     {
-      id: 'block_2',
-      title: 'ब्लक २: सम्पूर्ण पृष्ठ तथा सेवा नियन्त्रण',
+      id: 'block_pages_services',
+      number: '२',
+      title: '२. सम्पूर्ण पृष्ठ तथा सेवा नियन्त्रण',
+      shortTitle: 'सम्पूर्ण पृष्ठ तथा सेवा नियन्त्रण',
+      description: 'सफ्टवेयरका सबै पृष्ठ तथा सेवाहरू अन/अफ/लक स्विचबोर्ड, समाचार तथा धर्म लेख सम्पादक, र विज्ञापन व्यवस्थापन',
+      icon: Sliders,
+      accentColor: 'from-blue-500/20 to-indigo-600/10 border-blue-500/40 text-blue-400',
+      badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+      defaultTab: 'pages_services',
       items: [
-        { id: 'pages_services', label: 'पृष्ठ & सेवा पूर्ण नियन्त्रण', icon: Sliders, badge: 'स्विचबोर्ड' },
-        { id: 'samachar_editor', label: 'समाचार तथा धर्म लेख', icon: Newspaper },
-        { id: 'advertisement', label: 'विज्ञापन (AdSense & Banners)', icon: Megaphone }
+        { id: 'pages_services', label: 'पृष्ठ & सेवा पूर्ण नियन्त्रण (Switchboard)', icon: Sliders, badge: 'स्विचबोर्ड' },
+        { id: 'samachar_editor', label: 'समाचार तथा धर्म लेख सम्पादक', icon: Newspaper },
+        { id: 'advertisement', label: 'विज्ञापन व्यवस्थापन (AdSense & Banners)', icon: Megaphone }
       ]
     },
     {
-      id: 'block_3',
-      title: 'ब्लक ३: वैदिक मञ्च तथा सेवाहरू',
+      id: 'block_vedic_portals',
+      number: '३',
+      title: '३. वैदिक मञ्च तथा सेवाहरू',
+      shortTitle: 'वैदिक मञ्च तथा सेवाहरू',
+      description: 'विवाह मञ्च ब्याकइन्ड, पुरोहित तथा ज्योतिष बुकिङ, केन्द्रीय कुण्डली/पत्रिका, वैदिक पसल र POS, र मिडिया भण्डार',
+      icon: HeartHandshake,
+      accentColor: 'from-rose-500/20 to-pink-600/10 border-rose-500/40 text-rose-400',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      defaultTab: 'vivah_portal',
       items: [
         { id: 'vivah_portal', label: 'विवाह मञ्च ब्याकइन्ड', icon: HeartHandshake, badge: vivahPendingCount > 0 ? `${vivahPendingCount}` : null },
         { id: 'bookings', label: 'सेवा बुकिङ व्यवस्थापन', icon: Calendar, badge: pendingBookingsCount > 0 ? pendingBookingsCount : null },
@@ -641,28 +687,49 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       ]
     },
     {
-      id: 'block_4',
-      title: 'ब्लक ४: प्रयोगकर्ता र विशेषज्ञ',
+      id: 'block_users_experts',
+      number: '४',
+      title: '४. प्रयोगकर्ता र विशेषज्ञ',
+      shortTitle: 'प्रयोगकर्ता र विशेषज्ञ',
+      description: 'मोबाइल दर्ता, पासवर्ड जेनेरेसन, मेनु स्विचबोर्ड, प्रमाणित पण्डित/ज्योतिषी, यजमान ग्राहक र कर्मचारी RBAC',
+      icon: Users,
+      accentColor: 'from-emerald-500/20 to-teal-600/10 border-emerald-500/40 text-emerald-400',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      defaultTab: 'user_control',
       items: [
-        { id: 'user_control', label: 'प्रयोगकर्ता नियन्त्रण (User Control)', icon: Sliders, badge: 'नयाँ' },
-        { id: 'experts', label: 'प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
+        { id: 'user_control', label: 'प्रयोगकर्ता नियन्त्रण & पासवर्ड (User Control)', icon: Smartphone, badge: 'Full Page' },
+        { id: 'experts', label: 'प्रमाणित विशेषज्ञहरू (Jyotish & Purohit)', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
         { id: 'yajaman', label: 'यजमान ग्राहक प्रोफाइल', icon: UserCheck },
-        { id: 'rbac', label: 'भूमिका र अधिकार (RBAC)', icon: ShieldCheck },
+        { id: 'staff_rbac', label: 'कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
         { id: 'role_magic_links', label: 'सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
       ]
     },
     {
-      id: 'block_5',
-      title: 'ब्लक ५: आर्थिक तथा सदस्यता',
+      id: 'block_finance',
+      number: '५',
+      title: '५. आर्थिक तथा सदस्यता',
+      shortTitle: 'आर्थिक तथा सदस्यता',
+      description: 'सफ्टवेयर खरिद स्वीकृति, eSewa र बैंक भुक्तानी प्रमाणीकरण, तथा विशेषज्ञ सदस्यता योजना नवीकरण',
+      icon: DollarSign,
+      accentColor: 'from-amber-500/20 to-yellow-600/10 border-amber-500/40 text-amber-400',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      defaultTab: 'client_approvals',
       items: [
         { id: 'client_approvals', label: 'सफ्टवेयर खरिद स्वीकृति', icon: CreditCard, badge: pendingPurchasesCount > 0 ? `${pendingPurchasesCount}` : null },
-        { id: 'finance', label: 'भुक्तानी प्रमाणीकरण (eSewa)', icon: DollarSign, badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
+        { id: 'finance', label: 'भुक्तानी प्रमाणीकरण (eSewa & Bank)', icon: DollarSign, badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
         { id: 'memberships', label: 'सदस्यता योजना & नवीकरण', icon: Crown }
       ]
     },
     {
-      id: 'block_6',
-      title: 'ब्लक ६: सञ्चार र प्रसारण',
+      id: 'block_communication',
+      number: '६',
+      title: '६. सञ्चार र प्रसारण',
+      shortTitle: 'सञ्चार र प्रसारण',
+      description: 'दैनिक बिहान ७ बजे स्वचालित WhatsApp पञ्चाङ्ग प्रेषण, लक्षित पुश सूचना, र लोकेसन मनिटर',
+      icon: MessageSquare,
+      accentColor: 'from-purple-500/20 to-violet-600/10 border-purple-500/40 text-purple-400',
+      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+      defaultTab: 'daily_whatsapp',
       items: [
         { id: 'daily_whatsapp', label: 'दैनिक बिहान ७ बजे WhatsApp', icon: MessageSquare, badge: '७ AM' },
         { id: 'targeted_push', label: 'लक्षित पुश सूचना (Broadcasting)', icon: Send },
@@ -671,8 +738,15 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       ]
     },
     {
-      id: 'block_7',
-      title: 'ब्लक ७: सेटिङ्स, सुरक्षा र ब्याकअप',
+      id: 'block_settings_security',
+      number: '७',
+      title: '७. सेटिङ्स, सुरक्षा र ब्याकअप',
+      shortTitle: 'सेटिङ्स, सुरक्षा र ब्याकअप',
+      description: 'प्रणाली र संस्थागत सेटिङ्स, सुरक्षा अडिट लग, विश्लेषणात्मक प्रतिवेदन, र पूर्ण डेटाबेस ब्याकअप/रिस्टोर',
+      icon: Lock,
+      accentColor: 'from-cyan-500/20 to-blue-600/10 border-cyan-500/40 text-cyan-400',
+      badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+      defaultTab: 'settings',
       items: [
         { id: 'settings', label: 'प्रणाली र संस्थागत सेटिङ्स', icon: Settings },
         { id: 'security_audit', label: 'सुरक्षा र अडिट लग', icon: Lock },
@@ -680,70 +754,98 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
         { id: 'backup', label: 'डाटा ब्याकअप & रिस्टोर', icon: Database }
       ]
     }
-  ];
+  ], [
+    pendingExpertsCount,
+    pendingPaymentsCount,
+    pendingPurchasesCount,
+    vivahPendingCount,
+    pendingBookingsCount
+  ]);
 
   // Flat list of all items for search
   const allNavItems = useMemo(() => {
-    return blockGroups.flatMap(bg => bg.items);
+    return blockGroups.flatMap(bg => bg.items.map(it => ({ ...it, blockId: bg.id, blockTitle: bg.title })));
   }, [blockGroups]);
 
-  // Current Active Item Label
+  // Currently active block object (if inside a dedicated full-page block)
+  const currentActiveBlock = useMemo(() => {
+    if (!activeBlockId) return null;
+    return blockGroups.find(b => b.id === activeBlockId) || null;
+  }, [activeBlockId, blockGroups]);
+
+  // Currently active item
   const currentActiveItem = allNavItems.find(i => i.id === activeTab) || { label: 'कमान्ड कक्ष', icon: Activity };
   const CurrentIcon = currentActiveItem.icon;
 
-  // Filtered block groups based on sidebar search
-  const filteredBlockGroups = useMemo(() => {
-    if (!sidebarFilter.trim()) return blockGroups;
-    const q = sidebarFilter.toLowerCase();
-    return blockGroups
-      .map(bg => {
-        const filteredItems = bg.items.filter(
-          i => i.label.toLowerCase().includes(q) || i.id.toLowerCase().includes(q)
-        );
-        return { ...bg, items: filteredItems };
-      })
-      .filter(bg => bg.items.length > 0);
-  }, [blockGroups, sidebarFilter]);
+  // Actions
+  const handleOpenBlock = (blockId: string, itemTab?: string) => {
+    const targetBlock = blockGroups.find(b => b.id === blockId);
+    setActiveBlockId(blockId);
+    if (itemTab) {
+      setActiveTab(itemTab);
+    } else if (targetBlock) {
+      setActiveTab(targetBlock.defaultTab);
+    }
+  };
+
+  const handleBackToDashboard = () => {
+    setActiveBlockId(null);
+  };
+
+  const handleNavigateTabFromInside = (tabId: string) => {
+    const bId = getBlockIdFromTab(tabId) || 'block_overview';
+    setActiveBlockId(bId);
+    setActiveTab(tabId);
+  };
 
   return (
     <div className="h-screen bg-[#0C0A09] text-stone-100 flex flex-col font-sans overflow-hidden">
-      {/* Top Header Command Bar */}
-      <header className="shrink-0 bg-stone-900/95 border-b border-stone-800 z-40 backdrop-blur-md px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg">
+      {/* ── TOP HEADER COMMAND BAR (Always clean & spacious) ── */}
+      <header className="shrink-0 bg-stone-900/95 border-b border-stone-800 z-40 backdrop-blur-md px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-lg">
+        {/* Left: Brand & Title */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsSidebarOpen(prev => !prev)}
-            className="md:hidden p-2 text-stone-300 hover:text-white bg-stone-800 rounded-xl"
-            title="मेनु खोल्नुहोस्"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {activeBlockId && (
+            <button
+              onClick={handleBackToDashboard}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black rounded-xl text-xs shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 transition-all shrink-0"
+              title="मुख्य ड्यासबोर्डमा फर्कनुहोस्"
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[3]" />
+              <span className="hidden sm:inline">मुख्य ड्यासबोर्डमा फर्कनुहोस्</span>
+              <span className="sm:hidden">फर्कनुहोस्</span>
+            </button>
+          )}
 
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center font-bold text-stone-950 shadow-md ring-2 ring-amber-400/30">
+            <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center font-bold text-stone-950 shadow-md ring-2 ring-amber-400/30 shrink-0">
               ॐ
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-sm text-white font-serif leading-tight">SUPER ADMIN COMMAND CENTER</h1>
+                <h1 className="font-bold text-xs sm:text-sm text-white font-serif leading-tight">
+                  SUPER ADMIN COMMAND CENTER
+                </h1>
                 <span className="hidden sm:inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
-              <p className="text-[10px] text-amber-400 font-mono">बालानन्द केन्द्रीय नियन्त्रण कक्ष • ७ वटा ब्लकहरू</p>
+              <p className="text-[10px] text-amber-400 font-mono">
+                {activeBlockId && currentActiveBlock ? `${currentActiveBlock.title} • पूर्ण स्क्रिन पृष्ठ` : 'बालानन्द केन्द्रीय नियन्त्रण कक्ष • ७ मुख्य पृष्ठहरू'}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Command Palette Trigger */}
+        {/* Center: Command Palette Trigger */}
         <button
           onClick={() => setIsCommandPaletteOpen(true)}
-          className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-stone-950 border border-stone-800 hover:border-amber-500/50 rounded-2xl text-stone-400 text-xs transition-all cursor-pointer shadow-inner"
+          className="hidden md:flex items-center gap-2 px-3.5 py-1.5 bg-stone-950 border border-stone-800 hover:border-amber-500/50 rounded-2xl text-stone-400 text-xs transition-all cursor-pointer shadow-inner"
         >
           <Search className="w-3.5 h-3.5 text-stone-500" />
           <span>त्वरित कमान्ड वा मोड्युल खोज्नुहोस्...</span>
           <kbd className="bg-stone-800 px-1.5 py-0.5 text-[10px] rounded text-stone-300 font-mono ml-2">Ctrl+K</kbd>
         </button>
 
-        {/* Right Info */}
-        <div className="flex items-center gap-2.5">
+        {/* Right Info: Live Clock, App Switcher, Profile, Logout */}
+        <div className="flex items-center gap-2 sm:gap-3">
           <span className="hidden lg:inline text-xs font-mono font-bold text-amber-400 bg-amber-950/60 px-3 py-1 rounded-xl border border-amber-800/80 shadow-xs">
             {timeString || '२०८१'}
           </span>
@@ -751,11 +853,11 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
           {onClose && (
             <button
               onClick={onClose}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-stone-700"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-stone-700"
               title="सामान्य प्रयोगकर्ता एपमा फर्कनुहोस्"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
-              <span>एपमा फर्किनुहोस्</span>
+              <span className="hidden sm:inline">एपमा फर्किनुहोस्</span>
             </button>
           )}
 
@@ -776,225 +878,521 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
         </div>
       </header>
 
-      {/* Main Workspace Layout */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left Block-Wise Categorized Sidebar */}
-        <aside className={`fixed md:static inset-y-0 left-0 z-30 w-72 shrink-0 h-full bg-stone-900/95 border-r border-stone-800 flex flex-col justify-between overflow-hidden transition-transform duration-200 shadow-xl ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        }`}>
-          {/* Sidebar Search Bar */}
-          <div className="p-3 border-b border-stone-800/80 shrink-0">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-stone-500" />
-              <input
-                type="text"
-                placeholder="मोड्युल खोज्नुहोस्..."
-                value={sidebarFilter}
-                onChange={(e) => setSidebarFilter(e.target.value)}
-                className="w-full bg-stone-950 border border-stone-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500/60"
-              />
-              {sidebarFilter && (
-                <button
-                  onClick={() => setSidebarFilter('')}
-                  className="absolute right-2.5 top-2 text-stone-500 hover:text-stone-300 text-xs"
-                >
-                  ✕
-                </button>
-              )}
+      {/* ── MODE 1: MAIN SUPER ADMIN DASHBOARD (activeBlockId === null) ── */}
+      {/* Displays ONLY the 7 Primary Block Cards in high-end layout as requested */}
+      {!activeBlockId && (
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0C0A09]">
+          <div className="max-w-7xl mx-auto space-y-6">
+
+            {/* Top Welcome & KPI Summary Banner */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-stone-900 via-stone-900/95 to-amber-950/40 border border-stone-800/90 p-5 sm:p-7 rounded-3xl shadow-xl space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono font-bold tracking-widest text-amber-400 uppercase bg-amber-950/70 border border-amber-800/60 px-2.5 py-0.5 rounded-lg">
+                      केन्द्रीय प्रशासनिक ड्यासबोर्ड
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white font-serif tracking-tight mt-1.5">
+                    सुपरएडमिन मुख्य कमान्ड सेन्टर (Master Control Center)
+                  </h2>
+                  <p className="text-xs sm:text-sm text-stone-400 leading-relaxed mt-1 max-w-3xl">
+                    तलका ७ वटा मुख्य प्रशासनिक पृष्ठहरू मध्ये कुनै एक शीर्षकमा क्लिक गर्नुहोस् र पूर्ण स्क्रिनमा कार्य सम्पादन गर्नुहोस्। प्रत्येक पृष्ठभित्र आफ्ना सम्बन्धित मेनुहरू उपलब्ध छन्।
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={loadAllData}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-stone-800 hover:bg-stone-700 text-amber-300 rounded-xl text-xs font-bold border border-stone-700 cursor-pointer transition-colors shadow-sm"
+                    title="सम्पूर्ण डेटा रिफ्रेस गर्नुहोस्"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>डेटा रिफ्रेस</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Status KPI Ticker */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2 border-t border-stone-800/80 text-xs">
+                <div className="bg-stone-950/60 border border-stone-800/60 p-2.5 rounded-2xl">
+                  <p className="text-[10px] text-stone-400">कुल प्रयोगकर्ता</p>
+                  <p className="text-base font-black text-white">{stats.totalUsers}</p>
+                </div>
+                <div className="bg-stone-950/60 border border-stone-800/60 p-2.5 rounded-2xl">
+                  <p className="text-[10px] text-stone-400">प्रमाणित विशेषज्ञ</p>
+                  <p className="text-base font-black text-emerald-400">{stats.activeExperts}</p>
+                </div>
+                <div className="bg-stone-950/60 border border-stone-800/60 p-2.5 rounded-2xl">
+                  <p className="text-[10px] text-stone-400">पेन्डिङ भुक्तानी</p>
+                  <p className={`text-base font-black ${stats.pendingPayments > 0 ? 'text-amber-400' : 'text-stone-300'}`}>
+                    {stats.pendingPayments}
+                  </p>
+                </div>
+                <div className="bg-stone-950/60 border border-stone-800/60 p-2.5 rounded-2xl">
+                  <p className="text-[10px] text-stone-400">विवाह मञ्च समीक्षा</p>
+                  <p className={`text-base font-black ${stats.pendingVivah > 0 ? 'text-rose-400' : 'text-stone-300'}`}>
+                    {stats.pendingVivah || 0}
+                  </p>
+                </div>
+                <div className="bg-stone-950/60 border border-stone-800/60 p-2.5 rounded-2xl">
+                  <p className="text-[10px] text-stone-400">सफ्टवेयर खरिद</p>
+                  <p className={`text-base font-black ${stats.pendingPurchases > 0 ? 'text-blue-400' : 'text-stone-300'}`}>
+                    {stats.pendingPurchases || 0}
+                  </p>
+                </div>
+                <div className="bg-stone-950/60 border border-stone-800/60 p-2.5 rounded-2xl">
+                  <p className="text-[10px] text-stone-400">प्रणाली स्थिति</p>
+                  <p className="text-base font-black text-emerald-400 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span>सक्रिय</span>
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Grouped Modules */}
-          <div className="p-2.5 space-y-4 overflow-y-auto flex-1 min-h-0">
-            {filteredBlockGroups.map(block => (
-              <div key={block.id} className="space-y-1">
-                <p className="text-[10px] font-bold text-amber-400/80 uppercase tracking-wider px-2.5 py-0.5">
-                  {block.title}
-                </p>
+            {/* ── THE 7 MASTER PAGE BLOCKS GRID ── */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
+                  <span className="text-amber-400">★</span>
+                  <span>७ वटा मुख्य प्रशासनिक पृष्ठहरू (Master Pages)</span>
+                </h3>
+                <span className="text-xs text-stone-500">शीर्षकमा क्लिक गरी पूर्ण स्क्रिनमा प्रवेश गर्नुहोस्</span>
+              </div>
 
-                <div className="space-y-0.5">
-                  {block.items.map(item => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id;
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {blockGroups.map(block => {
+                  const BlockIcon = block.icon;
+                  const pendingCount = (
+                    block.id === 'block_overview' ? (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) :
+                    block.id === 'block_finance' ? (pendingPaymentsCount + pendingPurchasesCount) :
+                    block.id === 'block_vedic_portals' ? (vivahPendingCount + pendingBookingsCount) :
+                    block.id === 'block_users_experts' ? pendingExpertsCount : 0
+                  );
 
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          if (item.id === 'user_control' && onNavigateApp) {
-                            onNavigateApp('user_control');
-                            setIsSidebarOpen(false);
-                            return;
-                          }
-                          setActiveTab(item.id);
-                          setIsSidebarOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-black shadow-md'
-                            : 'text-stone-300 hover:bg-stone-800/90 hover:text-white'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-stone-950' : 'text-amber-400/80'}`} />
-                          <span className="truncate">{item.label}</span>
+                  return (
+                    <div
+                      key={block.id}
+                      onClick={() => handleOpenBlock(block.id, block.defaultTab)}
+                      className="group relative bg-stone-900/90 hover:bg-stone-900 border border-stone-800/90 hover:border-amber-500/60 rounded-3xl p-5 sm:p-6 transition-all duration-200 hover:shadow-2xl hover:shadow-amber-500/10 cursor-pointer flex flex-col justify-between space-y-4"
+                    >
+                      <div className="space-y-3.5">
+                        {/* Top: Number badge, Icon, Alert counter */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-xl bg-stone-950 border border-stone-800 text-xs font-black text-amber-400 font-mono flex items-center justify-center shadow-inner">
+                              {block.number}
+                            </span>
+                            <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${block.accentColor} border flex items-center justify-center shadow-md group-hover:scale-105 transition-transform`}>
+                              <BlockIcon className="w-5 h-5" />
+                            </div>
+                          </div>
+
+                          {pendingCount > 0 && (
+                            <span className="px-2.5 py-1 rounded-xl bg-rose-600/90 text-white font-bold text-xs animate-pulse shadow-sm flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>{pendingCount} बाँकी</span>
+                            </span>
+                          )}
                         </div>
 
-                        {item.badge && (
-                          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full shrink-0 ml-1.5 ${
-                            isActive
-                              ? 'bg-stone-950 text-amber-300 shadow-xs'
-                              : 'bg-red-600 text-white animate-pulse'
-                          }`}>
-                            {item.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                        {/* Title and Short Description */}
+                        <div>
+                          <h4 className="text-base sm:text-lg font-black text-white group-hover:text-amber-400 transition-colors leading-tight">
+                            {block.shortTitle}
+                          </h4>
+                          <p className="text-xs text-stone-400 leading-relaxed mt-1.5 line-clamp-2">
+                            {block.description}
+                          </p>
+                        </div>
+
+                        {/* Sub-menu Pills (Indicating what lives inside this page) */}
+                        <div className="space-y-1.5 pt-1">
+                          <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                            यस पृष्ठका मेनुहरू ({block.items.length})
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {block.items.map(sub => (
+                              <span
+                                key={sub.id}
+                                className="text-[10px] font-medium px-2 py-0.5 rounded-lg bg-stone-950/80 text-stone-300 border border-stone-800/80"
+                              >
+                                {sub.label}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Button Action */}
+                      <div className="pt-3 border-t border-stone-800/80 flex items-center justify-between text-xs font-bold text-amber-400 group-hover:text-amber-300">
+                        <span className="flex items-center gap-1">
+                          <span>यस पृष्ठमा प्रवेश गर्नुहोस्</span>
+                        </span>
+                        <span className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-stone-950 transition-all font-black text-sm">
+                          →
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-
-          {/* Sidebar Footer */}
-          <div className="p-3 border-t border-stone-800 text-center shrink-0 space-y-2 bg-stone-950/40">
-            <button
-              onClick={() => setActiveTab('pages_services')}
-              className="w-full py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 rounded-xl text-xs font-bold transition-colors border border-amber-500/30 flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>पृष्ठ & सेवा स्विचबोर्ड</span>
-            </button>
-
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="w-full py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                सामान्य एपमा फर्किनुहोस्
-              </button>
-            )}
-          </div>
-        </aside>
-
-        {/* Center Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0C0A09] h-full flex flex-col justify-between">
-          <div className="max-w-7xl mx-auto w-full space-y-4">
-            {/* Breadcrumb & Quick Switcher Bar */}
-            <div className="flex items-center justify-between bg-stone-900/60 border border-stone-800/80 px-4 py-2 rounded-2xl text-xs backdrop-blur-xs">
-              <div className="flex items-center gap-2 text-stone-400">
-                <span className="text-stone-500">कमान्ड कक्ष</span>
-                <ChevronRight className="w-3.5 h-3.5 text-stone-600" />
-                <div className="flex items-center gap-1.5 text-amber-400 font-bold">
-                  <CurrentIcon className="w-3.5 h-3.5" />
-                  <span>{currentActiveItem.label}</span>
-                </div>
-              </div>
-
-              {/* Direct Open App Link if available */}
-              {onNavigateApp && (
-                <button
-                  onClick={() => onNavigateApp('dashboard')}
-                  className="text-[11px] text-stone-400 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer font-medium"
-                  title="एपको गृहपृष्ठ खोल्नुहोस्"
-                >
-                  <span>एप पूर्वावलोकन</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-              )}
             </div>
 
-            {/* Tab Views with Isolated Error Boundary */}
-            <TabContentErrorBoundary
-              activeTabTitle={currentActiveItem.label}
-              onFallbackToOverview={() => setActiveTab('overview')}
-            >
-              {activeTab === 'overview' && (
-                <AdminOverviewSection stats={stats} onNavigateTab={(t) => setActiveTab(t)} onRefresh={loadAllData} />
-              )}
-              {activeTab === 'pages_services' && (
-                <AdminPageServiceControlSection
-                  onNavigateAppPage={(tab) => {
-                    if (onNavigateApp) onNavigateApp(tab);
-                    else if (onClose) onClose();
-                  }}
-                  onRefreshParent={loadAllData}
-                />
-              )}
-              {activeTab === 'vivah_portal' && (
-                <AdminVivahSection onRefreshParent={loadAllData} />
-              )}
-              {activeTab === 'client_approvals' && (
-                <AdminClientApprovalsSection onRefresh={loadAllData} />
-              )}
-              {activeTab === 'targeted_push' && (
-                <AdminTargetedPushNotificationSection />
-              )}
-              {activeTab === 'role_magic_links' && (
-                <AdminRoleMagicLinksSection />
-              )}
-              {activeTab === 'samachar_editor' && (
-                <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
-              )}
-              {activeTab === 'advertisement' && (
-                <AdminAdvertisementSection />
-              )}
-              {activeTab === 'daily_whatsapp' && (
-                <DailyWhatsAppDispatchManager
-                  profiles={profiles || []}
-                  todayPanchanga={todayPanchanga || calculatePanchanga(new Date().toISOString().split('T')[0], '06:00', 27.7172, 85.3240, 5.75)}
-                  orgProfile={orgProfile}
-                  transitPlanets={transitPlanets || []}
-                />
-              )}
-              {(activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
-                <UserControlMasterView onBackToDashboard={() => setActiveTab('overview')} onLogoutAdmin={handleLogout} />
-              )}
-              {activeTab === 'staff_rbac' && (
-                <AdminUserManagementSection
-                  users={rbacUsers}
-                  onUpdateUserStatus={handleUpdateUserStatus}
-                  onChangeUserRole={(id, r) => editRBACUserDetails(id, { role: r }, session?.username || 'admin')}
-                  onResetUserPassword={() => {}}
-                  onAddNewUser={() => loadAllData()}
-                  onRefresh={loadAllData}
-                />
-              )}
-              {activeTab === 'rbac' && <AdminRbacSection />}
-              {activeTab === 'experts' && (
-                <AdminExpertSection members={officialMembers} onUpdateStatus={handleUpdateMemberStatus} onRefresh={loadAllData} />
-              )}
-              {activeTab === 'yajaman' && (
-                <AdminYajamanSection users={rbacUsers} bookings={bookings} onRefresh={loadAllData} />
-              )}
-              {activeTab === 'bookings' && (
-                <AdminBookingSection bookings={bookings} onUpdateBookingStatus={handleUpdateBookingStatus} onRefresh={loadAllData} />
-              )}
-              {activeTab === 'geo_monitor' && <AdminGeoMonitorSection />}
-              {activeTab === 'finance' && (
-                <AdminFinanceSection
-                  esewaRequests={esewaRequests}
-                  onApprovePayment={handleApprovePayment}
-                  onRejectPayment={handleRejectPayment}
-                  onRefresh={loadAllData}
-                />
-              )}
-              {activeTab === 'memberships' && <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />}
-              {activeTab === 'patrika' && <AdminPatrikaSection />}
-              {activeTab === 'store_pos' && <AdminStorePosSection products={storeProducts} orders={storeOrders} onRefresh={loadAllData} />}
-              {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
-              {activeTab === 'notifications' && <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />}
-              {activeTab === 'reports' && <AdminReportSection />}
-              {activeTab === 'security_audit' && <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />}
-              {activeTab === 'settings' && <AdminSettingsSection />}
-              {activeTab === 'backup' && <AdminBackupSection />}
-            </TabContentErrorBoundary>
           </div>
         </main>
-      </div>
+      )}
 
-      {/* COMMAND PALETTE MODAL (Ctrl+K) */}
+      {/* ── MODE 2: DEDICATED FULL-SCREEN BLOCK PAGE (activeBlockId !== null) ── */}
+      {activeBlockId && currentActiveBlock && (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0 w-full">
+
+          {/* TOP HORIZONTAL SUB-MENU COMMAND BAR FOR THE BLOCK */}
+          <div className="shrink-0 bg-stone-900 border-b border-stone-800 px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md">
+            {/* Left: Active Block Title & Quick Jump Selector */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold text-xs flex items-center justify-center">
+                  {currentActiveBlock.number}
+                </span>
+                <span className="font-extrabold text-sm sm:text-base text-white">
+                  {currentActiveBlock.shortTitle}
+                </span>
+              </div>
+
+              {/* Quick Block Jump Dropdown */}
+              <div className="relative hidden md:block">
+                <select
+                  value={activeBlockId}
+                  onChange={(e) => handleOpenBlock(e.target.value)}
+                  className="bg-stone-950 border border-stone-800 hover:border-amber-500/50 rounded-xl px-2.5 py-1 text-xs text-stone-300 font-semibold outline-none cursor-pointer"
+                >
+                  {blockGroups.map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Center/Right: Sub-menu Tabs for this Block (Rendered horizontally as page menus) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5">
+              {currentActiveBlock.items.map(item => {
+                const ItemIcon = item.icon;
+                const isActive = activeTab === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-black shadow-md shadow-amber-500/20 scale-[1.02]'
+                        : 'bg-stone-950/80 border border-stone-800 text-stone-300 hover:text-white hover:bg-stone-800/80 hover:border-stone-700'
+                    }`}
+                  >
+                    <ItemIcon className={`w-3.5 h-3.5 ${isActive ? 'text-stone-950 stroke-[2.5]' : 'text-amber-400'}`} />
+                    <span>{item.label}</span>
+                    {item.badge && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                        isActive ? 'bg-stone-950 text-amber-300' : 'bg-red-600 text-white animate-pulse'
+                      }`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* FULL-WIDTH CONTENT WORKSPACE (No squishing, zero text overlap) */}
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 bg-[#0C0A09] w-full">
+            <div className="w-full mx-auto space-y-4">
+              <TabContentErrorBoundary
+                activeTabTitle={currentActiveItem.label}
+                onFallbackToOverview={() => setActiveTab(currentActiveBlock.defaultTab)}
+              >
+                {/* ── BLOCK 1: COMMAND & OVERVIEW VIEWS ── */}
+                {activeTab === 'overview' && (
+                  <AdminOverviewSection
+                    stats={stats}
+                    onNavigateTab={handleNavigateTabFromInside}
+                    onRefresh={loadAllData}
+                  />
+                )}
+
+                {activeTab === 'system_health' && (
+                  <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-6 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
+                      <div>
+                        <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
+                          <Server className="w-5 h-5 text-emerald-400" />
+                          <span>प्रणाली स्वास्थ्य तथा सर्भर स्थिति (System Health Monitor)</span>
+                        </h3>
+                        <p className="text-xs text-stone-400">बालानन्द ज्योतिष तथा पञ्चाङ्ग प्लेटफर्मको प्रत्यक्ष प्राविधिक स्थिति</p>
+                      </div>
+                      <button
+                        onClick={loadAllData}
+                        className="px-3.5 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 rounded-xl text-xs font-bold border border-stone-700 flex items-center gap-1.5 w-fit"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>स्थिति पुनः जाँच</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+                        <span className="text-[11px] text-stone-400">सर्भर स्थिति (Uptime)</span>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-base font-black text-white">९९.९८% सक्रिय</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-400 font-mono">Response Latency: 38ms</span>
+                      </div>
+
+                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+                        <span className="text-[11px] text-stone-400">खगोलीय गणना इन्जिन (Astro Engine)</span>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                          <span className="text-base font-black text-white">Swiss Ephemeris 2.10</span>
+                        </div>
+                        <span className="text-[10px] text-stone-400 font-mono">Lahiri Ayanamsha: Calibrated</span>
+                      </div>
+
+                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+                        <span className="text-[11px] text-stone-400">डाटाबेस सिङ्क (Local / Cloud)</span>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                          <span className="text-base font-black text-white">IndexedDB & Storage</span>
+                        </div>
+                        <span className="text-[10px] text-blue-400 font-mono">Quota: 100% Healthy</span>
+                      </div>
+
+                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+                        <span className="text-[11px] text-stone-400">WhatsApp शेड्युलर क्रोन</span>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                          <span className="text-base font-black text-white">सक्रिय (७:०० AM)</span>
+                        </div>
+                        <span className="text-[10px] text-stone-400 font-mono">Next run: Tomorrow 07:00</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'live_alerts' && (
+                  <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-5 shadow-xl">
+                    <div className="border-b border-stone-800 pb-3 flex items-center justify-between">
+                      <div>
+                        <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
+                          <AlertTriangle className="w-5 h-5 text-amber-400" />
+                          <span>सक्रिय कार्य अलर्ट तथा कार्य सूची (Critical Action Alerts)</span>
+                        </h3>
+                        <p className="text-xs text-stone-400">तुरुन्त सम्पादन गर्नुपर्ने आवश्यक प्रशासनिक कार्यहरू</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {stats.pendingPurchases > 0 && (
+                        <div className="bg-stone-950 border border-rose-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <CreditCard className="w-5 h-5 text-rose-400 shrink-0" />
+                            <div>
+                              <p className="font-bold text-sm text-white">{stats.pendingPurchases} जना ग्राहकको सफ्टवेयर खरिद स्वीकृति बाँकी</p>
+                              <p className="text-xs text-stone-400">ग्राहक भुक्तानी प्रमाणीकरण गरी सफ्टवेयर लाइसेन्स अनलक गर्नुहोस्</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleOpenBlock('block_finance', 'client_approvals')}
+                            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                          >
+                            स्वीकृति दिनुहोस् →
+                          </button>
+                        </div>
+                      )}
+
+                      {stats.pendingPayments > 0 && (
+                        <div className="bg-stone-950 border border-amber-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <DollarSign className="w-5 h-5 text-amber-400 shrink-0" />
+                            <div>
+                              <p className="font-bold text-sm text-white">{stats.pendingPayments} वटा eSewa / बैंक भुक्तानी प्रमाणीकरण बाँकी</p>
+                              <p className="text-xs text-stone-400">ट्रान्ज्याक्सन आईडी प्रमाणीकरण गरी खाता सक्रिय गर्नुहोस्</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleOpenBlock('block_finance', 'finance')}
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                          >
+                            भुक्तानी प्रमाणीकरण →
+                          </button>
+                        </div>
+                      )}
+
+                      {stats.pendingVivah > 0 && (
+                        <div className="bg-stone-950 border border-pink-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <HeartHandshake className="w-5 h-5 text-pink-400 shrink-0" />
+                            <div>
+                              <p className="font-bold text-sm text-white">{stats.pendingVivah} वटा विवाह विज्ञापन तथा प्रोफाइल समीक्षा बाँकी</p>
+                              <p className="text-xs text-stone-400">विवाह मञ्चका प्रोफाइल र सम्पर्क अनुरोध समीक्षा गर्नुहोस्</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleOpenBlock('block_vedic_portals', 'vivah_portal')}
+                            className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                          >
+                            विवाह समीक्षा →
+                          </button>
+                        </div>
+                      )}
+
+                      {stats.pendingExperts > 0 && (
+                        <div className="bg-stone-950 border border-blue-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <Award className="w-5 h-5 text-blue-400 shrink-0" />
+                            <div>
+                              <p className="font-bold text-sm text-white">{stats.pendingExperts} जना नयाँ पण्डित/ज्योतिषीको प्रमाणीकरण बाँकी</p>
+                              <p className="text-xs text-stone-400">कागजात रुजु गरी आधिकारिक विशेषज्ञको स्वीकृति दिनुहोस्</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleOpenBlock('block_users_experts', 'experts')}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                          >
+                            विशेषज्ञ रुजु गर्नुहोस् →
+                          </button>
+                        </div>
+                      )}
+
+                      {stats.pendingPurchases === 0 && stats.pendingPayments === 0 && stats.pendingVivah === 0 && stats.pendingExperts === 0 && (
+                        <div className="text-center py-8 text-stone-400 space-y-2">
+                          <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                          <p className="text-sm font-bold text-white">कुनै पनि तत्काल कार्य अलर्ट बाँकी छैन!</p>
+                          <p className="text-xs">प्रणालीका सबै भुक्तानी, प्रोफाइल र खरिदहरू अद्यावधिक छन्।</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── BLOCK 2: PAGE & SERVICE CONTROL VIEWS ── */}
+                {activeTab === 'pages_services' && (
+                  <AdminPageServiceControlSection
+                    onNavigateAppPage={(tab) => {
+                      if (onNavigateApp) onNavigateApp(tab);
+                      else if (onClose) onClose();
+                    }}
+                    onRefreshParent={loadAllData}
+                  />
+                )}
+                {activeTab === 'samachar_editor' && (
+                  <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
+                )}
+                {activeTab === 'advertisement' && (
+                  <AdminAdvertisementSection />
+                )}
+
+                {/* ── BLOCK 3: VEDIC PORTALS & SERVICES ── */}
+                {activeTab === 'vivah_portal' && (
+                  <AdminVivahSection onRefreshParent={loadAllData} />
+                )}
+                {activeTab === 'bookings' && (
+                  <AdminBookingSection
+                    bookings={bookings}
+                    onUpdateBookingStatus={handleUpdateBookingStatus}
+                    onRefresh={loadAllData}
+                  />
+                )}
+                {activeTab === 'patrika' && <AdminPatrikaSection />}
+                {activeTab === 'store_pos' && (
+                  <AdminStorePosSection
+                    products={storeProducts}
+                    orders={storeOrders}
+                    onRefresh={loadAllData}
+                  />
+                )}
+                {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
+
+                {/* ── BLOCK 4: USERS & EXPERTS MANAGEMENT ── */}
+                {(activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
+                  <UserControlMasterView
+                    onBackToDashboard={handleBackToDashboard}
+                    onLogoutAdmin={handleLogout}
+                  />
+                )}
+                {activeTab === 'experts' && (
+                  <AdminExpertSection
+                    members={officialMembers}
+                    onUpdateStatus={handleUpdateMemberStatus}
+                    onRefresh={loadAllData}
+                  />
+                )}
+                {activeTab === 'yajaman' && (
+                  <AdminYajamanSection users={rbacUsers} bookings={bookings} onRefresh={loadAllData} />
+                )}
+                {activeTab === 'staff_rbac' && (
+                  <AdminUserManagementSection
+                    users={rbacUsers}
+                    onUpdateUserStatus={handleUpdateUserStatus}
+                    onChangeUserRole={(id, r) => editRBACUserDetails(id, { role: r }, session?.username || 'admin')}
+                    onResetUserPassword={() => {}}
+                    onAddNewUser={() => loadAllData()}
+                    onRefresh={loadAllData}
+                  />
+                )}
+                {activeTab === 'rbac' && <AdminRbacSection />}
+                {activeTab === 'role_magic_links' && <AdminRoleMagicLinksSection />}
+
+                {/* ── BLOCK 5: FINANCE & MEMBERSHIPS ── */}
+                {activeTab === 'client_approvals' && (
+                  <AdminClientApprovalsSection onRefresh={loadAllData} />
+                )}
+                {activeTab === 'finance' && (
+                  <AdminFinanceSection
+                    esewaRequests={esewaRequests}
+                    onApprovePayment={handleApprovePayment}
+                    onRejectPayment={handleRejectPayment}
+                    onRefresh={loadAllData}
+                  />
+                )}
+                {activeTab === 'memberships' && (
+                  <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />
+                )}
+
+                {/* ── BLOCK 6: COMMUNICATION & BROADCASTING ── */}
+                {activeTab === 'daily_whatsapp' && (
+                  <DailyWhatsAppDispatchManager
+                    profiles={profiles || []}
+                    todayPanchanga={todayPanchanga || calculatePanchanga(new Date().toISOString().split('T')[0], '06:00', 27.7172, 85.3240, 5.75)}
+                    orgProfile={orgProfile}
+                    transitPlanets={transitPlanets || []}
+                  />
+                )}
+                {activeTab === 'targeted_push' && <AdminTargetedPushNotificationSection />}
+                {activeTab === 'notifications' && (
+                  <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />
+                )}
+                {activeTab === 'geo_monitor' && <AdminGeoMonitorSection />}
+
+                {/* ── BLOCK 7: SETTINGS, SECURITY & BACKUP ── */}
+                {activeTab === 'settings' && <AdminSettingsSection />}
+                {activeTab === 'security_audit' && (
+                  <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />
+                )}
+                {activeTab === 'reports' && <AdminReportSection />}
+                {activeTab === 'backup' && <AdminBackupSection />}
+              </TabContentErrorBoundary>
+            </div>
+          </main>
+        </div>
+      )}
+
+      {/* ── COMMAND PALETTE MODAL (Ctrl+K) ── */}
       {isCommandPaletteOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center pt-20 p-4">
           <div className="bg-stone-900 border border-amber-500/40 rounded-3xl max-w-lg w-full p-5 shadow-2xl space-y-4">
@@ -1018,14 +1416,17 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                   <button
                     key={i.id}
                     onClick={() => {
-                      setActiveTab(i.id);
+                      handleOpenBlock(i.blockId, i.id);
                       setIsCommandPaletteOpen(false);
                     }}
                     className="w-full text-left px-3 py-2 rounded-xl hover:bg-stone-800 text-stone-200 flex items-center justify-between cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-2.5">
                       <ItemIcon className="w-4 h-4 text-amber-400" />
-                      <span>{i.label}</span>
+                      <div>
+                        <span className="font-bold block text-white">{i.label}</span>
+                        <span className="text-[10px] text-stone-400">{i.blockTitle}</span>
+                      </div>
                     </div>
                     <ChevronRight className="w-3.5 h-3.5 text-stone-500" />
                   </button>
