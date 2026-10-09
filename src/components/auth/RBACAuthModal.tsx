@@ -295,7 +295,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       return;
     }
 
-    const res = authenticateRBACUser(phoneOrUsername, password);
+    const res = authenticateRBACUser(phoneOrUsername.trim(), password.trim());
 
     if (res.success && res.session) {
       setSuccessMsg(res.message);
