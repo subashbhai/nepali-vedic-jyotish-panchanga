@@ -611,54 +611,6 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
         </div>
       )}
 
-      {/* Brand Header Banner */}
-      <header className="bg-gradient-to-r from-[#78350F] via-[#92400E] to-[#B45309] text-white py-6 px-4 shadow-lg relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(251,191,36,0.15),transparent_60%)] pointer-events-none" />
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 relative z-10">
-          <div className="text-center md:text-left space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/30 text-xs font-bold tracking-wider">
-              <span>ॐ</span>
-              <span>वैदिक सेवा मार्केटप्लेस</span>
-              <span>ॐ</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-amber-100 tracking-tight">
-              बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा
-            </h1>
-            <p className="text-xs sm:text-sm text-amber-200 font-medium">
-              नेपालकै सबैभन्दा भरपर्दो वैदिक सेवा — यजमान र विशेषज्ञ जोड्ने डिजिटल सेवा प्रणाली
-            </p>
-          </div>
-
-          {/* Role Mode Switcher (Yajaman Portal vs Provider Portal) */}
-          <div className="flex items-center gap-2 bg-stone-900/60 p-1.5 rounded-2xl border border-amber-500/30 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setPortalMode('YAJAMAN')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                portalMode === 'YAJAMAN'
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 shadow-md'
-                  : 'text-amber-200 hover:text-white'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>यजमान पोर्टल (Yajaman)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPortalMode('PROVIDER')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                portalMode === 'PROVIDER'
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 shadow-md'
-                  : 'text-amber-200 hover:text-white'
-              }`}
-            >
-              <Award className="w-4 h-4" />
-              <span>सेवा प्रदायक (Provider)</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         {portalMode === 'YAJAMAN' ? (
@@ -803,6 +755,16 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                   </button>
                 );
               })}
+
+              <button
+                type="button"
+                onClick={() => setPortalMode('PROVIDER')}
+                className="ml-auto px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 hover:bg-amber-100 cursor-pointer shrink-0"
+                title="सेवा प्रदायक पोर्टलमा जानुहोस्"
+              >
+                <Award className="w-3.5 h-3.5 text-amber-600" />
+                <span>सेवा प्रदायक</span>
+              </button>
             </div>
 
             {/* TAB 0: COMMUNITY FEED (PUBLIC & SOCIAL) */}

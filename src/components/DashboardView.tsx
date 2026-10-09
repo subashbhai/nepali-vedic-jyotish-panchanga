@@ -38,7 +38,9 @@ import {
   Printer,
   Download,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { getStoredArticles, SamacharArticle } from '../db/samacharStore';
 import { 
@@ -70,7 +72,13 @@ import { ReportActionToolbar } from './common/ReportActionToolbar';
 import { DailyWhatsAppDispatchManager } from './admin/DailyWhatsAppDispatchManager';
 import { RBACSession } from '../db/rbacStore';
 import { PersonalizedMemberAstrologyHub } from './dashboard/PersonalizedMemberAstrologyHub';
-import { generateDailyVedicSankalpa } from '../utils/vedicSankalpaEngine';
+import { 
+  generateDailyVedicSankalpa,
+  SankalpaPujaType,
+  PUJA_TYPE_DETAILS,
+  COMMON_GOTRAS
+} from '../utils/vedicSankalpaEngine';
+import { handlePhoneticInputKeyDown } from '../utils/nepaliTransliteration';
 import { 
   getStoredUserLocation, 
   saveUserDetectedLocation, 
@@ -163,6 +171,15 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
   const [isMahaSankalpaModalOpen, setIsMahaSankalpaModalOpen] = useState(false);
   const [sankalpaCopied, setSankalpaCopied] = useState(false);
   const [isDailyPanchangaModalOpen, setIsDailyPanchangaModalOpen] = useState(false);
+
+  // Daily Sankalpa Customization & Full-Screen States
+  const [sankalpaPujaType, setSankalpaPujaType] = useState<SankalpaPujaType>('daily');
+  const [sankalpaGotra, setSankalpaGotra] = useState<string>(
+    activeProfile?.gotra || activeProfile?.fatherDetails?.gotra || 'अमुक (आफ्नो गोत्र)'
+  );
+  const [sankalpaName, setSankalpaName] = useState<string>(activeProfile?.name || 'subash khanal');
+  const [sankalpaLocation, setSankalpaLocation] = useState<string>('');
+  const [isSankalpaFullScreen, setIsSankalpaFullScreen] = useState(false);
 
   // PDF Exporting State
   const [isExportingPDF, setIsExportingPDF] = useState(false);
@@ -313,7 +330,20 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
     } else {
       setActiveGeoLocation(getStoredUserLocation());
     }
+    if (activeProfile?.name) {
+      setSankalpaName(activeProfile.name);
+    }
+    const profileGotra = activeProfile?.gotra || activeProfile?.fatherDetails?.gotra;
+    if (profileGotra) {
+      setSankalpaGotra(profileGotra);
+    }
   }, [activeProfile]);
+
+  // Sync activeGeoLocation into sankalpaLocation if empty or changed
+  React.useEffect(() => {
+    const defaultLoc = activeGeoLocation?.name?.split('(')[0]?.trim() || activeGeoLocation?.district || 'सूर्यविनायक, भक्तपुर जिल्ला';
+    setSankalpaLocation((prev) => (prev ? prev : defaultLoc));
+  }, [activeGeoLocation]);
 
   // Listen to global geo updates
   React.useEffect(() => {
@@ -346,9 +376,35 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
       todayPanchanga,
       activeProfile,
       currentTransitOrNatalPlanets,
-      activeGeoLocation
+      activeGeoLocation,
+      {
+        customPujaType: sankalpaPujaType,
+        customGotra: sankalpaGotra,
+        customName: sankalpaName,
+        customLocation: sankalpaLocation
+      }
     );
-  }, [todayPanchanga, activeProfile, currentTransitOrNatalPlanets, activeGeoLocation]);
+  }, [
+    todayPanchanga, 
+    activeProfile, 
+    currentTransitOrNatalPlanets, 
+    activeGeoLocation,
+    sankalpaPujaType,
+    sankalpaGotra,
+    sankalpaName,
+    sankalpaLocation
+  ]);
+
+  // Close full screen on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isSankalpaFullScreen) {
+        setIsSankalpaFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSankalpaFullScreen]);
 
   const handleCopyDailySankalpa = () => {
     if (!dailySankalpa) return;
@@ -515,9 +571,20 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                   </div>
                 </div>
 
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100/90 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold border border-amber-300/60 dark:border-amber-800/60 whitespace-nowrap shrink-0">
-                  दैनिक स्वतः अद्यावधिक
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100/90 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold border border-amber-300/60 dark:border-amber-800/60 whitespace-nowrap">
+                    दैनिक स्वतः अद्यावधिक
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsSankalpaFullScreen(true)}
+                    className="p-1 px-2 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-amber-900 dark:text-amber-200 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold border border-amber-300/70 dark:border-amber-800/60 shadow-2xs active:scale-95"
+                    title="दैनिक सङ्कल्प पूर्ण पर्दा (Full Screen) मा हेर्नुहोस्"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-amber-800 dark:text-amber-300" />
+                    <span className="hidden sm:inline">फुल स्क्रिन</span>
+                  </button>
+                </div>
               </div>
 
               {/* Row 2: Location Selector & GPS Auto-detect Bar */}
@@ -560,6 +627,77 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                     यजमान: {activeProfile.name}
                   </span>
                 )}
+              </div>
+
+              {/* Row 3: Interactive Customization Form (पूजा प्रकार, गोत्र, नाम, स्थान) */}
+              <div className="bg-[#FBF8F2] dark:bg-[#231E18] p-2.5 rounded-xl border border-amber-200/80 dark:border-stone-800 shadow-2xs space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {/* 1. पूजा / अनुष्ठान प्रकार */}
+                  <div>
+                    <label className="block text-[10.5px] font-bold text-stone-700 dark:text-stone-300 mb-0.5">
+                      पूजा / अनुष्ठान प्रकार:
+                    </label>
+                    <select
+                      value={sankalpaPujaType}
+                      onChange={(e) => setSankalpaPujaType(e.target.value as SankalpaPujaType)}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-[11px] focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                    >
+                      {Object.entries(PUJA_TYPE_DETAILS).map(([key, details]) => (
+                        <option key={key} value={key}>
+                          {details.labelNepali}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 2. गोत्र */}
+                  <div>
+                    <label className="block text-[10.5px] font-bold text-stone-700 dark:text-stone-300 mb-0.5">
+                      सङ्कल्प कर्ताको गोत्र:
+                    </label>
+                    <select
+                      value={sankalpaGotra}
+                      onChange={(e) => setSankalpaGotra(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-[11px] focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                    >
+                      {COMMON_GOTRAS.map((g) => (
+                        <option key={g} value={g}>
+                          {g.includes('(') || g.includes('गोत्र') ? g : `${g} गोत्र`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 3. यजमानको नाम */}
+                  <div>
+                    <label className="block text-[10.5px] font-bold text-stone-700 dark:text-stone-300 mb-0.5">
+                      यजमानको पूरा नाम:
+                    </label>
+                    <input
+                      type="text"
+                      value={sankalpaName}
+                      onChange={(e) => setSankalpaName(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, sankalpaName, setSankalpaName)}
+                      placeholder="यजमानको पूरा नाम"
+                      className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-[11px] focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  {/* 4. स्थान (जिल्ला/शहर) */}
+                  <div>
+                    <label className="block text-[10.5px] font-bold text-stone-700 dark:text-stone-300 mb-0.5">
+                      पूजा स्थान (जिल्ला/शहर):
+                    </label>
+                    <input
+                      type="text"
+                      value={sankalpaLocation}
+                      onChange={(e) => setSankalpaLocation(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, sankalpaLocation, setSankalpaLocation)}
+                      placeholder="पूजा स्थान (जिल्ला/शहर)"
+                      className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-[11px] focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1022,6 +1160,212 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
         activeProfile={activeProfile}
         planets={currentTransitOrNatalPlanets}
       />
+
+      {/* 🪔 Full-Screen Daily Vedic Sankalpa Recitation Modal */}
+      {isSankalpaFullScreen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-stone-950/85 backdrop-blur-md animate-fadeIn overflow-hidden">
+          <div className="max-w-5xl w-full h-[94vh] bg-[#FAF8F5] dark:bg-stone-900 rounded-2xl shadow-2xl border border-amber-300/80 dark:border-stone-700 flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-4 sm:px-6 py-3.5 bg-gradient-to-r from-[#78350F] via-[#92400E] to-[#B45309] text-white flex items-center justify-between shadow-md shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-10 h-10 bg-amber-400/20 text-white rounded-xl flex items-center justify-center font-bold text-xl border border-amber-300/40 shadow-inner shrink-0 select-none">
+                  🪔
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-bold font-serif leading-tight text-white flex items-center gap-2 truncate">
+                    <span>दैनिक वैदिक सङ्कल्प (पूर्ण पर्दा)</span>
+                    <span className="text-[10px] font-sans font-bold bg-white/20 text-amber-100 px-2 py-0.5 rounded-full border border-white/30 hidden sm:inline">
+                      शास्त्रोक्त नित्य विधि
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-amber-100 font-medium truncate">
+                    {dailySankalpa.panchangaSummary}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsSankalpaFullScreen(false)}
+                  className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  title="पूर्ण पर्दा बन्द गर्नुहोस् (Esc)"
+                >
+                  <Minimize2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">सामान्य दृश्य</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              {/* Form Bar inside Full Screen */}
+              <div className="bg-white dark:bg-stone-800 p-3.5 sm:p-4 rounded-xl border border-amber-200 dark:border-stone-700 shadow-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      पूजा / अनुष्ठान प्रकार:
+                    </label>
+                    <select
+                      value={sankalpaPujaType}
+                      onChange={(e) => setSankalpaPujaType(e.target.value as SankalpaPujaType)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                    >
+                      {Object.entries(PUJA_TYPE_DETAILS).map(([key, details]) => (
+                        <option key={key} value={key}>
+                          {details.labelNepali}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      सङ्कल्प कर्ताको गोत्र:
+                    </label>
+                    <select
+                      value={sankalpaGotra}
+                      onChange={(e) => setSankalpaGotra(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                    >
+                      {COMMON_GOTRAS.map((g) => (
+                        <option key={g} value={g}>
+                          {g.includes('(') || g.includes('गोत्र') ? g : `${g} गोत्र`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      यजमानको पूरा नाम:
+                    </label>
+                    <input
+                      type="text"
+                      value={sankalpaName}
+                      onChange={(e) => setSankalpaName(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, sankalpaName, setSankalpaName)}
+                      placeholder="यजमानको पूरा नाम"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      पूजा स्थान (जिल्ला/शहर):
+                    </label>
+                    <input
+                      type="text"
+                      value={sankalpaLocation}
+                      onChange={(e) => setSankalpaLocation(e.target.value)}
+                      onKeyDown={(e) => handlePhoneticInputKeyDown(e, sankalpaLocation, setSankalpaLocation)}
+                      placeholder="पूजा स्थान (जिल्ला/शहर)"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 font-bold text-stone-900 dark:text-stone-100 text-xs focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sacred Geography & Pilgrimage Unified Card */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-white dark:bg-stone-800 p-3 rounded-xl border border-amber-200 dark:border-stone-700 flex items-center gap-3">
+                  <span className="text-2xl">🌊</span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">पवित्र नदी / तीर्थ</p>
+                    <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{dailySankalpa.geoInfo.riverNepali}</p>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-stone-800 p-3 rounded-xl border border-amber-200 dark:border-stone-700 flex items-center gap-3">
+                  <span className="text-2xl">🛕</span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">प्रसिद्ध देवपीठ</p>
+                    <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{dailySankalpa.geoInfo.deityNepali}</p>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-stone-800 p-3 rounded-xl border border-amber-200 dark:border-stone-700 flex items-center gap-3">
+                  <span className="text-2xl">🪐</span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">आजको गोचर</p>
+                    <p className="text-xs font-bold text-amber-900 dark:text-amber-300 truncate">{dailySankalpa.grahaStatusSummary}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sanskrit Text - Recitation Mode */}
+              <div className="p-6 sm:p-8 rounded-2xl bg-[#FCF8EE] dark:bg-stone-950/80 border-2 border-amber-300 dark:border-amber-900/60 shadow-inner">
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-amber-300/60 dark:border-stone-700">
+                  <span className="font-bold text-amber-900 dark:text-amber-300 text-sm sm:text-base font-serif flex items-center gap-2">
+                    <span>🕉️</span>
+                    <span>॥ आजको शास्त्रोक्त वैदिक सङ्कल्प वाक्यम् ॥</span>
+                  </span>
+                  <span className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-stone-800 px-3 py-1 rounded-full font-mono">
+                    {dailySankalpa.panchangaSummary.split('•')[2]}
+                  </span>
+                </div>
+                <p className="text-base sm:text-lg md:text-xl leading-relaxed sm:leading-loose font-serif text-stone-900 dark:text-stone-100 text-justify select-text">
+                  {dailySankalpa.sanskritText}
+                </p>
+              </div>
+
+              {/* Nepali Translation Box */}
+              {dailySankalpa.nepaliExplanation && (
+                <div className="p-4 sm:p-5 rounded-xl bg-amber-50/70 dark:bg-stone-800/80 border border-amber-200 dark:border-stone-700">
+                  <h4 className="text-xs font-bold text-amber-950 dark:text-amber-300 font-serif mb-2 flex items-center gap-1.5">
+                    <span>📖</span>
+                    <span>नेपाली सरल भावार्थ (सङ्कल्प अर्थ):</span>
+                  </h4>
+                  <p className="text-xs sm:text-sm leading-relaxed text-stone-700 dark:text-stone-300 text-justify">
+                    {dailySankalpa.nepaliExplanation}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Toolbar */}
+            <div className="px-4 sm:px-6 py-3 bg-white dark:bg-stone-800 border-t border-[#E6E0D5] dark:border-stone-700 flex items-center justify-between gap-2 shrink-0">
+              <div className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
+                📍 {sankalpaLocation} | {sankalpaGotra} गोत्र | {sankalpaName}
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleCopyDailySankalpa}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-800 dark:text-stone-100 rounded-xl text-xs font-bold transition-all border border-stone-300 dark:border-stone-600 cursor-pointer shadow-2xs"
+                >
+                  {sankalpaCopied ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-emerald-700 dark:text-emerald-300 font-bold">प्रतिलिपि भयो</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-stone-600 dark:text-stone-300" />
+                      <span>प्रतिलिपि गर्नुहोस्</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleShareDailySankalpa}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                >
+                  <Share2 className="w-4 h-4 text-white" />
+                  <span>सेयर गर्नुहोस्</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSankalpaFullScreen(false)}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                >
+                  बन्द गर्नुहोस्
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 🌟 1-Page Balananda Daily Panchanga Print / PDF / WhatsApp PNG Modal */}
       {isDailyPanchangaModalOpen && (
