@@ -549,10 +549,16 @@ export function saveAllClientPolicies(records: ClientAccessRecord[]): void {
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
     window.dispatchEvent(new CustomEvent('client-policies-updated', { detail: { records: sanitized } }));
+    window.dispatchEvent(new CustomEvent('page-service-control-updated'));
     try {
       const bc = new BroadcastChannel('balananda_client_policy_channel');
       bc.postMessage({ type: 'POLICIES_UPDATED', timestamp: Date.now() });
       bc.close();
+    } catch {}
+    try {
+      const bcPage = new BroadcastChannel('balananda_page_service_control_channel');
+      bcPage.postMessage({ type: 'POLICIES_UPDATED', timestamp: Date.now() });
+      bcPage.close();
     } catch {}
   } catch (e) {
     console.error('Failed to save client policies:', e);
@@ -737,7 +743,7 @@ export function verifyClientMobileLogin(
   policy.lastLoginISO = new Date().toISOString();
 
   const all = loadAllClientPolicies();
-  const idx = all.findIndex(r => r.mobile === cleanMobile);
+  const idx = all.findIndex(r => r.mobile === policy.mobile);
   if (idx > -1) {
     all[idx] = policy;
     saveAllClientPolicies(all);
@@ -809,15 +815,53 @@ export function changeClientPassword(
 }
 
 /**
+ * Helper to identify active user mobile on current device
+ */
+export function getActiveUserMobile(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  // 1. Check active mobile policy
+  try {
+    const raw = localStorage.getItem('balananda_active_mobile_policy_v1');
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p?.mobile) return String(p.mobile).replace(/\D/g, '');
+    }
+  } catch {}
+
+  // 2. Check RBAC session
+  try {
+    const rbacRaw = localStorage.getItem('balananda_rbac_active_session_v1');
+    if (rbacRaw) {
+      const r = JSON.parse(rbacRaw);
+      if (r?.phone) return String(r.phone).replace(/\D/g, '');
+      if (r?.username && /^\d{10}$/.test(r.username)) return String(r.username).replace(/\D/g, '');
+    }
+  } catch {}
+
+  // 3. Check customer session or lead phone
+  try {
+    const devRaw = localStorage.getItem('balananda_active_customer_mobile_v1') ||
+      localStorage.getItem('balananda_user_mobile_number') ||
+      localStorage.getItem('balananda_client_purchase_lead_phone');
+    if (devRaw) return String(devRaw).replace(/\D/g, '');
+  } catch {}
+
+  return null;
+}
+
+/**
  * Check if a specific feature is allowed for the currently logged in mobile policy
+ * Interlinked with Super Admin User Control & Page Service Switchboard
  */
 export function checkFeatureAccess(featureId: string): {
   allowed: boolean;
   state: AccessState;
   reasonNepali: string;
+  hasPersonalPolicy: boolean;
 } {
   if (typeof window === 'undefined') {
-    return { allowed: true, state: 'open', reasonNepali: '' };
+    return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: false };
   }
 
   // Super Admin always has 100% full access
@@ -826,7 +870,7 @@ export function checkFeatureAccess(featureId: string): {
     if (rbacRaw) {
       const rbac = JSON.parse(rbacRaw);
       if (rbac.role === 'SUPER_ADMIN' || rbac.role === 'ADMIN') {
-        return { allowed: true, state: 'open', reasonNepali: '' };
+        return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: true };
       }
     }
   } catch {}
@@ -836,12 +880,38 @@ export function checkFeatureAccess(featureId: string): {
     if (adminRaw) {
       const admin = JSON.parse(adminRaw);
       if (admin && admin.role) {
-        return { allowed: true, state: 'open', reasonNepali: '' };
+        return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: true };
       }
     }
   } catch {}
 
-  // Check active mobile policy
+  // Check active mobile against live stored policies (real-time sync)
+  const activeMobile = getActiveUserMobile();
+  if (activeMobile) {
+    const freshPolicy = getClientPolicyByMobile(activeMobile);
+    if (freshPolicy) {
+      const state = freshPolicy.permissions?.[featureId] || 'open';
+      if (state === 'close') {
+        return {
+          allowed: false,
+          state: 'close',
+          reasonNepali: 'यो सुविधा मुख्य प्रशासक (Super Admin) द्वारा यस खाताको लागि बन्द गरिएको छ।',
+          hasPersonalPolicy: true
+        };
+      }
+      if (state === 'lock') {
+        return {
+          allowed: false,
+          state: 'lock',
+          reasonNepali: 'यो प्रिमियम सुविधा लक गरिएको छ। खोल्नका लागि सुपरएडमिनबाट अनुमति लिनुहोस्।',
+          hasPersonalPolicy: true
+        };
+      }
+      return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: true };
+    }
+  }
+
+  // Check cached active mobile policy
   try {
     const rawPolicy = localStorage.getItem('balananda_active_mobile_policy_v1');
     if (rawPolicy) {
@@ -852,7 +922,8 @@ export function checkFeatureAccess(featureId: string): {
         return {
           allowed: false,
           state: 'close',
-          reasonNepali: 'यो सुविधा मुख्य प्रशासक (Super Admin) द्वारा बन्द गरिएको छ।'
+          reasonNepali: 'यो सुविधा मुख्य प्रशासक (Super Admin) द्वारा बन्द गरिएको छ।',
+          hasPersonalPolicy: true
         };
       }
 
@@ -860,13 +931,15 @@ export function checkFeatureAccess(featureId: string): {
         return {
           allowed: false,
           state: 'lock',
-          reasonNepali: 'यो प्रिमियम सुविधा लक गरिएको छ। खोल्नका लागि सुपरएडमिनबाट अनुमति लिनुहोस्।'
+          reasonNepali: 'यो प्रिमियम सुविधा लक गरिएको छ। खोल्नका लागि सुपरएडमिनबाट अनुमति लिनुहोस्।',
+          hasPersonalPolicy: true
         };
       }
 
-      return { allowed: true, state: 'open', reasonNepali: '' };
+      return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: true };
     }
   } catch {}
 
-  return { allowed: true, state: 'open', reasonNepali: '' };
+  return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: false };
 }
+
