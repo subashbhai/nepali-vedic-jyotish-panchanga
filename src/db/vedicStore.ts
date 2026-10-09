@@ -264,26 +264,40 @@ export const saveProducts = (products: Product[]): void => {
 };
 
 export const getStoredOrders = (): StoreOrder[] => {
-  if (memoryVedicOrders) return memoryVedicOrders;
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.ORDERS);
-    if (!raw) {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem(STORAGE_KEYS.ORDERS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          memoryVedicOrders = parsed;
+          return parsed;
+        }
+      }
       localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(INITIAL_DEMO_ORDERS));
-      memoryVedicOrders = INITIAL_DEMO_ORDERS;
-      return INITIAL_DEMO_ORDERS;
     }
-    memoryVedicOrders = JSON.parse(raw);
-    return memoryVedicOrders!;
+    if (!memoryVedicOrders) {
+      memoryVedicOrders = INITIAL_DEMO_ORDERS;
+    }
+    return memoryVedicOrders;
   } catch (e) {
     console.error('Failed to load orders:', e);
-    return INITIAL_DEMO_ORDERS;
+    return memoryVedicOrders || INITIAL_DEMO_ORDERS;
   }
 };
 
 export const saveOrders = (orders: StoreOrder[]): void => {
   memoryVedicOrders = orders;
   try {
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+      window.dispatchEvent(new CustomEvent('vedic-orders-updated', { detail: { orders } }));
+      try {
+        const bc = new BroadcastChannel('balananda_store_sync_channel');
+        bc.postMessage({ type: 'ORDERS_UPDATED', orders, timestamp: Date.now() });
+        bc.close();
+      } catch {}
+    }
   } catch (e) {
     console.error('Failed to save orders:', e);
   }

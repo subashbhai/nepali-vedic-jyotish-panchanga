@@ -198,13 +198,13 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
       badgeColor: stats.pendingExperts ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-blue-500/20 text-blue-300 border-blue-500/40',
       description: 'ज्योतिषी, पुरोहित तथा वास्तुविद्हरूको आवेदन स्वीकृति, यजमान प्रोफाइल, RBAC भूमिका र म्याजिक लिङ्क।',
       icon: Users,
-      mainTab: 'users',
-      mainActionLabel: 'प्रयोगकर्ता कक्ष खोल्नुहोस्',
+      mainTab: 'user_control',
+      mainActionLabel: 'प्रयोगकर्ता नियन्त्रण कक्ष (User Control)',
       gradient: 'from-blue-950/40 via-stone-900 to-stone-900',
       borderColor: 'border-blue-500/30 hover:border-blue-400',
       iconColor: 'text-blue-400 bg-blue-500/15',
       subLinks: [
-        { tab: 'users', label: 'सबै प्रयोगकर्ताहरू' },
+        { tab: 'user_control', label: 'प्रयोगकर्ता नियन्त्रण (User Control)' },
         { tab: 'experts', label: 'विशेषज्ञ स्वीकृति' },
         { tab: 'yajaman', label: 'यजमान प्रोफाइल' },
         { tab: 'rbac', label: 'भूमिका & अधिकार' },
@@ -276,7 +276,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
   ];
 
   const kpiCards = [
-    { id: 'totalUsers', label: 'जम्मा प्रयोगकर्ता', value: stats.totalUsers, icon: Users, tab: 'users', color: 'from-blue-600 to-indigo-700' },
+    { id: 'totalUsers', label: 'जम्मा प्रयोगकर्ता', value: stats.totalUsers, icon: Users, tab: 'user_control', color: 'from-blue-600 to-indigo-700' },
     { id: 'totalYajaman', label: 'जम्मा यजमान/ग्राहक', value: stats.totalYajaman, icon: UserCheck, tab: 'yajaman', color: 'from-emerald-600 to-teal-700' },
     { id: 'totalExperts', label: 'जम्मा विशेषज्ञ', value: stats.totalExperts, icon: Award, tab: 'experts', color: 'from-purple-600 to-indigo-700' },
     { id: 'pendingExperts', label: 'स्वीकृति बाँकी विशेषज्ञ', value: stats.pendingExperts, icon: Clock, tab: 'experts', color: 'from-amber-500 to-orange-600', badge: stats.pendingExperts > 0 ? 'Urgent' : null },

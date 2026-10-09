@@ -85,6 +85,7 @@ const DateConverterView = lazy(() => import('./components/converter/DateConverte
 const OrgProfileView = lazy(() => import('./components/profile/OrgProfileView').then((m) => ({ default: m.OrgProfileView })));
 const TransitNotificationCenterModal = lazy(() => import('./components/TransitNotificationCenterModal').then((m) => ({ default: m.TransitNotificationCenterModal })));
 const DailyWhatsAppDispatchManager = lazy(() => import('./components/admin/DailyWhatsAppDispatchManager').then((m) => ({ default: m.DailyWhatsAppDispatchManager })));
+const UserControlMasterView = lazy(() => import('./components/admin/UserControlMasterView').then((m) => ({ default: m.UserControlMasterView })));
 import { DailyWhatsAppReminderBanner } from './components/common/DailyWhatsAppReminderBanner';
 import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBanner';
 import { DeviceUpdateNotificationBanner } from './components/common/DeviceUpdateNotificationBanner';
@@ -171,6 +172,7 @@ export const TAB_TO_HASH: Record<string, string> = {
   my_subscription: 'my_subscription',
   apply_expert: 'apply_expert',
   admin_control: 'admin_control',
+  user_control: 'user_control',
   store_admin: 'store_admin',
   pos: 'pos',
   news_editor: 'news_editor',
@@ -236,6 +238,13 @@ export const HASH_TO_TAB: Record<string, NavTab> = {
   'admin_control': 'admin_control',
   'admin': 'admin_control',
   'super_admin': 'admin_control',
+  'user_control': 'user_control',
+  'user-control': 'user_control',
+  'usercontrol': 'user_control',
+  'users': 'user_control',
+  'user_management': 'user_control',
+  'user-management': 'user_control',
+  'menu_control': 'user_control',
   'store_admin': 'store_admin',
   'pasal_admin': 'store_admin',
   'library_admin': 'store_admin',
@@ -289,6 +298,7 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
   my_subscription: 'मेरो सदस्यता तथा लाइसेन्स',
   apply_expert: 'ज्योतिषी तथा वास्तुविद् प्रमाणीकरण',
   admin_control: 'सुपरएडमिन नियन्त्रण कक्ष',
+  user_control: '🎛️ प्रयोगकर्ता नियन्त्रण (User Control)',
   store_admin: '🏬 स्टोर तथा डिजिटल पुस्तकालय व्यवस्थापक',
   pos: '🛍️ काउन्टर POS बिलिङ टर्मिनल',
   news_editor: '📰 समाचार तथा लेख सम्पादक ड्यासबोर्ड',
@@ -301,6 +311,7 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
 
 export const ADMIN_PORTAL_TABS = new Set<NavTab>([
   'admin_control',
+  'user_control',
   'store_admin',
   'pos',
   'news_editor',
@@ -756,7 +767,13 @@ export default function App() {
       setTrialStatusInfo(evaluateSubscriptionStatus());
     };
     const handlePrintBlocked = (e: any) => {
-      setTrialPrintDocType(e?.detail?.docType || 'general');
+      const docType = e?.detail?.docType;
+      // STRICT REQUIREMENT: Only Jyotish sewa patrika print and Vastu report require purchase/unlock!
+      // ALL other prints (Baidik Pasal voucher/receipt/invoice, books, calendar, panchanga, etc.) MUST BE 100% FREE!
+      if (docType !== 'kundali' && docType !== 'vastu') {
+        return;
+      }
+      setTrialPrintDocType(docType);
       setIsTrialPrintRestrictedModalOpen(true);
     };
     const handleOpenPurchase = () => {
@@ -1031,11 +1048,24 @@ export default function App() {
         return;
       }
 
-      const docType = (activeTab === 'vastu') ? 'vastu' : (activeTab === 'jyotishi' || activeTab === 'dashboard' || activeTab === 'patrika' || activeTab === 'kundali' || activeTab === 'dasha' || activeTab === 'faladesh') ? 'kundali' : 'general';
-      const check = canUserPrintDocuments(docType);
-      if (!check.allowed) {
-        window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
-        return;
+      // Only Jyotish patrika and Vastu report require license verification; all store vouchers, invoices and receipts are 100% free!
+      const isStoreOrVoucherPrinting =
+        Boolean(document.getElementById('printable-store-invoice')) ||
+        Boolean(document.getElementById('printable-receipt')) ||
+        Boolean(document.getElementById('balananda-isolated-print-mount')) ||
+        document.body.classList.contains('is-printing-report') ||
+        activeTab === 'kharedi' ||
+        activeTab === 'pasal' ||
+        activeTab === 'store_admin' ||
+        activeTab === 'pos';
+
+      if (!isStoreOrVoucherPrinting && (activeTab === 'patrika' || activeTab === 'vastu')) {
+        const docType = (activeTab === 'vastu') ? 'vastu' : 'kundali';
+        const check = canUserPrintDocuments(docType);
+        if (!check.allowed) {
+          window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+          return;
+        }
       }
 
       // 2. Identify if any active printable report is currently in the DOM
@@ -1073,10 +1103,26 @@ export default function App() {
     };
 
     const handleBeforePrint = () => {
-      const docType = (activeTab === 'vastu') ? 'vastu' : (activeTab === 'jyotishi' || activeTab === 'dashboard' || activeTab === 'patrika' || activeTab === 'kundali' || activeTab === 'dasha' || activeTab === 'faladesh') ? 'kundali' : 'general';
-      const check = canUserPrintDocuments(docType);
-      if (!check.allowed) {
-        window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+      // If currently inside isolated print mount, let browser print natively
+      if (document.body.classList.contains('is-printing-report')) {
+        return;
+      }
+
+      const isStoreOrVoucherPrinting =
+        Boolean(document.getElementById('printable-store-invoice')) ||
+        Boolean(document.getElementById('printable-receipt')) ||
+        Boolean(document.getElementById('balananda-isolated-print-mount')) ||
+        activeTab === 'kharedi' ||
+        activeTab === 'pasal' ||
+        activeTab === 'store_admin' ||
+        activeTab === 'pos';
+
+      if (!isStoreOrVoucherPrinting && (activeTab === 'patrika' || activeTab === 'vastu')) {
+        const docType = (activeTab === 'vastu') ? 'vastu' : 'kundali';
+        const check = canUserPrintDocuments(docType);
+        if (!check.allowed) {
+          window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+        }
       }
     };
 
@@ -2278,6 +2324,16 @@ export default function App() {
               todayPanchanga={todayPanchanga}
               orgProfile={orgProfile}
               transitPlanets={todayTransitPlanets}
+            />
+          )}
+
+          {activeTab === 'user_control' && (
+            <UserControlMasterView
+              onBackToDashboard={() => navigateTab('dashboard')}
+              onLogoutAdmin={() => {
+                handleLogoutRBAC();
+                navigateTab('dashboard');
+              }}
             />
           )}
 

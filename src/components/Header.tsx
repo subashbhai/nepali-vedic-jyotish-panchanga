@@ -22,7 +22,9 @@ import {
   ChevronDown,
   ShoppingBag,
   Crown,
-  Newspaper
+  Newspaper,
+  KeyRound,
+  Sliders
 } from 'lucide-react';
 import { BirthDetails, ApplicationSettings, OrganizationProfile } from '../types/astrology';
 import { getStoredRBACUsers, type RBACSession, getUserDashboardTarget } from '../db/rbacStore';
@@ -32,6 +34,7 @@ import { getAssetUrl, handleImageFallback, BALANANDA_DEFAULT_EMBLEM_SVG } from '
 import { PWAInstallButton } from './PWAInstallButton';
 import { TransitNotificationBell } from './TransitNotificationBell';
 import { LogoUploadModal } from './common/LogoUploadModal';
+import { ChangePasswordModal } from './auth/ChangePasswordModal';
 import { getStoredCustomLogo, APP_LOGO_CHANGED_EVENT } from '../utils/logoManager';
 import { getStoredClientTheme } from '../utils/themeStore';
 
@@ -98,6 +101,7 @@ export const Header: React.FC<HeaderProps> = memo(({
   const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(() => getStoredCustomLogo());
   const [, setCurrentTheme] = useState(() => getStoredClientTheme());
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -363,12 +367,26 @@ export const Header: React.FC<HeaderProps> = memo(({
                           <span>📰 समाचार तथा लेख सम्पादक</span>
                         </button>
 
+                        {rbacSession.role === 'SUPER_ADMIN' && onNavigateTab && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              onNavigateTab('user_control');
+                            }}
+                            className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
+                          >
+                            <Sliders className="w-3.5 h-3.5 text-blue-600" />
+                            <span>🎛️ प्रयोगकर्ता नियन्त्रण (User Control)</span>
+                          </button>
+                        )}
+
                         {rbacSession.role === 'SUPER_ADMIN' && onNavigateToAdmin && (
                           <button
                             type="button"
                             onClick={() => {
                               setIsUserMenuOpen(false);
-                              onNavigateToAdmin('client_approvals');
+                              onNavigateToAdmin('user_control');
                             }}
                             className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-[#7A1C1C] dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
                           >
@@ -378,6 +396,21 @@ export const Header: React.FC<HeaderProps> = memo(({
                         )}
                       </div>
                     )}
+
+                    {/* Change Password Action */}
+                    <div className="pt-1.5 border-t border-stone-100 dark:border-stone-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          setIsChangePasswordOpen(true);
+                        }}
+                        className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-medium text-amber-900 dark:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>🔐 पासवर्ड परिवर्तन (Change Password)</span>
+                      </button>
+                    </div>
 
                     {/* Settings Action */}
                     <div className="pt-1.5 border-t border-stone-100 dark:border-stone-800">
@@ -481,6 +514,13 @@ export const Header: React.FC<HeaderProps> = memo(({
         isOpen={isLogoModalOpen}
         onClose={() => setIsLogoModalOpen(false)}
         onLogoUpdated={(newUrl) => setCustomLogoUrl(newUrl)}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        defaultMobile={rbacSession?.phone || ''}
       />
     </header>
   );

@@ -89,7 +89,8 @@ import {
 
 import { getStoredRBACUsers, RBACUser, updateRBACUserStatus, editRBACUserDetails, setRBACSession, RBACSession } from '../../db/rbacStore';
 import { getStoredBookings, saveBookings } from '../../db/yajamanStore';
-import { INITIAL_DEMO_PRODUCTS } from '../../db/vedicStore';
+import { getStoredOrders, getStoredProducts } from '../../db/vedicStore';
+import { Product, StoreOrder } from '../../types/vedicStoreTypes';
 import { Booking, BookingStatus } from '../../types/yajamanTypes';
 
 import { AdminOverviewSection } from './sections/AdminOverviewSection';
@@ -116,6 +117,8 @@ import { AdminTargetedPushNotificationSection } from './sections/AdminTargetedPu
 import { AdminVivahSection } from './sections/AdminVivahSection';
 import { AdminAdvertisementSection } from './sections/AdminAdvertisementSection';
 import { StoreMediaAdminTab } from './StoreMediaAdminTab';
+import { MenuControlPanel } from './MenuControlPanel';
+import { UserControlMasterView } from './UserControlMasterView';
 import { getStoredClientLeads, ClientLead } from '../../db/clientLeadStore';
 import {
   getStoredVivahProfiles,
@@ -238,6 +241,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   const [vivahPendingCount, setVivahPendingCount] = useState(0);
   const [totalVivahProfiles, setTotalVivahProfiles] = useState(0);
 
+  // Store & POS live data
+  const [storeOrders, setStoreOrders] = useState<StoreOrder[]>([]);
+  const [storeProducts, setStoreProducts] = useState<Product[]>([]);
+
   // Live Clock
   const [timeString, setTimeString] = useState('');
 
@@ -250,6 +257,8 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       setBookings(getStoredBookings());
       setAuditLogs(getStoredAuditLogs());
       setNotifications(getStoredSystemNotifications());
+      setStoreOrders(getStoredOrders());
+      setStoreProducts(getStoredProducts());
 
       // Vivah Portal counts
       const vProfiles = getStoredVivahProfiles();
@@ -274,6 +283,13 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       setTimeString(now.toLocaleTimeString('ne-NP', { hour12: true }));
     }, 1000);
 
+    // Live order updates listener
+    const handleOrderSync = () => {
+      setStoreOrders(getStoredOrders());
+      setStoreProducts(getStoredProducts());
+    };
+    window.addEventListener('vedic-orders-updated', handleOrderSync);
+
     // Keyboard Hotkey for Command Palette (Ctrl + K)
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -285,6 +301,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
 
     return () => {
       clearInterval(timer);
+      window.removeEventListener('vedic-orders-updated', handleOrderSync);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
@@ -511,9 +528,9 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     monthlyRevenue: 385000,
     activeMemberships: activeExpertsCount,
     expiringMemberships: 2,
-    pendingStoreOrders: 3,
-    pendingPosOrders: 1,
-    lowStockItems: 2,
+    pendingStoreOrders: storeOrders.filter(o => o.orderType === 'ONLINE' && o.orderStatus !== 'Delivered' && o.orderStatus !== 'Cancelled').length,
+    pendingPosOrders: storeOrders.filter(o => o.orderType === 'OFFLINE_POS').length,
+    lowStockItems: storeProducts.filter(p => p.stockQuantity <= p.minStockLevel).length,
     pendingPatrikaRecords: 4,
     pendingPurchases: pendingPurchasesCount,
     pendingVivah: vivahPendingCount,
@@ -553,7 +570,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       id: 'block_4',
       title: 'ब्लक ४: प्रयोगकर्ता र विशेषज्ञ',
       items: [
-        { id: 'users', label: 'प्रयोगकर्ता व्यवस्थापन', icon: Users },
+        { id: 'user_control', label: 'प्रयोगकर्ता नियन्त्रण (User Control)', icon: Sliders, badge: 'नयाँ' },
+        { id: 'menu_control', label: 'मेनु तथा ग्राहक पहुँच नियन्त्रण', icon: Sliders, badge: 'स्विचबोर्ड' },
+        { id: 'users', label: 'प्रयोगकर्ता नियन्त्रण (User Control)', icon: Users, badge: 'नयाँ' },
+        { id: 'staff_rbac', label: 'कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
         { id: 'experts', label: 'प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
         { id: 'yajaman', label: 'यजमान ग्राहक प्रोफाइल', icon: UserCheck },
         { id: 'rbac', label: 'भूमिका र अधिकार (RBAC)', icon: ShieldCheck },
@@ -848,7 +868,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                 transitPlanets={transitPlanets}
               />
             )}
-            {activeTab === 'users' && (
+            {(activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
+              <UserControlMasterView onBackToDashboard={() => setActiveTab('overview')} onLogoutAdmin={handleLogout} />
+            )}
+            {activeTab === 'staff_rbac' && (
               <AdminUserManagementSection
                 users={rbacUsers}
                 onUpdateUserStatus={handleUpdateUserStatus}
@@ -879,7 +902,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
             )}
             {activeTab === 'memberships' && <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />}
             {activeTab === 'patrika' && <AdminPatrikaSection />}
-            {activeTab === 'store_pos' && <AdminStorePosSection products={INITIAL_DEMO_PRODUCTS} orders={[]} onRefresh={loadAllData} />}
+            {activeTab === 'store_pos' && <AdminStorePosSection products={storeProducts} orders={storeOrders} onRefresh={loadAllData} />}
             {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
             {activeTab === 'notifications' && <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />}
             {activeTab === 'reports' && <AdminReportSection />}
