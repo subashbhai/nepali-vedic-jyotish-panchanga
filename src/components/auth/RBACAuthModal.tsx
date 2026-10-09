@@ -11,6 +11,7 @@ import {
   clearRBACSession
 } from '../../db/rbacStore';
 import { registerOrUpdateClientPolicy } from '../../db/menuControlStore';
+import { start7DayTrial } from '../../db/subscriptionStore';
 import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import {
   User,
@@ -393,6 +394,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
         password: signupPassword,
         period: '1_year'
       });
+      start7DayTrial();
     } catch (e) {
       console.error('Menu control policy sync failed:', e);
     }

@@ -402,8 +402,8 @@ export const DEFAULT_DEMO_CLIENT_POLICIES: ClientAccessRecord[] = [
     mobile: '9841755199',
     fullName: 'subash khanal',
     loginId: '9841755199',
-    passwordPlain: 'Jyotish#8758',
-    passwordHash: hashPassword('Jyotish#8758'),
+    passwordPlain: '3AACKE84',
+    passwordHash: hashPassword('3AACKE84'),
     createdAtISO: '2025-01-01T10:00:00.000Z',
     createdAtBS: '२०८१-०९-१७',
     period: 'lifetime',
@@ -541,15 +541,19 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
         };
       });
 
-      // Ensure essential default accounts (e.g. Subash Khanal 9841755199) always exist
+      // Ensure essential default accounts (e.g. Subash Khanal 9841755199) always exist and have current credentials
       for (const def of DEFAULT_DEMO_CLIENT_POLICIES) {
         const defDigits = def.mobile.replace(/\D/g, '').slice(-10);
-        const exists = sanitized.some((c: any) => {
+        const existingIdx = sanitized.findIndex((c: any) => {
           const cMob = (c.mobile || '').replace(/\D/g, '').slice(-10);
           return (cMob && cMob === defDigits) || (c.loginId && def.loginId && c.loginId.toLowerCase() === def.loginId.toLowerCase());
         });
-        if (!exists) {
+        if (existingIdx === -1) {
           sanitized.unshift(def);
+          needsPersist = true;
+        } else if (def.mobile === '9841755199' && (!sanitized[existingIdx].passwordPlain || sanitized[existingIdx].passwordPlain === 'Jyotish#8758')) {
+          sanitized[existingIdx].passwordPlain = '3AACKE84';
+          sanitized[existingIdx].passwordHash = hashPassword('3AACKE84');
           needsPersist = true;
         }
       }
