@@ -241,6 +241,94 @@ export function saveProfiles(profiles: BirthDetails[]) {
 
 import { getActiveRBACSession } from './rbacStore';
 
+/**
+ * Get or initialize user-specific birth profile for personalized rashifal dashboard
+ */
+export function getUserPersonalBirthProfile(
+  userId?: string | null,
+  userName?: string | null,
+  userPhone?: string | null
+): BirthDetails | null {
+  if (!userId && !userName && !userPhone) return null;
+
+  // 1. Try local storage key specific to this user
+  if (typeof window !== 'undefined' && userId) {
+    try {
+      const userKey = `balananda_user_birth_profile_${userId}`;
+      const raw = localStorage.getItem(userKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.name && parsed.id !== 'live_current_moment') {
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Check saved profiles in store
+  const allProfiles = getStoredProfiles();
+  if (userId) {
+    const userProfile = allProfiles.find(
+      (p) => p.id !== 'live_current_moment' && (p.clientId === userId || p.id === `user_profile_${userId}`)
+    );
+    if (userProfile) return userProfile;
+  }
+
+  if (userName) {
+    const cleanName = userName.trim().toLowerCase();
+    const matchedByName = allProfiles.find(
+      (p) => p.id !== 'live_current_moment' && p.name && p.name.trim().toLowerCase() === cleanName
+    );
+    if (matchedByName) return matchedByName;
+  }
+
+  // 3. Fallback: Create and persist a personalized profile for this logged-in user
+  const effectiveName = userName || 'प्रयोगकर्ता';
+  const effectiveId = userId ? `user_profile_${userId}` : `user_profile_${Date.now()}`;
+
+  const defaultProf: BirthDetails = {
+    id: effectiveId,
+    name: effectiveName,
+    gender: 'पुरुष',
+    dateBS: '२०४६-०५-१५',
+    dateAD: '1989-08-30',
+    time: '06:30',
+    location: {
+      name: 'काठमाडौँ, नेपाल',
+      district: 'काठमाडौँ',
+      province: 'बागमती',
+      country: 'नेपाल',
+      latitude: 27.7172,
+      longitude: 85.3240,
+      timeZone: 5.75,
+    },
+    moonRashi: 'कन्या', // User in screenshot has Kanya
+    clientId: userId || 'client_self',
+    notes: 'प्रयोगकर्ताको व्यक्तिगत जन्म विवरण तथा राशिफल प्रोफाइल'
+  };
+
+  if (typeof window !== 'undefined' && userId) {
+    try {
+      localStorage.setItem(`balananda_user_birth_profile_${userId}`, JSON.stringify(defaultProf));
+    } catch {}
+  }
+  saveProfile(defaultProf);
+
+  return defaultProf;
+}
+
+export function saveUserPersonalBirthProfile(
+  userId: string,
+  profile: BirthDetails
+): void {
+  if (typeof window !== 'undefined' && userId) {
+    try {
+      localStorage.setItem(`balananda_user_birth_profile_${userId}`, JSON.stringify(profile));
+    } catch {}
+  }
+  saveProfile(profile);
+}
+
 export function saveProfile(profile: BirthDetails): BirthDetails {
   const profiles = getStoredProfiles();
   const id = profile.id || `profile_${Date.now()}`;

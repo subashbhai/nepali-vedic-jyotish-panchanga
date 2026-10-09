@@ -82,20 +82,27 @@ export function generatePersonalizedDailyRashifal(
   preferredRashiId?: number,
   dateBS?: string
 ): PersonalizedDailyResult {
+  // Check if profile is a live transit dummy object (not an actual person)
+  const isLiveDummy = Boolean(
+    !profile ||
+    profile.id === 'live_current_moment' ||
+    (profile.name && profile.name.includes('तात्कालिक'))
+  );
+
   // Determine if profile exists and has natal data
   let natalAstro = null;
   let hasValidBirthData = false;
   let hasTime = false;
 
-  if (profile?.dateAD || profile?.dateBS) {
+  if (!isLiveDummy && (profile?.dateAD || profile?.dateBS)) {
     try {
-      const lat = profile.location?.latitude || 27.7172;
-      const lng = profile.location?.longitude || 85.3240;
-      const tz = profile.location?.timeZone || 5.75;
-      const timeStr = profile.time && profile.time.trim() !== '' ? profile.time : '12:00';
-      hasTime = Boolean(profile.time && profile.time.trim() !== '');
+      const lat = profile?.location?.latitude || 27.7172;
+      const lng = profile?.location?.longitude || 85.3240;
+      const tz = profile?.location?.timeZone || 5.75;
+      const timeStr = profile?.time && profile.time.trim() !== '' ? profile.time : '12:00';
+      hasTime = Boolean(profile?.time && profile.time.trim() !== '');
 
-      natalAstro = getCachedAstroCalculation(profile.dateAD, timeStr, lat, lng, tz);
+      natalAstro = getCachedAstroCalculation(profile!.dateAD, timeStr, lat, lng, tz);
       hasValidBirthData = Boolean(natalAstro?.moon);
     } catch (e) {
       console.warn('Natal calculation fallback:', e);
@@ -115,10 +122,13 @@ export function generatePersonalizedDailyRashifal(
     activeRashiName = natalAstro.moon.rashiName;
     janmaNakshatraName = natalAstro.moon.nakshatraName || '';
     lagnaName = natalAstro.lagna?.rashiName || '';
-  } else if (profile?.moonRashi) {
+  } else if (!isLiveDummy && profile?.moonRashi) {
     const matched = RASHI_DATA.find(r => r.name === profile.moonRashi);
-    if (matched && !preferredRashiId) {
-      activeRashiId = matched.id;
+    if (matched) {
+      activeRashiName = matched.name;
+      if (!preferredRashiId) {
+        activeRashiId = matched.id;
+      }
     }
   }
 
@@ -175,7 +185,7 @@ export function generatePersonalizedDailyRashifal(
   const baseItem = getDailyRashifalForRashi(activeRashiId, dateBS);
 
   // Synthesize personalized guidance paragraph
-  const nativeName = profile?.name || 'जातक';
+  const nativeName = (!isLiveDummy && profile?.name) ? profile.name : 'जातक';
   let personalSynthesis = '';
 
   if (hasValidBirthData) {
@@ -228,12 +238,17 @@ export function generatePersonalizedMonthlyRashifal(
   monthBS?: number,
   preferredRashiId?: number
 ): PersonalizedMonthlyResult {
+  const isLiveDummy = Boolean(
+    !profile ||
+    profile.id === 'live_current_moment' ||
+    (profile.name && profile.name.includes('तात्कालिक'))
+  );
   let activeRashiId = preferredRashiId || 1;
   let activeRashiName = 'मेष';
-  const nativeName = profile?.name || 'जातक';
+  const nativeName = (!isLiveDummy && profile?.name) ? profile.name : 'जातक';
   let isPersonalized = false;
 
-  if (profile) {
+  if (profile && !isLiveDummy) {
     isPersonalized = true;
     if (profile.moonRashi && !preferredRashiId) {
       const found = RASHI_DATA.find(r => r.name === profile.moonRashi);
@@ -269,12 +284,17 @@ export function generatePersonalizedYearlyRashifal(
   yearBS?: number,
   preferredRashiId?: number
 ): PersonalizedYearlyResult {
+  const isLiveDummy = Boolean(
+    !profile ||
+    profile.id === 'live_current_moment' ||
+    (profile.name && profile.name.includes('तात्कालिक'))
+  );
   let activeRashiId = preferredRashiId || 1;
   let activeRashiName = 'मेष';
-  const nativeName = profile?.name || 'जातक';
+  const nativeName = (!isLiveDummy && profile?.name) ? profile.name : 'जातक';
   let isPersonalized = false;
 
-  if (profile) {
+  if (profile && !isLiveDummy) {
     isPersonalized = true;
     if (profile.moonRashi && !preferredRashiId) {
       const found = RASHI_DATA.find(r => r.name === profile.moonRashi);
