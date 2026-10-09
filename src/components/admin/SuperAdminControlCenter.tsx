@@ -571,9 +571,6 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       title: 'ब्लक ४: प्रयोगकर्ता र विशेषज्ञ',
       items: [
         { id: 'user_control', label: 'प्रयोगकर्ता नियन्त्रण (User Control)', icon: Sliders, badge: 'नयाँ' },
-        { id: 'menu_control', label: 'मेनु तथा ग्राहक पहुँच नियन्त्रण', icon: Sliders, badge: 'स्विचबोर्ड' },
-        { id: 'users', label: 'प्रयोगकर्ता नियन्त्रण (User Control)', icon: Users, badge: 'नयाँ' },
-        { id: 'staff_rbac', label: 'कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
         { id: 'experts', label: 'प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
         { id: 'yajaman', label: 'यजमान ग्राहक प्रोफाइल', icon: UserCheck },
         { id: 'rbac', label: 'भूमिका र अधिकार (RBAC)', icon: ShieldCheck },
@@ -750,6 +747,11 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                       <button
                         key={item.id}
                         onClick={() => {
+                          if (item.id === 'user_control' && onNavigateApp) {
+                            onNavigateApp('user_control');
+                            setIsSidebarOpen(false);
+                            return;
+                          }
                           setActiveTab(item.id);
                           setIsSidebarOpen(false);
                         }}

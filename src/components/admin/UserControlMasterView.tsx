@@ -32,7 +32,8 @@ import {
   Sparkles, 
   LogOut,
   Save,
-  Laptop
+  Laptop,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   loadAllClientPolicies, 
@@ -46,6 +47,9 @@ import {
   CATEGORIZED_FEATURES, 
   getDefaultPermissionsMap 
 } from '../../db/menuControlStore';
+import { MenuControlPanel } from './MenuControlPanel';
+import { AdminUserManagementSection } from './sections/AdminUserManagementSection';
+import { getStoredRBACUsers, editRBACUserDetails, saveRBACUsers, RBACUser, AccountStatus, SystemRole } from '../../db/rbacStore';
 
 interface UserControlMasterViewProps {
   onBackToDashboard?: () => void;
@@ -56,6 +60,27 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
   onBackToDashboard,
   onLogoutAdmin
 }) => {
+  // Sub-tab selection:
+  // 1) user_list (User List, Signup, Menu Selection, Validity & Preview Cards)
+  // 2) menu_switchboard (Dedicated Full Menu Open/Close/Lock Switchboard)
+  // 3) rbac_staff (Staff & RBAC Accounts Directory)
+  const [activeSubTab, setActiveSubTab] = useState<'user_list' | 'menu_switchboard' | 'rbac_staff'>('user_list');
+
+  // RBAC staff state
+  const [rbacUsers, setRbacUsers] = useState<RBACUser[]>(() => {
+    try {
+      return getStoredRBACUsers();
+    } catch {
+      return [];
+    }
+  });
+
+  const reloadRbacUsers = useCallback(() => {
+    try {
+      setRbacUsers(getStoredRBACUsers());
+    } catch {}
+  }, []);
+
   // Clients state
   const [clients, setClients] = useState<ClientAccessRecord[]>(() => loadAllClientPolicies());
   const [selectedMobile, setSelectedMobile] = useState<string>(() => clients[0]?.mobile || '9866416556');
@@ -274,49 +299,106 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
         </div>
       )}
 
-      {/* TOP HEADER COMMAND BAR (Exact match to screenshot) */}
-      <header className="bg-[#0B192C] text-white px-4 lg:px-6 py-2.5 flex items-center justify-between shadow-md border-b border-slate-800 shrink-0 sticky top-0 z-50">
-        {/* Left: Brand & Dashboard title */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40">
-            <span className="text-xl leading-none">ॐ</span>
+      {/* TOP HEADER COMMAND BAR (Full-page with Back to Super Admin & Sub-menus) */}
+      <header className="bg-[#0B192C] text-white px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md border-b border-slate-800 shrink-0 sticky top-0 z-50">
+        {/* Left: Back button + Brand & Dashboard title */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {onBackToDashboard && (
+            <button
+              type="button"
+              onClick={onBackToDashboard}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 transition-all shrink-0"
+              title="सुपरएडमिन ड्यासबोर्डमा फर्कनुहोस्"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-950 stroke-[3]" />
+              <span className="hidden sm:inline">सुपरएडमिनमा फर्कनुहोस्</span>
+              <span className="sm:hidden">फर्कनुहोस्</span>
+            </button>
+          )}
+
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40 shrink-0">
+            <span className="text-lg sm:text-xl leading-none">ॐ</span>
           </div>
+
           <div>
-            <div className="font-extrabold text-sm sm:text-base tracking-wide text-white flex items-center gap-2">
-              <span>Brihat Jyotish</span>
-              <span className="text-[10px] uppercase font-bold px-1.5 py-0.2 rounded bg-blue-600 text-blue-100">
-                Super Admin
+            <div className="font-extrabold text-xs sm:text-base tracking-wide text-white flex items-center gap-1.5 sm:gap-2">
+              <span>प्रयोगकर्ता नियन्त्रण (User Control)</span>
+              <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-blue-600 text-blue-100 shrink-0">
+                Full Page
               </span>
             </div>
-            <p className="text-[10px] text-slate-400">Super Admin Dashboard — केन्द्रीय नियन्त्रण कक्ष</p>
+            <p className="text-[10px] text-slate-400 hidden md:block">
+              केन्द्रीय नियन्त्रण कक्ष — मोबाइल दर्ता, पासवर्ड जेनेरेसन & मेनु Open/Close/Lock
+            </p>
           </div>
         </div>
 
-        {/* Center Devotional Blessing */}
-        <div className="hidden md:flex items-center gap-2 text-amber-300 font-serif font-bold text-sm tracking-wider bg-slate-800/60 px-4 py-1 rounded-full border border-amber-500/30">
-          <span>ॐ श्री गणेशाय नमः</span>
+        {/* Center Sub-menu Tabs (३ मुख्य मोड्युलहरू) */}
+        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 overflow-x-auto max-w-full">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('user_list')}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeSubTab === 'user_list'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5 shrink-0" />
+            <span>१. मोबाइल दर्ता & पासवर्ड</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('menu_switchboard')}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeSubTab === 'menu_switchboard'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5 shrink-0" />
+            <span>२. मेनु स्विचबोर्ड (Open/Close/Lock)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              reloadRbacUsers();
+              setActiveSubTab('rbac_staff');
+            }}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeSubTab === 'rbac_staff'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 shrink-0" />
+            <span>३. कर्मचारी तथा RBAC खाता</span>
+          </button>
         </div>
 
         {/* Right: Notifications & Super Admin Profile */}
-        <div className="flex items-center gap-3">
-          <button 
-            type="button"
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 relative cursor-pointer"
-            title="सूचनाहरू"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500" />
-          </button>
-
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
             <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-blue-400">
               SA
             </div>
-            <div className="hidden sm:block text-left text-[11px] leading-tight">
+            <div className="hidden lg:block text-left text-[11px] leading-tight">
               <span className="font-bold block text-white">Super Admin</span>
               <span className="text-[9px] text-slate-400">सुपरएडमिन</span>
             </div>
           </div>
+          {onLogoutAdmin && (
+            <button
+              type="button"
+              onClick={onLogoutAdmin}
+              className="p-1.5 rounded-lg text-rose-300 hover:text-white hover:bg-rose-950/60 text-xs flex items-center gap-1 cursor-pointer transition-colors"
+              title="लगआउट"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -326,23 +408,14 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
         {/* LEFT SIDEBAR (Dark Navy, matching screenshot) */}
         <aside className="w-60 bg-[#0B192C] text-slate-300 border-r border-slate-800 flex flex-col justify-between shrink-0 hidden md:flex">
           <div className="p-3 space-y-1 overflow-y-auto">
-            {/* Dashboard Link */}
+            {/* Dashboard Link - returns to Super Admin */}
             <button
               type="button"
               onClick={onBackToDashboard}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-amber-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
             >
-              <LayoutDashboard className="w-4 h-4 text-slate-400" />
-              <span>Dashboard</span>
-            </button>
-
-            {/* User Management */}
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
-            >
-              <Users className="w-4 h-4 text-slate-400" />
-              <span>User Management</span>
+              <ArrowLeft className="w-4 h-4 text-amber-400" />
+              <span>← Back to Dashboard</span>
             </button>
 
             {/* Jyotish Sewa Accordion Group (Expanded) */}
@@ -350,68 +423,77 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
               <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-blue-400 uppercase tracking-wider">
                 <span className="flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Jyotish Sewa</span>
+                  <span>User Control Hub</span>
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-blue-400" />
               </div>
 
-              {/* Menu Control (Active Item highlighted) */}
-              <div className="pl-4 pr-1 space-y-1">
+              {/* Sub-menu items */}
+              <div className="pl-3 pr-1 space-y-1">
                 <button
                   type="button"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-md shadow-blue-900/30 text-left transition-colors cursor-pointer"
+                  onClick={() => setActiveSubTab('user_list')}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer ${
+                    activeSubTab === 'user_list'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
                 >
-                  <Sliders className="w-3.5 h-3.5 text-white" />
-                  <span>Menu Control</span>
+                  <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                  <span>१. प्रयोगकर्ता & पासवर्ड</span>
                 </button>
 
                 <button
                   type="button"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 text-left transition-colors cursor-pointer"
+                  onClick={() => setActiveSubTab('menu_switchboard')}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer ${
+                    activeSubTab === 'menu_switchboard'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                  <span>User Access</span>
+                  <Sliders className="w-3.5 h-3.5 shrink-0" />
+                  <span>२. मेनु स्विचबोर्ड (Open/Lock)</span>
                 </button>
 
                 <button
                   type="button"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 text-left transition-colors cursor-pointer"
+                  onClick={() => {
+                    reloadRbacUsers();
+                    setActiveSubTab('rbac_staff');
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer ${
+                    activeSubTab === 'rbac_staff'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
                 >
-                  <FileText className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Reports</span>
+                  <Users className="w-3.5 h-3.5 shrink-0" />
+                  <span>३. कर्मचारी / RBAC खाता</span>
                 </button>
               </div>
             </div>
 
-            {/* Vastu Sewa */}
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
-            >
-              <Compass className="w-4 h-4 text-slate-400" />
-              <span>Vastu Sewa</span>
-            </button>
-
-            {/* System Settings */}
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
-            >
-              <Settings className="w-4 h-4 text-slate-400" />
-              <span>System Settings</span>
-            </button>
-
-            {/* Logout */}
-            {onLogoutAdmin && (
+            {/* Quick Actions */}
+            <div className="pt-2 border-t border-slate-800 space-y-1">
               <button
                 type="button"
-                onClick={onLogoutAdmin}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors text-left cursor-pointer"
+                onClick={() => setIsAddUserModalOpen(true)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30 transition-colors text-left cursor-pointer"
               >
-                <LogOut className="w-4 h-4 text-red-400" />
-                <span>Logout</span>
+                <Plus className="w-4 h-4 text-emerald-400" />
+                <span>+ नयाँ ग्राहक थप्नुहोस्</span>
               </button>
-            )}
+
+              <button
+                type="button"
+                onClick={refreshClients}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4 text-slate-400" />
+                <span>डाटा रिफ्रेस गर्नुहोस्</span>
+              </button>
+            </div>
           </div>
 
           {/* Bottom Admin Info Card (Matching Screenshot) */}
@@ -432,401 +514,493 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
         {/* RIGHT MAIN CANVAS AREA */}
         <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 space-y-5 bg-[#F0F4F8]">
 
-          {/* TOP SECTION: USER LIST (LEFT 65%) + MENU CONTROL (RIGHT 35%) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-
-            {/* ── LEFT: USER LIST (MOBILE REGISTRATION) [Col 7 / 60%] ── */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                {/* Header with Search and Add User button */}
-                <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
-                  <div>
-                    <h2 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
-                      User List (Mobile Registration)
-                    </h2>
-                    <p className="text-[11px] text-slate-500">दर्ता भएका मोबाइल नम्बर तथा सक्रिय पासवर्ड सूची</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Search box */}
-                    <div className="relative">
-                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Mobile No. खोज्नुहोस्..."
-                        className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-40 sm:w-48 font-sans"
-                      />
-                    </div>
-
-                    {/* Add User button */}
-                    <button
-                      type="button"
-                      onClick={() => setIsAddUserModalOpen(true)}
-                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer transition-all active:scale-95"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ Add User</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Users Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-700">
-                    <thead className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      <tr>
-                        <th className="px-3 py-2.5 text-center w-12">क्र.सं.</th>
-                        <th className="px-3 py-2.5">मोबाइल नं.</th>
-                        <th className="px-3 py-2.5">प्रयोगकर्ता नाम</th>
-                        <th className="px-3 py-2.5">Login ID</th>
-                        <th className="px-3 py-2.5">Password</th>
-                        <th className="px-3 py-2.5">अवधि</th>
-                        <th className="px-3 py-2.5 text-center">स्थिति</th>
-                        <th className="px-3 py-2.5 text-center w-24">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredClients.map((client, idx) => {
-                        const isSelected = client.mobile === selectedMobile;
-                        return (
-                          <tr 
-                            key={client.id || client.mobile}
-                            onClick={() => setSelectedMobile(client.mobile)}
-                            className={`cursor-pointer transition-colors ${
-                              isSelected 
-                                ? 'bg-blue-50/70 hover:bg-blue-50 border-l-4 border-l-blue-600 font-medium' 
-                                : 'hover:bg-slate-50/80'
-                            }`}
-                          >
-                            <td className="px-3 py-2.5 text-center text-slate-500 font-mono text-[11px]">
-                              {idx + 1}
-                            </td>
-                            <td className="px-3 py-2.5 font-mono font-bold text-slate-900">
-                              {client.mobile}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-800">
-                              {client.fullName}
-                            </td>
-                            <td className="px-3 py-2.5 font-mono text-slate-600 text-[11px]">
-                              {client.loginId || client.mobile}
-                            </td>
-                            <td className="px-3 py-2.5 font-mono font-bold text-slate-900 tracking-wider">
-                              <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                {client.passwordPlain}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-600">
-                              {client.period === '1_year' ? '१ वर्ष' : client.period === '5_years' ? '५ वर्ष' : 'Lifetime'}
-                            </td>
-                            <td className="px-3 py-2.5 text-center">
-                              <button
-                                type="button"
-                                onClick={(e) => handleToggleStatus(client.mobile, e)}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
-                                  client.status === 'active'
-                                    ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                                    : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
-                                }`}
-                                title="स्थिति परिवर्तन गर्न क्लिक गर्नुहोस्"
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${client.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                <span>{client.status === 'active' ? 'सक्रिय' : 'निष्क्रिय'}</span>
-                              </button>
-                            </td>
-                            <td className="px-3 py-2.5 text-center">
-                              <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingClient(client)}
-                                  className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
-                                  title="सम्पादन गर्नुहोस्"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedMobile(client.mobile);
-                                    showToast(`${client.fullName} का मेनु अनुमतिहरू दायाँतर्फ लोड गरियो।`);
-                                  }}
-                                  className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
-                                  title="मेनु पहुँच नियन्त्रण खोल्नुहोस्"
-                                >
-                                  <Settings className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleDeleteClient(client.mobile, e)}
-                                  className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                  title="हटाउनुहोस्"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* ── ROW OF 3 CARDS UNDER USER LIST (Exact match to screenshot) ── */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                {/* 1. User Signup (Mobile Registration) */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-blue-600" />
-                    <h3 className="font-extrabold text-xs sm:text-sm text-slate-900">
-                      User Signup (Mobile Registration)
-                    </h3>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-bold text-slate-600">
-                      मोबाइल नं. दर्ता गर्नुहोस्
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="tel"
-                        value={signupMobile}
-                        onChange={(e) => setSignupMobile(e.target.value)}
-                        placeholder="मोबाइल नं."
-                        className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-mono font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleGenerateAndRegister}
-                        className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shrink-0 cursor-pointer shadow-xs active:scale-95"
-                      >
-                        Generate Password
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Green Success Card */}
-                  {showSignupSuccess && (
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1.5 text-left text-xs animate-in fade-in">
-                      <div className="flex items-center gap-1.5 text-emerald-800 font-extrabold text-[11px]">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>सफलतापूर्वक दर्ता भयो!</span>
-                      </div>
-                      <div className="text-[11px] space-y-0.5 text-slate-700 font-mono">
-                        <div><strong className="text-slate-900 font-sans">Login ID:</strong> {activeClient?.loginId || signupMobile}</div>
-                        <div><strong className="text-slate-900 font-sans">Password:</strong> <span className="bg-emerald-200/80 px-1 rounded font-bold text-emerald-900">{latestGeneratedPass}</span></div>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-tight pt-1 border-t border-emerald-200/60 font-sans">
-                        यो पासवर्ड सुरक्षित राख्नुहोस। तपाईले लगइन गरेर पछि परिवर्तन गर्न सक्नुहुनेछ।
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Menu Selection (For User) */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-                  <div>
-                    <h3 className="font-extrabold text-xs sm:text-sm text-slate-900">
-                      Menu Selection (For User)
-                    </h3>
-                    <p className="text-[10px] text-slate-500">कुन-कुन मेनु खोल्ने ? (मात्र आवश्यक छान्नुहोस्)</p>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    {/* Jyotish Sewa Checkboxes */}
-                    <div>
-                      <span className="font-bold text-[11px] text-slate-800 block mb-1">ज्योतिष सेवा</span>
-                      <div className="grid grid-cols-2 gap-1 text-[11px]">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('kundali')} 
-                            onChange={() => toggleFeatureCheckbox('kundali')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>जन्म कुण्डली</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('faladesh')} 
-                            onChange={() => toggleFeatureCheckbox('faladesh')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>फलादेश</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('dasha')} 
-                            onChange={() => toggleFeatureCheckbox('dasha')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>दशा-अन्तर्दशा</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('gochar')} 
-                            onChange={() => toggleFeatureCheckbox('gochar')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>ग्रह स्थिति</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('navamsha')} 
-                            onChange={() => toggleFeatureCheckbox('navamsha')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>गोचर</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('muhurta')} 
-                            onChange={() => toggleFeatureCheckbox('muhurta')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>मुहूर्त</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Vastu Sewa Checkboxes */}
-                    <div className="pt-1 border-t border-slate-100">
-                      <span className="font-bold text-[11px] text-slate-800 block mb-1">वास्तु सेवा</span>
-                      <div className="grid grid-cols-2 gap-1 text-[11px]">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('vastu_project')} 
-                            onChange={() => toggleFeatureCheckbox('vastu_project')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>वास्तु विश्लेषण</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('vastu_compass')} 
-                            onChange={() => toggleFeatureCheckbox('vastu_compass')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>वास्तु सुझाव</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('vastu_mandala')} 
-                            onChange={() => toggleFeatureCheckbox('vastu_mandala')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>भूमि / भवन मुहूर्त</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={isFeatureOpen('vastu_report')} 
-                            onChange={() => toggleFeatureCheckbox('vastu_report')} 
-                            className="rounded text-blue-600" 
-                          />
-                          <span>गृह प्रवेश</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveChanges}
-                    className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-98 transition-transform"
-                  >
-                    <span>Generate Password</span>
-                  </button>
-                </div>
-
-                {/* 3. Password Validity */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-                  <div>
-                    <h3 className="font-extrabold text-xs sm:text-sm text-slate-900">
-                      Password Validity
-                    </h3>
-                    <p className="text-[10px] text-slate-500">अवधि चयन गर्नुहोस्</p>
-                  </div>
-
-                  {/* Radio buttons for duration */}
-                  <div className="space-y-1.5 text-xs">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="periodSelect" 
-                        value="1_year"
-                        checked={signupPeriod === '1_year'}
-                        onChange={() => setSignupPeriod('1_year')}
-                        className="text-blue-600" 
-                      />
-                      <span>१ वर्ष (365 दिन)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="periodSelect" 
-                        value="5_years"
-                        checked={signupPeriod === '5_years'}
-                        onChange={() => setSignupPeriod('5_years')}
-                        className="text-blue-600" 
-                      />
-                      <span className="font-bold text-slate-900">५ वर्ष (1825 दिन)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="periodSelect" 
-                        value="lifetime"
-                        checked={signupPeriod === 'lifetime'}
-                        onChange={() => setSignupPeriod('lifetime')}
-                        className="text-blue-600" 
-                      />
-                      <span>Lifetime (जीवनभर)</span>
-                    </label>
-                  </div>
-
-                  {/* Generated Password Display */}
-                  <div className="pt-2 border-t border-slate-100 space-y-2">
-                    <span className="text-[10px] font-bold text-slate-500 block uppercase">
-                      Generated Password
-                    </span>
-
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-center flex items-center justify-center gap-2 font-mono font-extrabold text-base text-slate-900">
-                      <Lock className="w-4 h-4 text-blue-600" />
-                      <span>{activeClient?.passwordPlain || latestGeneratedPass}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleCopyPassword(activeClient?.passwordPlain || latestGeneratedPass)}
-                      className={`w-full py-2 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition-all ${
-                        copiedPass ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'
-                      }`}
-                    >
-                      {copiedPass ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedPass ? 'कपी गरियो!' : 'Copy Password'}</span>
-                    </button>
-                  </div>
-
-                  <p className="text-[10px] text-slate-500 flex items-start gap-1 leading-tight">
-                    <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-                    <span>यो पासवर्ड एउटा मोबाइल नं. मा एउटा डिभाइसमा मात्र एक पटक प्रयोग गर्न सक्नुहुन्छ।</span>
+          {/* ── SUB-TAB 2: FULL MENU SWITCHBOARD (Open / Close / Lock) ── */}
+          {activeSubTab === 'menu_switchboard' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-2">
+                    <Sliders className="w-5 h-5 text-blue-600" />
+                    <span>मेनु तथा ग्राहक पहुँच नियन्त्रण (Full Menu Switchboard)</span>
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    सफ्टवेयरका सबै मेनु र उपमेनुहरूलाई ग्राहक अनुसार १. Open (खुल्ला) २. Close (बन्द) ३. Lock (लक) गर्नुहोस्
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('user_list')}
+                  className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs hover:bg-blue-100 transition-colors w-fit cursor-pointer"
+                >
+                  ← प्रयोगकर्ता सूचीमा फर्कनुहोस्
+                </button>
               </div>
+              <MenuControlPanel />
+            </div>
+          )}
+
+          {/* ── SUB-TAB 3: STAFF & RBAC ACCOUNTS DIRECTORY ── */}
+          {activeSubTab === 'rbac_staff' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-600" />
+                    <span>कर्मचारी तथा RBAC खाता व्यवस्थापन (Staff & Admin Accounts)</span>
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    प्रशासक, स्टोर एडमिन, ज्योतिषी, सम्पादक लगायतका आन्तरिक कर्मचारी भूमिकाहरू
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('user_list')}
+                  className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs hover:bg-blue-100 transition-colors w-fit cursor-pointer"
+                >
+                  ← प्रयोगकर्ता सूचीमा फर्कनुहोस्
+                </button>
+              </div>
+              <AdminUserManagementSection
+                users={rbacUsers}
+                onUpdateUserStatus={(userId, newStatus) => {
+                  editRBACUserDetails(userId, { status: newStatus }, 'super_admin');
+                  reloadRbacUsers();
+                  showToast('प्रयोगकर्ता खाता स्थिति अद्यावधिक भयो।');
+                }}
+                onChangeUserRole={(userId, newRole) => {
+                  editRBACUserDetails(userId, { role: newRole }, 'super_admin');
+                  reloadRbacUsers();
+                  showToast('प्रयोगकर्ता भूमिका परिवर्तन भयो।');
+                }}
+                onResetUserPassword={() => {
+                  showToast('पासवर्ड रिसेट लिङ्क सिर्जना गरियो।');
+                }}
+                onAddNewUser={() => reloadRbacUsers()}
+                onRefresh={reloadRbacUsers}
+              />
+            </div>
+          )}
+
+          {/* ── SUB-TAB 1: USER LIST (MOBILE REGISTRATION & MENU CONTROL) ── */}
+          {activeSubTab === 'user_list' && (
+            <>
+              {/* TOP SECTION: USER LIST (LEFT 65%) + MENU CONTROL (RIGHT 35%) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+                {/* ── LEFT: USER LIST (MOBILE REGISTRATION) [Col 7 / 60%] ── */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    {/* Header with Search and Add User button */}
+                    <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
+                      <div>
+                        <h2 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          User List (Mobile Registration)
+                        </h2>
+                        <p className="text-[11px] text-slate-500">दर्ता भएका मोबाइल नम्बर तथा सक्रिय पासवर्ड सूची</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Search box */}
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Mobile No. खोज्नुहोस्..."
+                            className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-40 sm:w-48 font-sans"
+                          />
+                        </div>
+
+                        {/* Add User button */}
+                        <button
+                          type="button"
+                          onClick={() => setIsAddUserModalOpen(true)}
+                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer transition-all active:scale-95 shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Add User</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Users Table (Spacious, min-w-760px to prevent text clipping) */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-700 min-w-[760px]">
+                        <thead className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                          <tr>
+                            <th className="px-3 py-2.5 text-center w-12 whitespace-nowrap">क्र.सं.</th>
+                            <th className="px-3 py-2.5 whitespace-nowrap min-w-[110px]">मोबाइल नं.</th>
+                            <th className="px-3 py-2.5 whitespace-nowrap min-w-[130px]">प्रयोगकर्ता नाम</th>
+                            <th className="px-3 py-2.5 whitespace-nowrap min-w-[100px]">Login ID</th>
+                            <th className="px-3 py-2.5 whitespace-nowrap min-w-[100px]">Password</th>
+                            <th className="px-3 py-2.5 whitespace-nowrap min-w-[80px]">अवधि</th>
+                            <th className="px-3 py-2.5 text-center whitespace-nowrap min-w-[90px]">स्थिति</th>
+                            <th className="px-3 py-2.5 text-center whitespace-nowrap min-w-[110px]">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredClients.map((client, idx) => {
+                            const isSelected = client.mobile === selectedMobile;
+                            return (
+                              <tr 
+                                key={client.id || client.mobile}
+                                onClick={() => setSelectedMobile(client.mobile)}
+                                className={`cursor-pointer transition-colors ${
+                                  isSelected 
+                                    ? 'bg-blue-50/70 hover:bg-blue-50 border-l-4 border-l-blue-600 font-medium' 
+                                    : 'hover:bg-slate-50/80'
+                                }`}
+                              >
+                                <td className="px-3 py-2.5 text-center text-slate-500 font-mono text-[11px]">
+                                  {idx + 1}
+                                </td>
+                                <td className="px-3 py-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                  {client.mobile}
+                                </td>
+                                <td className="px-3 py-2.5 text-slate-800 break-words">
+                                  {client.fullName}
+                                </td>
+                                <td className="px-3 py-2.5 font-mono text-slate-600 text-[11px] whitespace-nowrap">
+                                  {client.loginId || client.mobile}
+                                </td>
+                                <td className="px-3 py-2.5 font-mono font-bold text-slate-900 tracking-wider whitespace-nowrap">
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                    {client.passwordPlain}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">
+                                  {client.period === '1_year' ? '१ वर्ष' : client.period === '5_years' ? '५ वर्ष' : 'Lifetime'}
+                                </td>
+                                <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleToggleStatus(client.mobile, e)}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
+                                      client.status === 'active'
+                                        ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                        : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                                    }`}
+                                    title="स्थिति परिवर्तन गर्न क्लिक गर्नुहोस्"
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${client.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                    <span>{client.status === 'active' ? 'सक्रिय' : 'निष्क्रिय'}</span>
+                                  </button>
+                                </td>
+                                <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingClient(client)}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                      title="सम्पादन गर्नुहोस्"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedMobile(client.mobile);
+                                        showToast(`${client.fullName} का मेनु अनुमतिहरू दायाँतर्फ लोड गरियो।`);
+                                      }}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                                      title="मेनु पहुँच नियन्त्रण खोल्नुहोस्"
+                                    >
+                                      <Settings className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleDeleteClient(client.mobile, e)}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                      title="हटाउनुहोस्"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* ── ROW OF 3 CARDS UNDER USER LIST (Spacious, responsive, zero overlap) ── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+
+                    {/* 1. User Signup (Mobile Registration) */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="w-4 h-4 text-blue-600 shrink-0" />
+                          <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
+                            User Signup (Mobile Registration)
+                          </h3>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              मोबाइल नं. दर्ता गर्नुहोस्
+                            </label>
+                            <input
+                              type="tel"
+                              value={signupMobile}
+                              onChange={(e) => setSignupMobile(e.target.value)}
+                              placeholder="९८xxxxxxxx (१० अङ्क)"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-mono font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              प्रयोगकर्ताको पूरा नाम
+                            </label>
+                            <input
+                              type="text"
+                              value={signupName}
+                              onChange={(e) => setSignupName(e.target.value)}
+                              placeholder="पूरा नाम"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleGenerateAndRegister}
+                            className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition-all cursor-pointer"
+                          >
+                            <KeyRound className="w-3.5 h-3.5 shrink-0" />
+                            <span>Generate Password (पासवर्ड बनाउनुहोस्)</span>
+                          </button>
+                        </div>
+
+                        {/* Green Success Card */}
+                        {showSignupSuccess && (
+                          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1.5 text-left text-xs animate-in fade-in">
+                            <div className="flex items-center gap-1.5 text-emerald-800 font-extrabold text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>सफलतापूर्वक दर्ता भयो!</span>
+                            </div>
+                            <div className="text-[11px] space-y-1 text-slate-700 font-mono">
+                              <div><strong className="text-slate-900 font-sans">Login ID:</strong> {activeClient?.loginId || signupMobile}</div>
+                              <div><strong className="text-slate-900 font-sans">Password:</strong> <span className="bg-emerald-200/90 px-1.5 py-0.5 rounded font-bold text-emerald-900 tracking-wider">{latestGeneratedPass}</span></div>
+                            </div>
+                            <p className="text-[10px] text-slate-600 leading-normal pt-1.5 border-t border-emerald-200/70 font-sans break-words">
+                              यो पासवर्ड सुरक्षित राख्नुहोस्। लगइन गरेपछि प्रयोगकर्ताले पासवर्ड परिवर्तन गर्न सक्नेछन्।
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 2. Menu Selection (For User) */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2.5">
+                        <div>
+                          <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
+                            Menu Selection (For User)
+                          </h3>
+                          <p className="text-[10px] text-slate-500 mt-0.5">कुन-कुन मेनु खोल्ने ? (मात्र आवश्यक छान्नुहोस्)</p>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          {/* Jyotish Sewa Checkboxes */}
+                          <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                            <span className="font-extrabold text-[11px] text-blue-900 block mb-1.5">ज्योतिष सेवा मेनु</span>
+                            <div className="grid grid-cols-2 gap-2 text-[11px]">
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-blue-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('kundali')} 
+                                  onChange={() => toggleFeatureCheckbox('kundali')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">जन्म कुण्डली</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-blue-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('faladesh')} 
+                                  onChange={() => toggleFeatureCheckbox('faladesh')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">फलादेश</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-blue-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('dasha')} 
+                                  onChange={() => toggleFeatureCheckbox('dasha')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">दशा-अन्तर्दशा</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-blue-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('gochar')} 
+                                  onChange={() => toggleFeatureCheckbox('gochar')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">ग्रह स्थिति</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-blue-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('navamsha')} 
+                                  onChange={() => toggleFeatureCheckbox('navamsha')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">वर्ग कुण्डली</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-blue-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('muhurta')} 
+                                  onChange={() => toggleFeatureCheckbox('muhurta')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">मुहूर्त</span>
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* Vastu Sewa Checkboxes */}
+                          <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                            <span className="font-extrabold text-[11px] text-emerald-900 block mb-1.5">वास्तु सेवा मेनु</span>
+                            <div className="grid grid-cols-2 gap-2 text-[11px]">
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-emerald-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('vastu_project')} 
+                                  onChange={() => toggleFeatureCheckbox('vastu_project')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">वास्तु विश्लेषण</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-emerald-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('vastu_compass')} 
+                                  onChange={() => toggleFeatureCheckbox('vastu_compass')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">वास्तु सुझाव</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-emerald-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('vastu_mandala')} 
+                                  onChange={() => toggleFeatureCheckbox('vastu_mandala')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">भूमि/भवन मुहूर्त</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-emerald-600">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isFeatureOpen('vastu_report')} 
+                                  onChange={() => toggleFeatureCheckbox('vastu_report')} 
+                                  className="rounded text-blue-600 w-3.5 h-3.5" 
+                                />
+                                <span className="truncate">वास्तु प्रतिवेदन</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveChanges}
+                        className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-98 transition-transform mt-2"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>मेनु अनुमति सुरक्षित गर्नुहोस्</span>
+                      </button>
+                    </div>
+
+                    {/* 3. Password Validity */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2.5">
+                        <div>
+                          <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
+                            Password Validity
+                          </h3>
+                          <p className="text-[10px] text-slate-500 mt-0.5">समय अवधि चयन गर्नुहोस्</p>
+                        </div>
+
+                        {/* Radio buttons for duration */}
+                        <div className="space-y-2 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                          <label className="flex items-center gap-2 cursor-pointer hover:text-blue-600">
+                            <input 
+                              type="radio" 
+                              name="periodSelect" 
+                              value="1_year"
+                              checked={signupPeriod === '1_year'}
+                              onChange={() => setSignupPeriod('1_year')}
+                              className="text-blue-600 w-3.5 h-3.5" 
+                            />
+                            <span>१ वर्ष (३६५ दिन)</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer hover:text-blue-600">
+                            <input 
+                              type="radio" 
+                              name="periodSelect" 
+                              value="5_years"
+                              checked={signupPeriod === '5_years'}
+                              onChange={() => setSignupPeriod('5_years')}
+                              className="text-blue-600 w-3.5 h-3.5" 
+                            />
+                            <span className="font-bold text-slate-900">५ वर्ष (१८२५ दिन)</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer hover:text-blue-600">
+                            <input 
+                              type="radio" 
+                              name="periodSelect" 
+                              value="lifetime"
+                              checked={signupPeriod === 'lifetime'}
+                              onChange={() => setSignupPeriod('lifetime')}
+                              className="text-blue-600 w-3.5 h-3.5" 
+                            />
+                            <span>आजीवन (Lifetime)</span>
+                          </label>
+                        </div>
+
+                        {/* Generated Password Display */}
+                        <div className="pt-2 border-t border-slate-100 space-y-2">
+                          <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider">
+                            Active Password (सक्रिय पासवर्ड)
+                          </span>
+
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center flex items-center justify-center gap-2 font-mono font-extrabold text-lg text-slate-900 tracking-widest shadow-inner">
+                            <Lock className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span>{activeClient?.passwordPlain || latestGeneratedPass}</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyPassword(activeClient?.passwordPlain || latestGeneratedPass)}
+                            className={`w-full py-2.5 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition-all active:scale-98 ${
+                              copiedPass ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'
+                            }`}
+                          >
+                            {copiedPass ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
+                            <span>{copiedPass ? 'कपी गरियो!' : 'Copy Password (कपी)'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-[10px] text-slate-500 flex items-start gap-1 leading-normal pt-2 border-t border-slate-100 break-words">
+                        <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                        <span>यो पासवर्ड एउटा मोबाइल नं. मा केवल एउटा डिभाइसमा मात्र एक पटक प्रयोग गर्न सकिन्छ।</span>
+                      </p>
+                    </div>
+                  </div>
             </div>
 
             {/* ── RIGHT: MENU CONTROL PANEL [Col 5 / 40%] (Exact match to screenshot) ── */}
@@ -1278,10 +1452,12 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
             </div>
           </div>
 
-          {/* BOTTOM FOOTER BANNER (Exact match to screenshot) */}
-          <footer className="bg-[#0B192C] text-white py-3 px-4 rounded-2xl shadow-md text-center text-xs font-bold tracking-wider border border-slate-800">
-            <span>सुरक्षित पहुँच | पूर्ण नियन्त्रण | तपाईँको सेवा, हाम्रो प्रतिबद्धता</span>
-          </footer>
+              {/* BOTTOM FOOTER BANNER (Exact match to screenshot) */}
+              <footer className="bg-[#0B192C] text-white py-3 px-4 rounded-2xl shadow-md text-center text-xs font-bold tracking-wider border border-slate-800">
+                <span>सुरक्षित पहुँच | पूर्ण नियन्त्रण | तपाईँको सेवा, हाम्रो प्रतिबद्धता</span>
+              </footer>
+            </>
+          )}
         </main>
       </div>
 

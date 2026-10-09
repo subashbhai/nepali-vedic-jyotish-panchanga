@@ -2329,7 +2329,7 @@ export default function App() {
 
           {activeTab === 'user_control' && (
             <UserControlMasterView
-              onBackToDashboard={() => navigateTab('dashboard')}
+              onBackToDashboard={() => navigateTab('admin_control')}
               onLogoutAdmin={() => {
                 handleLogoutRBAC();
                 navigateTab('dashboard');
