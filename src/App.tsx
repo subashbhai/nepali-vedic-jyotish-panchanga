@@ -2277,7 +2277,14 @@ export default function App() {
           )}
 
           {activeTab === 'yajaman' && (
-            <YajamanView onNavigateToExpert={() => navigateTab('apply_expert')} />
+            <YajamanView
+              onNavigateToExpert={() => navigateTab('apply_expert')}
+              activeProfile={activeProfile || currentProfile}
+              todayPanchanga={todayPanchanga}
+              todayAD={todayAD}
+              todayBS={todayBS}
+              transitPlanets={todayTransitPlanets}
+            />
           )}
 
           {activeTab === 'kharedi' && (

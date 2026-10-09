@@ -72,7 +72,6 @@ import { ReportActionToolbar } from './common/ReportActionToolbar';
 import { DailyWhatsAppDispatchManager } from './admin/DailyWhatsAppDispatchManager';
 import { RBACSession } from '../db/rbacStore';
 import { PersonalizedMemberAstrologyHub } from './dashboard/PersonalizedMemberAstrologyHub';
-import { PersonalizedRashifalDashboard } from './dashboard/PersonalizedRashifalDashboard';
 import { 
   generateDailyVedicSankalpa,
   SankalpaPujaType,
@@ -538,15 +537,6 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
           transitPlanets={transitPlanets || planets}
         />
       )}
-
-      {/* 🌟 BRIHAT JYOTISH - ADVANCED PERSONALIZED RASHIFAL DASHBOARD (दैनिक, मासिक र वार्षिक ३ मुख्य ब्लकहरू) */}
-      <PersonalizedRashifalDashboard
-        profile={activeProfile || rbacSession?.birthDetails || null}
-        todayPanchanga={todayPanchanga}
-        todayAD={todayAD}
-        todayBS={todayBS}
-        transitPlanets={transitPlanets || planets}
-      />
 
       {/* Today's Vedic Insight Widget - Automated Daily Auspicious Suggestions & Rahukaal/Choghadiya Alerts */}
       <VedicInsightWidget panchanga={todayPanchanga} onNavigate={onNavigate} />
