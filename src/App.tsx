@@ -1800,6 +1800,8 @@ export default function App() {
             }}
             onSave={handleSaveProfile}
             initialProfile={editingProfile}
+            savedProfiles={profiles}
+            onSelectExistingProfile={(prof) => setActiveProfile(prof)}
           />
         )}
       </div>
@@ -2412,6 +2414,8 @@ export default function App() {
             }}
             onSave={handleSaveProfile}
             initialProfile={editingProfile}
+            savedProfiles={profiles}
+            onSelectExistingProfile={(prof) => setActiveProfile(prof)}
           />
         )}
 

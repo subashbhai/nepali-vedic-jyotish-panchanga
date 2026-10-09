@@ -45,11 +45,14 @@ import {
   AccessState, 
   SubscriptionPeriod, 
   CATEGORIZED_FEATURES, 
-  getDefaultPermissionsMap 
+  getDefaultPermissionsMap,
+  hashPassword
 } from '../../db/menuControlStore';
 import { MenuControlPanel } from './MenuControlPanel';
 import { AdminUserManagementSection } from './sections/AdminUserManagementSection';
 import { getStoredRBACUsers, editRBACUserDetails, saveRBACUsers, RBACUser, AccountStatus, SystemRole } from '../../db/rbacStore';
+import { syncSecurityAccount, syncAllSecurityStores } from '../../db/unifiedSecurityBridge';
+import { fromDevanagariNumerals } from '../../utils/nepaliCalendar';
 
 interface UserControlMasterViewProps {
   onBackToDashboard?: () => void;
@@ -117,6 +120,10 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
   }, []);
 
   useEffect(() => {
+    try {
+      syncAllSecurityStores();
+      refreshClients();
+    } catch {}
     window.addEventListener('client-policies-updated', refreshClients);
     window.addEventListener('storage', refreshClients);
     return () => {
@@ -171,10 +178,11 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
     const target = clients.find(c => c.mobile === mobile);
     if (!target) return;
     const newStatus = target.status === 'active' ? 'suspended' : 'active';
-    const updatedList = clients.map(c => c.mobile === mobile ? { ...c, status: newStatus } : c);
+    const updatedRecord: ClientAccessRecord = { ...target, status: newStatus };
+    syncSecurityAccount(updatedRecord);
+    const updatedList = clients.map(c => c.mobile === mobile ? updatedRecord : c);
     setClients(updatedList);
-    saveAllClientPolicies(updatedList);
-    showToast(`${target.fullName} को स्थिति ${newStatus === 'active' ? 'सक्रिय' : 'निष्क्रिय'} बनाइयो।`);
+    showToast(`${target.fullName} को स्थिति ${newStatus === 'active' ? 'सक्रिय' : 'निलम्बित'} बनाइयो।`);
   };
 
   // Delete client
@@ -184,6 +192,8 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
       const updatedList = clients.filter(c => c.mobile !== mobile);
       setClients(updatedList);
       saveAllClientPolicies(updatedList);
+      const rbacList = getStoredRBACUsers().filter(u => u.phone !== mobile);
+      saveRBACUsers(rbacList);
       if (selectedMobile === mobile && updatedList.length > 0) {
         setSelectedMobile(updatedList[0].mobile);
       }
@@ -201,25 +211,28 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
 
   // Handle quick password generator in signup box
   const handleGenerateAndRegister = () => {
-    const clean = signupMobile.replace(/\D/g, '');
+    const latinized = fromDevanagariNumerals(signupMobile).trim();
+    const clean = latinized.replace(/\D/g, '').slice(-10);
     if (!clean || clean.length < 10) {
       alert('कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
       return;
     }
 
     const newPass = generateLicenseCodePassword();
-    const res = registerOrUpdateClientPolicy({
+    syncSecurityAccount({
       mobile: clean,
-      fullName: signupName || `ग्राहक ${clean.slice(-4)}`,
-      password: newPass,
-      period: signupPeriod
+      fullName: (signupName || `ग्राहक ${clean.slice(-4)}`).trim(),
+      loginId: clean,
+      passwordPlain: newPass,
+      period: signupPeriod,
+      status: 'active'
     });
 
     refreshClients();
     setSelectedMobile(clean);
     setLatestGeneratedPass(newPass);
     setShowSignupSuccess(true);
-    showToast(`नयाँ पासवर्ड जेनेरेट भयो: ${newPass}`);
+    showToast(`नयाँ प्रयोगकर्ता दर्ता भयो! पासवर्ड: ${newPass}`);
   };
 
   // Quick Copy password
@@ -707,6 +720,14 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
                                       title="मेनु पहुँच नियन्त्रण खोल्नुहोस्"
                                     >
                                       <Settings className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleResetDevice(client.mobile, e)}
+                                      className="p-1.5 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer"
+                                      title="उपकरण लक रिसेट गर्नुहोस् (Device Unlock)"
+                                    >
+                                      <Smartphone className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       type="button"
@@ -1538,11 +1559,22 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  const updated = clients.map(c => c.mobile === editingClient.mobile ? editingClient : c);
+                  const plainPass = (editingClient.passwordPlain || '').trim();
+                  const latinizedMob = fromDevanagariNumerals(editingClient.mobile).trim();
+                  const cleanMob = latinizedMob.replace(/\D/g, '').slice(-10) || editingClient.mobile;
+                  const updatedRecord: ClientAccessRecord = {
+                    ...editingClient,
+                    mobile: cleanMob,
+                    fullName: (editingClient.fullName || '').trim(),
+                    loginId: (editingClient.loginId || cleanMob).trim(),
+                    passwordPlain: plainPass,
+                    passwordHash: hashPassword(plainPass),
+                  };
+                  syncSecurityAccount(updatedRecord);
+                  const updated = clients.map(c => (c.mobile === editingClient.mobile || c.id === editingClient.id) ? updatedRecord : c);
                   setClients(updated);
-                  saveAllClientPolicies(updated);
                   setEditingClient(null);
-                  showToast('प्रयोगकर्ता विवरण अद्यावधिक भयो!');
+                  showToast('प्रयोगकर्ता विवरण तथा पासवर्ड अद्यावधिक भयो!');
                 }}
                 className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm"
               >

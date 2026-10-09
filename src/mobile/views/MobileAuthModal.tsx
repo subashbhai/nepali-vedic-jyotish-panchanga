@@ -16,6 +16,7 @@ import {
   saveMobileUserSession,
   MobileUserProfile
 } from '../db/mobileAuthStore';
+import { authenticateUnifiedUser } from '../../db/unifiedSecurityBridge';
 
 interface MobileAuthModalProps {
   isOpen: boolean;
@@ -79,15 +80,28 @@ export const MobileAuthModal: React.FC<MobileAuthModalProps> = ({
   const handleStandardLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone.trim()) {
-      setErrorMsg('कृपया फोन नम्बर वा ईमेल प्रविष्ट गर्नुहोस्');
+      setErrorMsg('कृपया फोन नम्बर वा प्रयोगकर्ता नाम प्रविष्ट गर्नुहोस्');
+      return;
+    }
+    if (!password) {
+      setErrorMsg('कृपया पासवर्ड प्रविष्ट गर्नुहोस्');
       return;
     }
 
+    const res = authenticateUnifiedUser(phone, password);
+    if (!res.success) {
+      setErrorMsg(res.message);
+      return;
+    }
+
+    const cleanMob = res.clientPolicy?.mobile || res.user?.phone || phone;
+    const displayName = res.clientPolicy?.fullName || res.user?.fullName || 'वैदिक साधक';
+
     const loggedUser: MobileUserProfile = {
-      id: `usr_${Date.now()}`,
-      fullName: 'सुवास शर्मा',
-      email: phone.includes('@') ? phone : 'user@balanandajyotish.com.np',
-      phone: phone.includes('@') ? '९७६४४००५३३' : phone,
+      id: res.user?.id || res.clientPolicy?.id || `usr_${Date.now()}`,
+      fullName: displayName,
+      email: phone.includes('@') ? phone : `${cleanMob}@balanandajyotish.com.np`,
+      phone: cleanMob,
       isPhoneVerified: true,
       isEmailVerified: true,
       role: 'USER',
