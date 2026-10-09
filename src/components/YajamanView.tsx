@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
   Search,
@@ -111,12 +111,27 @@ import { YajamanCreatePostForm } from './yajaman/YajamanCreatePostForm';
 import { YajamanHowToUseSection } from './yajaman/YajamanHowToUseSection';
 import { YajamanRulesSection } from './yajaman/YajamanRulesSection';
 import { YajamanAdminModerationPanel } from './yajaman/YajamanAdminModerationPanel';
+import { BirthDetails, PanchangaData, PlanetPosition } from '../types/astrology';
+import { calculatePanchanga } from '../utils/panchangaEngine';
+import { PersonalizedRashifalDashboard } from './dashboard/PersonalizedRashifalDashboard';
 
 interface YajamanViewProps {
   onNavigateToExpert?: () => void;
+  activeProfile?: BirthDetails | null;
+  todayPanchanga?: PanchangaData;
+  todayAD?: string;
+  todayBS?: string;
+  transitPlanets?: PlanetPosition[];
 }
 
-export const YajamanView: React.FC<YajamanViewProps> = () => {
+export const YajamanView: React.FC<YajamanViewProps> = ({
+  onNavigateToExpert,
+  activeProfile,
+  todayPanchanga,
+  todayAD = new Date().toISOString().split('T')[0],
+  todayBS: propTodayBS,
+  transitPlanets = []
+}) => {
   // Portal Role Switch: 'YAJAMAN' vs 'PROVIDER'
   const [portalMode, setPortalMode] = useState<'YAJAMAN' | 'PROVIDER'>('YAJAMAN');
 
@@ -124,9 +139,36 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
   const [activeYajaman, setActiveYajaman] = useState<YajamanUser | null>(getActiveYajamanSession());
   const [activeProvider, setActiveProvider] = useState<ServiceProvider | null>(getActiveProviderSession());
 
+  // Memoized user profile for personalized rashifal dashboard
+  const userProfileForRashifal: BirthDetails = useMemo(() => {
+    if (activeProfile) return activeProfile;
+    return {
+      id: activeYajaman?.id || 'yajaman_user',
+      name: activeYajaman?.fullName || 'subash khanal',
+      gender: 'पुरुष',
+      dateBS: activeYajaman?.createdAtBS || '२०४५-०५-१५',
+      dateAD: '1988-08-30',
+      time: '06:30',
+      location: {
+        name: activeYajaman?.district ? `${activeYajaman.district}, नेपाल` : 'काठमाडौँ, नेपाल',
+        latitude: 27.7172,
+        longitude: 85.3240,
+        timeZone: 5.75
+      },
+      moonRashi: 'मेष'
+    };
+  }, [activeProfile, activeYajaman]);
+
+  const computedPanchanga = useMemo(() => {
+    if (todayPanchanga) return todayPanchanga;
+    const now = new Date();
+    return calculatePanchanga(now, 27.7172, 85.3240, 5.75);
+  }, [todayPanchanga]);
+
   // Navigation Tabs for Yajaman: defaults to community 'feed'
   const [yajamanTab, setYajamanTab] = useState<
     | 'feed'
+    | 'rashifal'
     | 'dashboard'
     | 'book_service'
     | 'create_post'
@@ -702,6 +744,7 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-stone-200 dark:border-stone-800">
               {[
                 { id: 'feed', label: 'सामुदायिक फिड', icon: MessageSquare, highlight: true },
+                { id: 'rashifal', label: 'मेरो व्यक्तिगत राशिफल', icon: Sparkles, highlight: true },
                 { id: 'create_post', label: '+ नयाँ पोस्ट', icon: Plus },
                 { id: 'dashboard', label: 'सेवा वर्गहरू', icon: Compass },
                 { id: 'book_service', label: 'सेवा Book गर्नुहोस्', icon: Sparkles },
@@ -926,6 +969,19 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
               </div>
             )}
 
+            {/* TAB: PERSONALIZED RASHIFAL DASHBOARD */}
+            {yajamanTab === 'rashifal' && (
+              <div className="space-y-6">
+                <PersonalizedRashifalDashboard
+                  profile={userProfileForRashifal}
+                  todayPanchanga={computedPanchanga}
+                  todayAD={todayAD}
+                  todayBS={propTodayBS}
+                  transitPlanets={transitPlanets}
+                />
+              </div>
+            )}
+
             {/* TAB: CREATE POST */}
             {yajamanTab === 'create_post' && (
               <YajamanCreatePostForm
@@ -995,6 +1051,38 @@ export const YajamanView: React.FC<YajamanViewProps> = () => {
                         <span>सेवा Book सुरु गर्नुहोस्</span>
                       </button>
                     </div>
+                  </div>
+
+                  {/* Personalized Rashifal Promo Banner */}
+                  <div
+                    onClick={() => setYajamanTab('rashifal')}
+                    className="bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-2 border-amber-400/40 hover:border-amber-500/80 rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer transition-all hover:shadow-lg group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center font-bold text-2xl group-hover:scale-110 transition-transform">
+                        ✨
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-base font-black text-stone-900 dark:text-stone-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+                            बृहत् वैदिक व्यक्तिगत राशिफल
+                          </h4>
+                          <span className="text-[10px] bg-rose-500/20 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full font-bold">
+                            तपाईंको आफ्नै राशिफल
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">
+                          दैनिक, मासिक तथा वार्षिक व्यक्तिगत गोचर, अष्टकवर्ग, ताराबल र शुभ-अशुभ प्रभाव अवलोकन गर्नुहोस्।
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="px-4 py-2 bg-[#7A1C1C] hover:bg-[#92400E] text-white text-xs font-bold rounded-xl shadow transition-colors flex items-center gap-1.5 shrink-0"
+                    >
+                      <span>राशिफल हेर्नुहोस्</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
 
                   {/* Stats Cards */}
