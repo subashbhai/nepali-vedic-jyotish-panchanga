@@ -420,117 +420,10 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
         </div>
       </header>
 
-      {/* MAIN CONTAINER: SIDEBAR + CONTENT CANVAS */}
-      <div className="flex-1 flex overflow-hidden">
-
-        {/* LEFT SIDEBAR (Dark Navy, matching screenshot) */}
-        <aside className="w-60 bg-[#0B192C] text-slate-300 border-r border-slate-800 flex flex-col justify-between shrink-0 hidden md:flex">
-          <div className="p-3 space-y-1 overflow-y-auto">
-            {/* Dashboard Link - returns to Super Admin */}
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-amber-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4 text-amber-400" />
-              <span>← Back to Dashboard</span>
-            </button>
-
-            {/* Jyotish Sewa Accordion Group (Expanded) */}
-            <div className="space-y-0.5 pt-1">
-              <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-blue-400 uppercase tracking-wider">
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>User Control Hub</span>
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-blue-400" />
-              </div>
-
-              {/* Sub-menu items */}
-              <div className="pl-3 pr-1 space-y-1">
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('user_list')}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer ${
-                    activeSubTab === 'user_list'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Smartphone className="w-3.5 h-3.5 shrink-0" />
-                  <span>१. प्रयोगकर्ता & पासवर्ड</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('menu_switchboard')}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer ${
-                    activeSubTab === 'menu_switchboard'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Sliders className="w-3.5 h-3.5 shrink-0" />
-                  <span>२. मेनु स्विचबोर्ड (Open/Lock)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    reloadRbacUsers();
-                    setActiveSubTab('rbac_staff');
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer ${
-                    activeSubTab === 'rbac_staff'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 shrink-0" />
-                  <span>३. कर्मचारी / RBAC खाता</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="pt-2 border-t border-slate-800 space-y-1">
-              <button
-                type="button"
-                onClick={() => setIsAddUserModalOpen(true)}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30 transition-colors text-left cursor-pointer"
-              >
-                <Plus className="w-4 h-4 text-emerald-400" />
-                <span>+ नयाँ ग्राहक थप्नुहोस्</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={refreshClients}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer"
-              >
-                <RotateCcw className="w-4 h-4 text-slate-400" />
-                <span>डाटा रिफ्रेस गर्नुहोस्</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom Admin Info Card (Matching Screenshot) */}
-          <div className="p-3 border-t border-slate-800 bg-[#071324]">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-slate-800 text-blue-400 flex items-center justify-center font-bold text-xs ring-1 ring-slate-700">
-                👤
-              </div>
-              <div className="min-w-0 flex-1 text-left">
-                <span className="font-bold text-xs text-white block truncate">Super Admin</span>
-                <span className="text-[10px] text-slate-400 block truncate">admin@brihatjyotish.com</span>
-                <span className="text-[9px] text-slate-500 font-mono block mt-0.5">2082-09-10 10:25 AM</span>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        {/* RIGHT MAIN CANVAS AREA */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 space-y-5 bg-[#F0F4F8]">
+      {/* MAIN CONTAINER: FULL CONTENT CANVAS */}
+      <div className="flex-1 flex overflow-hidden w-full">
+        {/* FULL MAIN CANVAS AREA */}
+        <main className="w-full flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 space-y-5 bg-[#F0F4F8]">
 
           {/* ── SUB-TAB 2: FULL MENU SWITCHBOARD (Open / Close / Lock) ── */}
           {activeSubTab === 'menu_switchboard' && (
@@ -638,6 +531,16 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>+ Add User</span>
+                        </button>
+
+                        {/* Refresh button */}
+                        <button
+                          type="button"
+                          onClick={refreshClients}
+                          className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer shrink-0"
+                          title="डाटा रिफ्रेस गर्नुहोस्"
+                        >
+                          <RotateCcw className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
