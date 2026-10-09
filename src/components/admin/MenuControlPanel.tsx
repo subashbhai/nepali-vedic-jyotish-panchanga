@@ -38,7 +38,8 @@ import {
   generateSmartPassword,
   calculatePeriodExpiry,
   resetClientDeviceLock,
-  getDefaultPermissionsMap
+  getDefaultPermissionsMap,
+  sanitizeBSDateString
 } from '../../db/menuControlStore';
 
 export const MenuControlPanel: React.FC = () => {
@@ -185,7 +186,7 @@ export const MenuControlPanel: React.FC = () => {
             ...p,
             period,
             expiresAtTimestamp: expiry.timestamp,
-            expiresAtBS: expiry.bsDate
+            expiresAtBS: sanitizeBSDateString(expiry.bsDate)
           }
         : p
     );
@@ -343,7 +344,7 @@ export const MenuControlPanel: React.FC = () => {
                       </div>
 
                       <div className="flex items-center justify-between text-[10px] text-stone-400 mt-2 pt-2 border-t border-stone-800/50">
-                        <span>म्याद: {c.expiresAtBS}</span>
+                        <span>म्याद: {sanitizeBSDateString(c.expiresAtBS)}</span>
                         {c.activeDeviceId ? (
                           <span className="text-emerald-400 flex items-center gap-1 font-mono">
                             <Laptop className="w-2.5 h-2.5" />
@@ -376,7 +377,7 @@ export const MenuControlPanel: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-stone-400">
-                    दर्ता मिति: {selectedPolicy.createdAtBS} • म्याद समाप्ति: <strong>{selectedPolicy.expiresAtBS}</strong>
+                    दर्ता मिति: {sanitizeBSDateString(selectedPolicy.createdAtBS)} • म्याद समाप्ति: <strong>{sanitizeBSDateString(selectedPolicy.expiresAtBS)}</strong>
                   </p>
                 </div>
 

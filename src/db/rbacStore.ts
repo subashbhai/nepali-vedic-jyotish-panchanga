@@ -778,3 +778,47 @@ export function exportMembersToCSV(): string {
   return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
 }
 
+/**
+ * Permanently delete an RBAC User (Super Admin Action)
+ */
+export function deleteRBACUser(
+  targetUserId: string,
+  adminUsername: string = 'superadmin'
+): { success: boolean; message: string } {
+  const users = getStoredRBACUsers();
+  const target = users.find(u => u.id === targetUserId);
+
+  if (!target) {
+    return { success: false, message: 'प्रयोगकर्ता भेटिएन।' };
+  }
+
+  if (target.role === 'SUPER_ADMIN') {
+    return { success: false, message: 'सुपर एडमिन खाता मेटाउन मिल्दैन।' };
+  }
+
+  const updatedUsers = users.filter(u => u.id !== targetUserId);
+  saveRBACUsers(updatedUsers);
+
+  // If user was logged in, clear session
+  const activeSession = getActiveRBACSession();
+  if (activeSession && activeSession.userId === targetUserId) {
+    clearRBACSession();
+  }
+
+  logRBACAuditAction({
+    userId: adminUsername,
+    username: adminUsername,
+    role: 'SUPER_ADMIN',
+    action: 'USER_DELETED',
+    module: 'SUPER_ADMIN',
+    target: `${target.fullName} (${target.roleNameNepali})`,
+    details: `${target.fullName} को खाता र प्रोफाइल सुपर एडमिनद्वारा स्थायी रूपमा मेटाइयो।`,
+    previousValue: target.status,
+    newValue: 'deleted'
+  });
+
+  return {
+    success: true,
+    message: `${target.fullName} को खाता सफलतापूर्वक मेटाइयो।`
+  };
+}
