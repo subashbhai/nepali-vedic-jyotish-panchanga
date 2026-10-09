@@ -120,6 +120,7 @@ import { AdminClientApprovalsSection } from './sections/AdminClientApprovalsSect
 import { AdminTargetedPushNotificationSection } from './sections/AdminTargetedPushNotificationSection';
 import { AdminVivahSection } from './sections/AdminVivahSection';
 import { AdminAdvertisementSection } from './sections/AdminAdvertisementSection';
+import { SuperAdminRashifalManagement } from './sections/SuperAdminRashifalManagement';
 import { StoreMediaAdminTab } from './StoreMediaAdminTab';
 import { MenuControlPanel } from './MenuControlPanel';
 import { UserControlMasterView } from './UserControlMasterView';
@@ -275,7 +276,7 @@ function resolveInitialAdminSession(): AdminSession | null {
 function getBlockIdFromTab(tab?: string): string | null {
   if (!tab || tab === 'overview' || tab === 'dashboard') return null;
   if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
-  if (['pages_services', 'samachar_editor', 'samachar', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
+  if (['pages_services', 'samachar_editor', 'samachar', 'rashifal_management', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
   if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
   if (['user_list', 'menu_switchboard', 'user_control', 'menu_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
   if (['client_approvals', 'finance', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
@@ -564,6 +565,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       items: [
         { id: 'pages_services', label: 'पृष्ठ & सेवा पूर्ण नियन्त्रण (Switchboard)', icon: Sliders, badge: 'स्विचबोर्ड' },
         { id: 'samachar_editor', label: 'समाचार तथा धर्म लेख सम्पादक', icon: Newspaper },
+        { id: 'rashifal_management', label: 'दैनिक, मासिक र वार्षिक राशिफल व्यवस्थापक', icon: Sparkles, badge: 'नयाँ' },
         { id: 'advertisement', label: 'विज्ञापन व्यवस्थापन (AdSense & Banners)', icon: Megaphone }
       ]
     },
@@ -1296,6 +1298,9 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                 )}
                 {activeTab === 'samachar_editor' && (
                   <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
+                )}
+                {activeTab === 'rashifal_management' && (
+                  <SuperAdminRashifalManagement />
                 )}
                 {activeTab === 'advertisement' && (
                   <AdminAdvertisementSection />
