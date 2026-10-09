@@ -110,7 +110,12 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
 
   // Currently active selected client record
   const activeClient = useMemo(() => {
-    return clients.find(c => c.mobile === selectedMobile) || clients[0] || null;
+    const found = clients.find(c => c.mobile === selectedMobile) || clients[0] || null;
+    if (!found) return null;
+    if (!found.permissions) {
+      return { ...found, permissions: getDefaultPermissionsMap() };
+    }
+    return found;
   }, [clients, selectedMobile]);
 
   // Synchronize clients from localStorage and events
@@ -142,8 +147,8 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
     if (!searchQuery.trim()) return clients;
     const q = searchQuery.toLowerCase();
     return clients.filter(c => 
-      c.mobile.includes(q) || 
-      c.fullName.toLowerCase().includes(q) || 
+      (c.mobile || '').includes(q) || 
+      (c.fullName || '').toLowerCase().includes(q) || 
       (c.loginId && c.loginId.toLowerCase().includes(q))
     );
   }, [clients, searchQuery]);
@@ -152,7 +157,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
   const handleFeatureStateChange = (featureId: string, state: AccessState) => {
     if (!activeClient) return;
     const updatedPermissions = {
-      ...activeClient.permissions,
+      ...(activeClient.permissions || {}),
       [featureId]: state
     };
     const updatedClient: ClientAccessRecord = {
@@ -245,13 +250,13 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
 
   // Menu Selection Checkbox Toggle (middle card)
   const isFeatureOpen = (featId: string) => {
-    if (!activeClient) return false;
+    if (!activeClient || !activeClient.permissions) return false;
     return activeClient.permissions[featId] === 'open';
   };
 
   const toggleFeatureCheckbox = (featId: string) => {
     if (!activeClient) return;
-    const currentState = activeClient.permissions[featId] || 'close';
+    const currentState = activeClient.permissions?.[featId] || 'close';
     const nextState: AccessState = currentState === 'open' ? 'close' : 'open';
     handleFeatureStateChange(featId, nextState);
   };
@@ -286,7 +291,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
 
     if (menuFilter === 'all') return list;
     return list.filter(item => {
-      const state = activeClient?.permissions[item.id] || item.defaultState;
+      const state = activeClient?.permissions?.[item.id] || item.defaultState;
       return state === menuFilter;
     });
   }, [activeClient, menuFilter]);
@@ -653,95 +658,105 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {filteredClients.map((client, idx) => {
-                            const isSelected = client.mobile === selectedMobile;
-                            return (
-                              <tr 
-                                key={client.id || client.mobile}
-                                onClick={() => setSelectedMobile(client.mobile)}
-                                className={`cursor-pointer transition-colors ${
-                                  isSelected 
-                                    ? 'bg-blue-50/70 hover:bg-blue-50 border-l-4 border-l-blue-600 font-medium' 
-                                    : 'hover:bg-slate-50/80'
-                                }`}
-                              >
-                                <td className="px-3 py-2.5 text-center text-slate-500 font-mono text-[11px]">
-                                  {idx + 1}
-                                </td>
-                                <td className="px-3 py-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
-                                  {client.mobile}
-                                </td>
-                                <td className="px-3 py-2.5 text-slate-800 break-words">
-                                  {client.fullName}
-                                </td>
-                                <td className="px-3 py-2.5 font-mono text-slate-600 text-[11px] whitespace-nowrap">
-                                  {client.loginId || client.mobile}
-                                </td>
-                                <td className="px-3 py-2.5 font-mono font-bold text-slate-900 tracking-wider whitespace-nowrap">
-                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                    {client.passwordPlain}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">
-                                  {client.period === '1_year' ? '१ वर्ष' : client.period === '5_years' ? '५ वर्ष' : 'Lifetime'}
-                                </td>
-                                <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleToggleStatus(client.mobile, e)}
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
-                                      client.status === 'active'
-                                        ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                                        : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
-                                    }`}
-                                    title="स्थिति परिवर्तन गर्न क्लिक गर्नुहोस्"
-                                  >
-                                    <span className={`w-1.5 h-1.5 rounded-full ${client.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                    <span>{client.status === 'active' ? 'सक्रिय' : 'निष्क्रिय'}</span>
-                                  </button>
-                                </td>
-                                <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {filteredClients.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-xs">
+                                कुनै प्रयोगकर्ता फेला परेन।
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredClients.map((client, idx) => {
+                              const isSelected = client.mobile && client.mobile === selectedMobile;
+                              return (
+                                <tr 
+                                  key={client.id || client.mobile || idx}
+                                  onClick={() => setSelectedMobile(client.mobile || '')}
+                                  className={`cursor-pointer transition-colors ${
+                                    isSelected 
+                                      ? 'bg-blue-50/70 hover:bg-blue-50 border-l-4 border-l-blue-600 font-medium' 
+                                      : 'hover:bg-slate-50/80'
+                                  }`}
+                                >
+                                  <td className="px-3 py-2.5 text-center text-slate-500 font-mono text-[11px]">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="px-3 py-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                    {client.mobile || '—'}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-800 break-words">
+                                    {client.fullName || '—'}
+                                  </td>
+                                  <td className="px-3 py-2.5 font-mono text-slate-600 text-[11px] whitespace-nowrap">
+                                    {client.loginId || client.mobile || '—'}
+                                  </td>
+                                  <td className="px-3 py-2.5 font-mono font-bold text-slate-900 tracking-wider whitespace-nowrap">
+                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                      {client.passwordPlain || '—'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">
+                                    {client.period === '1_year' ? '१ वर्ष' : client.period === '5_years' ? '५ वर्ष' : 'Lifetime'}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                     <button
                                       type="button"
-                                      onClick={() => setEditingClient(client)}
-                                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
-                                      title="सम्पादन गर्नुहोस्"
+                                      onClick={(e) => handleToggleStatus(client.mobile || '', e)}
+                                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
+                                        client.status === 'active'
+                                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                          : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                                      }`}
+                                      title="स्थिति परिवर्तन गर्न क्लिक गर्नुहोस्"
                                     >
-                                      <Edit3 className="w-3.5 h-3.5" />
+                                      <span className={`w-1.5 h-1.5 rounded-full ${client.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                      <span>{client.status === 'active' ? 'सक्रिय' : 'निष्क्रिय'}</span>
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedMobile(client.mobile);
-                                        showToast(`${client.fullName} का मेनु अनुमतिहरू दायाँतर्फ लोड गरियो।`);
-                                      }}
-                                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
-                                      title="मेनु पहुँच नियन्त्रण खोल्नुहोस्"
-                                    >
-                                      <Settings className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => handleResetDevice(client.mobile, e)}
-                                      className="p-1.5 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer"
-                                      title="उपकरण लक रिसेट गर्नुहोस् (Device Unlock)"
-                                    >
-                                      <Smartphone className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => handleDeleteClient(client.mobile, e)}
-                                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                      title="हटाउनुहोस्"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingClient(client)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                        title="सम्पादन गर्नुहोस्"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (client.mobile) {
+                                            setSelectedMobile(client.mobile);
+                                            showToast(`${client.fullName || client.mobile} का मेनु अनुमतिहरू दायाँतर्फ लोड गरियो।`);
+                                          }
+                                        }}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                                        title="मेनु पहुँच नियन्त्रण खोल्नुहोस्"
+                                      >
+                                        <Settings className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleResetDevice(client.mobile || '', e)}
+                                        className="p-1.5 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer"
+                                        title="उपकरण लक रिसेट गर्नुहोस् (Device Unlock)"
+                                      >
+                                        <Smartphone className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleDeleteClient(client.mobile || '', e)}
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                        title="हटाउनुहोस्"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1111,7 +1126,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
 
                         {/* Category items */}
                         {items.map((feat) => {
-                          const currentState: AccessState = activeClient?.permissions[feat.id] || feat.defaultState;
+                          const currentState: AccessState = activeClient?.permissions?.[feat.id] || feat.defaultState;
                           return (
                             <tr key={feat.id} className="hover:bg-slate-50 transition-colors">
                               <td className="px-3 py-2 pl-5 text-slate-800 text-[11px]">
@@ -1191,7 +1206,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
               {/* Bottom Save Changes Button */}
               <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
                 <span className="text-[10px] text-slate-500">
-                  चयनित प्रयोगकर्ता: <strong className="text-slate-800">{activeClient?.fullName}</strong> ({activeClient?.mobile})
+                  चयनित प्रयोगकर्ता: <strong className="text-slate-800">{activeClient?.fullName || 'कुनै चयन नभएको'}</strong> {activeClient?.mobile ? `(${activeClient.mobile})` : ''}
                 </span>
                 <button
                   type="button"

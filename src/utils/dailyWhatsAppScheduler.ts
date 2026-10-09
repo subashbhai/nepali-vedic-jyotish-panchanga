@@ -111,21 +111,21 @@ export function getProfileMoonDetails(profile: BirthDetails): { moonRashiName: s
  * Gathers all subscribers from profiles list that have Date of Birth (DOB)
  */
 export function getSubscribersFromProfiles(
-  profiles: BirthDetails[]
+  profiles?: BirthDetails[]
 ): DailyWhatsAppSubscriber[] {
   const config = getStoredScheduleConfig();
   const tickedIds = new Set(config.selectedProfileIds);
 
   // Filter only profiles with DOB
-  const validProfiles = profiles.filter((p) => Boolean(p.dateBS || p.dateAD));
+  const validProfiles = (profiles || []).filter((p) => p && Boolean(p.dateBS || p.dateAD));
 
   return validProfiles.map((p) => {
     const moon = getProfileMoonDetails(p);
     const isTicked = tickedIds.size === 0 ? Boolean(p.phone) : tickedIds.has(p.id || p.name);
 
     return {
-      profileId: p.id || p.name,
-      name: p.name,
+      profileId: p.id || p.name || `prof_${Math.random()}`,
+      name: p.name || 'अज्ञात जातक',
       phone: p.phone || '',
       dateBS: p.dateBS || '—',
       dateAD: p.dateAD || '—',

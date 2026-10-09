@@ -2322,10 +2322,10 @@ export default function App() {
               onClosePanel={() => navigateTab('dashboard')}
               onNavigateApp={(tab) => navigateTab(tab as any)}
               initialTab={adminInitialTab as any}
-              profiles={profiles}
+              profiles={profiles || []}
               todayPanchanga={todayPanchanga}
               orgProfile={orgProfile}
-              transitPlanets={todayTransitPlanets}
+              transitPlanets={todayTransitPlanets || []}
             />
           )}
 

@@ -90,21 +90,22 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
     }
   };
 
-  const filteredLeads = leads.filter((l) => {
+  const filteredLeads = (leads || []).filter((l) => {
+    if (!l) return false;
     if (statusFilter !== 'ALL' && l.status !== statusFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
-        l.fullName.toLowerCase().includes(q) ||
-        l.mobile.includes(q) ||
-        l.email.toLowerCase().includes(q) ||
+        (l.fullName || '').toLowerCase().includes(q) ||
+        (l.mobile || '').includes(q) ||
+        (l.email || '').toLowerCase().includes(q) ||
         (l.transactionId && l.transactionId.toLowerCase().includes(q))
       );
     }
     return true;
   });
 
-  const pendingCount = leads.filter((l) => l.status === 'PURCHASE_PENDING').length;
+  const pendingCount = (leads || []).filter((l) => l && l.status === 'PURCHASE_PENDING').length;
 
   return (
     <div className="space-y-6">

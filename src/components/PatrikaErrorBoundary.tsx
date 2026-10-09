@@ -25,6 +25,7 @@ import { ErrorLogModal } from './ErrorLogModal';
 export interface PatrikaErrorBoundaryProps {
   children: ReactNode;
   fallbackTitle?: string;
+  fallbackMessage?: string;
   onReset?: () => void;
   appStateContext?: Record<string, unknown>;
 }
@@ -164,11 +165,15 @@ export class PatrikaErrorBoundary extends Component<PatrikaErrorBoundaryProps, P
           {/* Title & Context Message */}
           <div className="space-y-2 max-w-xl">
             <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100">
-              {this.props.fallbackTitle || 'पत्रिका / चिना मोड्युल लोड गर्न समस्या भयो'}
+              {this.props.fallbackTitle || 'पृष्ठ वा कम्पोनेन्ट लोड गर्न समस्या भयो'}
             </h2>
             <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
-              जातकको जन्म विवरण, ग्रह स्थिति वा गणना तथ्याङ्कमा कुनै अस्वाभाविक त्रुटि भएकाले यो खण्ड प्रदर्शन हुन सकेन। 
-              यो त्रुटि, स्ट्याक ट्रेस र एप अवस्था सन्दर्भ स्थानीय भण्डारणको <code className="font-mono bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded text-amber-700 dark:text-amber-400 font-bold">'{ERROR_LOG_STORAGE_KEY}'</code> कुञ्जीमा सुरक्षित गरिएको छ।
+              {this.props.fallbackMessage || (
+                (appContext?.activeTab === 'admin_control' || appContext?.activeTab === 'user_control' || appContext?.activeTab === 'menu_control')
+                  ? 'प्रणाली वा प्रशासक कमान्ड कक्ष लोड गर्दा प्राविधिक त्रुटि देखिएको छ। कृपया रिसेट गरी पुनः प्रयास गर्नुहोस्।'
+                  : 'जातकको जन्म विवरण, ग्रह स्थिति वा गणना तथ्याङ्कमा कुनै अस्वाभाविक त्रुटि भएकाले यो खण्ड प्रदर्शन हुन सकेन।'
+              )} 
+              {' '}यो त्रुटि, स्ट्याक ट्रेस र एप अवस्था सन्दर्भ स्थानीय भण्डारणको <code className="font-mono bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded text-amber-700 dark:text-amber-400 font-bold">'{ERROR_LOG_STORAGE_KEY}'</code> कुञ्जीमा सुरक्षित गरिएको छ।
             </p>
 
             {resetFeedback && (

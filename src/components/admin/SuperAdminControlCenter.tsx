@@ -127,6 +127,80 @@ import {
   getStoredVivahReports
 } from '../../db/vivahStore';
 
+interface TabContentErrorBoundaryProps {
+  children: React.ReactNode;
+  activeTabTitle: string;
+  onFallbackToOverview: () => void;
+}
+
+interface TabContentErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class TabContentErrorBoundary extends React.Component<TabContentErrorBoundaryProps, TabContentErrorBoundaryState> {
+  constructor(props: TabContentErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): TabContentErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('TabContentErrorBoundary caught error in tab:', this.props.activeTabTitle, error, errorInfo);
+  }
+
+  componentDidUpdate(prevProps: TabContentErrorBoundaryProps) {
+    if (prevProps.activeTabTitle !== this.props.activeTabTitle && this.state.hasError) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-stone-900 border border-amber-500/30 rounded-3xl p-6 sm:p-8 text-center space-y-4 max-w-xl mx-auto my-8 animate-in fade-in">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto">
+            <AlertTriangle className="w-6 h-6 text-amber-400" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-amber-300">
+              {this.props.activeTabTitle} मोड्युल लोड गर्दा समस्या भयो
+            </h3>
+            <p className="text-xs text-stone-400">
+              यस खण्डको डेटा विश्लेषण वा रेन्डर गर्दा अप्रत्याशित समस्या देखियो। तपाईं सुरक्षित ओभरभ्युमा फर्कन सक्नुहुन्छ।
+            </p>
+            {this.state.error?.message && (
+              <p className="text-[11px] font-mono text-rose-300/80 mt-1">
+                {this.state.error.message}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={this.props.onFallbackToOverview}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs rounded-xl shadow cursor-pointer"
+            >
+              केन्द्रीय ओभरभ्युमा फर्कनुहोस्
+            </button>
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs rounded-xl border border-stone-700 cursor-pointer"
+            >
+              पुनः प्रयास गर्नुहोस्
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 interface SuperAdminControlCenterProps {
   onClose?: () => void;
   onNavigateApp?: (tab: string) => void;
@@ -261,14 +335,14 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       setStoreProducts(getStoredProducts());
 
       // Vivah Portal counts
-      const vProfiles = getStoredVivahProfiles();
-      const vAds = getStoredVivahAds();
-      const vReqs = getStoredVivahRequests();
-      const vReps = getStoredVivahReports();
-      const pendingP = vProfiles.filter(p => p.verificationStatus === 'PENDING' || (p.idDocumentUrl && p.verificationLevel !== 'ADMIN_VERIFIED')).length;
-      const pendingA = vAds.filter(a => a.status === 'PENDING_REVIEW').length;
-      const pendingR = vReqs.filter(r => r.status === 'CONTACT_RELEASE_REQUESTED').length;
-      const pendingRep = vReps.filter(r => r.status === 'OPEN' || r.status === 'UNDER_REVIEW').length;
+      const vProfiles = getStoredVivahProfiles() || [];
+      const vAds = getStoredVivahAds() || [];
+      const vReqs = getStoredVivahRequests() || [];
+      const vReps = getStoredVivahReports() || [];
+      const pendingP = vProfiles.filter(p => p && (p.verificationStatus === 'PENDING' || (p.idDocumentUrl && p.verificationLevel !== 'ADMIN_VERIFIED'))).length;
+      const pendingA = vAds.filter(a => a && a.status === 'PENDING_REVIEW').length;
+      const pendingR = vReqs.filter(r => r && r.status === 'CONTACT_RELEASE_REQUESTED').length;
+      const pendingRep = vReps.filter(r => r && (r.status === 'OPEN' || r.status === 'UNDER_REVIEW')).length;
       setVivahPendingCount(pendingP + pendingA + pendingR + pendingRep);
       setTotalVivahProfiles(vProfiles.length);
     } catch (e) {
@@ -508,17 +582,17 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     );
   }
 
-  // Calculated Stats
-  const pendingExpertsCount = officialMembers.filter(m => m.status === 'pending' || m.approvalStatus === 'Pending').length;
-  const activeExpertsCount = officialMembers.filter(m => m.status === 'approved' || m.approvalStatus === 'Approved').length;
-  const pendingPaymentsCount = esewaRequests.filter(r => r.status === 'pending').length;
-  const pendingBookingsCount = bookings.filter(b => b.status === 'OFFERED' || b.status === 'MATCHING').length;
-  const pendingPurchasesCount = clientLeads.filter(l => l.status === 'PURCHASE_PENDING').length;
+  // Calculated Stats (Safely guarded against null/undefined arrays)
+  const pendingExpertsCount = (officialMembers || []).filter(m => m && (m.status === 'pending' || m.approvalStatus === 'Pending')).length;
+  const activeExpertsCount = (officialMembers || []).filter(m => m && (m.status === 'approved' || m.approvalStatus === 'Approved')).length;
+  const pendingPaymentsCount = (esewaRequests || []).filter(r => r && r.status === 'pending').length;
+  const pendingBookingsCount = (bookings || []).filter(b => b && (b.status === 'OFFERED' || b.status === 'MATCHING')).length;
+  const pendingPurchasesCount = (clientLeads || []).filter(l => l && l.status === 'PURCHASE_PENDING').length;
 
   const stats = {
-    totalUsers: rbacUsers.length || 120,
-    totalYajaman: rbacUsers.filter(u => u.role === 'CUSTOMER').length || 95,
-    totalExperts: officialMembers.length || 18,
+    totalUsers: (rbacUsers || []).length || 120,
+    totalYajaman: (rbacUsers || []).filter(u => u && u.role === 'CUSTOMER').length || 95,
+    totalExperts: (officialMembers || []).length || 18,
     pendingExperts: pendingExpertsCount,
     activeExperts: activeExpertsCount,
     pendingBookings: pendingBookingsCount,
@@ -528,9 +602,9 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     monthlyRevenue: 385000,
     activeMemberships: activeExpertsCount,
     expiringMemberships: 2,
-    pendingStoreOrders: storeOrders.filter(o => o.orderType === 'ONLINE' && o.orderStatus !== 'Delivered' && o.orderStatus !== 'Cancelled').length,
-    pendingPosOrders: storeOrders.filter(o => o.orderType === 'OFFLINE_POS').length,
-    lowStockItems: storeProducts.filter(p => p.stockQuantity <= p.minStockLevel).length,
+    pendingStoreOrders: (storeOrders || []).filter(o => o && o.orderType === 'ONLINE' && o.orderStatus !== 'Delivered' && o.orderStatus !== 'Cancelled').length,
+    pendingPosOrders: (storeOrders || []).filter(o => o && o.orderType === 'OFFLINE_POS').length,
+    lowStockItems: (storeProducts || []).filter(p => p && p.stockQuantity <= p.minStockLevel).length,
     pendingPatrikaRecords: 4,
     pendingPurchases: pendingPurchasesCount,
     pendingVivah: vivahPendingCount,
@@ -831,86 +905,91 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
               )}
             </div>
 
-            {/* Tab Views */}
-            {activeTab === 'overview' && (
-              <AdminOverviewSection stats={stats} onNavigateTab={(t) => setActiveTab(t)} onRefresh={loadAllData} />
-            )}
-            {activeTab === 'pages_services' && (
-              <AdminPageServiceControlSection
-                onNavigateAppPage={(tab) => {
-                  if (onNavigateApp) onNavigateApp(tab);
-                  else if (onClose) onClose();
-                }}
-                onRefreshParent={loadAllData}
-              />
-            )}
-            {activeTab === 'vivah_portal' && (
-              <AdminVivahSection onRefreshParent={loadAllData} />
-            )}
-            {activeTab === 'client_approvals' && (
-              <AdminClientApprovalsSection onRefresh={loadAllData} />
-            )}
-            {activeTab === 'targeted_push' && (
-              <AdminTargetedPushNotificationSection />
-            )}
-            {activeTab === 'role_magic_links' && (
-              <AdminRoleMagicLinksSection />
-            )}
-            {activeTab === 'samachar_editor' && (
-              <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
-            )}
-            {activeTab === 'advertisement' && (
-              <AdminAdvertisementSection />
-            )}
-            {activeTab === 'daily_whatsapp' && (
-              <DailyWhatsAppDispatchManager
-                profiles={profiles}
-                todayPanchanga={todayPanchanga || calculatePanchanga(new Date().toISOString().split('T')[0], '06:00', 27.7172, 85.3240, 5.75)}
-                orgProfile={orgProfile}
-                transitPlanets={transitPlanets}
-              />
-            )}
-            {(activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
-              <UserControlMasterView onBackToDashboard={() => setActiveTab('overview')} onLogoutAdmin={handleLogout} />
-            )}
-            {activeTab === 'staff_rbac' && (
-              <AdminUserManagementSection
-                users={rbacUsers}
-                onUpdateUserStatus={handleUpdateUserStatus}
-                onChangeUserRole={(id, r) => editRBACUserDetails(id, { role: r }, session?.username || 'admin')}
-                onResetUserPassword={() => {}}
-                onAddNewUser={() => loadAllData()}
-                onRefresh={loadAllData}
-              />
-            )}
-            {activeTab === 'rbac' && <AdminRbacSection />}
-            {activeTab === 'experts' && (
-              <AdminExpertSection members={officialMembers} onUpdateStatus={handleUpdateMemberStatus} onRefresh={loadAllData} />
-            )}
-            {activeTab === 'yajaman' && (
-              <AdminYajamanSection users={rbacUsers} bookings={bookings} onRefresh={loadAllData} />
-            )}
-            {activeTab === 'bookings' && (
-              <AdminBookingSection bookings={bookings} onUpdateBookingStatus={handleUpdateBookingStatus} onRefresh={loadAllData} />
-            )}
-            {activeTab === 'geo_monitor' && <AdminGeoMonitorSection />}
-            {activeTab === 'finance' && (
-              <AdminFinanceSection
-                esewaRequests={esewaRequests}
-                onApprovePayment={handleApprovePayment}
-                onRejectPayment={handleRejectPayment}
-                onRefresh={loadAllData}
-              />
-            )}
-            {activeTab === 'memberships' && <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />}
-            {activeTab === 'patrika' && <AdminPatrikaSection />}
-            {activeTab === 'store_pos' && <AdminStorePosSection products={storeProducts} orders={storeOrders} onRefresh={loadAllData} />}
-            {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
-            {activeTab === 'notifications' && <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />}
-            {activeTab === 'reports' && <AdminReportSection />}
-            {activeTab === 'security_audit' && <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />}
-            {activeTab === 'settings' && <AdminSettingsSection />}
-            {activeTab === 'backup' && <AdminBackupSection />}
+            {/* Tab Views with Isolated Error Boundary */}
+            <TabContentErrorBoundary
+              activeTabTitle={currentActiveItem.label}
+              onFallbackToOverview={() => setActiveTab('overview')}
+            >
+              {activeTab === 'overview' && (
+                <AdminOverviewSection stats={stats} onNavigateTab={(t) => setActiveTab(t)} onRefresh={loadAllData} />
+              )}
+              {activeTab === 'pages_services' && (
+                <AdminPageServiceControlSection
+                  onNavigateAppPage={(tab) => {
+                    if (onNavigateApp) onNavigateApp(tab);
+                    else if (onClose) onClose();
+                  }}
+                  onRefreshParent={loadAllData}
+                />
+              )}
+              {activeTab === 'vivah_portal' && (
+                <AdminVivahSection onRefreshParent={loadAllData} />
+              )}
+              {activeTab === 'client_approvals' && (
+                <AdminClientApprovalsSection onRefresh={loadAllData} />
+              )}
+              {activeTab === 'targeted_push' && (
+                <AdminTargetedPushNotificationSection />
+              )}
+              {activeTab === 'role_magic_links' && (
+                <AdminRoleMagicLinksSection />
+              )}
+              {activeTab === 'samachar_editor' && (
+                <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
+              )}
+              {activeTab === 'advertisement' && (
+                <AdminAdvertisementSection />
+              )}
+              {activeTab === 'daily_whatsapp' && (
+                <DailyWhatsAppDispatchManager
+                  profiles={profiles || []}
+                  todayPanchanga={todayPanchanga || calculatePanchanga(new Date().toISOString().split('T')[0], '06:00', 27.7172, 85.3240, 5.75)}
+                  orgProfile={orgProfile}
+                  transitPlanets={transitPlanets || []}
+                />
+              )}
+              {(activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
+                <UserControlMasterView onBackToDashboard={() => setActiveTab('overview')} onLogoutAdmin={handleLogout} />
+              )}
+              {activeTab === 'staff_rbac' && (
+                <AdminUserManagementSection
+                  users={rbacUsers}
+                  onUpdateUserStatus={handleUpdateUserStatus}
+                  onChangeUserRole={(id, r) => editRBACUserDetails(id, { role: r }, session?.username || 'admin')}
+                  onResetUserPassword={() => {}}
+                  onAddNewUser={() => loadAllData()}
+                  onRefresh={loadAllData}
+                />
+              )}
+              {activeTab === 'rbac' && <AdminRbacSection />}
+              {activeTab === 'experts' && (
+                <AdminExpertSection members={officialMembers} onUpdateStatus={handleUpdateMemberStatus} onRefresh={loadAllData} />
+              )}
+              {activeTab === 'yajaman' && (
+                <AdminYajamanSection users={rbacUsers} bookings={bookings} onRefresh={loadAllData} />
+              )}
+              {activeTab === 'bookings' && (
+                <AdminBookingSection bookings={bookings} onUpdateBookingStatus={handleUpdateBookingStatus} onRefresh={loadAllData} />
+              )}
+              {activeTab === 'geo_monitor' && <AdminGeoMonitorSection />}
+              {activeTab === 'finance' && (
+                <AdminFinanceSection
+                  esewaRequests={esewaRequests}
+                  onApprovePayment={handleApprovePayment}
+                  onRejectPayment={handleRejectPayment}
+                  onRefresh={loadAllData}
+                />
+              )}
+              {activeTab === 'memberships' && <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />}
+              {activeTab === 'patrika' && <AdminPatrikaSection />}
+              {activeTab === 'store_pos' && <AdminStorePosSection products={storeProducts} orders={storeOrders} onRefresh={loadAllData} />}
+              {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
+              {activeTab === 'notifications' && <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />}
+              {activeTab === 'reports' && <AdminReportSection />}
+              {activeTab === 'security_audit' && <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />}
+              {activeTab === 'settings' && <AdminSettingsSection />}
+              {activeTab === 'backup' && <AdminBackupSection />}
+            </TabContentErrorBoundary>
           </div>
         </main>
       </div>
