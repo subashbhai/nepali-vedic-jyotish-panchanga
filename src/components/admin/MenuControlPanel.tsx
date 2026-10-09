@@ -82,10 +82,10 @@ export const MenuControlPanel: React.FC = () => {
 
   // Filtered policies based on search query
   const filteredPolicies = useMemo(() => {
-    if (!searchQuery.trim()) return policies;
+    if (!searchQuery.trim()) return policies || [];
     const q = searchQuery.toLowerCase();
-    return policies.filter(
-      p => p.mobile.includes(q) || p.fullName.toLowerCase().includes(q)
+    return (policies || []).filter(
+      p => p && ((p.mobile || '').includes(q) || (p.fullName || '').toLowerCase().includes(q))
     );
   }, [policies, searchQuery]);
 
