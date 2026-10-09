@@ -114,23 +114,29 @@ import { YajamanAdminModerationPanel } from './yajaman/YajamanAdminModerationPan
 import { BirthDetails, PanchangaData, PlanetPosition } from '../types/astrology';
 import { calculatePanchanga } from '../utils/panchangaEngine';
 import { PersonalizedRashifalDashboard } from './dashboard/PersonalizedRashifalDashboard';
+import { RBACSession, getActiveRBACSession } from '../db/rbacStore';
+import { getUserPersonalBirthProfile, saveUserPersonalBirthProfile } from '../db/profileStore';
 
 interface YajamanViewProps {
   onNavigateToExpert?: () => void;
   activeProfile?: BirthDetails | null;
+  rbacSession?: RBACSession | null;
   todayPanchanga?: PanchangaData;
   todayAD?: string;
   todayBS?: string;
   transitPlanets?: PlanetPosition[];
+  onUpdateProfile?: (updated: BirthDetails) => void;
 }
 
 export const YajamanView: React.FC<YajamanViewProps> = ({
   onNavigateToExpert,
   activeProfile,
+  rbacSession,
   todayPanchanga,
   todayAD = new Date().toISOString().split('T')[0],
   todayBS: propTodayBS,
-  transitPlanets = []
+  transitPlanets = [],
+  onUpdateProfile
 }) => {
   // Portal Role Switch: 'YAJAMAN' vs 'PROVIDER'
   const [portalMode, setPortalMode] = useState<'YAJAMAN' | 'PROVIDER'>('YAJAMAN');
@@ -139,15 +145,34 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
   const [activeYajaman, setActiveYajaman] = useState<YajamanUser | null>(getActiveYajamanSession());
   const [activeProvider, setActiveProvider] = useState<ServiceProvider | null>(getActiveProviderSession());
 
+  // Locally customized profile state
+  const [customizedProfile, setCustomizedProfile] = useState<BirthDetails | null>(null);
+
   // Memoized user profile for personalized rashifal dashboard
   const userProfileForRashifal: BirthDetails = useMemo(() => {
-    if (activeProfile) return activeProfile;
+    // 0. Locally edited profile takes top priority
+    if (customizedProfile) return customizedProfile;
+
+    // 1. If explicit real user profile is passed (not a live transit dummy)
+    if (activeProfile && activeProfile.id !== 'live_current_moment' && !activeProfile.name?.includes('तात्कालिक')) {
+      return activeProfile;
+    }
+
+    // 2. Resolve logged in user (RBAC or Yajaman session)
+    const currentRbac = rbacSession || getActiveRBACSession();
+    const currentUserId = currentRbac?.userId || activeYajaman?.id || 'client_subash_khanal';
+    const currentUserName = currentRbac?.fullName || activeYajaman?.fullName || 'subash khanal';
+
+    const personalProf = getUserPersonalBirthProfile(currentUserId, currentUserName);
+    if (personalProf) return personalProf;
+
+    // 3. Fallback
     return {
-      id: activeYajaman?.id || 'yajaman_user',
-      name: activeYajaman?.fullName || 'subash khanal',
+      id: `user_profile_${currentUserId}`,
+      name: currentUserName,
       gender: 'पुरुष',
-      dateBS: activeYajaman?.createdAtBS || '२०४५-०५-१५',
-      dateAD: '1988-08-30',
+      dateBS: '२०४६-०५-१५',
+      dateAD: '1989-08-30',
       time: '06:30',
       location: {
         name: activeYajaman?.district ? `${activeYajaman.district}, नेपाल` : 'काठमाडौँ, नेपाल',
@@ -155,9 +180,9 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
         longitude: 85.3240,
         timeZone: 5.75
       },
-      moonRashi: 'मेष'
+      moonRashi: 'कन्या'
     };
-  }, [activeProfile, activeYajaman]);
+  }, [customizedProfile, activeProfile, rbacSession, activeYajaman]);
 
   const computedPanchanga = useMemo(() => {
     if (todayPanchanga) return todayPanchanga;
@@ -978,6 +1003,13 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                   todayAD={todayAD}
                   todayBS={propTodayBS}
                   transitPlanets={transitPlanets}
+                  onUpdateProfile={(updated) => {
+                    setCustomizedProfile(updated);
+                    const currentRbac = rbacSession || getActiveRBACSession();
+                    const currentUserId = currentRbac?.userId || activeYajaman?.id || 'client_subash_khanal';
+                    saveUserPersonalBirthProfile(currentUserId, updated);
+                    if (onUpdateProfile) onUpdateProfile(updated);
+                  }}
                 />
               </div>
             )}

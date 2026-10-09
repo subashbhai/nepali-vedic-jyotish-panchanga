@@ -27,7 +27,11 @@ import {
   Award,
   Layers,
   History,
-  Info
+  Info,
+  Edit3,
+  Save,
+  X,
+  UserCheck
 } from 'lucide-react';
 import {
   BirthDetails,
@@ -49,7 +53,8 @@ import {
   BALANANDA_RASHIFAL_UPDATED_EVENT
 } from '../../db/rashifalStore';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
-import { convertADToBSFull, NEPALI_MONTH_NAMES } from '../../utils/bsCalendarData';
+import { convertADToBSFull, convertBSToADFull, NEPALI_MONTH_NAMES } from '../../utils/bsCalendarData';
+import { getCachedAstroCalculation } from '../../utils/astroCache';
 
 interface PersonalizedRashifalDashboardProps {
   profile: BirthDetails | null;
@@ -58,6 +63,7 @@ interface PersonalizedRashifalDashboardProps {
   todayBS?: string;
   transitPlanets?: PlanetPosition[];
   onOpenKundali?: () => void;
+  onUpdateProfile?: (updated: BirthDetails) => void;
 }
 
 export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboardProps> = ({
@@ -65,27 +71,129 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
   todayPanchanga,
   todayAD = new Date().toISOString().split('T')[0],
   todayBS = '',
-  transitPlanets = []
+  transitPlanets = [],
+  onUpdateProfile
 }) => {
   // Navigation block selection: 'all' | 'daily' | 'monthly' | 'yearly'
   const [activeBlock, setActiveBlock] = useState<'all' | 'daily' | 'monthly' | 'yearly'>('all');
 
-  // Currently selected Rashi (defaults to user's natal moon rashi if available, else 1 = मेष)
+  // Active Profile state (allows instant interactive customization)
+  const [activeProfileState, setActiveProfileState] = useState<BirthDetails | null>(profile);
+
+  useEffect(() => {
+    setActiveProfileState(profile);
+  }, [profile]);
+
+  // Natal Moon sign calculation (resolves automatically to user's real rashi)
+  const userNatalMoonRashi = useMemo(() => {
+    const prof = activeProfileState || profile;
+    if (!prof || prof.id === 'live_current_moment' || prof.name?.includes('तात्कालिक')) {
+      return null;
+    }
+    if (prof.moonRashi) {
+      const found = RASHI_DATA.find((r) => r.name === prof.moonRashi);
+      if (found) return found;
+    }
+    if (prof.dateAD) {
+      try {
+        const lat = prof.location?.latitude || 27.7172;
+        const lng = prof.location?.longitude || 85.3240;
+        const tz = prof.location?.timeZone || 5.75;
+        const timeStr = prof.time && prof.time.trim() !== '' ? prof.time : '12:00';
+        const calc = getCachedAstroCalculation(prof.dateAD, timeStr, lat, lng, tz);
+        if (calc?.moon?.rashiId) {
+          const found = RASHI_DATA.find((r) => r.id === calc.moon.rashiId);
+          if (found) return found;
+        }
+      } catch {}
+    }
+    return null;
+  }, [activeProfileState, profile]);
+
+  // Currently selected Rashi (defaults automatically to user's natal sign)
   const [selectedRashiId, setSelectedRashiId] = useState<number>(() => {
+    if (userNatalMoonRashi) return userNatalMoonRashi.id;
     if (profile?.moonRashi) {
       const found = RASHI_DATA.find((r) => r.name === profile.moonRashi);
       if (found) return found.id;
     }
-    return 1;
+    return 6; // Kanya as sensible default instead of Mesh
   });
 
-  // Re-sync rashi if profile changes
+  // Re-sync rashi if userNatalMoonRashi becomes available
   useEffect(() => {
-    if (profile?.moonRashi) {
-      const found = RASHI_DATA.find((r) => r.name === profile.moonRashi);
-      if (found) setSelectedRashiId(found.id);
+    if (userNatalMoonRashi) {
+      setSelectedRashiId(userNatalMoonRashi.id);
     }
-  }, [profile]);
+  }, [userNatalMoonRashi]);
+
+  // Customization Modal State
+  const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    gender: 'पुरुष',
+    dateBS: '२०४६-०५-१५',
+    time: '०६:३०',
+    district: 'काठमाडौँ',
+    moonRashi: 'कन्या'
+  });
+
+  const handleOpenCustomize = () => {
+    const prof = activeProfileState || profile;
+    setEditForm({
+      name: prof?.name || 'subash khanal',
+      gender: prof?.gender || 'पुरुष',
+      dateBS: prof?.dateBS || '२०४६-०५-१५',
+      time: prof?.time || '०६:३०',
+      district: prof?.location?.district || prof?.location?.name || 'काठमाडौँ',
+      moonRashi: prof?.moonRashi || userNatalMoonRashi?.name || 'कन्या'
+    });
+    setIsCustomizeModalOpen(true);
+  };
+
+  const handleSaveCustomize = (e: React.FormEvent) => {
+    e.preventDefault();
+    const prof = activeProfileState || profile;
+
+    let convertedAD = prof?.dateAD || '1989-08-30';
+    try {
+      const parts = editForm.dateBS.split('-').map((p) => parseInt(p, 10));
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        convertedAD = convertBSToADFull(parts[0], parts[1], parts[2]);
+      }
+    } catch {}
+
+    const updated: BirthDetails = {
+      id: prof?.id && prof.id !== 'live_current_moment' ? prof.id : `user_profile_${Date.now()}`,
+      name: editForm.name.trim() || 'subash khanal',
+      gender: editForm.gender as any,
+      dateBS: editForm.dateBS.trim(),
+      dateAD: convertedAD,
+      time: editForm.time.trim() || '०६:३०',
+      location: {
+        name: `${editForm.district}, नेपाल`,
+        district: editForm.district,
+        province: 'बागमती',
+        country: 'नेपाल',
+        latitude: 27.7172,
+        longitude: 85.3240,
+        timeZone: 5.75
+      },
+      moonRashi: editForm.moonRashi,
+      clientId: prof?.clientId || 'client_self',
+      notes: 'प्रयोगकर्ताद्वारा अनुकूलित व्यक्तिगत जन्म विवरण'
+    };
+
+    setActiveProfileState(updated);
+    const foundRashi = RASHI_DATA.find((r) => r.name === editForm.moonRashi);
+    if (foundRashi) {
+      setSelectedRashiId(foundRashi.id);
+    }
+    if (onUpdateProfile) {
+      onUpdateProfile(updated);
+    }
+    setIsCustomizeModalOpen(false);
+  };
 
   // Calendar periods
   const currentBS = useMemo(() => convertADToBSFull(new Date(todayAD)), [todayAD]);
@@ -118,35 +226,38 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
     };
   }, []);
 
+  // Effective Profile for computations
+  const effectiveProfile = activeProfileState || profile;
+
   // Compute Daily Horoscope
   const dailyResult: PersonalizedDailyResult = useMemo(() => {
     return generatePersonalizedDailyRashifal(
-      profile,
+      effectiveProfile,
       todayPanchanga,
       transitPlanets,
       selectedRashiId,
       currentBS.formattedBS
     );
-  }, [profile, todayPanchanga, transitPlanets, selectedRashiId, currentBS.formattedBS, updateNonce]);
+  }, [effectiveProfile, todayPanchanga, transitPlanets, selectedRashiId, currentBS.formattedBS, updateNonce]);
 
   // Compute Monthly Horoscope
   const monthlyResult: PersonalizedMonthlyResult = useMemo(() => {
     return generatePersonalizedMonthlyRashifal(
-      profile,
+      effectiveProfile,
       selectedYearBS,
       selectedMonthBS,
       selectedRashiId
     );
-  }, [profile, selectedYearBS, selectedMonthBS, selectedRashiId, updateNonce]);
+  }, [effectiveProfile, selectedYearBS, selectedMonthBS, selectedRashiId, updateNonce]);
 
   // Compute Yearly Horoscope
   const yearlyResult: PersonalizedYearlyResult = useMemo(() => {
     return generatePersonalizedYearlyRashifal(
-      profile,
+      effectiveProfile,
       selectedYearBS,
       selectedRashiId
     );
-  }, [profile, selectedYearBS, selectedRashiId, updateNonce]);
+  }, [effectiveProfile, selectedYearBS, selectedRashiId, updateNonce]);
 
   // Share handlers
   const handlePrint = () => {
@@ -190,16 +301,19 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
             </p>
           </div>
 
-          {/* User Profile Summary Tag */}
-          {profile && (
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/15 flex items-center gap-3 shrink-0">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-700 text-white font-bold text-xl flex items-center justify-center shadow-inner">
-                {profile.name.charAt(0)}
+          {/* User Profile Summary Tag with Customize Action */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/15 flex items-center justify-between gap-4 shrink-0 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-700 text-white font-bold text-xl flex items-center justify-center shadow-inner shrink-0">
+                {(effectiveProfile?.name || 'सु').charAt(0)}
               </div>
               <div className="text-xs space-y-0.5">
                 <div className="font-bold text-sm text-white flex items-center gap-1.5">
-                  <span>{profile.name}</span>
+                  <span>{effectiveProfile?.name || 'subash khanal'}</span>
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[10px] bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/40">
+                    मेरो प्रोफाइल
+                  </span>
                 </div>
                 <div className="text-stone-300 flex items-center gap-2 flex-wrap">
                   <span>जन्मराशि: <strong className="text-amber-300">{dailyResult.janmaRashi}</strong></span>
@@ -212,23 +326,44 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
                 )}
               </div>
             </div>
-          )}
+
+            <button
+              type="button"
+              onClick={handleOpenCustomize}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="आफ्नो जन्म विवरण तथा राशि अनुकूलन गर्नुहोस्"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>अनुकूलन / सम्पादन</span>
+            </button>
+          </div>
         </div>
 
         {/* 12 RASHI QUICK SELECTOR BAR */}
         <div className="mt-5 pt-4 border-t border-white/15">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-amber-300 font-bold flex items-center gap-1.5">
-              <span>♈</span> १२ राशि द्रुत छनोट:
-            </span>
+          <div className="flex items-center justify-between text-xs mb-2 flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-amber-300 font-bold flex items-center gap-1.5">
+                <span>♈</span> १२ राशि द्रुत छनोट:
+              </span>
+              {userNatalMoonRashi && selectedRashiId !== userNatalMoonRashi.id && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedRashiId(userNatalMoonRashi.id)}
+                  className="px-2 py-0.5 bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 rounded-full text-[11px] font-bold border border-amber-400/40 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <span>तपाईंको आफ्नै जन्मराशि ({userNatalMoonRashi.name}) मा फर्कनुहोस् ↩</span>
+                </button>
+              )}
+            </div>
             <span className="text-[11px] text-stone-400">
-              {profile ? `तपाईंको जन्मराशि: ${dailyResult.janmaRashi}` : 'आफ्नो चन्द्रराशि छनोट गर्नुहोस्'}
+              {dailyResult.janmaRashi ? `तपाईंको जन्मराशि: ${dailyResult.janmaRashi}` : 'आफ्नो चन्द्रराशि छनोट गर्नुहोस्'}
             </span>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5">
             {RASHI_DATA.map((r) => {
               const isSelected = selectedRashiId === r.id;
-              const isNatal = profile && dailyResult.janmaRashi === r.name;
+              const isNatal = userNatalMoonRashi ? userNatalMoonRashi.id === r.id : dailyResult.janmaRashi === r.name;
               return (
                 <button
                   key={r.id}
@@ -238,13 +373,18 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
                     isSelected
                       ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-md scale-105'
                       : isNatal
-                      ? 'bg-amber-500/20 text-amber-200 border-amber-400/40 hover:bg-amber-500/30'
+                      ? 'bg-amber-500/20 text-amber-200 border-amber-400/50 hover:bg-amber-500/30 ring-1 ring-amber-400/30'
                       : 'bg-white/5 text-stone-300 border-white/10 hover:bg-white/15'
                   }`}
                   title={`${r.name} राशि (${r.englishName})`}
                 >
                   <span className="text-sm">{r.symbol}</span>
                   <span className="truncate w-full text-[11px]">{r.name}</span>
+                  {isNatal && (
+                    <span className={`text-[9px] font-black ${isSelected ? 'text-slate-950 font-bold' : 'text-amber-400'}`}>
+                      (मेरो ★)
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -808,6 +948,136 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
             </div>
           </div>
         </section>
+      )}
+
+      {/* ==================================================================== */}
+      {/* CUSTOMIZATION MODAL: मेरो जन्म विवरण तथा कुण्डली अनुकूलन                */}
+      {/* ==================================================================== */}
+      {isCustomizeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-[#1E1B18] rounded-3xl max-w-lg w-full border border-amber-300 dark:border-stone-800 shadow-2xl overflow-hidden animate-scaleUp">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#7A1C1C] via-[#92400E] to-[#B45309] text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-xl">
+                  ✨
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold font-serif text-amber-100">
+                    मेरो जन्म विवरण तथा राशिफल अनुकूलन
+                  </h3>
+                  <p className="text-[11px] text-amber-200/90">
+                    आफ्नो नाम, जन्ममिति, समय र राशि अनुसार व्यक्तिगत राशिफल सेट गर्नुहोस्
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomizeModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSaveCustomize} className="p-5 sm:p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                  तपाईंको पूरा नाम (Full Name) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="उदा: subash khanal"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-[#7A1C1C]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    जन्म मिति (वि.सं.) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.dateBS}
+                    onChange={(e) => setEditForm({ ...editForm, dateBS: e.target.value })}
+                    placeholder="YYYY-MM-DD (उदा: २०४६-०५-१५)"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-[#7A1C1C]"
+                  />
+                  <span className="text-[10px] text-stone-400 mt-0.5 block">ढाँचा: वर्ष-महिना-गते</span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    जन्म समय (Birth Time)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.time}
+                    onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
+                    placeholder="उदा: ०६:३० बिहान वा 06:30"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-[#7A1C1C]"
+                  />
+                  <span className="text-[10px] text-stone-400 mt-0.5 block">समय थाहा नभए खाली छोड्न सकिन्छ</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    जन्म स्थान (जिल्ला / शहर)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.district}
+                    onChange={(e) => setEditForm({ ...editForm, district: e.target.value })}
+                    placeholder="उदा: काठमाडौँ, पोखरा, चितवन..."
+                    className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-[#7A1C1C]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    तपाईंको जन्मराशि (Moon Sign) *
+                  </label>
+                  <select
+                    value={editForm.moonRashi}
+                    onChange={(e) => setEditForm({ ...editForm, moonRashi: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-[#7A1C1C]"
+                  >
+                    {RASHI_DATA.map((r) => (
+                      <option key={r.id} value={r.name}>
+                        {r.symbol} {r.name} राशि ({r.englishName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-stone-200 dark:border-stone-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomizeModalOpen(false)}
+                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  रद्द गर्नुहोस्
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-gradient-to-r from-[#7A1C1C] to-[#92400E] hover:brightness-110 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>सुरक्षित गर्नुहोस् र राशिफल हेर्नुहोस्</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>

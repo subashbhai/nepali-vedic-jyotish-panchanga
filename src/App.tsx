@@ -130,7 +130,8 @@ import {
   saveAstrologers,
   getStoredPurohits,
   savePurohits,
-  getLiveCurrentMomentProfile
+  getLiveCurrentMomentProfile,
+  getUserPersonalBirthProfile
 } from './db/profileStore';
 
 import {
@@ -1043,27 +1044,32 @@ export default function App() {
     }
   }, []);
 
-  // Ensure active profile is initialized from stored preference, session birth details, or profile list
+  // Ensure active profile is initialized from stored preference, session birth details, user personal profile, or profile list
   useEffect(() => {
     setActiveProfile((prev) => {
-      if (prev) return prev; // Do not overwrite an already active profile!
+      if (prev && prev.id !== 'live_current_moment') return prev; // Do not overwrite an already active authentic profile!
       try {
         const storedId = localStorage.getItem('balananda_active_profile_id');
         if (storedId && profiles.length > 0) {
           const found = profiles.find((p) => p.id === storedId);
-          if (found) return found;
+          if (found && found.id !== 'live_current_moment') return found;
         }
       } catch {}
-      if (rbacSession?.birthDetails) {
+      if (rbacSession?.birthDetails && rbacSession.birthDetails.id !== 'live_current_moment') {
         return rbacSession.birthDetails;
       }
       if (rbacSession?.birthProfileId && profiles.length > 0) {
         const found = profiles.find((p) => p.id === rbacSession.birthProfileId);
-        if (found) return found;
+        if (found && found.id !== 'live_current_moment') return found;
       }
-      return profiles[0] || null;
+      if (rbacSession?.userId || rbacSession?.fullName) {
+        const personalProf = getUserPersonalBirthProfile(rbacSession.userId, rbacSession.fullName);
+        if (personalProf) return personalProf;
+      }
+      const firstReal = profiles.find((p) => p && p.id !== 'live_current_moment');
+      return firstReal || null;
     });
-  }, [rbacSession?.userId]);
+  }, [rbacSession?.userId, rbacSession?.fullName]);
 
   // Global window.print and beforeprint interception to protect and isolate report printing
   useEffect(() => {
@@ -1543,7 +1549,17 @@ export default function App() {
   const todayBS = useMemo(() => convertADToBS(todayAD).formattedBS, [todayAD]);
 
   // Dynamic recent date/time fallback if no user profile is active
-  const currentProfile: BirthDetails = activeProfile || getLiveCurrentMomentProfile();
+  const resolvedUserProfile = useMemo(() => {
+    if (activeProfile && activeProfile.id !== 'live_current_moment') {
+      return activeProfile;
+    }
+    if (rbacSession?.userId || rbacSession?.fullName) {
+      return getUserPersonalBirthProfile(rbacSession.userId, rbacSession.fullName);
+    }
+    return null;
+  }, [activeProfile, rbacSession?.userId, rbacSession?.fullName]);
+
+  const currentProfile: BirthDetails = resolvedUserProfile || getLiveCurrentMomentProfile();
 
   const birthAD = currentProfile.dateAD || '1995-05-15';
   const birthTime = currentProfile.time || '08:30';
@@ -2279,11 +2295,16 @@ export default function App() {
           {activeTab === 'yajaman' && (
             <YajamanView
               onNavigateToExpert={() => navigateTab('apply_expert')}
-              activeProfile={activeProfile || currentProfile}
+              activeProfile={resolvedUserProfile || (activeProfile && activeProfile.id !== 'live_current_moment' ? activeProfile : null)}
+              rbacSession={rbacSession}
               todayPanchanga={todayPanchanga}
               todayAD={todayAD}
               todayBS={todayBS}
               transitPlanets={todayTransitPlanets}
+              onUpdateProfile={(updated) => {
+                setActiveProfile(updated);
+                saveProfile(updated);
+              }}
             />
           )}
 
