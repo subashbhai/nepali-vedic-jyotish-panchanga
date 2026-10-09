@@ -50,7 +50,8 @@ import {
   Menu,
   X,
   Laptop,
-  Music
+  Music,
+  KeyRound
 } from 'lucide-react';
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
 import { RBACSession } from '../db/rbacStore';
@@ -61,6 +62,8 @@ import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
 import { getStoredPageServiceConfig } from '../db/pageServiceControlStore';
+import { checkFeatureAccess } from '../db/menuControlStore';
+import { ChangePasswordModal } from './auth/ChangePasswordModal';
 
 // Public menus visible on the first screen before login (Jyotish & Vastu are free to use)
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
@@ -138,6 +141,7 @@ export type NavTab =
   | 'knowledge' 
   | 'ai_assistant' 
   | 'admin_control'
+  | 'user_control'
   | 'store_admin'
   | 'pos'
   | 'news_editor'
@@ -383,6 +387,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
   const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { isInstalled, isInstallable, install } = usePWAInstall();
   const sewaButtonRef = useRef<HTMLButtonElement>(null);
   const sewaMenuRef = useRef<HTMLDivElement>(null);
@@ -552,7 +557,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               ? activeTab === 'sewa'
               : activeTab === item.id && activeModule === 'MAIN';
 
-            const isTabAllowed = true; // Jyotish, Vastu and all main items are free to explore
+            const featureAccess = checkFeatureAccess(item.id);
+            const isClosed = featureAccess.state === 'close';
+            const isLocked = featureAccess.state === 'lock';
 
             if (isSewa) {
               return (
@@ -560,19 +567,21 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   <motion.button
                     ref={sewaButtonRef}
                     type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileHover={{ scale: isClosed ? 1 : 1.02 }}
+                    whileTap={{ scale: isClosed ? 1 : 0.97 }}
                     onClick={toggleSewaMenu}
                     className={`relative flex items-center gap-1 px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-xl font-bold text-[11px] sm:text-[11.5px] lg:text-[12.5px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
-                      isActive
+                      isClosed
+                        ? 'opacity-40 grayscale cursor-not-allowed bg-stone-200/50 dark:bg-stone-900/50 text-stone-400 border-stone-300 dark:border-stone-800'
+                        : isActive
                         ? 'text-amber-300 ring-2 ring-amber-500/50 shadow-md border-transparent bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515]'
                         : isSewaMenuOpen
                         ? 'bg-amber-100 dark:bg-stone-800 text-[#7A1C1C] dark:text-amber-400 border-amber-300 dark:border-stone-700 shadow-2xs'
                         : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
                     }`}
-                    title="वैदिक सेवाहरू: पुरोहित, विवाह र कन्सल्टिङ"
+                    title={isClosed ? `${item.labelNepali} (प्रशासकद्वारा बन्द)` : item.labelNepali}
                   >
-                    {isActive && (
+                    {isActive && !isClosed && (
                       <motion.div
                         layoutId="mainNavActivePill"
                         className="absolute inset-0 rounded-xl pointer-events-none bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515] border border-[#7A1C1C]"
@@ -599,6 +608,20 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             }
 
             const handleTabClick = () => {
+              if (isClosed) {
+                alert(featureAccess.reasonNepali || 'यो मेनु मुख्य प्रशासक (Super Admin) द्वारा बन्द गरिएको छ।');
+                return;
+              }
+
+              if (isLocked) {
+                if (onOpenPurchaseModal) {
+                  onOpenPurchaseModal(item.labelNepali);
+                } else {
+                  alert(featureAccess.reasonNepali || 'यो सुविधा लक गरिएको छ। खोल्नका लागि सुपरएडमिनसँग सम्पर्क गर्नुहोस्।');
+                }
+                return;
+              }
+
               if (isJyotishi) {
                 if (onEnterJyotish) {
                   onEnterJyotish();
@@ -631,18 +654,22 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               <React.Fragment key={item.id}>
                 <motion.button
                   type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
+                  whileHover={{ scale: isClosed ? 1 : 1.02 }}
+                  whileTap={{ scale: isClosed ? 1 : 0.97 }}
                   onClick={handleTabClick}
                   className={`relative flex items-center gap-1 px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-xl font-bold text-[11px] sm:text-[11.5px] lg:text-[12.5px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
-                    isActive
+                    isClosed
+                      ? 'opacity-40 grayscale cursor-not-allowed bg-stone-200/50 dark:bg-stone-900/50 text-stone-400 border-stone-300 dark:border-stone-800'
+                      : isLocked
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                      : isActive
                       ? 'text-white ring-2 ring-[#7A1C1C]/30 shadow-md border-transparent'
                       : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
                   }`}
-                  title={item.labelNepali}
+                  title={isClosed ? `${item.labelNepali} (प्रशासकद्वारा बन्द)` : isLocked ? `${item.labelNepali} (लक गरिएको)` : item.labelNepali}
                 >
                   {/* Animated active pill using Framer Motion layoutId */}
-                  {isActive && (
+                  {isActive && !isClosed && (
                     <motion.div
                       layoutId="mainNavActivePill"
                       className="absolute inset-0 rounded-xl pointer-events-none bg-[#7A1C1C] border border-[#5C1515]"
@@ -657,12 +684,16 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   <span className="relative z-10 flex items-center gap-1">
                     <Icon
                       className={`w-3.5 h-3.5 shrink-0 ${
-                        isActive
+                        isClosed
+                          ? 'text-stone-400'
+                          : isActive
                           ? 'text-amber-300'
                           : 'text-[#7A1C1C] dark:text-amber-400'
                       }`}
                     />
                     <span>{item.labelNepali}</span>
+                    {isLocked && <Lock className="w-2.5 h-2.5 text-amber-500 ml-0.5" />}
+                    {isClosed && <span className="text-[9px] px-1 py-0 rounded bg-stone-700 text-stone-200 ml-0.5">बन्द</span>}
                   </span>
                 </motion.button>
               </React.Fragment>
@@ -994,31 +1025,60 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   </button>
                   {/* 6. Super Admin Control & Purchase Approvals */}
                   {onNavigateToAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsUnifiedSettingsOpen(false);
-                        onNavigateToAdmin('client_approvals');
-                      }}
-                      className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/30"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                        <Crown className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300">
-                            ६. सुपरएडमिन नियन्त्रण कक्ष
-                          </span>
-                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-stone-950">
-                            Superadmin
-                          </span>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUnifiedSettingsOpen(false);
+                          onNavigateToAdmin('user_control');
+                        }}
+                        className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/30"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                          <Crown className="w-4 h-4" />
                         </div>
-                        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                          eSewa/Khalti खरिद आवेदन रुजु, प्रयोगकर्ता तथा प्रणाली नियन्त्रण
-                        </p>
-                      </div>
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300">
+                              ६. सुपरएडमिन नियन्त्रण कक्ष
+                            </span>
+                            <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-stone-950">
+                              Superadmin
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                            eSewa/Khalti खरिद आवेदन रुजु, प्रयोगकर्ता तथा प्रणाली नियन्त्रण
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* 6.1 User Control (Menu & Mobile Registration Switchboard) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUnifiedSettingsOpen(false);
+                          onTabChange('user_control');
+                        }}
+                        className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-blue-500/10 dark:hover:bg-blue-950/40 text-stone-800 dark:text-stone-200 group border border-blue-500/30"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                          <Sliders className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-xs sm:text-sm text-blue-900 dark:text-blue-300">
+                              प्रयोगकर्ता नियन्त्रण (User Control)
+                            </span>
+                            <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-blue-600 text-white">
+                              Active
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
+                            मोबाइल नं. दर्ता, पासवर्ड जेनेरेसन, मेनु Open/Close/Lock कमान्ड
+                          </p>
+                        </div>
+                      </button>
+                    </>
                   )}
 
                   {/* 7. Store & Digital Library Admin */}
@@ -1236,6 +1296,23 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                           <div className="text-[10px] text-stone-500 dark:text-stone-400">अयनांश, स्थान र सुत्र समायोजन</div>
                         </div>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSettingsMenuOpen(false);
+                          setIsChangePasswordOpen(true);
+                        }}
+                        className="w-full text-left p-2 rounded-xl text-xs font-semibold text-amber-900 dark:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-stone-800 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                          <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <div>
+                          <div className="font-bold">🔐 पासवर्ड परिवर्तन (Change Password)</div>
+                          <div className="text-[10px] text-stone-500 dark:text-stone-400">आफ्नो व्यक्तिगत पासवर्ड परिवर्तन गर्नुहोस्</div>
+                        </div>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1360,20 +1437,44 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             <div className="grid grid-cols-2 gap-1.5 pt-0.5">
               {ANYA_FALADESH_ITEMS.map((sub) => {
                 const SubIcon = sub.icon;
+                const subAccess = checkFeatureAccess(sub.id);
+                const isSubClosed = subAccess.state === 'close';
+                const isSubLocked = subAccess.state === 'lock';
+
                 return (
                   <button
                     key={sub.id}
                     type="button"
                     onClick={() => {
+                      if (isSubClosed) {
+                        alert(subAccess.reasonNepali || 'यो सेवा मुख्य प्रशासकद्वारा बन्द गरिएको छ।');
+                        return;
+                      }
+                      if (isSubLocked) {
+                        if (onOpenPurchaseModal) onOpenPurchaseModal(sub.labelNepali);
+                        else alert(subAccess.reasonNepali || 'यो सेवा लक गरिएको छ।');
+                        return;
+                      }
                       setIsSewaMenuOpen(false);
                       onTabChange(sub.id);
                     }}
-                    className="text-left p-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-amber-50 dark:hover:bg-stone-700/60 flex items-center gap-1.5 cursor-pointer"
+                    className={`text-left p-1.5 rounded-lg border flex items-center justify-between gap-1.5 cursor-pointer ${
+                      isSubClosed
+                        ? 'opacity-40 grayscale cursor-not-allowed border-stone-300 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/60'
+                        : isSubLocked
+                        ? 'border-amber-400/60 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                        : 'border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-amber-50 dark:hover:bg-stone-700/60'
+                    }`}
+                    title={isSubClosed ? `${sub.labelNepali} (प्रशासकद्वारा बन्द)` : sub.labelNepali}
                   >
-                    <SubIcon className="w-3 h-3 text-[#7A1C1C] dark:text-amber-400 shrink-0" />
-                    <span className="text-[11px] font-bold text-stone-800 dark:text-stone-200 truncate">
-                      {sub.labelNepali}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <SubIcon className="w-3 h-3 text-[#7A1C1C] dark:text-amber-400 shrink-0" />
+                      <span className="text-[11px] font-bold text-stone-800 dark:text-stone-200 truncate">
+                        {sub.labelNepali}
+                      </span>
+                    </div>
+                    {isSubLocked && <Lock className="w-2.5 h-2.5 text-amber-500 shrink-0" />}
+                    {isSubClosed && <span className="text-[8px] px-1 py-0 rounded bg-stone-700 text-stone-300 shrink-0">बन्द</span>}
                   </button>
                 );
               })}
@@ -1393,8 +1494,13 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             <button
               type="button"
               onClick={() => {
+                const vastuCheck = checkFeatureAccess('vastu');
+                if (vastuCheck.state === 'close') {
+                  alert(vastuCheck.reasonNepali || 'वास्तु सेवा प्रशासकद्वारा बन्द गरिएको छ।');
+                  return;
+                }
                 setIsSewaMenuOpen(false);
-                if (!isFullyUnlocked) {
+                if (!isFullyUnlocked && vastuCheck.state === 'lock') {
                   if (onOpenPurchaseModal) onOpenPurchaseModal('वास्तुशास्त्र');
                   return;
                 }
@@ -1428,25 +1534,45 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             <div className="grid grid-cols-2 gap-1.5 pt-0.5">
               {VASTU_SUBMENU_ITEMS.slice(0, 4).map((item) => {
                 const SubIcon = item.icon;
+                const vastuSubAccess = checkFeatureAccess(`vastu_${item.id}`);
+                const isVastuClosed = vastuSubAccess.state === 'close';
+                const isVastuLocked = vastuSubAccess.state === 'lock';
+
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      setIsSewaMenuOpen(false);
-                      if (!isFullyUnlocked && onOpenPurchaseModal) {
-                        onOpenPurchaseModal(item.labelNepali);
+                      if (isVastuClosed) {
+                        alert(vastuSubAccess.reasonNepali || 'यो वास्तु सेवा प्रशासकद्वारा बन्द गरिएको छ।');
                         return;
                       }
+                      if (isVastuLocked) {
+                        if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali);
+                        else alert(vastuSubAccess.reasonNepali || 'यो सुविधा लक गरिएको छ।');
+                        return;
+                      }
+                      setIsSewaMenuOpen(false);
                       if (onOpenVastuModal) onOpenVastuModal(item.id);
                       else onTabChange('vastu');
                     }}
-                    className="text-left p-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-emerald-50 dark:hover:bg-stone-700/60 flex items-center gap-1.5 cursor-pointer"
+                    className={`text-left p-1.5 rounded-lg border flex items-center justify-between gap-1.5 cursor-pointer ${
+                      isVastuClosed
+                        ? 'opacity-40 grayscale cursor-not-allowed border-stone-300 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/60'
+                        : isVastuLocked
+                        ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-emerald-50 dark:hover:bg-stone-700/60'
+                    }`}
+                    title={isVastuClosed ? `${item.labelNepali} (प्रशासकद्वारा बन्द)` : item.labelNepali}
                   >
-                    <SubIcon className="w-3 h-3 text-emerald-700 dark:text-emerald-400 shrink-0" />
-                    <span className="text-[11px] font-bold text-stone-800 dark:text-stone-200 truncate">
-                      {item.labelNepali}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <SubIcon className="w-3 h-3 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                      <span className="text-[11px] font-bold text-stone-800 dark:text-stone-200 truncate">
+                        {item.labelNepali}
+                      </span>
+                    </div>
+                    {isVastuLocked && <Lock className="w-2.5 h-2.5 text-amber-500 shrink-0" />}
+                    {isVastuClosed && <span className="text-[8px] px-1 py-0 rounded bg-stone-700 text-stone-300 shrink-0">बन्द</span>}
                   </button>
                 );
               })}
@@ -1633,6 +1759,10 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                         : isVastu
                         ? activeTab === 'vastu'
                         : activeTab === item.id && activeModule === 'MAIN';
+                      const access = checkFeatureAccess(item.id);
+                      const isClosed = access.state === 'close';
+                      const isLocked = access.state === 'lock';
+
                       const mIsAllowed = !rbacSession
                         ? PUBLIC_UNAUTH_NAV_IDS.has(item.id)
                         : (isFullyUnlocked || NORMAL_USER_ALLOWED_TABS.has(item.id));
@@ -1642,6 +1772,15 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                           key={item.id}
                           type="button"
                           onClick={() => {
+                            if (isClosed) {
+                              alert(access.reasonNepali || 'यो मेनु प्रशासकद्वारा बन्द गरिएको छ।');
+                              return;
+                            }
+                            if (isLocked) {
+                              if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali);
+                              else alert(access.reasonNepali || 'यो सुविधा लक गरिएको छ।');
+                              return;
+                            }
                             setIsMobileDrawerOpen(false);
                             if (isJyotishi) {
                               if (onEnterJyotish) onEnterJyotish();
@@ -1663,7 +1802,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                             onTabChange(item.id);
                           }}
                           className={`w-full flex items-center gap-3 px-3.5 py-3 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                            mIsActive
+                            isClosed
+                              ? 'opacity-40 grayscale cursor-not-allowed bg-stone-100 dark:bg-stone-900/60 text-stone-400'
+                              : mIsActive
                               ? 'bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white shadow-xs'
                               : 'text-stone-800 dark:text-stone-200 hover:bg-amber-50/70 dark:hover:bg-stone-800 active:bg-amber-100'
                           }`}
@@ -1991,31 +2132,45 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   👤 प्रयोगकर्ता खाता (User Account)
                 </p>
                 {rbacSession ? (
-                  <div className="p-3 bg-amber-50/80 dark:bg-stone-800/80 rounded-2xl border border-amber-200 dark:border-stone-700 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 truncate">
-                          {rbacSession.fullName}
+                  <div className="p-3 bg-amber-50/80 dark:bg-stone-800/80 rounded-2xl border border-amber-200 dark:border-stone-700 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 truncate">
+                            {rbacSession.fullName}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-[#7A1C1C] dark:text-amber-400 font-bold block truncate">
+                          {rbacSession.roleNameNepali}
                         </span>
                       </div>
-                      <span className="text-[10px] text-[#7A1C1C] dark:text-amber-400 font-bold block truncate">
-                        {rbacSession.roleNameNepali}
-                      </span>
+                      {onLogoutRBAC && rbacSession.role !== 'CUSTOMER' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileDrawerOpen(false);
+                            onLogoutRBAC();
+                          }}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>लगआउट</span>
+                        </button>
+                      )}
                     </div>
-                    {onLogoutRBAC && rbacSession.role !== 'CUSTOMER' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMobileDrawerOpen(false);
-                          onLogoutRBAC();
-                        }}
-                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>लगआउट</span>
-                      </button>
-                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        setIsChangePasswordOpen(true);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-amber-100/80 dark:bg-stone-700/80 hover:bg-amber-200 text-amber-950 dark:text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-300/60 dark:border-stone-600 cursor-pointer transition-colors"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                      <span>🔐 पासवर्ड परिवर्तन (Change Password)</span>
+                    </button>
                   </div>
                 ) : (
                   onOpenAuthModal && (
@@ -2041,6 +2196,12 @@ export const Navigation: React.FC<NavigationProps> = memo(({
         </>
       )}
 
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        defaultMobile={rbacSession?.phone || ''}
+      />
     </nav>
   );
 });

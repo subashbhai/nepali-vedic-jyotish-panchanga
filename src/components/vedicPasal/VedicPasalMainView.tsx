@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Product,
   CartItem,
@@ -151,18 +151,52 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
     }
   };
 
-  // Load Initial Data
-  const refreshAllData = () => {
+  // Load Initial Data & Live Updates
+  const refreshAllData = useCallback(() => {
     setProducts(getStoredProducts());
     setOrders(getStoredOrders());
     setCoupons(getStoredCoupons());
     setCart(getStoredCart());
     setWishlist(getStoredWishlist());
-  };
+  }, []);
 
   useEffect(() => {
     refreshAllData();
-  }, []);
+
+    // 1. Listen for local custom event
+    const handleOrdersUpdated = () => {
+      setOrders(getStoredOrders());
+      setProducts(getStoredProducts());
+    };
+    window.addEventListener('vedic-orders-updated', handleOrdersUpdated);
+
+    // 2. Listen for cross-window / cross-tab storage changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (!e.key || e.key.includes('orders') || e.key.includes('products')) {
+        handleOrdersUpdated();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // 3. Listen for BroadcastChannel updates
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('balananda_store_sync_channel');
+      bc.onmessage = () => {
+        handleOrdersUpdated();
+      };
+    } catch {}
+
+    // 4. Background heartbeat refresh (ensures instant visibility when orders are placed)
+    const interval = setInterval(handleOrdersUpdated, 2000);
+
+    return () => {
+      window.removeEventListener('vedic-orders-updated', handleOrdersUpdated);
+      window.removeEventListener('storage', handleStorageChange);
+      if (bc) bc.close();
+      clearInterval(interval);
+    };
+  }, [refreshAllData]);
 
   // Sync Cart Updates
   const handleAddToCart = (product: Product, quantity: number = 1) => {

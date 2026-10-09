@@ -1,6 +1,7 @@
 import { convertADToBS } from '../utils/nepaliCalendar';
 import { verifyPassword } from '../utils/cryptoUtils';
 import { BirthDetails } from '../types/astrology';
+import { verifyClientMobileLogin, getClientPolicyByMobile } from './menuControlStore';
 
 export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
 
@@ -534,6 +535,64 @@ export function authenticateRBACUser(
 ): { success: boolean; message: string; session?: RBACSession; user?: RBACUser } {
   const users = getStoredRBACUsers();
   const cleanId = identifier.trim();
+  const cleanDigits = cleanId.replace(/\D/g, '');
+
+  // 1. Check Mobile Access Control Policy (Single Device Lock & Granular Permissions)
+  if (cleanDigits.length >= 10) {
+    const existingPolicy = getClientPolicyByMobile(cleanDigits);
+    if (existingPolicy) {
+      const mobRes = verifyClientMobileLogin(cleanDigits, passwordSecret);
+      if (!mobRes.success) {
+        return {
+          success: false,
+          message: mobRes.message
+        };
+      }
+
+      // If mobile user verified, resolve or create their RBAC user
+      let matchedUser = users.find(u => u.phone === cleanDigits || u.username === cleanDigits);
+      if (!matchedUser) {
+        matchedUser = {
+          id: mobRes.record?.id || `user_${Date.now()}`,
+          username: cleanDigits,
+          phone: cleanDigits,
+          fullName: mobRes.record?.fullName || 'ग्राहक सदस्य',
+          passwordHash: mobRes.record?.passwordHash || '',
+          role: 'CUSTOMER',
+          roleNameNepali: 'ग्राहक (मोबाइल अनुमति)',
+          status: 'active',
+          permissions: DEFAULT_ROLE_PERMISSIONS.CUSTOMER,
+          createdAtISO: mobRes.record?.createdAtISO || new Date().toISOString(),
+          createdAtBS: mobRes.record?.createdAtBS || '२०८१-०१-०१',
+          mobileVerified: true,
+          emailVerified: false
+        };
+        users.push(matchedUser);
+        saveRBACUsers(users);
+      }
+
+      const session: RBACSession = {
+        token: `BLN-MOB-${cleanDigits}-${Date.now()}`,
+        userId: matchedUser.id,
+        username: cleanDigits,
+        fullName: matchedUser.fullName,
+        role: matchedUser.role,
+        roleNameNepali: matchedUser.roleNameNepali,
+        status: 'active',
+        permissions: matchedUser.permissions,
+        createdAtISO: new Date().toISOString(),
+        lastActivityISO: new Date().toISOString()
+      };
+      setRBACSession(session);
+
+      return {
+        success: true,
+        message: 'सफलतापूर्वक लगइन भयो!',
+        session,
+        user: matchedUser
+      };
+    }
+  }
 
   const foundUser = users.find(
     u => u.phone === cleanId || u.username === cleanId || (u.email && u.email === cleanId)

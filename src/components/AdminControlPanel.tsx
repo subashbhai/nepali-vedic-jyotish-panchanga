@@ -12,6 +12,7 @@ export const AdminControlPanel: React.FC<{
   transitPlanets?: PlanetPosition[];
 }> = ({ onClosePanel, onNavigateApp, initialTab, profiles, todayPanchanga, orgProfile, transitPlanets }) => {
   const mappedTab =
+    initialTab === 'user_control' || initialTab === 'users' || initialTab === 'menu_control' ? 'user_control' :
     initialTab === 'dashboard' ? 'overview' :
     initialTab === 'samachar' || initialTab === 'samachar_editor' ? 'samachar_editor' :
     initialTab === 'whatsapp' || initialTab === 'daily_whatsapp' ? 'daily_whatsapp' :

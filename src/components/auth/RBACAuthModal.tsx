@@ -10,6 +10,7 @@ import {
   getActiveRBACSession,
   clearRBACSession
 } from '../../db/rbacStore';
+import { registerOrUpdateClientPolicy } from '../../db/menuControlStore';
 import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import {
   User,
@@ -382,6 +383,18 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     if (!regRes.success) {
       setErrorMsg(regRes.message);
       return;
+    }
+
+    // Automatically register client into Super Admin Menu Access Control System
+    try {
+      registerOrUpdateClientPolicy({
+        mobile: signupPhone.trim(),
+        fullName: fullName.trim(),
+        password: signupPassword,
+        period: '1_year'
+      });
+    } catch (e) {
+      console.error('Menu control policy sync failed:', e);
     }
 
     // 6. Automatically Authenticate the new member

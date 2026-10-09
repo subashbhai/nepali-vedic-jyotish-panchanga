@@ -547,13 +547,26 @@ export async function generatePDFFileFromElement(
   pageSize: 'a4' | 'a5' | 'letter' = 'a4',
   autoDownload: boolean = true
 ): Promise<{ success: boolean; file?: File; blob?: Blob; error?: string }> {
-  const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')) ? 'kundali' : 'general';
-  const check = canUserPrintDocuments(docType);
-  if (!check.allowed) {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+  const isFreeDocument =
+    elementId.includes('invoice') ||
+    elementId.includes('receipt') ||
+    elementId.includes('voucher') ||
+    elementId.includes('store') ||
+    elementId.includes('pos') ||
+    elementId.includes('book') ||
+    elementId.includes('panchanga');
+
+  if (!isFreeDocument) {
+    const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')) ? 'kundali' : 'general';
+    if (docType === 'kundali' || docType === 'vastu') {
+      const check = canUserPrintDocuments(docType);
+      if (!check.allowed) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+        }
+        return { success: false, error: check.reasonNepali };
+      }
     }
-    return { success: false, error: check.reasonNepali };
   }
 
   const element = document.getElementById(elementId);
@@ -647,17 +660,30 @@ export async function generatePNGFileFromElement(
   filename: string = 'Report.png',
   autoDownload: boolean = true
 ): Promise<{ success: boolean; file?: File; blob?: Blob; error?: string }> {
-  const docType = elementId.includes('vastu')
-    ? 'vastu'
-    : elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')
-    ? 'kundali'
-    : 'general';
-  const check = canUserPrintDocuments(docType);
-  if (!check.allowed) {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+  const isFreeDocument =
+    elementId.includes('invoice') ||
+    elementId.includes('receipt') ||
+    elementId.includes('voucher') ||
+    elementId.includes('store') ||
+    elementId.includes('pos') ||
+    elementId.includes('book') ||
+    elementId.includes('panchanga');
+
+  if (!isFreeDocument) {
+    const docType = elementId.includes('vastu')
+      ? 'vastu'
+      : elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')
+      ? 'kundali'
+      : 'general';
+    if (docType === 'kundali' || docType === 'vastu') {
+      const check = canUserPrintDocuments(docType);
+      if (!check.allowed) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+        }
+        return { success: false, error: check.reasonNepali };
+      }
     }
-    return { success: false, error: check.reasonNepali };
   }
 
   const element = document.getElementById(elementId);
@@ -802,13 +828,26 @@ export async function exportMergedProfilesPDF(
 }
 
 export function printElement(elementId: string) {
-  const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')) ? 'kundali' : 'general';
-  const check = canUserPrintDocuments(docType);
-  if (!check.allowed) {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+  const isFreeDocument =
+    elementId.includes('invoice') ||
+    elementId.includes('receipt') ||
+    elementId.includes('voucher') ||
+    elementId.includes('store') ||
+    elementId.includes('pos') ||
+    elementId.includes('book') ||
+    elementId.includes('panchanga');
+
+  if (!isFreeDocument) {
+    const docType = elementId.includes('vastu') ? 'vastu' : (elementId.includes('kundali') || elementId.includes('cheena') || elementId.includes('patrika') || elementId.includes('tipan') || elementId.includes('print_preview') || elementId.includes('faladesh')) ? 'kundali' : 'general';
+    if (docType === 'kundali' || docType === 'vastu') {
+      const check = canUserPrintDocuments(docType);
+      if (!check.allowed) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('trial-print-blocked', { detail: { reason: check.reasonNepali, docType } }));
+        }
+        return;
+      }
     }
-    return;
   }
 
   const element = document.getElementById(elementId);

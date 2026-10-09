@@ -306,6 +306,33 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
     loadLogs();
   }, [adminSubTab]);
 
+  // Live order update listener across all browser tabs & sessions
+  useEffect(() => {
+    const handleLiveOrderUpdate = () => {
+      onRefreshData();
+      loadLogs();
+    };
+    window.addEventListener('vedic-orders-updated', handleLiveOrderUpdate);
+    window.addEventListener('storage', handleLiveOrderUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('balananda_store_sync_channel');
+      bc.onmessage = () => {
+        handleLiveOrderUpdate();
+      };
+    } catch {}
+
+    const interval = setInterval(handleLiveOrderUpdate, 2000);
+
+    return () => {
+      window.removeEventListener('vedic-orders-updated', handleLiveOrderUpdate);
+      window.removeEventListener('storage', handleLiveOrderUpdate);
+      if (bc) bc.close();
+      clearInterval(interval);
+    };
+  }, [onRefreshData]);
+
   const loadLogs = () => {
     setAuditLogs(getStoredAuditLogs());
     setInventoryLogs(getStoredInventoryLogs());
