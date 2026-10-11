@@ -85,7 +85,7 @@ import {
   getCurrentUserGPS, 
   BALANANDA_GEO_UPDATED_EVENT 
 } from '../utils/geoLocationHelper';
-import { getPreciseNepalLandmark } from '../utils/geoUtils';
+import { getPreciseNepalLandmark, isPrivateOrInstitutionalName } from '../utils/geoUtils';
 import { MahaSankalpaModal } from './sankalpa/MahaSankalpaModal';
 import { LocationSelectorModal } from './LocationSelectorModal';
 import { DailyPanchangaPrintModal } from './panchanga/DailyPanchangaPrintModal';
@@ -340,12 +340,12 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
     }
   }, [activeProfile]);
 
-  // Sync activeGeoLocation into sankalpaLocation if empty or contains 'undefined'
+  // Sync activeGeoLocation into sankalpaLocation if empty, contains 'undefined', or is an institutional/school/private name
   React.useEffect(() => {
     const cleanActiveName = (activeGeoLocation?.name?.split('(')[0]?.trim() || activeGeoLocation?.district || '').replace(/undefined/gi, '').trim();
     setSankalpaLocation((prev) => {
-      if (!prev || prev.includes('undefined') || prev.trim() === '') {
-        return cleanActiveName || 'सूर्यविनायक, भक्तपुर जिल्ला';
+      if (!prev || prev.includes('undefined') || prev.trim() === '' || isPrivateOrInstitutionalName(prev)) {
+        return cleanActiveName || 'सूर्यविनायक, भक्तपुर नगरे';
       }
       return prev;
     });
@@ -708,17 +708,17 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
               </div>
 
               {/* Row 2: Location Selector & GPS Auto-detect Bar */}
-              <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
-                <div className="inline-flex items-center justify-between flex-1 min-w-0 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-800 dark:to-stone-800/90 border border-amber-300/80 dark:border-amber-700/80 shadow-2xs p-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="inline-flex items-center justify-between flex-1 min-w-[220px] rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-800 dark:to-stone-800/90 border border-amber-300/80 dark:border-amber-700/80 shadow-2xs p-1">
                   <button
                     type="button"
                     onClick={() => setIsLocationModalOpen(true)}
-                    className="text-xs px-2 py-1 text-amber-950 dark:text-amber-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-amber-100/70 dark:hover:bg-stone-700/60 rounded-lg transition-colors group min-w-0 flex-1"
+                    className="text-xs px-2 py-1 text-amber-950 dark:text-amber-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-amber-100/70 dark:hover:bg-stone-700/60 rounded-lg transition-colors group min-w-[120px] flex-1 text-left"
                     title="सङ्कल्पका लागि स्थान चयन गर्नुहोस् (नेपालका ७७ जिल्ला, गाउँ/शहर वा GPS)"
                   >
                     <MapPin className="w-3.5 h-3.5 text-[#D97706] group-hover:scale-110 transition-transform shrink-0" />
-                    <span className="font-serif font-bold text-[#78350F] dark:text-amber-300 truncate">
-                      {activeGeoLocation?.name?.replace(/undefined/gi, '')?.split('(')[0]?.trim() || activeGeoLocation?.district?.replace(/undefined/gi, '') || 'काठमाडौँ'}
+                    <span className="font-serif font-bold text-[#78350F] dark:text-amber-300 truncate max-w-[180px] sm:max-w-[320px]">
+                      {sankalpaLocation?.replace(/undefined/gi, '')?.split('(')[0]?.trim() || activeGeoLocation?.name?.replace(/undefined/gi, '')?.split('(')[0]?.trim() || activeGeoLocation?.district?.replace(/undefined/gi, '') || 'काठमाडौँ'}
                     </span>
                     <span className="text-[9.5px] bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 px-1.5 py-0.5 rounded font-sans font-semibold shrink-0 shadow-2xs">
                       बदल्नुहोस्
@@ -735,7 +735,7 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                     {isDetectingCardGPS ? (
                       <span className="w-3.5 h-3.5 border-2 border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
                     ) : (
-                      <span className="flex items-center gap-1 font-sans text-[11px] font-semibold" title="GPS स्थान पुनः लोड गर्नुहोस् (५०m-५००m)">
+                      <span className="flex items-center gap-1 font-sans text-[11px] font-semibold whitespace-nowrap" title="GPS स्थान पुनः लोड गर्नुहोस् (५०m-५००m)">
                         🛰️ पुनः स्थान अपडेट
                       </span>
                     )}
@@ -743,7 +743,7 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                 </div>
 
                 {activeProfile && (
-                  <span className="text-[10px] bg-amber-50 dark:bg-stone-800 text-amber-900 dark:text-amber-200 px-2 py-1 rounded-xl font-bold border border-amber-200 dark:border-amber-800/60 max-w-[120px] truncate shrink-0" title={`यजमान: ${activeProfile.name}`}>
+                  <span className="text-[10px] bg-amber-50 dark:bg-stone-800 text-amber-900 dark:text-amber-200 px-2 py-1 rounded-xl font-bold border border-amber-200 dark:border-amber-800/60 max-w-[140px] truncate shrink-0" title={`यजमान: ${activeProfile.name}`}>
                     यजमान: {activeProfile.name}
                   </span>
                 )}

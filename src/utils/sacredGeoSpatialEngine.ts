@@ -11,6 +11,7 @@
 
 import { calculateGeoDistanceKm, NEPAL_77_DISTRICTS } from './geoLocationHelper';
 import { toDevanagariNumerals } from './nepaliCalendar';
+import { isPrivateOrInstitutionalName } from './geoUtils';
 
 export type ProximityTier = '2km' | '5km' | '10km' | '20km' | 'regional';
 
@@ -1268,11 +1269,17 @@ export function resolveSacredGeographyByCoordinates(
   const shrineTierInfo = getTier(shrineD);
   const riverTierInfo = getTier(riverD);
 
-  const cleanLocalityName = (resolvedPlaceName || 'राजविराज').split('(')[0].trim();
+  let cleanLocalityName = (resolvedPlaceName || 'राजविराज').split('(')[0].trim();
   const cleanDistrict = (resolvedDistrict || 'सप्तरी').trim();
 
+  if (isPrivateOrInstitutionalName(cleanLocalityName)) {
+    cleanLocalityName = `${cleanDistrict} नगरे`;
+  }
+
   // Sanskritization
-  const sanskritLocalityText = `${cleanLocalityName} नगरे (वा ग्रामे)`;
+  const sanskritLocalityText = cleanLocalityName.includes('नगरे') || cleanLocalityName.includes('क्षेत्रे') || cleanLocalityName.includes('ग्रामे')
+    ? cleanLocalityName
+    : `${cleanLocalityName} नगरे`;
   const sanskritSubdivisionText = cleanDistrict.endsWith('े') ? cleanDistrict : `${cleanDistrict} जनपदे, ${resolvedProvince.replace('प्रदेश', 'मण्डले')}`;
 
   const sanskritRiverText = bestRiverObj.river.sanskritLocative;

@@ -232,7 +232,259 @@ function cleanDistrictName(d?: string): string {
   return String(d)
     .replace(/\s*जिल्ला\s*/g, '')
     .replace(/\s*District\s*/gi, '')
+    .replace(/\s*Municipality\s*/gi, '')
+    .replace(/\s*नगरपालिका\s*/g, '')
+    .replace(/\s*गाउँपालिका\s*/g, '')
     .trim();
+}
+
+/**
+ * Checks if a place name belongs to a private company, school, business, shop, hotel,
+ * or private residence rather than a geographical locality / sacred landmark.
+ */
+export function isPrivateOrInstitutionalName(name?: string): boolean {
+  if (!name || typeof name !== 'string') return false;
+  const lower = name.toLowerCase().trim();
+
+  // 1. Educational / Academic Institutions
+  const eduPattern = /\b(school|vidyalaya|niketan|academy|college|campus|pathshala|university|shiksha|montessori|institute|kindergarten|boarding|madarsa|primary|secondary|higher|sishu)\b|विद्यालय|कलेज|एकेडेमी|इन्स्टिच्युट|निकेतन|क्याम्पस|मन्टेसरी|शिक्षा|बोर्डिङ|शिशु/i;
+
+  // 2. Hotels, Restaurants, Hostels, Lodges
+  const hospitalityPattern = /\b(hotel|resort|lodge|restaurant|cafe|hostel|cottage|inn|guest\s*house|homestay|kitchen|bhojanalaya|fast\s*food|bakery|bakers|lounge|bar|dhaba)\b|होटल|लज|रिसोर्ट|रेस्टुरेन्ट|गेस्ट\s*हाउस|छात्रावास|होमस्टे|भोजनालय|खाजा/i;
+
+  // 3. Hospitals, Clinics, Pharmacies, Health Posts
+  const medicalPattern = /\b(hospital|clinic|pharmacy|medical|health\s*post|dental|polyclinic|lab|pathology|nursing|aushadhalaya|poly\s*clinic)\b|अस्पताल|क्लिनिक|स्वास्थ्य\s*चौकी|औषधालय|फार्मेसी/i;
+
+  // 4. Banks, Finance, Cooperatives, ATMs
+  const financePattern = /\b(bank|cooperative|finance|saving|atm|remit|money\s*transfer|co-operative|sahakari)\b|बैंक|सहकारी|फाइनान्स|बचत/i;
+
+  // 5. Commercial Shops, Marts, Companies, Enterprises, Offices
+  const commercialPattern = /\b(store|shop|mart|department|stationary|tailor|dokan|traders|suppliers|pvt|ltd|company|enterprise|enterprises|industries|press|auto|garage|petrol|hardware|fashion|collection|hub|center|centre|complex|mall)\b|पसल|मार्ट|डिपार्टमेन्ट|स्टोर|सप्लायर्स|ट्रेडर्स|कम्पनी|उद्योग|प्रा\.?\s*लि|केन्द्र|कम्प्लेक्स|मल्ल/i;
+
+  // 6. Private Residences, Houses, Apartments, Colonies
+  const residentialPattern = /\b(house|niwas|bhawan|villa|apartment|flat|residence|residential|colony|homes|kuti|ghar)\b|निवास|भवन|अपार्टमेन्ट|कोलोनी|रेसिडेन्स|घर/i;
+
+  // 7. Clubs, Gyms, Party Palaces
+  const entertainmentPattern = /\b(gym|fitness|club|party\s*palace|snooker|beauty\s*parlour|saloon|spa)\b|पार्टी\s*प्यालेस/i;
+
+  return (
+    eduPattern.test(lower) ||
+    hospitalityPattern.test(lower) ||
+    medicalPattern.test(lower) ||
+    financePattern.test(lower) ||
+    commercialPattern.test(lower) ||
+    residentialPattern.test(lower) ||
+    entertainmentPattern.test(lower)
+  );
+}
+
+/**
+ * Comprehensive transliteration dictionary for Nepalese toles, landmarks, chowks, and cities
+ */
+export const NEPAL_LOCALITY_MAP: Record<string, string> = {
+  // Bhaktapur & Surroundings
+  chundevi: 'चुनदेवी',
+  suryabinayak: 'सूर्यविनायक',
+  kamalbinayak: 'कमलविनायक',
+  doleshwor: 'डोलेश्वर',
+  changunarayan: 'चाँगुनारायण',
+  katunje: 'कटुञ्जे',
+  sipadole: 'सिपाडोल',
+  thimi: 'मध्यपुर थिमी',
+  madhyapur: 'मध्यपुर थिमी',
+  'madhyapur thimi': 'मध्यपुर थिमी',
+  dadhikot: 'दधिकोट',
+  sirutar: 'सिरुटार',
+  balkot: 'बालकोट',
+  gatthaghar: 'गठ्ठाघर',
+  lokanthali: 'लोकन्थली',
+  kaushaltar: 'कौशलटार',
+  sanothimi: 'सानो थिमी',
+  'sano thimi': 'सानो थिमी',
+  bode: 'बोडे',
+  nagarkot: 'नगरकोट',
+  jhaukhel: 'झौखेल',
+  duwakot: 'दुवाकोट',
+  tathali: 'ताथली',
+  chyamhasingh: 'च्याम्हासिंह',
+  chyamasingh: 'च्याम्हासिंह',
+  dattatreya: 'दत्तात्रेय',
+  taumadhi: 'तौमढी',
+  byasi: 'ब्यासी',
+  sallaghari: 'सल्लाघारी',
+  bhaktapur: 'भक्तपुर',
+
+  // Lalitpur
+  patan: 'पाटन',
+  kupondole: 'कुपण्डोल',
+  pulchowk: 'पुल्चोक',
+  jawalakhel: 'जावलाखेल',
+  lagankhel: 'लगनखेल',
+  mangalbazar: 'मंगलबजार',
+  satdobato: 'सातदोबाटो',
+  lalitpur: 'ललितपुर',
+  godavari: 'गोदावरी',
+  lubhu: 'लुभु',
+  imadol: 'इमाडोल',
+  tikathali: 'टीकाथली',
+  dhapakhel: 'धापाखेल',
+  bungamati: 'बुङ्गमती',
+  khokana: 'खोकाना',
+  chapagaun: 'चापागाउँ',
+  sanepa: 'सानेपा',
+  jhamsikhel: 'झम्सिखेल',
+  nakkhu: 'नख्खु',
+  gwarko: 'ग्वार्को',
+  balkumari: 'बालकुमारी',
+
+  // Kathmandu
+  kathmandu: 'काठमाडौँ',
+  bageshwori: 'बागेश्वरी',
+  tinkune: 'तीनकुने',
+  koteshwor: 'कोटेश्वर',
+  baneshwor: 'बानेश्वर',
+  'new baneshwor': 'नयाँ बानेश्वर',
+  'purano baneshwor': 'पुरानो बानेश्वर',
+  maitighar: 'माइतीघर',
+  tripureshwor: 'त्रिपुरेश्वर',
+  thapathali: 'थापाथली',
+  kalanki: 'कलङ्की',
+  balaju: 'बालाजु',
+  maharajgunj: 'महाराजगञ्ज',
+  chabahil: 'चाबहिल',
+  boudha: 'बौद्ध',
+  jorpati: 'जोरपाटी',
+  sundarijal: 'सुन्दरीजल',
+  sankhu: 'साँखु',
+  gokarna: 'गोकर्ण',
+  kapan: 'कपन',
+  budhanilkantha: 'बुढानीलकण्ठ',
+  tokha: 'टोखा',
+  swayambhu: 'स्वयम्भू',
+  sitapaila: 'सीतापाइला',
+  kalimati: 'कालीमाटी',
+  teku: 'टेकु',
+  asan: 'असन',
+  indrachowk: 'इन्द्रचोक',
+  thamel: 'ठमेल',
+  lazimpat: 'लाजिम्पाट',
+  naxal: 'नक्साल',
+  dillibazar: 'डिल्लीबजार',
+  putalisadak: 'पुतलीसडक',
+  bagbazar: 'बागबजार',
+  ratnapark: 'रत्नपार्क',
+  newroad: 'न्यूरोड',
+  'new road': 'न्यूरोड',
+  basantapur: 'वसन्तपुर',
+  kirtipur: 'कीर्तिपुर',
+  gaushala: 'गौशाला',
+  sinamangal: 'सिनामङ्गल',
+  battisputali: 'बत्तिसपुतली',
+  dallu: 'डल्लु',
+  chhauni: 'छाउनी',
+  sorhakhutte: 'सोह्रखुट्टे',
+  dhapasi: 'धापासी',
+  samakhusi: 'सामाखुसी',
+  gongabu: 'गोंगबु',
+  machhapokhari: 'माछापोखरी',
+
+  // Major Nepal Cities
+  pokhara: 'पोखरा',
+  biratnagar: 'विराटनगर',
+  birgunj: 'वीरगञ्ज',
+  dhangadhi: 'धनगढी',
+  nepalgunj: 'नेपालगञ्ज',
+  butwal: 'बुटवल',
+  dharan: 'धरान',
+  itahari: 'इटहरी',
+  hetauda: 'हेटौँडा',
+  janakpur: 'जनकपुरधाम',
+  janakpurdham: 'जनकपुरधाम',
+  bharatpur: 'भरतपुर',
+  chitwan: 'चितवन',
+  damak: 'दमक',
+  lumbini: 'लुम्बिनी',
+  surkhet: 'सुर्खेत',
+  gorkha: 'गोरखा',
+  baglung: 'बागलुङ',
+  palpa: 'पाल्पा',
+  tansen: 'तानसेन',
+  mustang: 'मुस्ताङ',
+  manang: 'मनाङ',
+  jumla: 'जुम्ला'
+};
+
+/**
+ * Translates romanized or English place names to clean Nepali Devanagari
+ */
+export function translateNepalLocality(raw?: string): string {
+  if (!raw) return '';
+  const clean = String(raw).trim();
+
+  // If already Nepali Devanagari
+  if (/[\u0900-\u097F]/.test(clean)) {
+    return clean
+      .replace(/\s*(marg|road|street|highway|way|मार्ग|सडक|बाटो)\s*/gi, '')
+      .replace(/^(ward\s*no\.?\s*\d+|वडा\s*नं\.?\s*\d+)\s*,?\s*/gi, '')
+      .trim();
+  }
+
+  const lower = clean
+    .toLowerCase()
+    .replace(/\s*(marg|road|street|highway|way|tole|chowk|bazar)\s*/gi, '')
+    .trim();
+
+  if (NEPAL_LOCALITY_MAP[lower]) {
+    return NEPAL_LOCALITY_MAP[lower];
+  }
+
+  for (const [k, v] of Object.entries(NEPAL_LOCALITY_MAP)) {
+    if (lower === k || lower.startsWith(k) || k.startsWith(lower)) {
+      return v;
+    }
+  }
+
+  return clean;
+}
+
+/**
+ * Formats a clean, sacred geographical location in Vedic Sankalpa format:
+ * e.g. "चुनदेवी, भक्तपुर नगरे"
+ */
+export function formatVedicLocationName(
+  locality?: string,
+  municipality?: string,
+  district?: string
+): string {
+  let cleanLocality = translateNepalLocality(locality);
+  let cleanMuni = translateNepalLocality(cleanDistrictName(municipality));
+  let cleanDist = translateNepalLocality(cleanDistrictName(district));
+
+  // Reject institutions, private houses, schools, etc.
+  if (isPrivateOrInstitutionalName(cleanLocality)) {
+    cleanLocality = '';
+  }
+  if (isPrivateOrInstitutionalName(cleanMuni)) {
+    cleanMuni = '';
+  }
+
+  // Remove literal 'undefined'
+  cleanLocality = cleanLocality.replace(/undefined/gi, '').trim();
+  cleanMuni = cleanMuni.replace(/undefined/gi, '').trim();
+  cleanDist = cleanDist.replace(/undefined/gi, '').trim();
+
+  const cityOrDistrict = cleanMuni || cleanDist || 'काठमाडौँ';
+
+  // Format: "चुनदेवी, भक्तपुर नगरे"
+  if (cleanLocality && cleanLocality !== cityOrDistrict && !cityOrDistrict.includes(cleanLocality)) {
+    const citySuffix = cityOrDistrict.endsWith('नगरे') ? cityOrDistrict : `${cityOrDistrict} नगरे`;
+    return `${cleanLocality}, ${citySuffix}`;
+  }
+
+  if (cityOrDistrict.endsWith('नगरे')) {
+    return cityOrDistrict;
+  }
+  return `${cityOrDistrict} नगरे`;
 }
 
 /**
@@ -269,9 +521,24 @@ export async function getPreciseNepalLandmark(
       const data = await res.json();
       const addr = data.address || {};
 
-      landmarkName = addr.amenity || addr.historic || addr.tourism || addr.building || addr.shop || addr.leisure || data.name || '';
-      toleOrChowk = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || addr.quarter || addr.residential || '';
+      const rawLandmark = addr.amenity || addr.historic || addr.tourism || addr.building || addr.shop || addr.leisure || data.name || '';
+      if (!isPrivateOrInstitutionalName(rawLandmark)) {
+        landmarkName = rawLandmark;
+      }
+
+      const rawTole = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || addr.quarter || addr.residential || '';
+      if (!isPrivateOrInstitutionalName(rawTole)) {
+        toleOrChowk = rawTole;
+      }
+
       roadName = addr.road || addr.street || addr.highway || '';
+      if (!toleOrChowk && roadName) {
+        const roadCandidate = roadName.replace(/\s*(marg|road|street|highway|way|मार्ग|सडक|बाटो)\s*/gi, '').trim();
+        if (roadCandidate && !isPrivateOrInstitutionalName(roadCandidate)) {
+          toleOrChowk = roadCandidate;
+        }
+      }
+
       wardNepali = extractWardNepali(addr.city_district || addr.ward || addr.suburb || addr['ref:ward']) || '';
       municipalityNepali = addr.municipality || addr.city || addr.town || addr.village_council || '';
       districtNepali = cleanDistrictName(addr.county || addr.district || addr.state_district);
@@ -294,8 +561,17 @@ export async function getPreciseNepalLandmark(
       if (res.ok) {
         const data = await res.json();
         const addr = data.address || {};
-        toleOrChowk = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || addr.quarter || addr.residential || toleOrChowk;
+        const rawTole = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || addr.quarter || addr.residential || '';
+        if (rawTole && !isPrivateOrInstitutionalName(rawTole)) {
+          toleOrChowk = rawTole;
+        }
         roadName = addr.road || addr.street || roadName;
+        if (!toleOrChowk && roadName) {
+          const roadCandidate = roadName.replace(/\s*(marg|road|street|highway|way|मार्ग|सडक|बाटो)\s*/gi, '').trim();
+          if (roadCandidate && !isPrivateOrInstitutionalName(roadCandidate)) {
+            toleOrChowk = roadCandidate;
+          }
+        }
         if (!wardNepali) wardNepali = extractWardNepali(addr.city_district || addr.ward || addr.suburb) || '';
         if (!municipalityNepali) municipalityNepali = addr.municipality || addr.city || addr.town || '';
         if (!districtNepali) districtNepali = cleanDistrictName(addr.county || addr.district || addr.state_district);
@@ -305,7 +581,7 @@ export async function getPreciseNepalLandmark(
   }
 
   // 2. Secondary Supplement: Photon (Komoot) for micro-POI / Landmark within 50m - 500m
-  if (!landmarkName || !toleOrChowk) {
+  if (!landmarkName && !toleOrChowk) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 2500);
@@ -318,14 +594,23 @@ export async function getPreciseNepalLandmark(
         const feat = pData.features?.[0];
         if (feat && feat.properties) {
           const props = feat.properties;
-          if (!landmarkName && props.name) {
+          if (!landmarkName && props.name && !isPrivateOrInstitutionalName(props.name)) {
             landmarkName = props.name;
           }
           if (!toleOrChowk && (props.locality || props.district)) {
-            toleOrChowk = props.locality || props.district || '';
+            const cand = props.locality || props.district || '';
+            if (cand && !isPrivateOrInstitutionalName(cand)) {
+              toleOrChowk = cand;
+            }
           }
           if (!roadName && props.street) {
             roadName = props.street;
+          }
+          if (!toleOrChowk && roadName) {
+            const roadCandidate = roadName.replace(/\s*(marg|road|street|highway|way|मार्ग|सडक|बाटो)\s*/gi, '').trim();
+            if (roadCandidate && !isPrivateOrInstitutionalName(roadCandidate)) {
+              toleOrChowk = roadCandidate;
+            }
           }
           if (!municipalityNepali && props.city) {
             municipalityNepali = props.city;
@@ -390,44 +675,27 @@ export async function getPreciseNepalLandmark(
   if (municipalityNepali === 'undefined') municipalityNepali = districtNepali;
   if (provinceNepali === 'undefined') provinceNepali = 'बागमती प्रदेश';
 
-  // 5. Construct Clean, Natural Nepali Formatted Address String
-  const parts: string[] = [];
-  if (landmarkName && landmarkName !== 'undefined') {
-    parts.push(landmarkName);
-  }
-  if (toleOrChowk && toleOrChowk !== 'undefined' && toleOrChowk !== landmarkName) {
-    parts.push(toleOrChowk);
-  }
-  if (roadName && roadName !== 'undefined' && !parts.some((p) => p.includes(roadName))) {
-    parts.push(roadName);
-  }
-  if (wardNepali && wardNepali !== 'undefined') {
-    parts.push(wardNepali);
-  }
-  if (municipalityNepali && municipalityNepali !== 'undefined') {
-    parts.push(municipalityNepali);
-  }
-  if (districtNepali && districtNepali !== 'undefined' && !municipalityNepali.includes(districtNepali)) {
-    parts.push(districtNepali);
-  }
-
-  const formatted = parts.length > 0
-    ? parts.join(', ')
-    : `${municipalityNepali || 'काठमाडौँ'}, ${districtNepali || 'काठमाडौँ'}`;
+  // 5. Construct Clean, Sacred Vedic Location Name (e.g. "चुनदेवी, भक्तपुर नगरे")
+  const candidateLocality = toleOrChowk || (!isPrivateOrInstitutionalName(landmarkName) ? landmarkName : '');
+  const formattedVedic = formatVedicLocationName(
+    candidateLocality,
+    municipalityNepali,
+    districtNepali
+  );
 
   const coords: LocationCoordinates = {
     latitude: lat,
     longitude: lon,
     accuracyMeters: accuracyMeters || 50,
-    addressName: formatted,
+    addressName: formattedVedic,
     district: districtNepali,
     localLevel: municipalityNepali,
     ward: wardNepali ? wardNepali.replace('वडा नं. ', '') : undefined,
   };
 
   return {
-    addressText: formatted,
-    displayName: formatted,
+    addressText: formattedVedic,
+    displayName: formattedVedic,
     locationCoordinates: coords,
     landmarkName,
     toleOrChowk,
