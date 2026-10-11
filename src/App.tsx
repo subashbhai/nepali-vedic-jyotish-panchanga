@@ -2295,6 +2295,7 @@ export default function App() {
           {activeTab === 'yajaman' && (
             <YajamanView
               onNavigateToExpert={() => navigateTab('apply_expert')}
+              onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
               activeProfile={resolvedUserProfile || (activeProfile && activeProfile.id !== 'live_current_moment' ? activeProfile : null)}
               rbacSession={rbacSession}
               todayPanchanga={todayPanchanga}
