@@ -192,6 +192,7 @@ export function getProviderMatchingBadges(
 
 export interface PreciseLandmarkResult {
   addressText: string;
+  displayName: string;
   locationCoordinates: LocationCoordinates;
   landmarkName?: string;
   toleOrChowk?: string;
@@ -199,6 +200,9 @@ export interface PreciseLandmarkResult {
   wardNepali?: string;
   municipalityNepali?: string;
   districtNepali?: string;
+  district: string;
+  province: string;
+  municipality: string;
   accuracyMeters?: number;
 }
 
@@ -233,7 +237,8 @@ function cleanDistrictName(d?: string): string {
 
 /**
  * Resolves high-precision reverse-geocoded place names in Nepal using OpenStreetMap Nominatim,
- * Photon, and BigDataCloud with 50-meter nearby landmark identification.
+ * Photon, and BigDataCloud with progressive 50-meter -> 100-meter -> 500-meter nearby landmark identification.
+ * Guaranteed NEVER to return "undefined".
  */
 export async function getPreciseNepalLandmark(
   lat: number,
@@ -248,10 +253,11 @@ export async function getPreciseNepalLandmark(
   let districtNepali = '';
   let provinceNepali = '';
 
-  // 1. Primary High-Accuracy Reverse Geocoding via OpenStreetMap Nominatim (zoom=18 targets within 50m)
+  // 1. Primary High-Accuracy Reverse Geocoding: OpenStreetMap Nominatim
+  // Progressive zoom: try zoom 18 (50m precision)
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
+    const timer = setTimeout(() => controller.abort(), 3500);
     const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&extratags=1&accept-language=ne,en`;
     const res = await fetch(nominatimUrl, {
       signal: controller.signal,
@@ -273,7 +279,32 @@ export async function getPreciseNepalLandmark(
     }
   } catch {}
 
-  // 2. Secondary Supplement: Photon (Komoot) for micro-POI / Landmark within 50-100m if landmark or tole is missing
+  // 1.5 If landmark/tole not found at 50m, broaden Nominatim to zoom 16 (100m - 500m area)
+  if (!landmarkName && !toleOrChowk) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      const nominatimBroadUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1&accept-language=ne,en`;
+      const res = await fetch(nominatimBroadUrl, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'BalanandaVedicJyotish/1.0' },
+      });
+      clearTimeout(timer);
+
+      if (res.ok) {
+        const data = await res.json();
+        const addr = data.address || {};
+        toleOrChowk = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || addr.quarter || addr.residential || toleOrChowk;
+        roadName = addr.road || addr.street || roadName;
+        if (!wardNepali) wardNepali = extractWardNepali(addr.city_district || addr.ward || addr.suburb) || '';
+        if (!municipalityNepali) municipalityNepali = addr.municipality || addr.city || addr.town || '';
+        if (!districtNepali) districtNepali = cleanDistrictName(addr.county || addr.district || addr.state_district);
+        if (!provinceNepali) provinceNepali = addr.state || '';
+      }
+    } catch {}
+  }
+
+  // 2. Secondary Supplement: Photon (Komoot) for micro-POI / Landmark within 50m - 500m
   if (!landmarkName || !toleOrChowk) {
     try {
       const controller = new AbortController();
@@ -307,7 +338,7 @@ export async function getPreciseNepalLandmark(
     } catch {}
   }
 
-  // 3. Tertiary Supplement: BigDataCloud for reliable administrative Nepali names if municipality or district is missing
+  // 3. Tertiary Supplement: BigDataCloud for administrative names
   if (!municipalityNepali || !districtNepali) {
     try {
       const controller = new AbortController();
@@ -334,8 +365,8 @@ export async function getPreciseNepalLandmark(
     } catch {}
   }
 
-  // 4. Offline Fallback using 77 Districts database if district or municipality is still missing
-  if (!districtNepali) {
+  // 4. Reliable Offline Fallback using 77 Districts database
+  if (!districtNepali || districtNepali === 'undefined') {
     let closestDist = NEPAL_77_DISTRICTS[0];
     let minD = 99999;
     for (const d of NEPAL_77_DISTRICTS) {
@@ -346,32 +377,37 @@ export async function getPreciseNepalLandmark(
       }
     }
     districtNepali = closestDist.district;
-    if (!municipalityNepali) {
+    if (!municipalityNepali || municipalityNepali === 'undefined') {
       municipalityNepali = closestDist.headquarter;
     }
-    if (!provinceNepali) {
+    if (!provinceNepali || provinceNepali === 'undefined') {
       provinceNepali = closestDist.province;
     }
   }
 
+  // Sanitize strings from any literal "undefined"
+  if (districtNepali === 'undefined') districtNepali = 'काठमाडौँ';
+  if (municipalityNepali === 'undefined') municipalityNepali = districtNepali;
+  if (provinceNepali === 'undefined') provinceNepali = 'बागमती प्रदेश';
+
   // 5. Construct Clean, Natural Nepali Formatted Address String
   const parts: string[] = [];
-  if (landmarkName) {
+  if (landmarkName && landmarkName !== 'undefined') {
     parts.push(landmarkName);
   }
-  if (toleOrChowk && toleOrChowk !== landmarkName) {
+  if (toleOrChowk && toleOrChowk !== 'undefined' && toleOrChowk !== landmarkName) {
     parts.push(toleOrChowk);
   }
-  if (roadName && !parts.some((p) => p.includes(roadName))) {
+  if (roadName && roadName !== 'undefined' && !parts.some((p) => p.includes(roadName))) {
     parts.push(roadName);
   }
-  if (wardNepali) {
+  if (wardNepali && wardNepali !== 'undefined') {
     parts.push(wardNepali);
   }
-  if (municipalityNepali) {
+  if (municipalityNepali && municipalityNepali !== 'undefined') {
     parts.push(municipalityNepali);
   }
-  if (districtNepali && !municipalityNepali.includes(districtNepali)) {
+  if (districtNepali && districtNepali !== 'undefined' && !municipalityNepali.includes(districtNepali)) {
     parts.push(districtNepali);
   }
 
@@ -391,6 +427,7 @@ export async function getPreciseNepalLandmark(
 
   return {
     addressText: formatted,
+    displayName: formatted,
     locationCoordinates: coords,
     landmarkName,
     toleOrChowk,
@@ -398,6 +435,9 @@ export async function getPreciseNepalLandmark(
     wardNepali,
     municipalityNepali,
     districtNepali,
+    district: districtNepali,
+    province: provinceNepali || 'बागमती प्रदेश',
+    municipality: municipalityNepali || districtNepali,
     accuracyMeters,
   };
 }
