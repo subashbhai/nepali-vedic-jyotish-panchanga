@@ -126,6 +126,7 @@ interface YajamanViewProps {
   todayBS?: string;
   transitPlanets?: PlanetPosition[];
   onUpdateProfile?: (updated: BirthDetails) => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const YajamanView: React.FC<YajamanViewProps> = ({
@@ -136,14 +137,81 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
   todayAD = new Date().toISOString().split('T')[0],
   todayBS: propTodayBS,
   transitPlanets = [],
-  onUpdateProfile
+  onUpdateProfile,
+  onOpenAuthModal
 }) => {
   // Portal Role Switch: 'YAJAMAN' vs 'PROVIDER'
   const [portalMode, setPortalMode] = useState<'YAJAMAN' | 'PROVIDER'>('YAJAMAN');
 
+  // Unified authentication: current RBAC session from prop or global store
+  const currentRbac = rbacSession || getActiveRBACSession();
+
   // Active Sessions
-  const [activeYajaman, setActiveYajaman] = useState<YajamanUser | null>(getActiveYajamanSession());
+  const [activeYajaman, setActiveYajaman] = useState<YajamanUser | null>(() => {
+    const direct = getActiveYajamanSession();
+    if (direct) return direct;
+    const rbac = rbacSession || getActiveRBACSession();
+    if (rbac) {
+      return {
+        id: rbac.userId || 'yjm_rbac',
+        fullName: rbac.fullName || 'यजमान',
+        mobile: rbac.username || (rbac as any).phone || '',
+        email: (rbac as any).email || undefined,
+        district: 'काठमाडौँ',
+        localLevel: 'काठमाडौँ महानगरपालिका',
+        ward: '१०',
+        address: 'काठमाडौँ, नेपाल',
+        location: DEFAULT_NEPAL_LOCATION,
+        createdAtBS: '२०८१',
+        isActive: true,
+      };
+    }
+    return null;
+  });
+
   const [activeProvider, setActiveProvider] = useState<ServiceProvider | null>(getActiveProviderSession());
+
+  // Unified Effective Yajaman User (auto-bridges with RBAC user seamlessly)
+  const effectiveYajaman: YajamanUser | null = useMemo(() => {
+    if (activeYajaman) return activeYajaman;
+    if (currentRbac) {
+      return {
+        id: currentRbac.userId || 'yjm_rbac',
+        fullName: currentRbac.fullName || 'यजमान',
+        mobile: currentRbac.username || (currentRbac as any).phone || '',
+        email: (currentRbac as any).email || undefined,
+        district: 'काठमाडौँ',
+        localLevel: 'काठमाडौँ महानगरपालिका',
+        ward: '१०',
+        address: 'काठमाडौँ, नेपाल',
+        location: DEFAULT_NEPAL_LOCATION,
+        createdAtBS: '२०८१',
+        isActive: true,
+      };
+    }
+    return null;
+  }, [activeYajaman, currentRbac]);
+
+  // Keep activeYajaman state and storage synced when currentRbac is active
+  useEffect(() => {
+    if (!activeYajaman && currentRbac) {
+      const synced: YajamanUser = {
+        id: currentRbac.userId || 'yjm_rbac',
+        fullName: currentRbac.fullName || 'यजमान',
+        mobile: currentRbac.username || (currentRbac as any).phone || '',
+        email: (currentRbac as any).email || undefined,
+        district: 'काठमाडौँ',
+        localLevel: 'काठमाडौँ महानगरपालिका',
+        ward: '१०',
+        address: 'काठमाडौँ, नेपाल',
+        location: DEFAULT_NEPAL_LOCATION,
+        createdAtBS: '२०८१',
+        isActive: true,
+      };
+      setActiveYajaman(synced);
+      setActiveYajamanSession(synced);
+    }
+  }, [currentRbac, activeYajaman]);
 
   // Locally customized profile state
   const [customizedProfile, setCustomizedProfile] = useState<BirthDetails | null>(null);
@@ -159,9 +227,8 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
     }
 
     // 2. Resolve logged in user (RBAC or Yajaman session)
-    const currentRbac = rbacSession || getActiveRBACSession();
-    const currentUserId = currentRbac?.userId || activeYajaman?.id || 'client_subash_khanal';
-    const currentUserName = currentRbac?.fullName || activeYajaman?.fullName || 'subash khanal';
+    const currentUserId = effectiveYajaman?.id || currentRbac?.userId || 'client_user';
+    const currentUserName = effectiveYajaman?.fullName || currentRbac?.fullName || 'प्रयोगकर्ता';
 
     const personalProf = getUserPersonalBirthProfile(currentUserId, currentUserName);
     if (personalProf) return personalProf;
@@ -175,14 +242,14 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
       dateAD: '1989-08-30',
       time: '06:30',
       location: {
-        name: activeYajaman?.district ? `${activeYajaman.district}, नेपाल` : 'काठमाडौँ, नेपाल',
+        name: effectiveYajaman?.district ? `${effectiveYajaman.district}, नेपाल` : 'काठमाडौँ, नेपाल',
         latitude: 27.7172,
         longitude: 85.3240,
         timeZone: 5.75
       },
       moonRashi: 'कन्या'
     };
-  }, [customizedProfile, activeProfile, rbacSession, activeYajaman]);
+  }, [customizedProfile, activeProfile, effectiveYajaman, currentRbac]);
 
   const computedPanchanga = useMemo(() => {
     if (todayPanchanga) return todayPanchanga;
@@ -317,11 +384,12 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
     refreshData();
   }, []);
 
-  const currentUserId = activeYajaman?.id || activeProvider?.id || '';
-  const currentUserName = activeYajaman?.fullName || activeProvider?.fullName || '';
-  const isAuthenticated = Boolean(activeYajaman || activeProvider);
+  const currentUserId = effectiveYajaman?.id || activeYajaman?.id || activeProvider?.id || currentRbac?.userId || '';
+  const currentUserName = effectiveYajaman?.fullName || activeYajaman?.fullName || activeProvider?.fullName || currentRbac?.fullName || '';
+  const isAuthenticated = Boolean(effectiveYajaman || activeYajaman || activeProvider || currentRbac);
 
   const triggerLoginGate = (actionMessage: string, featureName: string) => {
+    if (isAuthenticated) return;
     setLoginGateActionMessage(actionMessage);
     setLoginGateFeatureName(featureName);
     setIsLoginGateOpen(true);
@@ -554,8 +622,10 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
 
   // Submit New Service Request (Yajaman)
   const handleSubmitServiceRequest = () => {
-    if (!activeYajaman) {
+    const userToUse = effectiveYajaman || activeYajaman;
+    if (!userToUse) {
       showToast('कृपया सेवा Book गर्न पहिले लगइन वा Sign Up गर्नुहोस्।', 'error');
+      triggerLoginGate('वैदिक सेवा Book गर्न पहिले लगइन वा दर्ता गर्नुहोस्।', 'सेवा बुकिङ');
       return;
     }
     if (!selectedCategory) {
@@ -569,16 +639,16 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
     const newReq: ServiceRequest = {
       id: `req_${Date.now()}`,
       bookingCode: `YJM-${todayBS.year}-${Math.floor(1000 + Math.random() * 9000)}`,
-      yajamanId: activeYajaman.id,
-      yajamanName: activeYajaman.fullName,
-      yajamanMobile: activeYajaman.mobile,
-      yajamanEmail: activeYajaman.email,
+      yajamanId: userToUse.id,
+      yajamanName: userToUse.fullName,
+      yajamanMobile: userToUse.mobile,
+      yajamanEmail: userToUse.email,
       categoryId: selectedCategory.id,
       categoryNameNepali: selectedCategory.nameNepali,
       serviceType: customServiceType,
       preferredDateBS: prefDateBS || todayBSStr,
       preferredTime: prefTime,
-      location: activeYajaman.location || detectedLocation,
+      location: userToUse.location || detectedLocation,
       additionalNotes: additionalNotes,
       status: 'MATCHING',
       currentRadiusKm: 3, // Start at 3 KM
@@ -686,62 +756,67 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
           /* =================================================== */
           <div className="space-y-6">
             {/* Top User Status / Guest Welcome Bar */}
-            {activeYajaman ? (
-              <div className="bg-white dark:bg-[#262320] rounded-2xl p-4 sm:p-5 border border-amber-200/60 dark:border-stone-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-700 text-white flex items-center justify-center font-bold text-lg shadow-md border-2 border-amber-200">
-                    {activeYajaman.fullName.substring(0, 1)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100">
-                        {activeYajaman.fullName}
-                      </h2>
-                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-100 text-[#D97706] rounded-md border border-amber-300">
-                        यजमान
-                      </span>
+            {(effectiveYajaman || activeYajaman) ? (
+              (() => {
+                const currentYUser = effectiveYajaman || activeYajaman!;
+                return (
+                  <div className="bg-white dark:bg-[#262320] rounded-2xl p-4 sm:p-5 border border-amber-200/60 dark:border-stone-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-700 text-white flex items-center justify-center font-bold text-lg shadow-md border-2 border-amber-200">
+                        {currentYUser.fullName.substring(0, 1)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100">
+                            {currentYUser.fullName}
+                          </h2>
+                          <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-100 text-[#D97706] rounded-md border border-amber-300">
+                            {currentRbac?.roleNameNepali || 'यजमान'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-2 mt-0.5">
+                          {currentYUser.mobile && <span>📞 {currentYUser.mobile}</span>}
+                          {currentYUser.mobile && <span>•</span>}
+                          <span>📍 {currentYUser.district}, {currentYUser.localLevel}</span>
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-2 mt-0.5">
-                      <span>📞 {activeYajaman.mobile}</span>
-                      <span>•</span>
-                      <span>📍 {activeYajaman.district}, {activeYajaman.localLevel}</span>
-                    </p>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setYajamanTab('create_post')}
+                        className="px-3.5 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-800 dark:text-stone-200 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 text-[#D97706]" />
+                        <span>+ नयाँ पोस्ट</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setYajamanTab('book_service')}
+                        className="px-4 py-2 bg-gradient-to-r from-[#D97706] to-[#B45309] text-white text-xs sm:text-sm font-bold rounded-xl shadow-md hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>सेवा Book गर्नुहोस्</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveYajaman(null);
+                          setActiveYajamanSession(null);
+                          showToast('सफलतापूर्वक लगआउट भयो।', 'info');
+                        }}
+                        className="p-2 text-stone-400 hover:text-rose-600 bg-stone-100 dark:bg-stone-800 rounded-xl transition-all cursor-pointer"
+                        title="लगआउट"
+                      >
+                        <LogOut className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setYajamanTab('create_post')}
-                    className="px-3.5 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-800 dark:text-stone-200 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4 text-[#D97706]" />
-                    <span>+ नयाँ पोस्ट</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setYajamanTab('book_service')}
-                    className="px-4 py-2 bg-gradient-to-r from-[#D97706] to-[#B45309] text-white text-xs sm:text-sm font-bold rounded-xl shadow-md hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>सेवा Book गर्नुहोस्</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveYajaman(null);
-                      setActiveYajamanSession(null);
-                      showToast('सफलतापूर्वक लगआउट भयो।', 'info');
-                    }}
-                    className="p-2 text-stone-400 hover:text-rose-600 bg-stone-100 dark:bg-stone-800 rounded-xl transition-all cursor-pointer"
-                    title="लगआउट"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+                );
+              })()
             ) : (
               <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-900 dark:to-stone-900/90 rounded-2xl p-3.5 sm:p-4 border border-amber-200/80 dark:border-stone-800 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -1122,19 +1197,19 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
                       <p className="text-xs text-stone-500 font-semibold">सक्रिय Request</p>
                       <p className="text-2xl font-black text-[#D97706]">
-                        {activeYajaman ? requests.filter((r) => r.yajamanId === activeYajaman.id && r.status === 'MATCHING').length : 0}
+                        {(effectiveYajaman || activeYajaman) ? requests.filter((r) => r.yajamanId === (effectiveYajaman || activeYajaman)?.id && r.status === 'MATCHING').length : 0}
                       </p>
                     </div>
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
                       <p className="text-xs text-stone-500 font-semibold">स्वीकृत बुकिङ (Accepted)</p>
                       <p className="text-2xl font-black text-emerald-600">
-                        {activeYajaman ? bookings.filter((b) => b.yajamanId === activeYajaman.id && b.status === 'ACCEPTED').length : 0}
+                        {(effectiveYajaman || activeYajaman) ? bookings.filter((b) => b.yajamanId === (effectiveYajaman || activeYajaman)?.id && b.status === 'ACCEPTED').length : 0}
                       </p>
                     </div>
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
                       <p className="text-xs text-stone-500 font-semibold">सम्पन्न सेवाहरू (Completed)</p>
                       <p className="text-2xl font-black text-blue-600">
-                        {activeYajaman ? bookings.filter((b) => b.yajamanId === activeYajaman.id && b.status === 'COMPLETED').length : 0}
+                        {(effectiveYajaman || activeYajaman) ? bookings.filter((b) => b.yajamanId === (effectiveYajaman || activeYajaman)?.id && b.status === 'COMPLETED').length : 0}
                       </p>
                     </div>
                     <div className="bg-white dark:bg-[#262320] p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-1">
@@ -1590,12 +1665,12 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                       स्वीकृत बुकिङहरू (Accepted & Confirmed Bookings)
                     </h4>
 
-                    {bookings.filter((b) => activeYajaman && b.yajamanId === activeYajaman.id).length === 0 ? (
+                    {bookings.filter((b) => (effectiveYajaman || activeYajaman) && b.yajamanId === (effectiveYajaman || activeYajaman)?.id).length === 0 ? (
                       <div className="p-8 text-center bg-white dark:bg-[#262320] rounded-2xl border border-stone-200 dark:border-stone-800 text-stone-400 text-xs">
                         हाल स्वीकृत भएको कुनै बुकिङ छैन।
                       </div>
                     ) : (
-                      bookings.filter((b) => activeYajaman && b.yajamanId === activeYajaman.id).map((b) => (
+                      bookings.filter((b) => (effectiveYajaman || activeYajaman) && b.yajamanId === (effectiveYajaman || activeYajaman)?.id).map((b) => (
                         <div
                           key={b.id}
                           className="bg-white dark:bg-[#262320] p-5 rounded-3xl border border-amber-200 dark:border-stone-800 shadow-sm space-y-4"
@@ -1661,9 +1736,9 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                                   const session = initiateCallSession(
                                     b.id,
                                     b.yajamanId,
-                                    activeYajaman?.fullName || 'यजमान',
+                                    effectiveYajaman?.fullName || activeYajaman?.fullName || 'यजमान',
                                     'YAJAMAN',
-                                    activeYajaman?.profilePhoto,
+                                    effectiveYajaman?.profilePhoto || activeYajaman?.profilePhoto,
                                     b.providerId,
                                     b.providerName,
                                     'PROVIDER',
@@ -1683,9 +1758,9 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                                   const session = initiateCallSession(
                                     b.id,
                                     b.yajamanId,
-                                    activeYajaman?.fullName || 'यजमान',
+                                    effectiveYajaman?.fullName || activeYajaman?.fullName || 'यजमान',
                                     'YAJAMAN',
-                                    activeYajaman?.profilePhoto,
+                                    effectiveYajaman?.profilePhoto || activeYajaman?.profilePhoto,
                                     b.providerId,
                                     b.providerName,
                                     'PROVIDER',
@@ -1759,8 +1834,8 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {filteredProvidersList.map((p) => {
                       const dist = calculateDistanceKm(
-                        activeYajaman?.location?.latitude || DEFAULT_NEPAL_LOCATION.latitude,
-                        activeYajaman?.location?.longitude || DEFAULT_NEPAL_LOCATION.longitude,
+                        (effectiveYajaman || activeYajaman)?.location?.latitude || DEFAULT_NEPAL_LOCATION.latitude,
+                        (effectiveYajaman || activeYajaman)?.location?.longitude || DEFAULT_NEPAL_LOCATION.longitude,
                         p.location.latitude,
                         p.location.longitude
                       );
@@ -1848,10 +1923,10 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                   </h3>
 
                   <div className="space-y-2">
-                    {notifications.filter((n) => activeYajaman && n.recipientId === activeYajaman.id).length === 0 ? (
+                    {notifications.filter((n) => (effectiveYajaman || activeYajaman) && n.recipientId === (effectiveYajaman || activeYajaman)?.id).length === 0 ? (
                       <p className="text-xs text-stone-400 py-6 text-center">हाल कुनै सूचना छैन।</p>
                     ) : (
-                      notifications.filter((n) => activeYajaman && n.recipientId === activeYajaman.id).map((notif) => (
+                      notifications.filter((n) => (effectiveYajaman || activeYajaman) && n.recipientId === (effectiveYajaman || activeYajaman)?.id).map((notif) => (
                         <div
                           key={notif.id}
                           className="p-3.5 bg-stone-50 dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 space-y-1 text-xs"
@@ -1869,29 +1944,34 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
               )}
 
               {/* Tab 6: Profile */}
-              {yajamanTab === 'profile' && activeYajaman && (
-                <div className="bg-white dark:bg-[#262320] rounded-3xl p-6 border border-amber-200/60 dark:border-stone-800 shadow-sm space-y-4 max-w-xl mx-auto">
-                  <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 border-b pb-3">
-                    मेरो प्रोफाइल (Yajaman Profile)
-                  </h3>
+              {yajamanTab === 'profile' && (effectiveYajaman || activeYajaman) && (
+                (() => {
+                  const profUser = effectiveYajaman || activeYajaman!;
+                  return (
+                    <div className="bg-white dark:bg-[#262320] rounded-3xl p-6 border border-amber-200/60 dark:border-stone-800 shadow-sm space-y-4 max-w-xl mx-auto">
+                      <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 border-b pb-3">
+                        मेरो प्रोफाइल (Yajaman Profile)
+                      </h3>
 
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <p className="text-stone-500">पूरा नाम:</p>
-                      <p className="font-bold text-sm text-stone-900 dark:text-stone-100">{activeYajaman.fullName}</p>
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <p className="text-stone-500">पूरा नाम:</p>
+                          <p className="font-bold text-sm text-stone-900 dark:text-stone-100">{profUser.fullName}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-500">मोबाइल नम्बर:</p>
+                          <p className="font-bold text-stone-900 dark:text-stone-100">{profUser.mobile || 'उल्लेख नभएको'}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-500">स्थान / ठेगाना:</p>
+                          <p className="font-bold text-stone-900 dark:text-stone-100">
+                            {profUser.address}, {profUser.localLevel}, {profUser.district}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-stone-500">मोबाइल नम्बर:</p>
-                      <p className="font-bold text-stone-900 dark:text-stone-100">{activeYajaman.mobile}</p>
-                    </div>
-                    <div>
-                      <p className="text-stone-500">स्थान / ठेगाना:</p>
-                      <p className="font-bold text-stone-900 dark:text-stone-100">
-                        {activeYajaman.address}, {activeYajaman.localLevel}, {activeYajaman.district}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()
               )}
             </div>
         ) : (
@@ -2082,8 +2162,8 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
         <SecureChatPanel
           bookingId={activeChatBooking.id}
           bookingCode={activeChatBooking.bookingCode}
-          currentUserId={activeYajaman?.id || activeProvider?.id || 'guest'}
-          currentUserName={activeYajaman?.fullName || activeProvider?.fullName || 'प्रयोगकर्ता'}
+          currentUserId={currentUserId || 'guest'}
+          currentUserName={currentUserName || 'प्रयोगकर्ता'}
           currentUserType={portalMode === 'YAJAMAN' ? 'YAJAMAN' : 'PROVIDER'}
           peerUserId={portalMode === 'YAJAMAN' ? activeChatBooking.providerId : activeChatBooking.yajamanId}
           peerUserName={portalMode === 'YAJAMAN' ? activeChatBooking.providerName : activeChatBooking.yajamanName}
@@ -2105,15 +2185,15 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
       {activeCallSession && (
         <InAppCallModal
           session={activeCallSession}
-          currentUserId={activeYajaman?.id || activeProvider?.id || 'guest'}
+          currentUserId={currentUserId || 'guest'}
           onClose={() => setActiveCallSession(null)}
         />
       )}
 
       {reportTarget && (
         <ReportBlockModal
-          reporterId={activeYajaman?.id || activeProvider?.id || 'guest'}
-          reporterName={activeYajaman?.fullName || activeProvider?.fullName || 'प्रयोगकर्ता'}
+          reporterId={currentUserId || 'guest'}
+          reporterName={currentUserName || 'प्रयोगकर्ता'}
           reporterType={portalMode === 'YAJAMAN' ? 'YAJAMAN' : 'PROVIDER'}
           reportedUserId={reportTarget.targetUserId}
           reportedUserName={reportTarget.targetUserName}
@@ -2137,19 +2217,27 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
       )}
 
       {/* Community Social Modals */}
-      {isLoginGateOpen && (
+      {isLoginGateOpen && !isAuthenticated && (
         <YajamanLoginGateModal
           isOpen={true}
           onClose={() => setIsLoginGateOpen(false)}
           onOpenLogin={() => {
             setIsLoginGateOpen(false);
-            setAuthTab('signin');
-            setIsAuthModalOpen(true);
+            if (onOpenAuthModal) {
+              onOpenAuthModal();
+            } else {
+              setAuthTab('signin');
+              setIsAuthModalOpen(true);
+            }
           }}
           onOpenRegister={() => {
             setIsLoginGateOpen(false);
-            setAuthTab('signup');
-            setIsAuthModalOpen(true);
+            if (onOpenAuthModal) {
+              onOpenAuthModal();
+            } else {
+              setAuthTab('signup');
+              setIsAuthModalOpen(true);
+            }
           }}
           featureName={loginGateFeatureName}
           actionMessage={loginGateActionMessage}
