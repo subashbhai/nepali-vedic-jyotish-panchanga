@@ -36,6 +36,7 @@ import {
   PhoneCall,
   Video,
   ShieldAlert,
+  Loader2,
   X
 } from 'lucide-react';
 
@@ -94,6 +95,7 @@ import {
   calculateDistanceKm,
   calculateProviderMatchScore,
   DEFAULT_NEPAL_LOCATION,
+  getPreciseNepalLandmark,
   MATCHING_RADIUS_STEPS,
   maskAddress,
   maskEmail,
@@ -347,8 +349,12 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
     const bs = convertADToBS(today);
     return `${bs.year}-${bs.month.toString().padStart(2, '0')}-${bs.day.toString().padStart(2, '0')}`;
   });
-  const [prefTime, setPrefTime] = useState('बिहान ०८:०० बजे');
-  const [serviceLocationText, setServiceLocationText] = useState('काठमाडौँ महानगरपालिका, वडा नं. २२');
+  const [serviceLocationText, setServiceLocationText] = useState(() => {
+    if (effectiveYajaman?.address && effectiveYajaman?.district) {
+      return `${effectiveYajaman.address}, ${effectiveYajaman.localLevel || ''}, ${effectiveYajaman.district}`.replace(/,\s*,/g, ',').trim();
+    }
+    return 'काठमाडौँ महानगरपालिका, वडा नं. २२';
+  });
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [activeMatchingRequestId, setActiveMatchingRequestId] = useState<string | null>(null);
 
@@ -492,37 +498,72 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
       return b.createdAtTimestamp - a.createdAtTimestamp; // 'latest'
     });
 
-  // Detect GPS Location
+  // Detect GPS Location with 50-meter accurate landmark detection
   const requestGpsLocation = () => {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       setLocationError('तपाईंको ब्राउजरमा GPS Location सुविधा उपलब्ध छैन।');
+      showToast('ब्राउजरमा GPS Location सुविधा उपलब्ध छैन।', 'error');
       return;
     }
     setIsLocating(true);
     setLocationError(null);
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords: LocationCoordinates = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracyMeters: pos.coords.accuracy,
-          addressName: 'वर्तमान GPS स्थान',
-          district: ySignUpForm.district || 'काठमाडौँ',
-          localLevel: ySignUpForm.localLevel || 'महानगरपालिका',
-          ward: ySignUpForm.ward || '१',
-        };
-        setDetectedLocation(coords);
-        setIsLocating(false);
-        showToast('सफलतापूर्वक तपाईंको वर्तमान लोकेशन प्राप्त भयो!', 'success');
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const accuracy = pos.coords.accuracy || 50;
+
+        try {
+          const result = await getPreciseNepalLandmark(lat, lon, accuracy);
+          setDetectedLocation(result.locationCoordinates);
+          setServiceLocationText(result.addressText);
+          showToast(`सफलतापूर्वक स्थान अपडेट भयो: ${result.addressText}`, 'success');
+        } catch (err: any) {
+          const fallbackCoords: LocationCoordinates = {
+            latitude: lat,
+            longitude: lon,
+            accuracyMeters: accuracy,
+            addressName: `GPS स्थान (${lat.toFixed(5)}, ${lon.toFixed(5)})`,
+            district: effectiveYajaman?.district || 'काठमाडौँ',
+            localLevel: effectiveYajaman?.localLevel || 'काठमाडौँ महानगरपालिका',
+            ward: effectiveYajaman?.ward || '१',
+          };
+          setDetectedLocation(fallbackCoords);
+          setServiceLocationText(`GPS स्थान (${lat.toFixed(5)}, ${lon.toFixed(5)})`);
+          showToast('GPS स्थान प्राप्त भयो।', 'info');
+        } finally {
+          setIsLocating(false);
+        }
       },
       (err) => {
         setIsLocating(false);
-        setLocationError(`लोकेशन प्राप्त गर्न सकिएन: ${err.message}. Default काठमाडौँ प्रयोग गरिएको छ।`);
+        let msg = err.message;
+        if (err.code === 1) {
+          msg = 'कृपया ब्राउजरमा Location अनुमति (Permission) दिनुहोस्।';
+        } else if (err.code === 2) {
+          msg = 'यन्त्रको GPS/लोकेशन सिग्नल प्राप्त हुन सकेन।';
+        } else if (err.code === 3) {
+          msg = 'लोकेशन पत्ता लगाउन समय समाप्त (Timeout) भयो। पुनः प्रयास गर्नुहोस्।';
+        }
+        setLocationError(msg);
+        showToast(msg, 'error');
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
+
+  // Auto-request location when user navigates to Step 3 if still on default coordinates
+  useEffect(() => {
+    if (wizardStep === 3 && yajamanTab === 'book_service') {
+      if (
+        detectedLocation.latitude === DEFAULT_NEPAL_LOCATION.latitude &&
+        detectedLocation.longitude === DEFAULT_NEPAL_LOCATION.longitude
+      ) {
+        requestGpsLocation();
+      }
+    }
+  }, [wizardStep, yajamanTab]);
 
   // Yajaman Sign Up Handler
   const handleYajamanSignUp = (e: React.FormEvent) => {
@@ -648,7 +689,10 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
       serviceType: customServiceType,
       preferredDateBS: prefDateBS || todayBSStr,
       preferredTime: prefTime,
-      location: userToUse.location || detectedLocation,
+      location: {
+        ...(userToUse.location || detectedLocation),
+        addressName: serviceLocationText || detectedLocation.addressName || userToUse.address,
+      },
       additionalNotes: additionalNotes,
       status: 'MATCHING',
       currentRadiusKm: 3, // Start at 3 KM
@@ -666,7 +710,7 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
 
     // Create Notification
     addNotification(
-      activeYajaman.id,
+      userToUse.id,
       'YAJAMAN',
       'सेवा अनुरोध दर्ता भयो',
       `तपाईंको '${customServiceType}' सेवा अनुरोध ३ KM परिधि भित्रका योग्य विशेषज्ञहरूसँग मिलाइँदैछ।`,
@@ -1430,22 +1474,54 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                         />
                       </div>
 
-                      <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-300/60 dark:border-amber-800/40 space-y-2">
+                      <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-300/60 dark:border-amber-800/40 space-y-2.5">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
                             स्थान आधारित म्याचिङको लागि GPS Coordinates:
                           </span>
                           <button
                             type="button"
+                            disabled={isLocating}
                             onClick={requestGpsLocation}
-                            className="px-3 py-1 bg-[#D97706] text-white text-[11px] font-bold rounded-lg hover:bg-[#B45309]"
+                            className="px-3.5 py-1.5 bg-[#D97706] text-white text-[11px] font-bold rounded-lg hover:bg-[#B45309] disabled:opacity-50 flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                           >
-                            पुनः स्थान अपडेट गर्नुहोस्
+                            {isLocating ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>स्थान पत्ता लगाउँदै...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>पुनः स्थान अपडेट गर्नुहोस्</span>
+                              </>
+                            )}
                           </button>
                         </div>
-                        <p className="text-[11px] text-amber-800 dark:text-amber-300 font-mono">
-                          Latitude: {detectedLocation.latitude.toFixed(5)}, Longitude: {detectedLocation.longitude.toFixed(5)}
-                        </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-amber-800 dark:text-amber-300">
+                          <p className="font-mono font-semibold">
+                            Latitude: {detectedLocation.latitude.toFixed(5)}, Longitude: {detectedLocation.longitude.toFixed(5)}
+                          </p>
+                          {detectedLocation.accuracyMeters && (
+                            <span className="text-[10px] bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-md font-bold self-start sm:self-auto">
+                              GPS परिशुद्धता: ±{Math.round(detectedLocation.accuracyMeters)} मिटर
+                            </span>
+                          )}
+                        </div>
+                        {detectedLocation.addressName && (
+                          <div className="pt-2 border-t border-amber-200/80 dark:border-amber-800/60 text-xs text-stone-800 dark:text-stone-200 flex items-start gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-[#D97706] shrink-0 mt-0.5" />
+                            <p className="text-[11px] leading-relaxed">
+                              <span className="font-bold text-amber-950 dark:text-amber-200">पहिचान भएको स्थान (५० मिटर वरिपरि):</span>{' '}
+                              <span className="font-medium text-stone-900 dark:text-stone-100">{detectedLocation.addressName}</span>
+                            </p>
+                          </div>
+                        )}
+                        {locationError && (
+                          <p className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold mt-1">
+                            ⚠️ {locationError}
+                          </p>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between pt-2">
