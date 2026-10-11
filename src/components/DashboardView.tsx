@@ -85,6 +85,7 @@ import {
   getCurrentUserGPS, 
   BALANANDA_GEO_UPDATED_EVENT 
 } from '../utils/geoLocationHelper';
+import { getPreciseNepalLandmark } from '../utils/geoUtils';
 import { MahaSankalpaModal } from './sankalpa/MahaSankalpaModal';
 import { LocationSelectorModal } from './LocationSelectorModal';
 import { DailyPanchangaPrintModal } from './panchanga/DailyPanchangaPrintModal';
@@ -358,12 +359,98 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
     };
   }, []);
 
+  // Auto-load high-precision GPS on mount if geolocation is available
+  React.useEffect(() => {
+    let isCancelled = false;
+    const autoLoadGPS = async () => {
+      if (typeof window === 'undefined' || !navigator.geolocation) return;
+      try {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            if (isCancelled) return;
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            try {
+              const precise = await getPreciseNepalLandmark(lat, lon);
+              if (isCancelled) return;
+              const formattedName = precise.displayName || `${precise.toleOrLandmark || precise.municipality}, ${precise.district}`;
+              const detectedLoc: LocationData = {
+                name: formattedName,
+                district: precise.district,
+                province: precise.province,
+                latitude: lat,
+                longitude: lon
+              };
+              saveUserDetectedLocation(detectedLoc);
+              setActiveGeoLocation(detectedLoc);
+              setSankalpaLocation(formattedName);
+            } catch (innerErr) {
+              // Fallback to basic GPS helper
+              const res = await getCurrentUserGPS();
+              if (isCancelled) return;
+              saveUserDetectedLocation(res.location);
+              setActiveGeoLocation(res.location);
+              setSankalpaLocation(res.location.name || res.location.district || '');
+            }
+          },
+          (posErr) => {
+            console.log('Auto GPS not granted or error:', posErr.message);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+      } catch (e) {
+        // Silent catch for auto-load
+      }
+    };
+
+    autoLoadGPS();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
   const handleRefreshCardGPS = async () => {
     setIsDetectingCardGPS(true);
     try {
-      const res = await getCurrentUserGPS();
-      saveUserDetectedLocation(res.location);
-      setActiveGeoLocation(res.location);
+      if (typeof window !== 'undefined' && navigator.geolocation) {
+        await new Promise<void>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              try {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const precise = await getPreciseNepalLandmark(lat, lon);
+                const formattedName = precise.displayName || `${precise.toleOrLandmark || precise.municipality}, ${precise.district}`;
+                const detectedLoc: LocationData = {
+                  name: formattedName,
+                  district: precise.district,
+                  province: precise.province,
+                  latitude: lat,
+                  longitude: lon
+                };
+                saveUserDetectedLocation(detectedLoc);
+                setActiveGeoLocation(detectedLoc);
+                setSankalpaLocation(formattedName);
+                resolve();
+              } catch (err) {
+                // Fallback to standard helper
+                const res = await getCurrentUserGPS();
+                saveUserDetectedLocation(res.location);
+                setActiveGeoLocation(res.location);
+                setSankalpaLocation(res.location.name || res.location.district || '');
+                resolve();
+              }
+            },
+            (err) => reject(err),
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+          );
+        });
+      } else {
+        const res = await getCurrentUserGPS();
+        saveUserDetectedLocation(res.location);
+        setActiveGeoLocation(res.location);
+        setSankalpaLocation(res.location.name || res.location.district || '');
+      }
     } catch (err: any) {
       alert(err.message || 'GPS स्थान पत्ता लगाउन सकिएन।');
     } finally {
@@ -706,20 +793,20 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
               <div className="flex items-center justify-between text-[11px] pb-1.5 mb-2 border-b border-amber-200/60 dark:border-stone-700/60">
                 <span className="text-amber-950 dark:text-amber-200 font-bold flex items-center gap-1.5">
                   <span>🎯</span>
-                  <span>शास्त्रोक्त पावन तीर्थ तथा देवपीठ</span>
+                  <span>५० कि.मी. परिभित्रका पावन तीर्थ तथा देवस्थलहरू (सङ्कल्पमा समाविष्ट)</span>
                 </span>
                 <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-200/70 dark:bg-amber-900/60 px-2 py-0.5 rounded-md font-mono">
-                  {dailySankalpa.geoInfo.tierSummaryBadge || '📍 २-२० कि.मी. परिधि खोजी'}
+                  {dailySankalpa.geoInfo.tierSummaryBadge || '📍 ५० कि.मी. परिधि खोजी'}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                {/* 1. पवित्र नदी / तीर्थ */}
-                <div className="bg-white/80 dark:bg-stone-800/90 p-2 rounded-lg border border-amber-200/60 dark:border-stone-700/60 flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-[10px] text-stone-500 dark:text-stone-400 font-medium">
-                    <span className="flex items-center gap-1">
+                {/* 1. पवित्र नदी / तीर्थहरू (Top 5) */}
+                <div className="bg-white/80 dark:bg-stone-800/90 p-2.5 rounded-lg border border-amber-200/60 dark:border-stone-700/60 flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-[10px] text-stone-500 dark:text-stone-400 font-medium pb-1 mb-1.5 border-b border-amber-100 dark:border-stone-700">
+                    <span className="flex items-center gap-1 font-bold text-amber-950 dark:text-amber-200">
                       <span>🌊</span>
-                      <span>पवित्र नदी / तीर्थ:</span>
+                      <span>५० कि.मी. भित्रका पवित्र नदी/खोलाहरू (५ वटा):</span>
                     </span>
                     {dailySankalpa.geoInfo.riverTierLabel && (
                       <span className="text-[9px] text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.2 rounded font-bold">
@@ -727,17 +814,32 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                       </span>
                     )}
                   </div>
-                  <span className="font-bold text-stone-900 dark:text-stone-100 truncate mt-1 text-xs" title={`${dailySankalpa.geoInfo.localitySanskrit} • ${dailySankalpa.geoInfo.riverNepali}`}>
-                    {dailySankalpa.geoInfo.riverNepali}
-                  </span>
+                  {dailySankalpa.geoInfo.tierResult?.topNearbyRivers && dailySankalpa.geoInfo.tierResult.topNearbyRivers.length > 0 ? (
+                    <div className="space-y-1">
+                      {dailySankalpa.geoInfo.tierResult.topNearbyRivers.map((rItem, idx) => (
+                        <div key={rItem.river.id || idx} className="flex items-center justify-between text-[10.5px]">
+                          <span className="text-stone-800 dark:text-stone-200 font-semibold truncate pr-1">
+                            {idx + 1}. {rItem.river.nameNepali}
+                          </span>
+                          <span className="text-[9.5px] font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 px-1.5 py-0.2 rounded font-mono shrink-0">
+                            {rItem.distanceFormattedNepali}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="font-bold text-stone-900 dark:text-stone-100 truncate mt-1 text-xs" title={dailySankalpa.geoInfo.riverNepali}>
+                      {dailySankalpa.geoInfo.riverNepali}
+                    </span>
+                  )}
                 </div>
 
-                {/* 2. प्रसिद्ध देवपीठ */}
-                <div className="bg-white/80 dark:bg-stone-800/90 p-2 rounded-lg border border-amber-200/60 dark:border-stone-700/60 flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-[10px] text-stone-500 dark:text-stone-400 font-medium">
-                    <span className="flex items-center gap-1">
+                {/* 2. प्रसिद्ध मन्दिर तथा देवपीठहरू (Top 5) */}
+                <div className="bg-white/80 dark:bg-stone-800/90 p-2.5 rounded-lg border border-amber-200/60 dark:border-stone-700/60 flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-[10px] text-stone-500 dark:text-stone-400 font-medium pb-1 mb-1.5 border-b border-amber-100 dark:border-stone-700">
+                    <span className="flex items-center gap-1 font-bold text-amber-950 dark:text-amber-200">
                       <span>🛕</span>
-                      <span>प्रसिद्ध देवपीठ:</span>
+                      <span>५० कि.मी. भित्रका प्रसिद्ध मन्दिर/देवपीठ (५ वटा):</span>
                     </span>
                     {dailySankalpa.geoInfo.shrineTierLabel && (
                       <span className="text-[9px] text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.2 rounded font-bold">
@@ -745,9 +847,24 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                       </span>
                     )}
                   </div>
-                  <span className="font-bold text-stone-900 dark:text-stone-100 truncate mt-1 text-xs" title={dailySankalpa.geoInfo.deityNepali}>
-                    {dailySankalpa.geoInfo.deityNepali}
-                  </span>
+                  {dailySankalpa.geoInfo.tierResult?.topNearbyShrines && dailySankalpa.geoInfo.tierResult.topNearbyShrines.length > 0 ? (
+                    <div className="space-y-1">
+                      {dailySankalpa.geoInfo.tierResult.topNearbyShrines.map((sItem, idx) => (
+                        <div key={sItem.shrine.id || idx} className="flex items-center justify-between text-[10.5px]">
+                          <span className="text-stone-800 dark:text-stone-200 font-semibold truncate pr-1">
+                            {idx + 1}. {sItem.shrine.nameNepali}
+                          </span>
+                          <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded font-mono shrink-0">
+                            {sItem.distanceFormattedNepali}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="font-bold text-stone-900 dark:text-stone-100 truncate mt-1 text-xs" title={dailySankalpa.geoInfo.deityNepali}>
+                      {dailySankalpa.geoInfo.deityNepali}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

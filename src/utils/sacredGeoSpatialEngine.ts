@@ -50,17 +50,35 @@ export interface MultiTierGeoResult {
   latitude: number;
   longitude: number;
 
-  // Selected Shrine / Temple / Devithan
+  // Selected Primary Shrine / Temple / Devithan
   matchedShrine: SacredPlaceEntity;
   shrineDistanceKm: number;
   shrineTier: ProximityTier;
   shrineTierLabelNepali: string;
 
-  // Selected River / Stream / Water body
+  // Selected Primary River / Stream / Water body
   matchedRiver: SacredRiverEntity;
   riverDistanceKm: number;
   riverTier: ProximityTier;
   riverTierLabelNepali: string;
+
+  // Multi-Shrines (50km nearby temples / devasthalis - top 5)
+  topNearbyShrines: Array<{
+    shrine: SacredPlaceEntity;
+    distanceKm: number;
+    distanceFormattedNepali: string;
+  }>;
+  multiShrinesSanskrit: string;
+  multiShrinesNepali: string;
+
+  // Multi-Rivers (50km nearby rivers / streams - top 5)
+  topNearbyRivers: Array<{
+    river: SacredRiverEntity;
+    distanceKm: number;
+    distanceFormattedNepali: string;
+  }>;
+  multiRiversSanskrit: string;
+  multiRiversNepali: string;
 
   // Formatted Sanskrit & Nepali strings for Sankalpa
   sanskritLocalityText: string;
@@ -981,6 +999,43 @@ export function resolveSacredGeographyByCoordinates(
   const shrineD = bestShrineObj.distanceKm;
   const riverD = bestRiverObj.distanceKm;
 
+  // 4. Filter top shrines within 50km (minimum 5, fallback to closest if less in tight radius)
+  const shrinesWithin50Km = shrinesWithDist.filter(s => s.distanceKm <= 50);
+  const selectedShrines = (shrinesWithin50Km.length >= 5 ? shrinesWithin50Km : shrinesWithDist).slice(0, 5);
+
+  const topNearbyShrines = selectedShrines.map(s => ({
+    shrine: s.shrine,
+    distanceKm: s.distanceKm,
+    distanceFormattedNepali: `${toDevanagariNumerals(s.distanceKm < 1 ? Math.round(s.distanceKm * 1000) : Number(s.distanceKm.toFixed(1)))} ${s.distanceKm < 1 ? 'मि.' : 'कि.मी.'}`
+  }));
+
+  // 5. Filter top rivers within 50km (minimum 5, fallback to closest if less in tight radius)
+  const riversWithin50Km = riversWithDist.filter(r => r.distanceKm <= 50);
+  const selectedRivers = (riversWithin50Km.length >= 5 ? riversWithin50Km : riversWithDist).slice(0, 5);
+
+  const topNearbyRivers = selectedRivers.map(r => ({
+    river: r.river,
+    distanceKm: r.distanceKm,
+    distanceFormattedNepali: `${toDevanagariNumerals(r.distanceKm < 1 ? Math.round(r.distanceKm * 1000) : Number(r.distanceKm.toFixed(1)))} ${r.distanceKm < 1 ? 'मि.' : 'कि.मी.'}`
+  }));
+
+  // Compound Sanskrit and Nepali names for 5+ Shrines & Rivers
+  const multiShrinesSanskrit = selectedShrines
+    .map(s => s.shrine.nameSanskrit.replace(/^श्री/, ''))
+    .join('-') + ' पावन-चरणसन्निधौ';
+
+  const multiShrinesNepali = selectedShrines
+    .map(s => s.shrine.nameNepali.replace(/^श्री\s*/, ''))
+    .join(', ');
+
+  const multiRiversSanskrit = 'पवित्र ' + selectedRivers
+    .map(r => r.river.nameSanskrit.replace(/^पवित्र\s*/, ''))
+    .join('-') + ' पुण्यतीर्थे';
+
+  const multiRiversNepali = selectedRivers
+    .map(r => r.river.nameNepali.replace(/^पवित्र\s*/, ''))
+    .join(', ');
+
   // Determine Tiers
   const getTier = (dist: number): { tier: ProximityTier; label: string; sanskritPrefix: string } => {
     if (dist <= 2.0) {
@@ -1040,7 +1095,9 @@ export function resolveSacredGeographyByCoordinates(
     ? '📍 ५ कि.मी. परिधि खोजी'
     : shrineD <= 10.0 || riverD <= 10.0
     ? '📍 १० कि.मी. परिधि खोजी'
-    : '📍 २० कि.मी. क्षेत्रीय खोजी';
+    : shrineD <= 50.0 || riverD <= 50.0
+    ? '📍 ५० कि.मी. पावन क्षेत्र खोजी'
+    : '📍 प्रादेशिक क्षेत्रीय खोजी';
 
   return {
     placeName: cleanLocalityName,
@@ -1056,6 +1113,12 @@ export function resolveSacredGeographyByCoordinates(
     riverDistanceKm: riverD,
     riverTier: riverTierInfo.tier,
     riverTierLabelNepali: riverTierInfo.label,
+    topNearbyShrines,
+    multiShrinesSanskrit,
+    multiShrinesNepali,
+    topNearbyRivers,
+    multiRiversSanskrit,
+    multiRiversNepali,
     sanskritLocalityText,
     sanskritSubdivisionText,
     sanskritRiverText,

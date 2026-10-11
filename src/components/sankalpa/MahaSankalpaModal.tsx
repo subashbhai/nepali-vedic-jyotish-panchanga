@@ -270,8 +270,11 @@ export const MahaSankalpaModal: React.FC<MahaSankalpaModalProps> = ({
           {/* Quick Info Badges: River & Temple Auto-detected */}
           <div className="mt-2.5 pt-2 border-t border-stone-200/60 dark:border-stone-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
             <div className="flex flex-wrap items-center gap-3 text-stone-600 dark:text-stone-300">
-              <span>🌊 <b>पवित्र नदी:</b> {mahaSankalpa.geoInfo.riverNepali}</span>
-              <span>🛕 <b>देवपीठ:</b> {mahaSankalpa.geoInfo.deityNepali}</span>
+              <span className="font-bold text-amber-900 dark:text-amber-200 bg-amber-100/70 dark:bg-amber-950/60 px-2 py-0.5 rounded text-[10.5px]">
+                {mahaSankalpa.geoInfo.tierSummaryBadge || '📍 ५० कि.मी. परिधि तीर्थ'}
+              </span>
+              <span>🌊 <b>पवित्र ५ नदी:</b> {mahaSankalpa.geoInfo.tierResult?.multiRiversNepali || mahaSankalpa.geoInfo.riverNepali}</span>
+              <span>🛕 <b>देवस्थलहरू:</b> {mahaSankalpa.geoInfo.tierResult?.multiShrinesNepali || mahaSankalpa.geoInfo.deityNepali}</span>
             </div>
 
             <label className="flex items-center gap-1.5 cursor-pointer font-bold text-amber-800 dark:text-amber-300">
