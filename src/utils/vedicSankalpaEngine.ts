@@ -1029,14 +1029,27 @@ export function getSacredLocationInfo(
     inputName = locationOrName.trim();
   }
 
-  // 2. If nothing was supplied, try stored user location
-  if (!inputName && !inputDistrict && (!lat || !lon)) {
+  // Clean literal 'undefined' or nullish artifacts
+  if (inputName.includes('undefined') || inputName === 'undefined') {
+    inputName = inputName.replace(/undefined\s*,?\s*/gi, '').trim();
+  }
+  if (inputDistrict.includes('undefined') || inputDistrict === 'undefined') {
+    inputDistrict = inputDistrict.replace(/undefined\s*,?\s*/gi, '').trim();
+  }
+
+  // 2. If coordinates are missing, fallback to stored user location coordinates
+  if (!lat || !lon) {
     const stored = getStoredUserLocation();
     if (stored) {
-      inputName = stored.name || '';
-      inputDistrict = stored.district || '';
-      if (!lat) lat = stored.latitude;
-      if (!lon) lon = stored.longitude;
+      if (!inputName && !inputDistrict) {
+        inputName = (stored.name || '').replace(/undefined/gi, '').trim();
+        inputDistrict = (stored.district || '').replace(/undefined/gi, '').trim();
+      }
+      if (!lat && stored.latitude) lat = stored.latitude;
+      if (!lon && stored.longitude) lon = stored.longitude;
+      if (!inputDistrict && stored.district) {
+        inputDistrict = (stored.district || '').replace(/undefined/gi, '').trim();
+      }
     }
   }
 
@@ -1049,8 +1062,7 @@ export function getSacredLocationInfo(
     }
   }
 
-  // Helper to convert definition to SacredLocationInfo
-  // If coordinates are available, perform full multi-tier sacred geographic search (2km -> 5km -> 10km -> 20km)
+  // If coordinates are available, perform full multi-tier sacred geographic search (50m -> 100m -> 500m -> 50km)
   if (lat && lon && lat >= 25.0 && lat <= 31.5 && lon >= 79.0 && lon <= 89.5) {
     const tiered = resolveSacredGeographyByCoordinates(lat, lon, inputName, inputDistrict);
     return {
@@ -1156,26 +1168,49 @@ export function getSacredLocationInfo(
       }
     }
 
-    if (minD < 120) {
-      return formatResult(closestEntry);
-    }
+    const tiered = resolveSacredGeographyByCoordinates(closestEntry.lat, closestEntry.lon, inputName || closestEntry.locality, closestEntry.district);
+    return {
+      countrySanskrit: 'नेपाल देशे',
+      subdivisionSanskrit: closestEntry.subdivision,
+      localitySanskrit: closestEntry.locality,
+      sacredRiverSanskrit: tiered.sanskritRiverText,
+      prominentDeitySanskrit: tiered.sanskritShrineText,
+      riverNepali: tiered.nepaliRiverSummary,
+      deityNepali: tiered.nepaliShrineSummary,
+      riverTierLabel: tiered.riverTierLabelNepali,
+      shrineTierLabel: tiered.shrineTierLabelNepali,
+      tierSummaryBadge: tiered.tierSummaryBadge,
+      shrineDistanceKm: tiered.shrineDistanceKm,
+      riverDistanceKm: tiered.riverDistanceKm,
+      tierResult: tiered,
+    };
   }
 
-  // 7. Graceful Nepal Default (Never show generic fallback)
+  // 7. Graceful Nepal Default - calculate tiered info from Kathmandu Center
+  const defaultKtmed = resolveSacredGeographyByCoordinates(27.7172, 85.3240, inputName || 'काठमाडौँ', 'काठमाडौँ');
   if (inputName && inputName.length > 1) {
     const cleanDisplayName = inputName.split('(')[0].trim();
     return {
       countrySanskrit: 'नेपाल देशे',
       subdivisionSanskrit: `${cleanDisplayName} मण्डले`,
       localitySanskrit: `${cleanDisplayName} क्षेत्रे`,
-      sacredRiverSanskrit: 'पवित्र बागमती-गण्डकी-कोशी-कर्णाली-सर्वतीर्थ पुण्यसलिला क्षेत्रे',
-      prominentDeitySanskrit: 'श्रीपशुपतिनाथ-इष्टदेवता-कुलदेवता चरणसन्निधौ',
-      riverNepali: 'बागमती र गण्डकी लगायत पावन नदीहरू',
-      deityNepali: 'श्री पशुपतिनाथ तथा स्थानीय देवपीठ'
+      sacredRiverSanskrit: defaultKtmed.sanskritRiverText,
+      prominentDeitySanskrit: defaultKtmed.sanskritShrineText,
+      riverNepali: defaultKtmed.nepaliRiverSummary,
+      deityNepali: defaultKtmed.nepaliShrineSummary,
+      riverTierLabel: defaultKtmed.riverTierLabelNepali,
+      shrineTierLabel: defaultKtmed.shrineTierLabelNepali,
+      tierSummaryBadge: defaultKtmed.tierSummaryBadge,
+      shrineDistanceKm: defaultKtmed.shrineDistanceKm,
+      riverDistanceKm: defaultKtmed.riverDistanceKm,
+      tierResult: defaultKtmed,
     };
   }
 
-  return defaultKathmanduInfo;
+  return {
+    ...defaultKathmanduInfo,
+    tierResult: defaultKtmed,
+  };
 }
 
 // Map Tithi name to Sanskrit grammatical locative (सप्तमी विभक्ति)
@@ -1276,7 +1311,14 @@ export function generateDailyVedicSankalpa(
   overrideLocation?: LocationData | string,
   options?: DailySankalpaOptions
 ): DailySankalpaData {
-  const geo = getSacredLocationInfo(options?.customLocation || overrideLocation || profile?.location);
+  const locCoords = (typeof overrideLocation === 'object' && overrideLocation?.latitude && overrideLocation?.longitude)
+    ? { latitude: overrideLocation.latitude, longitude: overrideLocation.longitude }
+    : (typeof profile?.location === 'object' && profile?.location?.latitude && profile?.location?.longitude)
+      ? { latitude: profile.location.latitude, longitude: profile.location.longitude }
+      : undefined;
+
+  const targetLoc = options?.customLocation || overrideLocation || profile?.location;
+  const geo = getSacredLocationInfo(targetLoc, locCoords);
 
   const dayName = panchanga.dayNameNepali || panchanga.vaar?.name || 'शुभ वार';
   const masaName = panchanga.masaInfo?.masaName || 'वैशाख';

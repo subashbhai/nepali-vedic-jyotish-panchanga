@@ -340,17 +340,26 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
     }
   }, [activeProfile]);
 
-  // Sync activeGeoLocation into sankalpaLocation if empty or changed
+  // Sync activeGeoLocation into sankalpaLocation if empty or contains 'undefined'
   React.useEffect(() => {
-    const defaultLoc = activeGeoLocation?.name?.split('(')[0]?.trim() || activeGeoLocation?.district || 'सूर्यविनायक, भक्तपुर जिल्ला';
-    setSankalpaLocation((prev) => (prev ? prev : defaultLoc));
+    const cleanActiveName = (activeGeoLocation?.name?.split('(')[0]?.trim() || activeGeoLocation?.district || '').replace(/undefined/gi, '').trim();
+    setSankalpaLocation((prev) => {
+      if (!prev || prev.includes('undefined') || prev.trim() === '') {
+        return cleanActiveName || 'सूर्यविनायक, भक्तपुर जिल्ला';
+      }
+      return prev;
+    });
   }, [activeGeoLocation]);
 
   // Listen to global geo updates
   React.useEffect(() => {
     const handleGeoUpdate = (e: any) => {
       if (e.detail) {
+        const cleanName = (e.detail.name || e.detail.district || '').replace(/undefined/gi, '').trim();
         setActiveGeoLocation(e.detail);
+        if (cleanName) {
+          setSankalpaLocation(cleanName);
+        }
       }
     };
     window.addEventListener(BALANANDA_GEO_UPDATED_EVENT, handleGeoUpdate);
@@ -373,11 +382,14 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
             try {
               const precise = await getPreciseNepalLandmark(lat, lon);
               if (isCancelled) return;
-              const formattedName = precise.displayName || `${precise.toleOrLandmark || precise.municipality}, ${precise.district}`;
+              const rawName = precise.displayName || precise.addressText || `${precise.municipality || precise.municipalityNepali || ''}, ${precise.district || precise.districtNepali || ''}`;
+              const formattedName = rawName.replace(/undefined/gi, '').replace(/^,\s*|,\s*$/g, '').trim() || (precise.district || 'काठमाडौँ, नेपाल');
+              const cleanDistrict = (precise.district || precise.districtNepali || 'काठमाडौँ').replace(/undefined/gi, '').trim() || 'काठमाडौँ';
+              const cleanProvince = (precise.province || 'बागमती प्रदेश').replace(/undefined/gi, '').trim() || 'बागमती प्रदेश';
               const detectedLoc: LocationData = {
                 name: formattedName,
-                district: precise.district,
-                province: precise.province,
+                district: cleanDistrict,
+                province: cleanProvince,
                 latitude: lat,
                 longitude: lon
               };
@@ -388,9 +400,15 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
               // Fallback to basic GPS helper
               const res = await getCurrentUserGPS();
               if (isCancelled) return;
-              saveUserDetectedLocation(res.location);
-              setActiveGeoLocation(res.location);
-              setSankalpaLocation(res.location.name || res.location.district || '');
+              const fallbackName = (res.location.name || res.location.district || 'काठमाडौँ, नेपाल').replace(/undefined/gi, '').replace(/^,\s*|,\s*$/g, '').trim() || 'काठमाडौँ, नेपाल';
+              const safeLoc: LocationData = {
+                ...res.location,
+                name: fallbackName,
+                district: (res.location.district || 'काठमाडौँ').replace(/undefined/gi, '').trim() || 'काठमाडौँ'
+              };
+              saveUserDetectedLocation(safeLoc);
+              setActiveGeoLocation(safeLoc);
+              setSankalpaLocation(fallbackName);
             }
           },
           (posErr) => {
@@ -420,11 +438,14 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                 const lat = pos.coords.latitude;
                 const lon = pos.coords.longitude;
                 const precise = await getPreciseNepalLandmark(lat, lon);
-                const formattedName = precise.displayName || `${precise.toleOrLandmark || precise.municipality}, ${precise.district}`;
+                const rawName = precise.displayName || precise.addressText || `${precise.municipality || precise.municipalityNepali || ''}, ${precise.district || precise.districtNepali || ''}`;
+                const formattedName = rawName.replace(/undefined/gi, '').replace(/^,\s*|,\s*$/g, '').trim() || (precise.district || 'काठमाडौँ, नेपाल');
+                const cleanDistrict = (precise.district || precise.districtNepali || 'काठमाडौँ').replace(/undefined/gi, '').trim() || 'काठमाडौँ';
+                const cleanProvince = (precise.province || 'बागमती प्रदेश').replace(/undefined/gi, '').trim() || 'बागमती प्रदेश';
                 const detectedLoc: LocationData = {
                   name: formattedName,
-                  district: precise.district,
-                  province: precise.province,
+                  district: cleanDistrict,
+                  province: cleanProvince,
                   latitude: lat,
                   longitude: lon
                 };
@@ -435,9 +456,15 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
               } catch (err) {
                 // Fallback to standard helper
                 const res = await getCurrentUserGPS();
-                saveUserDetectedLocation(res.location);
-                setActiveGeoLocation(res.location);
-                setSankalpaLocation(res.location.name || res.location.district || '');
+                const fallbackName = (res.location.name || res.location.district || 'काठमाडौँ, नेपाल').replace(/undefined/gi, '').replace(/^,\s*|,\s*$/g, '').trim() || 'काठमाडौँ, नेपाल';
+                const safeLoc: LocationData = {
+                  ...res.location,
+                  name: fallbackName,
+                  district: (res.location.district || 'काठमाडौँ').replace(/undefined/gi, '').trim() || 'काठमाडौँ'
+                };
+                saveUserDetectedLocation(safeLoc);
+                setActiveGeoLocation(safeLoc);
+                setSankalpaLocation(fallbackName);
                 resolve();
               }
             },
@@ -447,9 +474,15 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
         });
       } else {
         const res = await getCurrentUserGPS();
-        saveUserDetectedLocation(res.location);
-        setActiveGeoLocation(res.location);
-        setSankalpaLocation(res.location.name || res.location.district || '');
+        const fallbackName = (res.location.name || res.location.district || 'काठमाडौँ, नेपाल').replace(/undefined/gi, '').replace(/^,\s*|,\s*$/g, '').trim() || 'काठमाडौँ, नेपाल';
+        const safeLoc: LocationData = {
+          ...res.location,
+          name: fallbackName,
+          district: (res.location.district || 'काठमाडौँ').replace(/undefined/gi, '').trim() || 'काठमाडौँ'
+        };
+        saveUserDetectedLocation(safeLoc);
+        setActiveGeoLocation(safeLoc);
+        setSankalpaLocation(fallbackName);
       }
     } catch (err: any) {
       alert(err.message || 'GPS स्थान पत्ता लगाउन सकिएन।');
@@ -685,7 +718,7 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                   >
                     <MapPin className="w-3.5 h-3.5 text-[#D97706] group-hover:scale-110 transition-transform shrink-0" />
                     <span className="font-serif font-bold text-[#78350F] dark:text-amber-300 truncate">
-                      {activeGeoLocation?.name?.split('(')[0]?.trim() || activeGeoLocation?.district || 'सप्तरी'}
+                      {activeGeoLocation?.name?.replace(/undefined/gi, '')?.split('(')[0]?.trim() || activeGeoLocation?.district?.replace(/undefined/gi, '') || 'काठमाडौँ'}
                     </span>
                     <span className="text-[9.5px] bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200 px-1.5 py-0.5 rounded font-sans font-semibold shrink-0 shadow-2xs">
                       बदल्नुहोस्
@@ -696,14 +729,14 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                     type="button"
                     onClick={handleRefreshCardGPS}
                     disabled={isDetectingCardGPS}
-                    title="हालको स्थान live GPS बाट स्वतः पत्ता लगाई नजिकका मन्दिर र नदी खोज्नुहोस्"
+                    title="हालको स्थान live GPS बाट स्वतः पत्ता लगाई (५०m-५००m) नजिकका मन्दिर र नदी खोज्नुहोस्"
                     className="p-1 px-2 text-xs text-amber-900 dark:text-amber-200 hover:bg-amber-100/70 dark:hover:bg-stone-700/60 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
                   >
                     {isDetectingCardGPS ? (
                       <span className="w-3.5 h-3.5 border-2 border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
                     ) : (
-                      <span className="flex items-center gap-1 font-sans text-[11px] font-semibold" title="GPS Auto-detect">
-                        🛰️ GPS
+                      <span className="flex items-center gap-1 font-sans text-[11px] font-semibold" title="GPS स्थान पुनः लोड गर्नुहोस् (५०m-५००m)">
+                        🛰️ पुनः स्थान अपडेट
                       </span>
                     )}
                   </button>
@@ -1505,8 +1538,10 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
           onClose={() => setIsLocationModalOpen(false)}
           selectedLocation={activeGeoLocation}
           onSelectLocation={(loc) => {
+            const cleanLocName = (loc.name || loc.district || 'काठमाडौँ').replace(/undefined/gi, '').trim();
             saveUserDetectedLocation(loc);
             setActiveGeoLocation(loc);
+            setSankalpaLocation(cleanLocName);
           }}
         />
       )}

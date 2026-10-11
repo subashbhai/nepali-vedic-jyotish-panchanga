@@ -292,9 +292,16 @@ export async function getCurrentUserGPS(): Promise<GPSDetectionResult> {
 export function saveUserDetectedLocation(loc: LocationData): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(BALANANDA_GEO_LOCATION_KEY, JSON.stringify(loc));
+    const cleanName = (loc.name || loc.district || 'काठमाडौँ').replace(/undefined/gi, '').replace(/^,\s*|,\s*$/g, '').trim() || 'काठमाडौँ';
+    const cleanDist = (loc.district || 'काठमाडौँ').replace(/undefined/gi, '').trim() || 'काठमाडौँ';
+    const cleanLoc: LocationData = {
+      ...loc,
+      name: cleanName,
+      district: cleanDist,
+    };
+    localStorage.setItem(BALANANDA_GEO_LOCATION_KEY, JSON.stringify(cleanLoc));
     window.dispatchEvent(
-      new CustomEvent(BALANANDA_GEO_UPDATED_EVENT, { detail: loc })
+      new CustomEvent(BALANANDA_GEO_UPDATED_EVENT, { detail: cleanLoc })
     );
   } catch (err) {
     console.error('Failed to save user detected location', err);
@@ -324,7 +331,15 @@ export function getStoredUserLocation(): LocationData {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.latitude && parsed.longitude) {
-        return parsed as LocationData;
+        let cleanName = (parsed.name || '').replace(/undefined/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
+        let cleanDist = (parsed.district || '').replace(/undefined/gi, '').trim();
+        if (!cleanDist) cleanDist = 'काठमाडौँ';
+        if (!cleanName) cleanName = cleanDist;
+        return {
+          ...parsed,
+          name: cleanName,
+          district: cleanDist,
+        } as LocationData;
       }
     }
   } catch {}
