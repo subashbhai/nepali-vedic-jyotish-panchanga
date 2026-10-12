@@ -51,7 +51,8 @@ import {
   X,
   Laptop,
   Music,
-  KeyRound
+  KeyRound,
+  Sliders
 } from 'lucide-react';
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
 import { RBACSession } from '../db/rbacStore';
@@ -61,7 +62,7 @@ import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
-import { getStoredPageServiceConfig, isTabVisibleInNavigation } from '../db/pageServiceControlStore';
+import { getStoredPageServiceConfig, isTabVisibleInNavigation, initSyncPageServiceConfigFromServer } from '../db/pageServiceControlStore';
 import { checkFeatureAccess } from '../db/menuControlStore';
 import { ChangePasswordModal } from './auth/ChangePasswordModal';
 
@@ -490,6 +491,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [navVersion, setNavVersion] = useState(0);
 
   useEffect(() => {
+    // Initial fetch from server
+    initSyncPageServiceConfigFromServer();
+
     const handleCfg = () => {
       setPageServiceCfg(getStoredPageServiceConfig());
       setNavVersion((v) => v + 1);
@@ -506,14 +510,26 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       policyBc.onmessage = handleCfg;
     } catch {}
 
+    const handleWindowFocus = () => {
+      initSyncPageServiceConfigFromServer();
+    };
+
     window.addEventListener('page-service-control-updated', handleCfg);
     window.addEventListener('client-policies-updated', handleCfg);
     window.addEventListener('storage', handleCfg);
+    window.addEventListener('focus', handleWindowFocus);
+
+    // Periodic sync every 10 seconds to detect any superadmin menu updates across devices immediately
+    const syncInterval = setInterval(() => {
+      initSyncPageServiceConfigFromServer();
+    }, 10000);
 
     return () => {
       window.removeEventListener('page-service-control-updated', handleCfg);
       window.removeEventListener('client-policies-updated', handleCfg);
       window.removeEventListener('storage', handleCfg);
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(syncInterval);
       if (pageBc) pageBc.close();
       if (policyBc) policyBc.close();
     };

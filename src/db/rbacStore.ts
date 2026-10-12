@@ -59,6 +59,7 @@ export interface RBACSession {
   customerId?: string;
   birthProfileId?: string;
   birthDetails?: BirthDetails;
+  phone?: string;
   createdAtISO: string;
   lastActivityISO: string;
 }

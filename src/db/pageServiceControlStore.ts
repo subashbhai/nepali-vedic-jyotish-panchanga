@@ -388,9 +388,47 @@ export function savePageServiceConfig(config: PageServiceMasterConfig): void {
       bc.postMessage({ type: 'PAGE_SERVICE_UPDATED', timestamp: Date.now() });
       bc.close();
     } catch {}
+
+    // Synchronize to server so all devices and browsers immediately receive changes
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      fetch('/api/page-service-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      }).catch(err => {
+        console.warn('Could not sync page service config to server:', err);
+      });
+    }
   } catch (e) {
     console.error('Error saving page service config:', e);
   }
+}
+
+/**
+ * Initializes synchronization from the server on load and periodically.
+ * Ensures unticked/ticked menus update across all clients in real-time.
+ */
+export async function initSyncPageServiceConfigFromServer(): Promise<void> {
+  if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+  try {
+    const res = await fetch('/api/page-service-control');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && data?.config?.pages) {
+        const localRaw = localStorage.getItem(STORAGE_KEY);
+        const serverJson = JSON.stringify(data.config);
+        if (localRaw !== serverJson) {
+          localStorage.setItem(STORAGE_KEY, serverJson);
+          window.dispatchEvent(new CustomEvent('page-service-control-updated', { detail: data.config }));
+          try {
+            const bc = new BroadcastChannel('balananda_page_service_control_channel');
+            bc.postMessage({ type: 'PAGE_SERVICE_UPDATED', timestamp: Date.now() });
+            bc.close();
+          } catch {}
+        }
+      }
+    }
+  } catch {}
 }
 
 export function updateSinglePageStatus(
@@ -519,45 +557,36 @@ export function mapTabKeyToFeatureId(tabKey: string): string {
  * 4. Otherwise, respects the global Page Control setting (hideInNavigation checkbox / disabled status).
  */
 export function isTabVisibleInNavigation(tabKey: string): { visible: boolean; isUserOverride: boolean } {
-  // 1. Super Admin check
-  if (typeof window !== 'undefined') {
-    try {
-      const rbacRaw = localStorage.getItem('balananda_rbac_active_session_v1');
-      if (rbacRaw) {
-        const r = JSON.parse(rbacRaw);
-        if (r?.role === 'SUPER_ADMIN' || r?.role === 'ADMIN') {
-          return { visible: true, isUserOverride: false };
-        }
+  // 1. Global Page Control Check (Super Admin tick/untick control)
+  // When Super Admin unchecks "शीर्ष मेनु बारमा देखाउने" (hideInNavigation) or sets status to 'disabled',
+  // the menu item MUST disappear immediately from top bar and drawer for all users and super admins.
+  const cfg = getStoredPageServiceConfig();
+  const page = cfg.pages?.find(p => p.tabKey === tabKey);
+  if (page) {
+    if (page.hideInNavigation || page.status === 'disabled') {
+      // Check if user has an explicit per-mobile override that forces it open
+      const featId = mapTabKeyToFeatureId(tabKey);
+      const userAccess = checkFeatureAccess(featId);
+      if (userAccess.hasPersonalPolicy && userAccess.state === 'open') {
+        return { visible: true, isUserOverride: true };
       }
-    } catch {}
+      return { visible: false, isUserOverride: false };
+    }
   }
 
-  // 2. Check user-specific policy first (Interlinked with User Control by Mobile)
+  // 2. Check user-specific policy (Interlinked with User Control by Mobile)
   const featId = mapTabKeyToFeatureId(tabKey);
   const userAccess = checkFeatureAccess(featId);
 
   if (userAccess.hasPersonalPolicy) {
     if (userAccess.state === 'open') {
-      // User Control has explicitly OPENED this feature for this mobile number!
-      // This device MUST show and open it immediately, bypassing global hidden flag!
       return { visible: true, isUserOverride: true };
     }
     if (userAccess.state === 'close') {
-      // User Control has explicitly CLOSED this feature for this mobile number!
       return { visible: false, isUserOverride: true };
     }
     if (userAccess.state === 'lock') {
       return { visible: true, isUserOverride: true };
-    }
-  }
-
-  // 3. Global Page Control Check
-  const cfg = getStoredPageServiceConfig();
-  const page = cfg.pages?.find(p => p.tabKey === tabKey);
-  if (page) {
-    // If unticked in "शीर्ष मेनु बारमा देखाउने" OR status is "disabled" (बन्द)
-    if (page.hideInNavigation || page.status === 'disabled') {
-      return { visible: false, isUserOverride: false };
     }
   }
 

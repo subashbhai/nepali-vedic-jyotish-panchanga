@@ -30,7 +30,11 @@ import {
   createSoftwareRelease,
   deleteSoftwareRelease,
   calculateFileSha256,
-  getPlatformLabelNepali
+  getPlatformLabelNepali,
+  uploadSoftwareFileToServer,
+  fetchReleasesFromServer,
+  serverSetOfficialRelease,
+  serverDeleteRelease
 } from '../../db/softwareReleaseStore';
 
 interface SoftwareReleaseManagerModalProps {
@@ -52,18 +56,26 @@ export const SoftwareReleaseManagerModal: React.FC<SoftwareReleaseManagerModalPr
   const [softwareVersion, setSoftwareVersion] = useState('1.0.6');
   const [platform, setPlatform] = useState<SoftwarePlatform>('windows');
   const [storageKey, setStorageKey] = useState('');
+  const [selectedFileObj, setSelectedFileObj] = useState<File | null>(null);
   const [originalFilename, setOriginalFilename] = useState('');
   const [fileSizeBytes, setFileSizeBytes] = useState<number>(0);
   const [sha256Checksum, setSha256Checksum] = useState('');
   const [releaseNotes, setReleaseNotes] = useState('नयाँ कार्यसम्पादन सुधार, तीव्र गणना र अद्यावधिक वैदिक पञ्चाङ्ग डेटा।');
   const [publishImmediately, setPublishImmediately] = useState(true);
   const [isHashing, setIsHashing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
-      setReleases(loadAllSoftwareReleases());
+      loadData();
     }
   }, [isOpen]);
+
+  const loadData = async () => {
+    const list = await fetchReleasesFromServer();
+    setReleases(list);
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -71,13 +83,14 @@ export const SoftwareReleaseManagerModal: React.FC<SoftwareReleaseManagerModalPr
   };
 
   const reloadReleases = () => {
-    setReleases(loadAllSoftwareReleases());
+    loadData();
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedFileObj(file);
     setOriginalFilename(file.name);
     setFileSizeBytes(file.size);
     setIsHashing(true);
@@ -101,11 +114,37 @@ export const SoftwareReleaseManagerModal: React.FC<SoftwareReleaseManagerModalPr
     }
   };
 
-  const handleCreateRelease = (e: React.FormEvent) => {
+  const handleCreateRelease = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (selectedFileObj) {
+      // Direct binary file upload to server
+      setIsUploading(true);
+      setUploadPercent(10);
+      const res = await uploadSoftwareFileToServer({
+        file: selectedFileObj,
+        softwareVersion: softwareVersion.trim() || '1.0.6',
+        platform,
+        softwareName,
+        releaseNotes,
+        publishImmediately,
+        onProgress: (p) => setUploadPercent(p)
+      });
+      setIsUploading(false);
+
+      if (res.success) {
+        showToast(res.message);
+        setSelectedFileObj(null);
+        setIsAddingNew(false);
+        await reloadReleases();
+      } else {
+        alert(res.message);
+      }
+      return;
+    }
+
     if (!softwareVersion.trim() || !storageKey.trim()) {
-      alert('कृपया संस्करण नम्बर र डाउनलोड URL अनिवार्य रूपमा भर्नुहोस्।');
+      alert('कृपया संस्करण नम्बर र डाउनलोड URL अनिवार्य रूपमा भर्नुहोस् वा फाइल अपलोड गर्नुहोस्।');
       return;
     }
 
@@ -126,8 +165,8 @@ export const SoftwareReleaseManagerModal: React.FC<SoftwareReleaseManagerModalPr
     showToast(`संस्करण ${softwareVersion} सफलतापूर्वक रिलिज सूचीमा थपियो!`);
   };
 
-  const handleSetOfficial = (id: string) => {
-    const res = setAsOfficialRelease(id);
+  const handleSetOfficial = async (id: string) => {
+    const res = await serverSetOfficialRelease(id);
     if (res.success) {
       reloadReleases();
       showToast(res.message);
@@ -142,9 +181,9 @@ export const SoftwareReleaseManagerModal: React.FC<SoftwareReleaseManagerModalPr
     }
   };
 
-  const handleDelete = (id: string, ver: string) => {
+  const handleDelete = async (id: string, ver: string) => {
     if (confirm(`के तपाईं निश्चित हुनुहुन्छ? संस्करण ${ver} हटाउन चाहनुहुन्छ?`)) {
-      const res = deleteSoftwareRelease(id);
+      const res = await serverDeleteRelease(id);
       if (res.success) {
         reloadReleases();
         showToast(res.message);
@@ -350,12 +389,34 @@ export const SoftwareReleaseManagerModal: React.FC<SoftwareReleaseManagerModalPr
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md cursor-pointer"
+                    disabled={isUploading || isHashing}
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md cursor-pointer flex items-center gap-2"
                   >
-                    रिलिज सुरक्षित गर्नुहोस्
+                    {isUploading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>अपलोड हुँदैछ ({uploadPercent}%)...</span>
+                      </>
+                    ) : selectedFileObj ? (
+                      <>
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>सर्भरमा फाइल अपलोड गर्नुहोस्</span>
+                      </>
+                    ) : (
+                      <span>रिलिज सुरक्षित गर्नुहोस्</span>
+                    )}
                   </button>
                 </div>
               </div>
+
+              {isUploading && (
+                <div className="w-full bg-stone-200 dark:bg-stone-800 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-blue-600 h-full transition-all duration-300"
+                    style={{ width: `${uploadPercent}%` }}
+                  />
+                </div>
+              )}
             </form>
           )}
 

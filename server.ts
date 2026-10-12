@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -12,8 +13,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "500mb" }));
+  app.use(express.urlencoded({ limit: "500mb", extended: true }));
 
   // Initialize Gemini AI client server-side
   const getGeminiClient = () => {
@@ -974,6 +975,200 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
         published: true,
         release: official
       });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ── PAGE SERVICE CONTROL GLOBAL SYNCHRONIZATION ──
+  // GET /api/page-service-control (Loads synchronized navigation and service control)
+  app.get("/api/page-service-control", (req, res) => {
+    try {
+      const p = path.join(process.cwd(), "public", "page_service_control.json");
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, "utf-8");
+        return res.json({ success: true, config: JSON.parse(raw) });
+      }
+      return res.json({ success: false, config: null });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // POST /api/page-service-control (Saves synchronized navigation and service control to disk)
+  app.post("/api/page-service-control", (req, res) => {
+    try {
+      const config = req.body;
+      if (!config || !config.pages) {
+        return res.status(400).json({ success: false, error: "Invalid config object" });
+      }
+      const p = path.join(process.cwd(), "public", "page_service_control.json");
+      fs.writeFileSync(p, JSON.stringify(config, null, 2), "utf-8");
+
+      const distDir = path.join(process.cwd(), "dist");
+      if (fs.existsSync(distDir)) {
+        fs.writeFileSync(path.join(distDir, "page_service_control.json"), JSON.stringify(config, null, 2), "utf-8");
+      }
+      return res.json({ success: true, message: "Page service control saved successfully." });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ── SOFTWARE RELEASES & UPLOAD ENDPOINTS ──
+  // Ensure public/downloads directory exists
+  const publicDownloadsDir = path.join(process.cwd(), "public", "downloads");
+  if (!fs.existsSync(publicDownloadsDir)) {
+    fs.mkdirSync(publicDownloadsDir, { recursive: true });
+  }
+
+  // Endpoint: GET /api/software/releases (Retrieve all releases)
+  app.get("/api/software/releases", (req, res) => {
+    try {
+      const releases = getDiskReleases();
+      return res.json({ success: true, releases });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint: POST /api/software/upload (Direct installer binary upload by Superadmin)
+  app.post("/api/software/upload", (req, res) => {
+    try {
+      const {
+        filename,
+        fileBase64,
+        softwareVersion,
+        platform = "windows",
+        softwareName = "बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग",
+        releaseNotes = "",
+        publishImmediately = true
+      } = req.body;
+
+      if (!filename || !fileBase64) {
+        return res.status(400).json({ success: false, error: "फाइलको नाम र बाइनरी डाटा (fileBase64) आवश्यक छ।" });
+      }
+
+      // Safe alphanumeric sanitized filename
+      const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+      const targetFilePath = path.join(publicDownloadsDir, safeFilename);
+
+      // Decode base64 and write file to public/downloads
+      const buffer = Buffer.from(fileBase64, "base64");
+      fs.writeFileSync(targetFilePath, buffer);
+
+      // Mirror to dist/downloads if dist exists
+      const distDownloadsDir = path.join(process.cwd(), "dist", "downloads");
+      if (fs.existsSync(distDownloadsDir)) {
+        fs.writeFileSync(path.join(distDownloadsDir, safeFilename), buffer);
+      }
+
+      // Calculate SHA-256 and byte size
+      const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
+      const fileSizeBytes = buffer.length;
+      const fileSizeFormatted = `${(fileSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+
+      const storageKey = `/downloads/${safeFilename}`;
+      const now = new Date();
+      const isoNow = now.toISOString();
+
+      let releases = getDiskReleases();
+
+      const newRelease = {
+        id: `rel_${platform}_${Date.now()}`,
+        softwareName: (softwareName || 'बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग').trim(),
+        softwareVersion: (softwareVersion || '1.0.6').trim().replace(/^v/i, ''),
+        releaseNotes: (releaseNotes || 'नयाँ कार्यसम्पादन सुधार तथा अद्यावधिक वैदिक पञ्चाङ्ग गणना डेटा।').trim(),
+        originalFilename: safeFilename,
+        storageKey: storageKey,
+        fileSizeBytes: fileSizeBytes,
+        fileSizeFormatted: fileSizeFormatted,
+        sha256Checksum: sha256,
+        platform: platform,
+        platformNameNepali:
+          platform === 'windows' ? 'Windows कम्प्युटर (.exe)' :
+          platform === 'android' ? 'Android मोबाइल (.apk)' :
+          platform === 'mac' ? 'Apple macOS (.dmg)' : 'सबै प्लेटफर्म',
+        releaseStatus: publishImmediately ? 'published' : 'draft',
+        downloadCount: 0,
+        uploadedBy: 'Super Admin',
+        uploadedAtISO: isoNow,
+        publishedAtISO: isoNow,
+        publishedAtBS: '२०८१',
+        isOfficialCurrent: !!publishImmediately
+      };
+
+      if (publishImmediately) {
+        // Demote previous official release of same platform
+        releases = releases.map((r: any) =>
+          r.platform === platform ? { ...r, isOfficialCurrent: false } : r
+        );
+        releases.unshift(newRelease);
+      } else {
+        releases.unshift(newRelease);
+      }
+
+      // Write releases.json to public and dist
+      const releasesJsonPath = path.join(process.cwd(), "public", "releases.json");
+      fs.writeFileSync(releasesJsonPath, JSON.stringify(releases, null, 2), "utf-8");
+
+      const distReleasesJsonPath = path.join(process.cwd(), "dist", "releases.json");
+      if (fs.existsSync(path.join(process.cwd(), "dist"))) {
+        fs.writeFileSync(distReleasesJsonPath, JSON.stringify(releases, null, 2), "utf-8");
+      }
+
+      return res.json({
+        success: true,
+        message: `सफ्टवेयर इन्स्टलर ${safeFilename} सफलतापूर्वक अपलोड भयो र आधिकारिक डाउनलोडका रूपमा तयार भयो!`,
+        release: newRelease,
+        downloadUrl: storageKey
+      });
+    } catch (err: any) {
+      console.error("Software upload error:", err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint: POST /api/software/releases/:id/set-official
+  app.post("/api/software/releases/:id/set-official", (req, res) => {
+    try {
+      const { id } = req.params;
+      let releases = getDiskReleases();
+      const target = releases.find((r: any) => r.id === id);
+      if (!target) {
+        return res.status(404).json({ success: false, error: "रिलिज फेला परेन।" });
+      }
+      releases = releases.map((r: any) => {
+        if (r.platform === target.platform) {
+          return {
+            ...r,
+            isOfficialCurrent: r.id === id,
+            releaseStatus: r.id === id ? 'published' : r.releaseStatus
+          };
+        }
+        return r;
+      });
+      const releasesJsonPath = path.join(process.cwd(), "public", "releases.json");
+      fs.writeFileSync(releasesJsonPath, JSON.stringify(releases, null, 2), "utf-8");
+      return res.json({ success: true, message: `संस्करण ${target.softwareVersion} लाई आधिकारिक बनाइयो।` });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint: DELETE /api/software/releases/:id
+  app.delete("/api/software/releases/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      let releases = getDiskReleases();
+      const target = releases.find((r: any) => r.id === id);
+      if (!target) {
+        return res.status(404).json({ success: false, error: "रिलिज फेला परेन।" });
+      }
+      releases = releases.filter((r: any) => r.id !== id);
+      const releasesJsonPath = path.join(process.cwd(), "public", "releases.json");
+      fs.writeFileSync(releasesJsonPath, JSON.stringify(releases, null, 2), "utf-8");
+      return res.json({ success: true, message: `संस्करण ${target.softwareVersion} हटाइयो।` });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
