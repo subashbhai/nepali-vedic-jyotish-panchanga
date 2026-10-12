@@ -20,7 +20,8 @@ import {
   getOrCreateDeviceId,
   calculatePeriodExpiry,
   getDefaultPermissionsMap,
-  getClientPolicyByMobile
+  getClientPolicyByMobile,
+  deleteClientPolicyPermanently
 } from './menuControlStore';
 
 import { 
@@ -30,8 +31,12 @@ import {
   saveRBACUsers, 
   setRBACSession, 
   logRBACAuditAction,
-  DEFAULT_ROLE_PERMISSIONS
+  DEFAULT_ROLE_PERMISSIONS,
+  deleteRBACUserPermanently
 } from './rbacStore';
+
+import { deleteClientLeadPermanently } from './clientLeadStore';
+import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from './securityBlacklist';
 
 import { 
   MobileUserProfile, 
@@ -150,6 +155,10 @@ export function syncSecurityAccount(account: {
   const status = account.status || 'active';
   const period = account.period || '1_year';
 
+  if (isPermanentlyDeleted(cleanMob) || isPermanentlyDeleted(loginId)) {
+    return { client: {} as any, rbacUser: {} as any };
+  }
+
   // ── 1. Update Menu Control Store ──
   const clients = loadAllClientPolicies();
   let existingIdx = clients.findIndex(c => matchesClientRecord(c, cleanMob) || (c.loginId && c.loginId.toLowerCase() === loginId.toLowerCase()));
@@ -253,6 +262,39 @@ export function syncSecurityAccount(account: {
 }
 
 /**
+ * Permanently purge a user / customer account across ALL stores
+ * and prevent any future resurrection or re-seeding.
+ */
+export function purgeSecurityAccountPermanently(identifier: string): boolean {
+  if (!identifier) return false;
+  try {
+    // 1. Add to permanent blacklist
+    addPermanentlyDeletedIdentifier(identifier);
+
+    // 2. Remove from MenuControl store
+    deleteClientPolicyPermanently(identifier);
+
+    // 3. Remove from RBAC store
+    deleteRBACUserPermanently(identifier);
+
+    // 4. Remove from ClientLeads store
+    deleteClientLeadPermanently(identifier);
+
+    // 5. Broadcast global events
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('security-account-purged', { detail: { identifier } }));
+      window.dispatchEvent(new CustomEvent('client-policies-updated'));
+      window.dispatchEvent(new CustomEvent('rbac-users-updated'));
+      window.dispatchEvent(new CustomEvent('client-leads-updated'));
+    }
+    return true;
+  } catch (e) {
+    console.error('Failed to permanently purge security account:', e);
+    return false;
+  }
+}
+
+/**
  * Run a full security stores audit & synchronize all records across all modules
  */
 export function syncAllSecurityStores(): {
@@ -269,6 +311,10 @@ export function syncAllSecurityStores(): {
   let clientChanged = false;
 
   for (const client of clients) {
+    if (isPermanentlyDeleted(client.mobile) || isPermanentlyDeleted(client.loginId) || isPermanentlyDeleted(client.id)) {
+      continue;
+    }
+
     // Self-heal client passwordHash if outdated
     if (client.passwordPlain) {
       const expectedHash = hashPassword(client.passwordPlain);
@@ -326,6 +372,10 @@ export function syncAllSecurityStores(): {
 
   // 2. Ensure every Customer in RBAC has a ClientAccessRecord in Menu Control
   for (const rbacUser of rbacUsers) {
+    if (isPermanentlyDeleted(rbacUser.phone) || isPermanentlyDeleted(rbacUser.username) || isPermanentlyDeleted(rbacUser.id)) {
+      continue;
+    }
+
     if (rbacUser.role === 'CUSTOMER' && rbacUser.phone) {
       const cleanPhone = normalizeIdentifier(rbacUser.phone).last10Digits || rbacUser.phone;
       const existingClient = clients.find(c => matchesClientRecord(c, cleanPhone));

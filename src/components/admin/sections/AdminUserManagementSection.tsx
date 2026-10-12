@@ -21,6 +21,7 @@ import {
   BadgeCheck
 } from 'lucide-react';
 import { RBACUser, SystemRole, AccountStatus, getRoleLabelNepali } from '../../../db/rbacStore';
+import { purgeSecurityAccountPermanently } from '../../../db/unifiedSecurityBridge';
 
 interface AdminUserManagementSectionProps {
   users: RBACUser[];
@@ -261,6 +262,19 @@ export const AdminUserManagementSection: React.FC<AdminUserManagementSectionProp
                           पुनःसक्रिय
                         </button>
                       ) : null}
+
+                      <button
+                        onClick={() => {
+                          if (confirm(`के तपाईँ प्रयोगकर्ता ${u.fullName} (${u.phone || u.username}) लाई स्थायी रूपमा हटाउन चाहनुहुन्छ? हटाएपछि यो डाटा पुनः फर्किने छैन।`)) {
+                            purgeSecurityAccountPermanently(u.phone || u.id);
+                            onRefresh();
+                          }
+                        }}
+                        className="p-1.5 text-rose-400 hover:text-rose-200 hover:bg-rose-950/80 rounded-lg border border-rose-900/60 transition-colors cursor-pointer"
+                        title="प्रयोगकर्ता स्थायी रूपमा हटाउनुहोस्"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))

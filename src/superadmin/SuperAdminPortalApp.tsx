@@ -309,11 +309,13 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
           </div>
         )}
 
-        {/* ── MAIN CONTENT WORKSPACE (Totally isolated, NO client horoscopes, NO client navigation) ── */}
-        <main className="flex-1 bg-[#0F0D0B] overflow-y-auto p-3 sm:p-5 lg:p-6 min-h-0">
+        {/* ── MAIN CONTENT WORKSPACE (Totally isolated full-page workstation) ── */}
+        <main className="flex-1 bg-[#0F0D0B] overflow-y-auto min-h-0 flex flex-col">
           <SuperAdminControlCenter
             session={session}
             initialTab={activeTab}
+            isDirectFullPage={true}
+            hideHeader={true}
             profiles={profiles}
             todayPanchanga={todayPanchanga}
             orgProfile={orgProfile}

@@ -1353,6 +1353,21 @@ export function cancelEsewaPaymentRequest(
 }
 
 /**
+ * Permanently delete an eSewa payment request record
+ */
+export function deleteEsewaPaymentRequestPermanently(requestId: string): boolean {
+  try {
+    const requests = getStoredEsewaRequests();
+    const filtered = requests.filter(r => r.requestId !== requestId);
+    saveEsewaRequests(filtered);
+    return true;
+  } catch (e) {
+    console.error('Failed to delete eSewa payment request:', e);
+    return false;
+  }
+}
+
+/**
  * Check if the current user has unlocked Software Full Access
  */
 export function isSoftwareFullAccessUnlocked(): boolean {

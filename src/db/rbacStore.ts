@@ -3,6 +3,7 @@ import { verifyPassword } from '../utils/cryptoUtils';
 import { BirthDetails } from '../types/astrology';
 import { verifyClientMobileLogin, getClientPolicyByMobile, hashPassword } from './menuControlStore';
 import { authenticateUnifiedUser } from './unifiedSecurityBridge';
+import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from './securityBlacklist';
 
 export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
 
@@ -250,34 +251,67 @@ export function getStoredRBACUsers(): RBACUser[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
     if (!raw) {
-      saveRBACUsers(INITIAL_SEED_USERS);
-      return INITIAL_SEED_USERS;
+      const initial = INITIAL_SEED_USERS.filter(u => !isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.username));
+      saveRBACUsers(initial);
+      return initial;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return INITIAL_SEED_USERS;
+    if (!Array.isArray(parsed)) return [];
 
     let changed = false;
-    for (const seed of INITIAL_SEED_USERS) {
-      const idx = parsed.findIndex((u: RBACUser) => {
-        const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
-        const seedMob = seed.phone.replace(/\D/g, '').slice(-10);
-        return (uMob && uMob === seedMob) || (u.username && u.username.toLowerCase() === seed.username.toLowerCase());
-      });
-      if (idx === -1) {
-        parsed.unshift(seed);
+    // Filter out permanently deleted users
+    const activeOnly = parsed.filter((u: RBACUser) => {
+      if (!u) return false;
+      if (isPermanentlyDeleted(u.phone) || isPermanentlyDeleted(u.username) || isPermanentlyDeleted(u.id)) {
         changed = true;
-      } else if (seed.phone === '9841755199' && parsed[idx].passwordHash !== safeHashPassword('3AACKE84')) {
-        parsed[idx].passwordHash = safeHashPassword('3AACKE84');
+        return false;
+      }
+      return true;
+    });
+
+    // Maintain password hash for master accounts only if they ALREADY exist and are NOT deleted
+    const subashIdx = activeOnly.findIndex((u: RBACUser) => {
+      const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
+      return uMob === '9841755199';
+    });
+    if (subashIdx !== -1 && !isPermanentlyDeleted('9841755199')) {
+      if (activeOnly[subashIdx].passwordHash !== safeHashPassword('3AACKE84')) {
+        activeOnly[subashIdx].passwordHash = safeHashPassword('3AACKE84');
         changed = true;
       }
     }
+
     if (changed) {
-      saveRBACUsers(parsed);
+      saveRBACUsers(activeOnly);
     }
-    return parsed;
+    return activeOnly;
   } catch (e) {
     console.error('Failed to parse RBAC users:', e);
-    return INITIAL_SEED_USERS;
+    return [];
+  }
+}
+
+// Permanently delete an RBAC user
+export function deleteRBACUserPermanently(phoneOrId: string): boolean {
+  try {
+    if (typeof window === 'undefined' || !phoneOrId) return false;
+    addPermanentlyDeletedIdentifier(phoneOrId);
+    const current = getStoredRBACUsers();
+    const norm = phoneOrId.trim().toLowerCase();
+    const digits = phoneOrId.replace(/\D/g, '').slice(-10);
+    const filtered = current.filter(u => {
+      const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
+      const uId = (u.id || '').toLowerCase();
+      const uUser = (u.username || '').toLowerCase();
+      if (digits && digits.length >= 7 && uMob === digits) return false;
+      if (uId === norm || uUser === norm) return false;
+      return true;
+    });
+    saveRBACUsers(filtered);
+    return true;
+  } catch (e) {
+    console.error('Failed to delete RBAC user permanently:', e);
+    return false;
   }
 }
 

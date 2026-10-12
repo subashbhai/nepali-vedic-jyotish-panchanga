@@ -16,14 +16,16 @@ import {
   ShieldCheck,
   Check,
   X,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 import {
   ClientLead,
   getStoredClientLeads,
   superAdminApprovePurchase,
   superAdminRejectPurchase,
-  superAdminApproveByTransactionId
+  superAdminApproveByTransactionId,
+  deleteClientLeadPermanently
 } from '../../../db/clientLeadStore';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 
@@ -372,6 +374,22 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
                         </span>
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`के तपाईँ यो खरिद/ट्रायल रेकर्ड (${lead.fullName} - ${lead.mobile}) स्थायी रूपमा हटाउन चाहनुहुन्छ?`)) {
+                          deleteClientLeadPermanently(lead.id);
+                          deleteClientLeadPermanently(lead.mobile);
+                          loadLeads();
+                          onRefresh?.();
+                        }
+                      }}
+                      className="p-2 bg-stone-800 hover:bg-rose-900 text-stone-400 hover:text-white rounded-xl border border-stone-700 transition-colors cursor-pointer"
+                      title="रेकर्ड पूर्ण रूपमा हटाउनुहोस्"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>

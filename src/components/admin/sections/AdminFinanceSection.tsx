@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { DollarSign, CheckCircle2, XCircle, Search, Eye, RefreshCw } from 'lucide-react';
-import { EsewaPaymentRequest, formatNPRCurrency } from '../../../db/subscriptionStore';
+import { DollarSign, CheckCircle2, XCircle, Search, Eye, RefreshCw, Trash2 } from 'lucide-react';
+import { EsewaPaymentRequest, formatNPRCurrency, deleteEsewaPaymentRequestPermanently } from '../../../db/subscriptionStore';
 
 interface AdminFinanceSectionProps {
   esewaRequests: EsewaPaymentRequest[];
@@ -110,14 +110,26 @@ export const AdminFinanceSection: React.FC<AdminFinanceSectionProps> = ({
                     <td className="p-3.5 text-right space-x-1">
                       {r.status === 'pending' && (
                         <>
-                          <button onClick={() => onApprovePayment(r.requestId)} className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px]">
+                          <button onClick={() => onApprovePayment(r.requestId)} className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px] cursor-pointer">
                             स्वीकृत
                           </button>
-                          <button onClick={() => setSelectedRequest(r)} className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-[11px]">
+                          <button onClick={() => setSelectedRequest(r)} className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-[11px] cursor-pointer">
                             अस्वीकृत
                           </button>
                         </>
                       )}
+                      <button
+                        onClick={() => {
+                          if (confirm(`के तपाईँ यो भुक्तानी प्रमाण (${r.transactionCode} - ${r.userName}) हटाउन चाहनुहुन्छ?`)) {
+                            deleteEsewaPaymentRequestPermanently(r.requestId);
+                            onRefresh();
+                          }
+                        }}
+                        className="p-1.5 text-stone-400 hover:text-rose-400 hover:bg-stone-800 rounded-lg transition-colors cursor-pointer inline-block"
+                        title="रेकर्ड मेटाउनुहोस्"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))

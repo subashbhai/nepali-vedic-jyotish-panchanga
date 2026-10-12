@@ -217,6 +217,8 @@ export interface SuperAdminControlCenterProps {
   todayPanchanga?: PanchangaData;
   orgProfile?: OrganizationProfile;
   transitPlanets?: PlanetPosition[];
+  hideHeader?: boolean;
+  isDirectFullPage?: boolean;
 }
 
 function resolveInitialAdminSession(): AdminSession | null {
@@ -318,7 +320,9 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   profiles = [],
   todayPanchanga,
   orgProfile,
-  transitPlanets
+  transitPlanets,
+  hideHeader = false,
+  isDirectFullPage = false
 }) => {
   // Session - auto-resolve from propSession, active AdminSession, or active SuperAdmin session
   const [session, setSession] = useState<AdminSession | null>(() => {
@@ -378,12 +382,16 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
-      const bId = getBlockIdFromTab(initialTab);
-      if (bId) {
-        setActiveBlockId(bId);
+      if (!isDirectFullPage) {
+        const bId = getBlockIdFromTab(initialTab);
+        if (bId) {
+          setActiveBlockId(bId);
+        }
+      } else {
+        setActiveBlockId(null);
       }
     }
-  }, [initialTab]);
+  }, [initialTab, isDirectFullPage]);
 
   // Live Data States
   const [rbacUsers, setRbacUsers] = useState<RBACUser[]>([]);
@@ -726,6 +734,13 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
 
   // Actions
   const handleOpenBlock = (blockId: string, itemTab?: string) => {
+    if (isDirectFullPage) {
+      if (itemTab) {
+        setActiveTab(itemTab);
+        if (onNavigateApp) onNavigateApp(itemTab);
+      }
+      return;
+    }
     const targetBlock = blockGroups.find(b => b.id === blockId);
     setActiveBlockId(blockId);
     if (itemTab) {
@@ -740,9 +755,12 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   };
 
   const handleNavigateTabFromInside = (tabId: string) => {
-    const bId = getBlockIdFromTab(tabId) || 'block_overview';
-    setActiveBlockId(bId);
+    if (!isDirectFullPage) {
+      const bId = getBlockIdFromTab(tabId) || 'block_overview';
+      setActiveBlockId(bId);
+    }
     setActiveTab(tabId);
+    if (onNavigateApp) onNavigateApp(tabId);
   };
 
   // If not logged in -> Display Dedicated Super Admin Login Modal Screen
@@ -848,10 +866,310 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     );
   }
 
+  // ── Render Active Section View ──
+  const renderActiveTabSection = () => (
+    <>
+      {/* ── BLOCK 1: COMMAND & OVERVIEW VIEWS ── */}
+      {activeTab === 'overview' && (
+        <AdminOverviewSection
+          stats={stats}
+          onNavigateTab={handleNavigateTabFromInside}
+          onRefresh={loadAllData}
+        />
+      )}
+
+      {activeTab === 'system_health' && (
+        <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
+            <div>
+              <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
+                <Server className="w-5 h-5 text-emerald-400" />
+                <span>प्रणाली स्वास्थ्य तथा सर्भर स्थिति (System Health Monitor)</span>
+              </h3>
+              <p className="text-xs text-stone-400">बालानन्द ज्योतिष तथा पञ्चाङ्ग प्लेटफर्मको प्रत्यक्ष प्राविधिक स्थिति</p>
+            </div>
+            <button
+              onClick={loadAllData}
+              className="px-3.5 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 rounded-xl text-xs font-bold border border-stone-700 flex items-center gap-1.5 w-fit"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>स्थिति पुनः जाँच</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-stone-400">सर्भर स्थिति (Uptime)</span>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-base font-black text-white">९९.९८% सक्रिय</span>
+              </div>
+              <span className="text-[10px] text-emerald-400 font-mono">Response Latency: 38ms</span>
+            </div>
+
+            <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-stone-400">खगोलीय गणना इन्जिन (Astro Engine)</span>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <span className="text-base font-black text-white">Swiss Ephemeris 2.10</span>
+              </div>
+              <span className="text-[10px] text-stone-400 font-mono">Lahiri Ayanamsha: Calibrated</span>
+            </div>
+
+            <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-stone-400">डाटाबेस सिङ्क (Local / Cloud)</span>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                <span className="text-base font-black text-white">IndexedDB & Storage</span>
+              </div>
+              <span className="text-[10px] text-blue-400 font-mono">Quota: 100% Healthy</span>
+            </div>
+
+            <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-stone-400">WhatsApp शेड्युलर क्रोन</span>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <span className="text-base font-black text-white">सक्रिय (७:०० AM)</span>
+              </div>
+              <span className="text-[10px] text-stone-400 font-mono">Next run: Tomorrow 07:00</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'live_alerts' && (
+        <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-5 shadow-xl">
+          <div className="border-b border-stone-800 pb-3 flex items-center justify-between">
+            <div>
+              <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+                <span>सक्रिय कार्य अलर्ट तथा कार्य सूची (Critical Action Alerts)</span>
+              </h3>
+              <p className="text-xs text-stone-400">तुरुन्त सम्पादन गर्नुपर्ने आवश्यक प्रशासनिक कार्यहरू</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {stats.pendingPurchases > 0 && (
+              <div className="bg-stone-950 border border-rose-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-5 h-5 text-rose-400 shrink-0" />
+                  <div>
+                    <p className="font-bold text-sm text-white">{stats.pendingPurchases} जना ग्राहकको सफ्टवेयर खरिद स्वीकृति बाँकी</p>
+                    <p className="text-xs text-stone-400">ग्राहक भुक्तानी प्रमाणीकरण गरी सफ्टवेयर लाइसेन्स अनलक गर्नुहोस्</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenBlock('block_finance', 'client_approvals')}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                >
+                  स्वीकृति दिनुहोस् →
+                </button>
+              </div>
+            )}
+
+            {stats.pendingPayments > 0 && (
+              <div className="bg-stone-950 border border-amber-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="font-bold text-sm text-white">{stats.pendingPayments} वटा eSewa / बैंक भुक्तानी प्रमाणीकरण बाँकी</p>
+                    <p className="text-xs text-stone-400">ट्रान्ज्याक्सन आईडी प्रमाणीकरण गरी खाता सक्रिय गर्नुहोस्</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenBlock('block_finance', 'finance')}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                >
+                  भुक्तानी प्रमाणीकरण →
+                </button>
+              </div>
+            )}
+
+            {stats.pendingVivah > 0 && (
+              <div className="bg-stone-950 border border-pink-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <HeartHandshake className="w-5 h-5 text-pink-400 shrink-0" />
+                  <div>
+                    <p className="font-bold text-sm text-white">{stats.pendingVivah} वटा विवाह विज्ञापन तथा प्रोफाइल समीक्षा बाँकी</p>
+                    <p className="text-xs text-stone-400">विवाह मञ्चका प्रोफाइल र सम्पर्क अनुरोध समीक्षा गर्नुहोस्</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenBlock('block_vedic_portals', 'vivah_portal')}
+                  className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                >
+                  विवाह समीक्षा →
+                </button>
+              </div>
+            )}
+
+            {stats.pendingExperts > 0 && (
+              <div className="bg-stone-950 border border-blue-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Award className="w-5 h-5 text-blue-400 shrink-0" />
+                  <div>
+                    <p className="font-bold text-sm text-white">{stats.pendingExperts} जना नयाँ पण्डित/ज्योतिषीको प्रमाणीकरण बाँकी</p>
+                    <p className="text-xs text-stone-400">कागजात रुजु गरी आधिकारिक विशेषज्ञको स्वीकृति दिनुहोस्</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenBlock('block_users_experts', 'experts')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
+                >
+                  विशेषज्ञ रुजु गर्नुहोस् →
+                </button>
+              </div>
+            )}
+
+            {stats.pendingPurchases === 0 && stats.pendingPayments === 0 && stats.pendingVivah === 0 && stats.pendingExperts === 0 && (
+              <div className="text-center py-8 text-stone-400 space-y-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                <p className="text-sm font-bold text-white">कुनै पनि तत्काल कार्य अलर्ट बाँकी छैन!</p>
+                <p className="text-xs">प्रणालीका सबै भुक्तानी, प्रोफाइल र खरिदहरू अद्यावधिक छन्।</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── BLOCK 2: PAGE & SERVICE CONTROL VIEWS ── */}
+      {activeTab === 'pages_services' && (
+        <AdminPageServiceControlSection
+          onNavigateAppPage={(tab) => {
+            if (onNavigateApp) onNavigateApp(tab);
+            else if (onClose) onClose();
+          }}
+          onRefreshParent={loadAllData}
+        />
+      )}
+      {activeTab === 'samachar_editor' && (
+        <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
+      )}
+      {activeTab === 'rashifal_management' && (
+        <SuperAdminRashifalManagement />
+      )}
+      {activeTab === 'advertisement' && (
+        <AdminAdvertisementSection />
+      )}
+
+      {/* ── BLOCK 3: VEDIC PORTALS & SERVICES ── */}
+      {activeTab === 'vivah_portal' && (
+        <AdminVivahSection onRefreshParent={loadAllData} />
+      )}
+      {activeTab === 'bookings' && (
+        <AdminBookingSection
+          bookings={bookings}
+          onUpdateBookingStatus={handleUpdateBookingStatus}
+          onRefresh={loadAllData}
+        />
+      )}
+      {activeTab === 'patrika' && <AdminPatrikaSection />}
+      {activeTab === 'store_pos' && (
+        <AdminStorePosSection
+          products={storeProducts}
+          orders={storeOrders}
+          onRefresh={loadAllData}
+        />
+      )}
+      {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
+
+      {/* ── BLOCK 4: USERS & EXPERTS MANAGEMENT ── */}
+      {(activeTab === 'user_list' || activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
+        <UserControlMasterView
+          hideHeader={true}
+          initialSubTab="user_list"
+          onBackToDashboard={handleBackToDashboard}
+          onLogoutAdmin={handleLogout}
+        />
+      )}
+      {activeTab === 'menu_switchboard' && (
+        <div className="bg-stone-900 border border-stone-800 rounded-2xl shadow-sm p-4 sm:p-6 space-y-4">
+          <div className="border-b border-stone-800 pb-3">
+            <h2 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-amber-500" />
+              <span>मेनु तथा ग्राहक पहुँच नियन्त्रण (Full Menu Switchboard)</span>
+            </h2>
+            <p className="text-xs text-stone-400">
+              सफ्टवेयरका सबै मेनु र उपमेनुहरूलाई ग्राहक अनुसार १. Open (खुल्ला) २. Close (बन्द) ३. Lock (लक) गर्नुहोस्
+            </p>
+          </div>
+          <MenuControlPanel />
+        </div>
+      )}
+      {activeTab === 'experts' && (
+        <AdminExpertSection
+          members={officialMembers}
+          onUpdateStatus={handleUpdateMemberStatus}
+          onRefresh={loadAllData}
+        />
+      )}
+      {activeTab === 'yajaman' && (
+        <AdminYajamanSection users={rbacUsers} bookings={bookings} onRefresh={loadAllData} />
+      )}
+      {activeTab === 'staff_rbac' && (
+        <AdminUserManagementSection
+          users={rbacUsers}
+          onUpdateUserStatus={handleUpdateUserStatus}
+          onChangeUserRole={(id, r) => editRBACUserDetails(id, { role: r }, session?.username || 'admin')}
+          onResetUserPassword={() => {}}
+          onAddNewUser={() => loadAllData()}
+          onRefresh={loadAllData}
+        />
+      )}
+      {activeTab === 'rbac' && <AdminRbacSection />}
+      {activeTab === 'role_magic_links' && <AdminRoleMagicLinksSection />}
+
+      {/* ── BLOCK 5: FINANCE & MEMBERSHIPS ── */}
+      {activeTab === 'client_approvals' && (
+        <AdminClientApprovalsSection onRefresh={loadAllData} />
+      )}
+      {activeTab === 'finance' && (
+        <AdminFinanceSection
+          esewaRequests={esewaRequests}
+          onApprovePayment={handleApprovePayment}
+          onRejectPayment={handleRejectPayment}
+          onRefresh={loadAllData}
+        />
+      )}
+      {activeTab === 'memberships' && (
+        <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />
+      )}
+
+      {/* ── BLOCK 6: COMMUNICATION & BROADCASTING ── */}
+      {activeTab === 'daily_whatsapp' && (
+        <DailyWhatsAppDispatchManager
+          profiles={profiles || []}
+          todayPanchanga={todayPanchanga || calculatePanchanga(new Date().toISOString().split('T')[0], '06:00', 27.7172, 85.3240, 5.75)}
+          orgProfile={orgProfile}
+          transitPlanets={transitPlanets || []}
+        />
+      )}
+      {activeTab === 'targeted_push' && <AdminTargetedPushNotificationSection />}
+      {activeTab === 'notifications' && (
+        <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />
+      )}
+      {activeTab === 'geo_monitor' && <AdminGeoMonitorSection />}
+
+      {/* ── BLOCK 7: SETTINGS, SECURITY & BACKUP ── */}
+      {activeTab === 'settings' && <AdminSettingsSection />}
+      {activeTab === 'software_releases' && <AdminSoftwareUploadSection />}
+      {activeTab === 'security_audit' && (
+        <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />
+      )}
+      {activeTab === 'reports' && <AdminReportSection />}
+      {activeTab === 'backup' && <AdminBackupSection />}
+    </>
+  );
+
   return (
-    <div data-admin-command-center="true" className="h-screen bg-[#0C0A09] text-stone-100 flex flex-col font-sans overflow-hidden">
-      {/* ── TOP HEADER COMMAND BAR (Always clean & spacious) ── */}
-      <header className="shrink-0 bg-stone-900/95 border-b border-stone-800 z-40 backdrop-blur-md px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-lg">
+    <div
+      data-admin-command-center="true"
+      className={isDirectFullPage ? "w-full flex-1 flex flex-col font-sans min-h-0 bg-[#0C0A09]" : "h-screen bg-[#0C0A09] text-stone-100 flex flex-col font-sans overflow-hidden"}
+    >
+      {/* ── TOP HEADER COMMAND BAR (Skipped in direct full-page mode to prevent duplicate headers) ── */}
+      {!isDirectFullPage && !hideHeader && (
+        <header className="shrink-0 bg-stone-900/95 border-b border-stone-800 z-40 backdrop-blur-md px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-lg">
         {/* Left: Brand & Title */}
         <div className="flex items-center gap-3">
           {activeBlockId && (
@@ -927,7 +1245,22 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
           </div>
         </div>
       </header>
+      )}
 
+      {/* ── DIRECT FULL-PAGE WORKSTATION MODE (Sidebar-driven, NO Block Cards, NO Block Header) ── */}
+      {isDirectFullPage ? (
+        <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 bg-[#0C0A09] w-full min-h-0">
+          <div className="w-full mx-auto space-y-4">
+            <TabContentErrorBoundary
+              activeTabTitle={currentActiveItem.label}
+              onFallbackToOverview={() => setActiveTab('overview')}
+            >
+              {renderActiveTabSection()}
+            </TabContentErrorBoundary>
+          </div>
+        </main>
+      ) : (
+        <>
       {/* ── MODE 1: MAIN SUPER ADMIN DASHBOARD (activeBlockId === null) ── */}
       {/* Displays ONLY the 7 Primary Block Cards in high-end layout as requested */}
       {!activeBlockId && (
@@ -1166,300 +1499,13 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                 activeTabTitle={currentActiveItem.label}
                 onFallbackToOverview={() => setActiveTab(currentActiveBlock.defaultTab)}
               >
-                {/* ── BLOCK 1: COMMAND & OVERVIEW VIEWS ── */}
-                {activeTab === 'overview' && (
-                  <AdminOverviewSection
-                    stats={stats}
-                    onNavigateTab={handleNavigateTabFromInside}
-                    onRefresh={loadAllData}
-                  />
-                )}
-
-                {activeTab === 'system_health' && (
-                  <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-6 shadow-xl">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
-                      <div>
-                        <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
-                          <Server className="w-5 h-5 text-emerald-400" />
-                          <span>प्रणाली स्वास्थ्य तथा सर्भर स्थिति (System Health Monitor)</span>
-                        </h3>
-                        <p className="text-xs text-stone-400">बालानन्द ज्योतिष तथा पञ्चाङ्ग प्लेटफर्मको प्रत्यक्ष प्राविधिक स्थिति</p>
-                      </div>
-                      <button
-                        onClick={loadAllData}
-                        className="px-3.5 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 rounded-xl text-xs font-bold border border-stone-700 flex items-center gap-1.5 w-fit"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>स्थिति पुनः जाँच</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
-                        <span className="text-[11px] text-stone-400">सर्भर स्थिति (Uptime)</span>
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span className="text-base font-black text-white">९९.९८% सक्रिय</span>
-                        </div>
-                        <span className="text-[10px] text-emerald-400 font-mono">Response Latency: 38ms</span>
-                      </div>
-
-                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
-                        <span className="text-[11px] text-stone-400">खगोलीय गणना इन्जिन (Astro Engine)</span>
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                          <span className="text-base font-black text-white">Swiss Ephemeris 2.10</span>
-                        </div>
-                        <span className="text-[10px] text-stone-400 font-mono">Lahiri Ayanamsha: Calibrated</span>
-                      </div>
-
-                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
-                        <span className="text-[11px] text-stone-400">डाटाबेस सिङ्क (Local / Cloud)</span>
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-                          <span className="text-base font-black text-white">IndexedDB & Storage</span>
-                        </div>
-                        <span className="text-[10px] text-blue-400 font-mono">Quota: 100% Healthy</span>
-                      </div>
-
-                      <div className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl space-y-1">
-                        <span className="text-[11px] text-stone-400">WhatsApp शेड्युलर क्रोन</span>
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                          <span className="text-base font-black text-white">सक्रिय (७:०० AM)</span>
-                        </div>
-                        <span className="text-[10px] text-stone-400 font-mono">Next run: Tomorrow 07:00</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'live_alerts' && (
-                  <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-5 shadow-xl">
-                    <div className="border-b border-stone-800 pb-3 flex items-center justify-between">
-                      <div>
-                        <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
-                          <AlertTriangle className="w-5 h-5 text-amber-400" />
-                          <span>सक्रिय कार्य अलर्ट तथा कार्य सूची (Critical Action Alerts)</span>
-                        </h3>
-                        <p className="text-xs text-stone-400">तुरुन्त सम्पादन गर्नुपर्ने आवश्यक प्रशासनिक कार्यहरू</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      {stats.pendingPurchases > 0 && (
-                        <div className="bg-stone-950 border border-rose-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <CreditCard className="w-5 h-5 text-rose-400 shrink-0" />
-                            <div>
-                              <p className="font-bold text-sm text-white">{stats.pendingPurchases} जना ग्राहकको सफ्टवेयर खरिद स्वीकृति बाँकी</p>
-                              <p className="text-xs text-stone-400">ग्राहक भुक्तानी प्रमाणीकरण गरी सफ्टवेयर लाइसेन्स अनलक गर्नुहोस्</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleOpenBlock('block_finance', 'client_approvals')}
-                            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
-                          >
-                            स्वीकृति दिनुहोस् →
-                          </button>
-                        </div>
-                      )}
-
-                      {stats.pendingPayments > 0 && (
-                        <div className="bg-stone-950 border border-amber-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <DollarSign className="w-5 h-5 text-amber-400 shrink-0" />
-                            <div>
-                              <p className="font-bold text-sm text-white">{stats.pendingPayments} वटा eSewa / बैंक भुक्तानी प्रमाणीकरण बाँकी</p>
-                              <p className="text-xs text-stone-400">ट्रान्ज्याक्सन आईडी प्रमाणीकरण गरी खाता सक्रिय गर्नुहोस्</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleOpenBlock('block_finance', 'finance')}
-                            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
-                          >
-                            भुक्तानी प्रमाणीकरण →
-                          </button>
-                        </div>
-                      )}
-
-                      {stats.pendingVivah > 0 && (
-                        <div className="bg-stone-950 border border-pink-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <HeartHandshake className="w-5 h-5 text-pink-400 shrink-0" />
-                            <div>
-                              <p className="font-bold text-sm text-white">{stats.pendingVivah} वटा विवाह विज्ञापन तथा प्रोफाइल समीक्षा बाँकी</p>
-                              <p className="text-xs text-stone-400">विवाह मञ्चका प्रोफाइल र सम्पर्क अनुरोध समीक्षा गर्नुहोस्</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleOpenBlock('block_vedic_portals', 'vivah_portal')}
-                            className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
-                          >
-                            विवाह समीक्षा →
-                          </button>
-                        </div>
-                      )}
-
-                      {stats.pendingExperts > 0 && (
-                        <div className="bg-stone-950 border border-blue-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <Award className="w-5 h-5 text-blue-400 shrink-0" />
-                            <div>
-                              <p className="font-bold text-sm text-white">{stats.pendingExperts} जना नयाँ पण्डित/ज्योतिषीको प्रमाणीकरण बाँकी</p>
-                              <p className="text-xs text-stone-400">कागजात रुजु गरी आधिकारिक विशेषज्ञको स्वीकृति दिनुहोस्</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleOpenBlock('block_users_experts', 'experts')}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
-                          >
-                            विशेषज्ञ रुजु गर्नुहोस् →
-                          </button>
-                        </div>
-                      )}
-
-                      {stats.pendingPurchases === 0 && stats.pendingPayments === 0 && stats.pendingVivah === 0 && stats.pendingExperts === 0 && (
-                        <div className="text-center py-8 text-stone-400 space-y-2">
-                          <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-                          <p className="text-sm font-bold text-white">कुनै पनि तत्काल कार्य अलर्ट बाँकी छैन!</p>
-                          <p className="text-xs">प्रणालीका सबै भुक्तानी, प्रोफाइल र खरिदहरू अद्यावधिक छन्।</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── BLOCK 2: PAGE & SERVICE CONTROL VIEWS ── */}
-                {activeTab === 'pages_services' && (
-                  <AdminPageServiceControlSection
-                    onNavigateAppPage={(tab) => {
-                      if (onNavigateApp) onNavigateApp(tab);
-                      else if (onClose) onClose();
-                    }}
-                    onRefreshParent={loadAllData}
-                  />
-                )}
-                {activeTab === 'samachar_editor' && (
-                  <NewsEditorDashboard orgName={orgProfile?.name} onRefreshParent={loadAllData} />
-                )}
-                {activeTab === 'rashifal_management' && (
-                  <SuperAdminRashifalManagement />
-                )}
-                {activeTab === 'advertisement' && (
-                  <AdminAdvertisementSection />
-                )}
-
-                {/* ── BLOCK 3: VEDIC PORTALS & SERVICES ── */}
-                {activeTab === 'vivah_portal' && (
-                  <AdminVivahSection onRefreshParent={loadAllData} />
-                )}
-                {activeTab === 'bookings' && (
-                  <AdminBookingSection
-                    bookings={bookings}
-                    onUpdateBookingStatus={handleUpdateBookingStatus}
-                    onRefresh={loadAllData}
-                  />
-                )}
-                {activeTab === 'patrika' && <AdminPatrikaSection />}
-                {activeTab === 'store_pos' && (
-                  <AdminStorePosSection
-                    products={storeProducts}
-                    orders={storeOrders}
-                    onRefresh={loadAllData}
-                  />
-                )}
-                {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
-
-                {/* ── BLOCK 4: USERS & EXPERTS MANAGEMENT ── */}
-                {(activeTab === 'user_list' || activeTab === 'user_control' || activeTab === 'menu_control' || activeTab === 'users') && (
-                  <UserControlMasterView
-                    hideHeader={true}
-                    initialSubTab="user_list"
-                    onBackToDashboard={handleBackToDashboard}
-                    onLogoutAdmin={handleLogout}
-                  />
-                )}
-                {activeTab === 'menu_switchboard' && (
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
-                    <div className="border-b border-slate-100 pb-3">
-                      <h2 className="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-2">
-                        <Sliders className="w-5 h-5 text-blue-600" />
-                        <span>मेनु तथा ग्राहक पहुँच नियन्त्रण (Full Menu Switchboard)</span>
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        सफ्टवेयरका सबै मेनु र उपमेनुहरूलाई ग्राहक अनुसार १. Open (खुल्ला) २. Close (बन्द) ३. Lock (लक) गर्नुहोस्
-                      </p>
-                    </div>
-                    <MenuControlPanel />
-                  </div>
-                )}
-                {activeTab === 'experts' && (
-                  <AdminExpertSection
-                    members={officialMembers}
-                    onUpdateStatus={handleUpdateMemberStatus}
-                    onRefresh={loadAllData}
-                  />
-                )}
-                {activeTab === 'yajaman' && (
-                  <AdminYajamanSection users={rbacUsers} bookings={bookings} onRefresh={loadAllData} />
-                )}
-                {activeTab === 'staff_rbac' && (
-                  <AdminUserManagementSection
-                    users={rbacUsers}
-                    onUpdateUserStatus={handleUpdateUserStatus}
-                    onChangeUserRole={(id, r) => editRBACUserDetails(id, { role: r }, session?.username || 'admin')}
-                    onResetUserPassword={() => {}}
-                    onAddNewUser={() => loadAllData()}
-                    onRefresh={loadAllData}
-                  />
-                )}
-                {activeTab === 'rbac' && <AdminRbacSection />}
-                {activeTab === 'role_magic_links' && <AdminRoleMagicLinksSection />}
-
-                {/* ── BLOCK 5: FINANCE & MEMBERSHIPS ── */}
-                {activeTab === 'client_approvals' && (
-                  <AdminClientApprovalsSection onRefresh={loadAllData} />
-                )}
-                {activeTab === 'finance' && (
-                  <AdminFinanceSection
-                    esewaRequests={esewaRequests}
-                    onApprovePayment={handleApprovePayment}
-                    onRejectPayment={handleRejectPayment}
-                    onRefresh={loadAllData}
-                  />
-                )}
-                {activeTab === 'memberships' && (
-                  <AdminMembershipSection members={officialMembers} onRefresh={loadAllData} />
-                )}
-
-                {/* ── BLOCK 6: COMMUNICATION & BROADCASTING ── */}
-                {activeTab === 'daily_whatsapp' && (
-                  <DailyWhatsAppDispatchManager
-                    profiles={profiles || []}
-                    todayPanchanga={todayPanchanga || calculatePanchanga(new Date().toISOString().split('T')[0], '06:00', 27.7172, 85.3240, 5.75)}
-                    orgProfile={orgProfile}
-                    transitPlanets={transitPlanets || []}
-                  />
-                )}
-                {activeTab === 'targeted_push' && <AdminTargetedPushNotificationSection />}
-                {activeTab === 'notifications' && (
-                  <AdminNotificationSection notifications={notifications} onRefresh={loadAllData} />
-                )}
-                {activeTab === 'geo_monitor' && <AdminGeoMonitorSection />}
-
-                {/* ── BLOCK 7: SETTINGS, SECURITY & BACKUP ── */}
-                {activeTab === 'settings' && <AdminSettingsSection />}
-                {activeTab === 'software_releases' && <AdminSoftwareUploadSection />}
-                {activeTab === 'security_audit' && (
-                  <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />
-                )}
-                {activeTab === 'reports' && <AdminReportSection />}
-                {activeTab === 'backup' && <AdminBackupSection />}
+                {renderActiveTabSection()}
               </TabContentErrorBoundary>
             </div>
           </main>
         </div>
+      )}
+        </>
       )}
 
       {/* ── COMMAND PALETTE MODAL (Ctrl+K) ── */}

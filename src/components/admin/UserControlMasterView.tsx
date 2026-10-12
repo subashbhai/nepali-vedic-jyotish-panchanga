@@ -51,7 +51,7 @@ import {
 import { MenuControlPanel } from './MenuControlPanel';
 import { AdminUserManagementSection } from './sections/AdminUserManagementSection';
 import { getStoredRBACUsers, editRBACUserDetails, saveRBACUsers, RBACUser, AccountStatus, SystemRole } from '../../db/rbacStore';
-import { syncSecurityAccount, syncAllSecurityStores } from '../../db/unifiedSecurityBridge';
+import { syncSecurityAccount, syncAllSecurityStores, purgeSecurityAccountPermanently } from '../../db/unifiedSecurityBridge';
 import { fromDevanagariNumerals } from '../../utils/nepaliCalendar';
 
 interface UserControlMasterViewProps {
@@ -201,19 +201,21 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
     showToast(`${target.fullName} को स्थिति ${newStatus === 'active' ? 'सक्रिय' : 'निलम्बित'} बनाइयो।`);
   };
 
-  // Delete client
+  // Delete client permanently
   const handleDeleteClient = (mobile: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`के तपाईँ निश्चित हुनुहुन्छ? प्रयोगकर्ता (${mobile}) हटाउन चाहनुहुन्छ?`)) {
-      const updatedList = clients.filter(c => c.mobile !== mobile);
+    if (confirm(`के तपाईँ निश्चित हुनुहुन्छ? प्रयोगकर्ता (${mobile}) लाई पूर्ण रूपमा हटाउन चाहनुहुन्छ? हटाएपछि यो डाटा पुनः फर्किने छैन।`)) {
+      purgeSecurityAccountPermanently(mobile);
+      const cleanDigits = mobile.replace(/\D/g, '').slice(-10);
+      const updatedList = clients.filter(c => {
+        const cDigits = (c.mobile || '').replace(/\D/g, '').slice(-10);
+        return cDigits !== cleanDigits && c.mobile !== mobile && c.loginId !== mobile && c.id !== mobile;
+      });
       setClients(updatedList);
-      saveAllClientPolicies(updatedList);
-      const rbacList = getStoredRBACUsers().filter(u => u.phone !== mobile);
-      saveRBACUsers(rbacList);
-      if (selectedMobile === mobile && updatedList.length > 0) {
-        setSelectedMobile(updatedList[0].mobile);
+      if (selectedMobile === mobile) {
+        setSelectedMobile(updatedList.length > 0 ? (updatedList[0].mobile || '') : '');
       }
-      showToast('प्रयोगकर्ता सफलतापूर्वक हटाइयो।');
+      showToast('प्रयोगकर्ता डाटा पूर्ण र स्थायी रूपमा हटाइयो (Permanent Deletion Completed)।');
     }
   };
 
