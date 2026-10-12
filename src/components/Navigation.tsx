@@ -1074,64 +1074,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       </p>
                     </div>
                   </button>
-                  {/* 6. Super Admin Control & Purchase Approvals (Only visible to verified SUPER_ADMIN sessions) */}
-                  {rbacSession?.role === 'SUPER_ADMIN' && onNavigateToAdmin && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUnifiedSettingsOpen(false);
-                          window.location.href = '/#/superadmin';
-                        }}
-                        className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/30"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                          <Crown className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300">
-                              ६. सुपरएडमिन नियन्त्रण कक्ष
-                            </span>
-                            <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-stone-950">
-                              Superadmin
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                            eSewa/Khalti खरिद आवेदन रुजु, प्रयोगकर्ता तथा प्रणाली नियन्त्रण
-                          </p>
-                        </div>
-                      </button>
-
-                      {/* 6.1 User Control (Menu & Mobile Registration Switchboard) */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUnifiedSettingsOpen(false);
-                          window.location.href = '/#/superadmin/access-control';
-                        }}
-                        className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-blue-500/10 dark:hover:bg-blue-950/40 text-stone-800 dark:text-stone-200 group border border-blue-500/30"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                          <Sliders className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold text-xs sm:text-sm text-blue-900 dark:text-blue-300">
-                              प्रयोगकर्ता नियन्त्रण (User Control)
-                            </span>
-                            <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-blue-600 text-white">
-                              Active
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                            मोबाइल नं. दर्ता, पासवर्ड जेनेरेसन, मेनु Open/Close/Lock कमान्ड
-                          </p>
-                        </div>
-                      </button>
-                    </>
-                  )}
-
                   {/* 7. Store & Digital Library Admin */}
                   <button
                     type="button"
