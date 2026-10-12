@@ -655,11 +655,13 @@ export function authenticateUnifiedUser(
   };
 }
 
-// Auto-run synchronizer on module import in browser environment
+// Defer synchronizer on browser environment to ensure all ES modules are evaluated
 if (typeof window !== 'undefined') {
-  try {
-    syncAllSecurityStores();
-  } catch (e) {
-    console.error('Initial security sync error:', e);
-  }
+  setTimeout(() => {
+    try {
+      syncAllSecurityStores();
+    } catch (e) {
+      console.error('Initial security sync error:', e);
+    }
+  }, 20);
 }

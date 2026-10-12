@@ -739,6 +739,7 @@ export default function App() {
   const [isClientPurchaseLeadModalOpen, setIsClientPurchaseLeadModalOpen] = useState(false);
   const [isClientThemeModalOpen, setIsClientThemeModalOpen] = useState(false);
   const [lockedFeatureName, setLockedFeatureName] = useState<string>('यो मेनु');
+  const [isApkPromptModalOpen, setIsApkPromptModalOpen] = useState<boolean>(false);
 
   // 24-Hour & 7-Day Trial State
   const [isTrialActive, setIsTrialActive] = useState<boolean>(() => is24HourTrialActive() || is7DayTrialActive());
