@@ -89,8 +89,10 @@ import { DailyWhatsAppReminderBanner } from './components/common/DailyWhatsAppRe
 import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBanner';
 import { DeviceUpdateNotificationBanner } from './components/common/DeviceUpdateNotificationBanner';
 import { PageMaintenanceView } from './components/common/PageMaintenanceView';
-import { GlobalNepaliInputManager } from './components/common/GlobalNepaliInputManager';
 import { getStoredPageServiceConfig, isPageAccessible } from './db/pageServiceControlStore';
+import { getActiveSuperAdminSession, clearSuperAdminSession, SuperAdminSessionState } from './superadmin/auth/superAdminAuthStore';
+const SuperAdminPortalLayout = lazy(() => import('./superadmin/SuperAdminPortalApp').then((m) => ({ default: m.SuperAdminPortalLayout })));
+const SuperAdminLoginView = lazy(() => import('./superadmin/SuperAdminLoginView').then((m) => ({ default: m.SuperAdminLoginView })));
 
 import { 
   BirthDetails, 
@@ -404,55 +406,9 @@ const getInitialRBACSession = (): RBACSession | null => {
       hashQueryParams = new URLSearchParams(hashStr.slice(qIndex + 1));
     }
 
-    const portal = (searchParams.get('portal') || hashQueryParams.get('portal'))?.toLowerCase();
-    const adminQuery = (searchParams.get('admin') || hashQueryParams.get('admin'))?.toLowerCase();
-    const isSuperParam = searchParams.get('superadmin') === 'true' || hashQueryParams.get('superadmin') === 'true';
+    // Notice: Super Admin Portal is now completely isolated at /superadmin with secure authentication.
+    // Ordinary users or visitor URLs will NEVER be automatically elevated to super admin.
 
-    const isSuper =
-      adminQuery === 'super' ||
-      adminQuery === 'super_admin' ||
-      adminQuery === 'master' ||
-      isSuperParam ||
-      portal === 'superadmin' ||
-      portal === 'super_admin' ||
-      portal === 'admin' ||
-      portal === 'admin_control' ||
-      hashLower.includes('super_admin') ||
-      hashLower.includes('admin_control') ||
-      hashLower === '#admin' ||
-      hashLower.startsWith('#admin/') ||
-      hashLower.startsWith('#/admin') ||
-      hashLower.startsWith('#admin?') ||
-      hashLower.includes('master_admin');
-
-    if (isSuper) {
-      const s: RBACSession = {
-        token: 'superadmin_override_token',
-        userId: 'usr_superadmin_master',
-        username: 'admin',
-        fullName: 'मुख्य प्रशासक (Super Admin)',
-        role: 'SUPER_ADMIN',
-        roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
-        status: 'active',
-        permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
-        createdAtISO: new Date().toISOString(),
-        lastActivityISO: new Date().toISOString()
-      };
-      setRBACSession(s);
-
-      const adminSession: AdminSession = {
-        adminId: 'admin_super_01',
-        username: 'admin',
-        fullName: 'मुख्य प्रशासक (Super Admin)',
-        role: 'super_admin',
-        roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
-        permissions: ['all'],
-        loginTimeISO: new Date().toISOString(),
-        lastActivityISO: new Date().toISOString()
-      };
-      setAdminSession(adminSession);
-      return s;
-    }
 
     const isStoreAdmin =
       portal === 'store_admin' ||
@@ -574,9 +530,23 @@ export default function App() {
   const [activePatrikaSubTab, setActivePatrikaSubTab] = useState<any>('china');
   const [editingProfile, setEditingProfile] = useState<BirthDetails | null>(null);
   const [settings, setSettingsState] = useState<ApplicationSettings>(getStoredSettings());
-  const [isApkPromptModalOpen, setIsApkPromptModalOpen] = useState(false);
-  const [isMobileMode, setIsMobileMode] = useState<boolean>(() => isMobileApp());
-  const [isWindowsDesktopMode, setIsWindowsDesktopMode] = useState<boolean>(() => isDesktopApp());
+  const [isSuperAdminRoute, setIsSuperAdminRoute] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    return (
+      path.startsWith('/superadmin') ||
+      hash.startsWith('#/superadmin') ||
+      hash.startsWith('#superadmin')
+    );
+  });
+  const [superAdminSubRoute, setSuperAdminSubRoute] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'dashboard';
+    const hash = window.location.hash.toLowerCase();
+    const clean = hash.replace(/^#\/?superadmin\/?/, '').split('?')[0].trim();
+    return clean || 'dashboard';
+  });
+  const [superAdminSession, setSuperAdminSession] = useState<SuperAdminSessionState | null>(() => getActiveSuperAdminSession());
 
   // Listen to platform-mode events or URL changes (Mobile & Windows Desktop)
   useEffect(() => {
@@ -655,6 +625,22 @@ export default function App() {
   // Synchronize browser Back/Forward navigation and direct URL hash changes across ALL menu pages
   useEffect(() => {
     const handleHashSync = () => {
+      const path = (window.location.pathname || '').toLowerCase();
+      const rawHash = (window.location.hash || '').toLowerCase();
+      
+      const isSuper =
+        path.startsWith('/superadmin') ||
+        rawHash.startsWith('#/superadmin') ||
+        rawHash.startsWith('#superadmin');
+
+      setIsSuperAdminRoute(isSuper);
+      if (isSuper) {
+        const clean = rawHash.replace(/^#\/?superadmin\/?/, '').split('?')[0].trim();
+        setSuperAdminSubRoute(clean || 'dashboard');
+        document.title = 'सुपरएडमिन पोर्टल - बृहत् ज्योतिष नियन्त्रण केन्द्र';
+        return;
+      }
+
       const hash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
       if (!hash || hash === 'dashboard' || hash === 'home') {
         startModuleTransition(() => {
@@ -694,11 +680,17 @@ export default function App() {
       document.title = pageTitle;
     };
 
+    const handleSessionChange = (e: any) => {
+      setSuperAdminSession(e.detail || getActiveSuperAdminSession());
+    };
+
     window.addEventListener('popstate', handleHashSync);
     window.addEventListener('hashchange', handleHashSync);
+    window.addEventListener('superadmin-session-changed', handleSessionChange);
     return () => {
       window.removeEventListener('popstate', handleHashSync);
       window.removeEventListener('hashchange', handleHashSync);
+      window.removeEventListener('superadmin-session-changed', handleSessionChange);
     };
   }, []);
 
@@ -971,72 +963,11 @@ export default function App() {
       }
 
       // 2. Superadmin Direct Link (Works from GitHub Pages, localhost, APK): ?admin=super or ?superadmin=true or ?portal=superadmin or #super_admin
-      const adminQuery = params.get('admin')?.toLowerCase();
-      const isSuperAdminLink =
-        adminQuery === 'super' ||
-        adminQuery === 'super_admin' ||
-        adminQuery === 'master' ||
-        params.get('superadmin') === 'true' ||
-        params.get('super_admin') === 'true' ||
-        portal === 'superadmin' ||
-        portal === 'super_admin' ||
-        superAdminPortal === 'true' ||
-        secretAdmin === 'balananda' ||
-        adminToken === '[REDACTED_HISTORICAL_MASTER_KEY_B]' ||
-        adminToken === '[REDACTED_HISTORICAL_MASTER_KEY_A]' ||
-        adminToken === 'balananda' ||
-        adminToken === 'admin' ||
-        (typeof window !== 'undefined' && (
-          window.location.hash.toLowerCase().includes('super_admin') ||
-          window.location.hash.toLowerCase().includes('superadmin')
-        ));
-
-      if (isSuperAdminLink) {
-        const superAdminSession: RBACSession = {
-          token: 'superadmin_override_token',
-          userId: 'usr_superadmin_master',
-          username: 'admin',
-          fullName: 'मुख्य प्रशासक (Super Admin)',
-          role: 'SUPER_ADMIN',
-          roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
-          status: 'active',
-          permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
-          createdAtISO: new Date().toISOString(),
-          lastActivityISO: new Date().toISOString()
-        };
-        setRbacSession(superAdminSession);
-        try {
-          localStorage.setItem('balananda_rbac_active_session_v1', JSON.stringify(superAdminSession));
-        } catch {}
-
-        const adminSessionData: AdminSession = {
-          adminId: 'admin_super_master',
-          username: 'admin',
-          fullName: 'मुख्य प्रशासक (Super Admin)',
-          role: 'super_admin',
-          roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
-          permissions: [
-            'manage_admins',
-            'manage_payments',
-            'manage_experts',
-            'manage_members',
-            'manage_pricing',
-            'manage_trials',
-            'manage_users',
-            'view_reports',
-            'manage_notifications',
-            'view_audit_logs',
-            'system_settings',
-            'samachar_editor'
-          ],
-          loginTimeISO: new Date().toISOString(),
-          lastActivityISO: new Date().toISOString()
-        };
-        setAdminSession(adminSessionData);
-
-        setActiveTab('admin_control');
-        if (section) setAdminInitialTab(section);
-        window.history.replaceState({}, document.title, window.location.pathname);
+      // Super Admin Portal access is securely governed at /superadmin.
+      // If someone queries ?portal=superadmin, redirect to /#/superadmin
+      if (portal === 'superadmin' || portal === 'super_admin' || params.get('superadmin') === 'true') {
+        window.location.hash = '/superadmin';
+        return;
       }
     } catch (e) {
       console.error('Failed to parse URL query params', e);
@@ -1692,36 +1623,10 @@ export default function App() {
     };
   }, [navigateTab]);
 
-  // Ensure administrative workstation portals automatically have their authenticated session active
+  // Ensure specialized workstation portals (POS, News, Marriage) automatically have their role session active when opened
   useEffect(() => {
     if (!rbacSession && ADMIN_PORTAL_TABS.has(activeTab)) {
-      if (activeTab === 'admin_control' || activeTab === 'whatsapp_admin') {
-        const s: RBACSession = {
-          token: 'superadmin_portal_auto_token',
-          userId: 'usr_superadmin_master',
-          username: 'admin',
-          fullName: 'मुख्य प्रशासक (Super Admin)',
-          role: 'SUPER_ADMIN',
-          roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
-          status: 'active',
-          permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
-          createdAtISO: new Date().toISOString(),
-          lastActivityISO: new Date().toISOString()
-        };
-        setRBACSession(s);
-        setRbacSession(s);
-        const adminSession: AdminSession = {
-          adminId: 'admin_super_01',
-          username: 'admin',
-          fullName: 'मुख्य प्रशासक (Super Admin)',
-          role: 'super_admin',
-          roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
-          permissions: ['all'],
-          loginTimeISO: new Date().toISOString(),
-          lastActivityISO: new Date().toISOString()
-        };
-        setAdminSession(adminSession);
-      } else if (activeTab === 'store_admin') {
+      if (activeTab === 'store_admin') {
         const s: RBACSession = {
           token: 'store_admin_portal_auto_token',
           userId: 'usr_store_admin_direct',
@@ -1794,6 +1699,46 @@ export default function App() {
       const cleanUrl = window.location.pathname + (urlParams.toString() ? `?${urlParams.toString()}` : '') + window.location.hash;
       window.history.replaceState({}, '', cleanUrl);
     }
+  }
+
+  // ── 🔐 DEDICATED SUPER ADMIN PORTAL (Totally Isolated from Main Software) ──
+  if (isSuperAdminRoute) {
+    if (!superAdminSession) {
+      return (
+        <Suspense fallback={<div className="min-h-screen bg-[#0C0A09]" />}>
+          <SuperAdminLoginView
+            onLoginSuccess={(sess) => {
+              setSuperAdminSession(sess);
+            }}
+            onGoBackToSoftware={() => {
+              window.location.hash = '#dashboard';
+              setIsSuperAdminRoute(false);
+            }}
+          />
+        </Suspense>
+      );
+    }
+
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-[#0C0A09]" />}>
+        <SuperAdminPortalLayout
+          session={superAdminSession}
+          onLogout={() => {
+            clearSuperAdminSession();
+            setSuperAdminSession(null);
+          }}
+          onNavigateToClientSoftware={() => {
+            window.location.hash = '#dashboard';
+            setIsSuperAdminRoute(false);
+          }}
+          profiles={profiles}
+          todayPanchanga={todayPanchanga}
+          orgProfile={orgProfile}
+          transitPlanets={todayTransitPlanets}
+          initialSubRoute={superAdminSubRoute}
+        />
+      </Suspense>
+    );
   }
 
   // If JYOTISH module is active, render full-screen workspace with no main dropdowns (free to explore)

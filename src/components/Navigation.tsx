@@ -542,30 +542,14 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     };
   }, []);
 
-  const isSuperAdminOrAdmin = !!(
-    rbacSession &&
-    (rbacSession.role === 'SUPER_ADMIN' || rbacSession.role === 'ADMIN')
-  );
-
   // When not logged in: only show first screen public menus (गृहपृष्ठ, पञ्चाङ्ग, पात्रो, समाचार, मिति रूपान्तरण, संस्था प्रोफाइल)
-  // When logged in: show all menus (respecting Page Control switchboard + User Control per-mobile overrides)
+  // When logged in: show normal user allowed menus (respecting Page Control switchboard + User Control per-mobile overrides)
+  // NOTE: Super Admin Portal is completely isolated at /superadmin and never leaks into the client navigation bar!
   const baseNavItems = useMemo(() => {
-    const items = rbacSession
+    return rbacSession
       ? [...MAIN_NAV_ITEMS]
       : MAIN_NAV_ITEMS.filter((item) => PUBLIC_UNAUTH_NAV_IDS.has(item.id));
-
-    if (isSuperAdminOrAdmin) {
-      items.push({
-        id: 'admin_control',
-        labelNepali: 'सुपरएडमिन',
-        icon: ShieldCheck,
-        highlight: true,
-        hasSubmenu: true
-      });
-    }
-
-    return items;
-  }, [rbacSession, isSuperAdminOrAdmin]);
+  }, [rbacSession]);
 
   const visibleNavItems = useMemo(() => {
     return baseNavItems.filter((item) => isTabVisibleInNavigation(item.id).visible);
@@ -1277,14 +1261,14 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       </p>
                     </div>
                   </button>
-                  {/* 6. Super Admin Control & Purchase Approvals */}
-                  {onNavigateToAdmin && (
+                  {/* 6. Super Admin Control & Purchase Approvals (Only visible to verified SUPER_ADMIN sessions) */}
+                  {rbacSession?.role === 'SUPER_ADMIN' && onNavigateToAdmin && (
                     <>
                       <button
                         type="button"
                         onClick={() => {
                           setIsUnifiedSettingsOpen(false);
-                          onNavigateToAdmin('user_control');
+                          window.location.href = '/#/superadmin';
                         }}
                         className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/30"
                       >
@@ -1311,7 +1295,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                         type="button"
                         onClick={() => {
                           setIsUnifiedSettingsOpen(false);
-                          onTabChange('user_control');
+                          window.location.href = '/#/superadmin/access-control';
                         }}
                         className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-blue-500/10 dark:hover:bg-blue-950/40 text-stone-800 dark:text-stone-200 group border border-blue-500/30"
                       >
