@@ -587,17 +587,6 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
                             <Sliders className="w-3.5 h-3.5 text-blue-600" />
                             <span>🎛️ प्रयोगकर्ता नियन्त्रण (User Control)</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              onNavigateToAdmin('client_approvals');
-                            }}
-                            className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-[#7A1C1C] dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                          >
-                            <Crown className="w-3.5 h-3.5 text-amber-600" />
-                            <span>👑 सुपरएडमिन नियन्त्रण कक्ष</span>
-                          </button>
                         </>
                       )}
                     </div>

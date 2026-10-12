@@ -248,16 +248,6 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
                 <strong className="block font-bold text-sm">आवेदन दर्ता भयो!</strong>
                 <p className="mt-1 leading-relaxed">{successMsg}</p>
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
-                  {onNavigateToAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => onNavigateToAdmin('client_approvals')}
-                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
-                    >
-                      <Crown className="w-4 h-4 text-stone-950 fill-current" />
-                      <span>👑 सुपरएडमिन कक्षमा गइ स्वीकृत गर्नुहोस् (Approve)</span>
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={onClose}
@@ -567,23 +557,6 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
                   <p className="text-[11px] text-center text-stone-500 dark:text-stone-400">
                     * आवेदन पेश भएपछि सुपरएडमिनले रकम रुजु गरी तपाईंको सफ्टवेयर सक्रिय (Approve) गरिदिनेछन्।
                   </p>
-
-                  {/* Direct link for Super Admin */}
-                  {onNavigateToAdmin && (
-                    <div className="pt-3 border-t border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
-                      <span className="text-stone-700 dark:text-stone-300 font-medium text-center sm:text-left">
-                        तपाईं नै मुख्य प्रशासक (Superadmin) हुनुहुन्छ?
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateToAdmin('client_approvals')}
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-black rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
-                      >
-                        <Crown className="w-3.5 h-3.5 fill-current" />
-                        <span>👑 खरिद स्वीकृति कक्ष (Superadmin)</span>
-                      </button>
-                    </div>
-                  )}
                 </form>
               )}
             </>
