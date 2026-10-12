@@ -287,6 +287,7 @@ export const TAB_PAGE_TITLES: Record<string, string> = {
   books_download: '📚 पुस्तक डाउनलोड - बालानन्द वैदिक डिजिटल पुस्तकालय',
   app_download: '📲 एप्लिकेसन डाउनलोड (Windows, Android, Mac, iOS)',
   media_download: '🎵 मिडिया डाउनलोड - वैदिक मन्त्र, स्तोत्र, अडियो तथा वालपेपर',
+  user_dashboard: 'व्यक्तिगत प्रयोगकर्ता ड्यासबोर्ड (My Space)',
   yajaman: 'यजमान तथा ग्राहक व्यवस्थापन',
   samachar: 'वैदिक पञ्चाङ्ग तथा चाडपर्व समाचार',
   org_profile: 'संस्थागत प्रोफाइल तथा परिचय',
