@@ -557,6 +557,10 @@ export function mapTabKeyToFeatureId(tabKey: string): string {
  * 4. Otherwise, respects the global Page Control setting (hideInNavigation checkbox / disabled status).
  */
 export function isTabVisibleInNavigation(tabKey: string): { visible: boolean; isUserOverride: boolean } {
+  if (tabKey === 'admin_control') {
+    return { visible: true, isUserOverride: false };
+  }
+
   // 1. Global Page Control Check (Super Admin tick/untick control)
   // When Super Admin unchecks "शीर्ष मेनु बारमा देखाउने" (hideInNavigation) or sets status to 'disabled',
   // the menu item MUST disappear immediately from top bar and drawer for all users and super admins.

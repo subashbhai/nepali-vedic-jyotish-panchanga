@@ -33,7 +33,6 @@ import { printElement } from './utils/pdfGenerator';
 import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
 import { isMobileApp, isDesktopApp } from './utils/appVersionManager';
 import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
-import { FullPageModuleHeader } from './components/common/FullPageModuleHeader';
 
 const BalanandaMobileAppShell = lazy(() => import('./mobile/BalanandaMobileAppShell').then((m) => ({ default: m.BalanandaMobileAppShell })));
 const BalanandaWindowsAppShell = lazy(() => import('./windows/BalanandaWindowsAppShell').then((m) => ({ default: m.BalanandaWindowsAppShell })));
@@ -1854,103 +1853,78 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FDFCF8] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] font-sans selection:bg-[#D97706]/20 selection:text-[#D97706] transition-colors duration-200 flex flex-col">
       <div className="flex-1 flex flex-col w-full min-h-0">
-          {activeTab === 'dashboard' ? (
-            <>
-              {/* Sticky Unified Header & Navigation Container (Home / Dashboard only) */}
-              <div className="sticky top-0 z-50 bg-white/95 dark:bg-[#262320]/95 backdrop-blur-md border-b border-[#E6E0D5] dark:border-stone-800 shadow-xs transition-colors">
-                <Header
-                  activeProfile={activeProfile}
-                  profiles={profiles}
-                  onSelectProfile={handleSelectProfile}
-                  onNewProfile={handleOpenNewKundaliModal}
-                  onOpenSettings={() => handleOpenSettings('astro')}
-                  onNavigateToApplyExpert={() => navigateTab('apply_expert')}
-                  onNavigateToAdmin={(tab) => {
-                    setAdminInitialTab(tab);
-                    navigateTab('admin_control');
-                  }}
-                  settings={settings}
-                  onToggleTheme={handleToggleTheme}
-                  todayBS={todayBS}
-                  orgProfile={orgProfile}
-                  onOpenOrgProfile={() => navigateTab('org_profile')}
-                  onOpenDateConverter={() => navigateTab('date_converter')}
-                  rbacSession={rbacSession}
-                  onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
-                  onLogoutRBAC={handleLogoutRBAC}
-                  transitAlertCount={unreadTransitAlerts.length}
-                  hasHighPriorityTransitAlert={hasHighPriorityTransit}
-                  onOpenTransitNotifications={handleOpenTransitNotifications}
-                  onOpenPurchaseModal={(featureName) => {
-                    setLockedFeatureName(featureName || 'पूर्ण सदस्यता');
-                    setIsClientPurchaseLeadModalOpen(true);
-                  }}
-                  hasUpdate={appUpdate.hasUpdate}
-                  updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
-                  onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
-                  onNavigateTab={(tab) => navigateTab(tab as any)}
-                />
+        {/* Sticky Unified Header & Navigation Container across all menu tabs */}
+        <div className="sticky top-0 z-50 bg-white/95 dark:bg-[#262320]/95 backdrop-blur-md border-b border-[#E6E0D5] dark:border-stone-800 shadow-xs transition-colors">
+          <Header
+            activeProfile={activeProfile}
+            profiles={profiles}
+            onSelectProfile={handleSelectProfile}
+            onNewProfile={handleOpenNewKundaliModal}
+            onOpenSettings={() => handleOpenSettings('astro')}
+            onNavigateToApplyExpert={() => navigateTab('apply_expert')}
+            onNavigateToAdmin={(tab) => {
+              setAdminInitialTab(tab);
+              navigateTab('admin_control');
+            }}
+            settings={settings}
+            onToggleTheme={handleToggleTheme}
+            todayBS={todayBS}
+            orgProfile={orgProfile}
+            onOpenOrgProfile={() => navigateTab('org_profile')}
+            onOpenDateConverter={() => navigateTab('date_converter')}
+            rbacSession={rbacSession}
+            onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
+            onLogoutRBAC={handleLogoutRBAC}
+            transitAlertCount={unreadTransitAlerts.length}
+            hasHighPriorityTransitAlert={hasHighPriorityTransit}
+            onOpenTransitNotifications={handleOpenTransitNotifications}
+            onOpenPurchaseModal={(featureName) => {
+              setLockedFeatureName(featureName || 'पूर्ण सदस्यता');
+              setIsClientPurchaseLeadModalOpen(true);
+            }}
+            hasUpdate={appUpdate.hasUpdate}
+            updateVersion={appUpdate.remoteRelease?.version || appUpdate.electronStatus.version}
+            onOpenAppUpdates={() => appUpdate.setIsUpdateModalOpen(true)}
+            onNavigateTab={(tab) => navigateTab(tab as any)}
+          />
 
-                {/* Main Navigation Tabs */}
-                <Navigation 
-                  activeTab={activeTab} 
-                  activeModule={activeModule}
-                  onEnterJyotish={enterJyotishModule}
-                  onOpenSettingsModal={(tab) => handleOpenSettings(tab || 'astro')}
-                  rbacSession={rbacSession}
-                  onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
-                  onLogoutRBAC={handleLogoutRBAC}
-                  hasFullAccess={isFullyUnlocked}
-                  onOpenPurchaseModal={(featureName) => {
-                    setLockedFeatureName(featureName || 'यो सेवा');
-                    setIsClientPurchaseLeadModalOpen(true);
-                  }}
-                  onOpenDateConverter={() => navigateTab('date_converter')}
-                  onOpenOrgProfile={() => navigateTab('org_profile')}
-                  onOpenThemeModal={() => setIsClientThemeModalOpen(true)}
-                  onNavigateToAdmin={(tab) => {
-                    setAdminInitialTab(tab || 'client_approvals');
-                    navigateTab('admin_control');
-                  }}
-                  profiles={profiles}
-                  onOpenVastuModal={(subTab) => {
-                    if (subTab) {
-                      setVastuSubTab(subTab as VastuSubTab);
-                    }
-                    setIsVastuModalOpen(true);
-                  }}
-                  onTabChange={(tab, subTab) => navigateTab(tab, subTab)} 
-                />
-              </div>
+          {/* Main Navigation Tabs (Tallo Bar) */}
+          <Navigation 
+            activeTab={activeTab} 
+            activeModule={activeModule}
+            onEnterJyotish={enterJyotishModule}
+            onOpenSettingsModal={(tab) => handleOpenSettings(tab || 'astro')}
+            rbacSession={rbacSession}
+            onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
+            onLogoutRBAC={handleLogoutRBAC}
+            hasFullAccess={isFullyUnlocked}
+            onOpenPurchaseModal={(featureName) => {
+              setLockedFeatureName(featureName || 'यो सेवा');
+              setIsClientPurchaseLeadModalOpen(true);
+            }}
+            onOpenDateConverter={() => navigateTab('date_converter')}
+            onOpenOrgProfile={() => navigateTab('org_profile')}
+            onOpenThemeModal={() => setIsClientThemeModalOpen(true)}
+            onNavigateToAdmin={(tab) => {
+              setAdminInitialTab(tab || 'client_approvals');
+              navigateTab('admin_control');
+            }}
+            profiles={profiles}
+            onOpenVastuModal={(subTab) => {
+              if (subTab) {
+                setVastuSubTab(subTab as VastuSubTab);
+              }
+              setIsVastuModalOpen(true);
+            }}
+            onTabChange={(tab, subTab) => navigateTab(tab, subTab)} 
+          />
+        </div>
 
-              {/* Global Device Auto-Update Notification Banner (Instant 1-Click Update for Mobile & Desktop) */}
-              <DeviceUpdateNotificationBanner />
+        {/* Global Device Auto-Update Notification Banner (Instant 1-Click Update for Mobile & Desktop) */}
+        <DeviceUpdateNotificationBanner />
 
-              {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
-              <GlobalSiteNoticeBanner onNavigateTab={(tab) => navigateTab(tab as any)} />
-            </>
-          ) : (
-            /* Dedicated Full Page Window Header for ALL non-dashboard menu tabs (Same UX as Jyotish Sewa) */
-            <FullPageModuleHeader
-              activeTab={activeTab}
-              onGoHome={() => navigateTab('dashboard')}
-              onOpenDateConverter={() => navigateTab('date_converter')}
-              onToggleTheme={handleToggleTheme}
-              onOpenSettings={() => handleOpenSettings('astro')}
-              activeProfile={activeProfile}
-              profiles={profiles}
-              onSelectProfile={handleSelectProfile}
-              rbacSession={rbacSession}
-              onOpenAuthModal={() => setIsRBACAuthModalOpen(true)}
-              onLogoutRBAC={handleLogoutRBAC}
-              orgProfile={orgProfile}
-              onNavigateTab={(tab) => navigateTab(tab as any)}
-              onNavigateToAdmin={(tab) => {
-                setAdminInitialTab(tab || 'client_approvals');
-                navigateTab('admin_control');
-              }}
-            />
-          )}
+        {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
+        <GlobalSiteNoticeBanner onNavigateTab={(tab) => navigateTab(tab as any)} />
 
       {/* Main Container */}
       <main className="max-w-[1700px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6 flex-1 w-full flex flex-col min-h-0">

@@ -52,7 +52,9 @@ import {
   Laptop,
   Music,
   KeyRound,
-  Sliders
+  Sliders,
+  ShieldCheck,
+  CreditCard
 } from 'lucide-react';
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
 import { RBACSession } from '../db/rbacStore';
@@ -386,6 +388,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -395,6 +398,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const unifiedSettingsRef = useRef<HTMLDivElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
+  const adminMenuRef = useRef<HTMLDivElement>(null);
 
   const isSuperOrStoreAdmin =
     rbacSession?.role === 'SUPER_ADMIN' ||
@@ -445,6 +449,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       }
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
         setIsDownloadDropdownOpen(false);
+      }
+      if (adminMenuRef.current && !adminMenuRef.current.contains(e.target as Node)) {
+        setIsAdminMenuOpen(false);
       }
     };
     const handleScrollOrResize = () => {
@@ -535,13 +542,30 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     };
   }, []);
 
+  const isSuperAdminOrAdmin = !!(
+    rbacSession &&
+    (rbacSession.role === 'SUPER_ADMIN' || rbacSession.role === 'ADMIN')
+  );
+
   // When not logged in: only show first screen public menus (गृहपृष्ठ, पञ्चाङ्ग, पात्रो, समाचार, मिति रूपान्तरण, संस्था प्रोफाइल)
   // When logged in: show all menus (respecting Page Control switchboard + User Control per-mobile overrides)
   const baseNavItems = useMemo(() => {
-    return rbacSession
-      ? MAIN_NAV_ITEMS
+    const items = rbacSession
+      ? [...MAIN_NAV_ITEMS]
       : MAIN_NAV_ITEMS.filter((item) => PUBLIC_UNAUTH_NAV_IDS.has(item.id));
-  }, [rbacSession]);
+
+    if (isSuperAdminOrAdmin) {
+      items.push({
+        id: 'admin_control',
+        labelNepali: 'सुपरएडमिन',
+        icon: ShieldCheck,
+        highlight: true,
+        hasSubmenu: true
+      });
+    }
+
+    return items;
+  }, [rbacSession, isSuperAdminOrAdmin]);
 
   const visibleNavItems = useMemo(() => {
     return baseNavItems.filter((item) => isTabVisibleInNavigation(item.id).visible);
@@ -590,6 +614,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             const isSewa = item.id === 'sewa';
             const isJyotishi = item.id === 'jyotishi';
             const isVastu = item.id === 'vastu';
+            const isAdmin = item.id === 'admin_control';
 
             const isActive = isJyotishi
               ? (activeModule === 'JYOTISH' || activeTab === 'jyotishi')
@@ -597,12 +622,198 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               ? activeTab === 'vastu'
               : isSewa
               ? activeTab === 'sewa'
+              : isAdmin
+              ? (activeTab === 'admin_control' || activeTab === 'user_control' || activeTab === 'store_admin' || activeTab === 'pos' || activeTab === 'news_editor')
               : activeTab === item.id && activeModule === 'MAIN';
 
             const featId = mapTabKeyToFeatureId(item.id);
             const featureAccess = checkFeatureAccess(featId);
             const isClosed = featureAccess.state === 'close';
             const isLocked = featureAccess.state === 'lock';
+
+            if (isAdmin) {
+              return (
+                <div key={item.id} className="relative shrink-0" ref={adminMenuRef}>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`relative flex items-center rounded-xl font-bold text-[11px] sm:text-[11.5px] lg:text-[12.5px] whitespace-nowrap border shrink-0 transition-all duration-150 ${
+                      isActive
+                        ? 'text-white shadow-md border-transparent bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515] ring-2 ring-amber-400/50'
+                        : isAdminMenuOpen
+                        ? 'bg-amber-100 dark:bg-stone-800 text-[#7A1C1C] dark:text-amber-400 border-amber-300 dark:border-stone-700 shadow-2xs'
+                        : 'bg-gradient-to-r from-amber-500/15 to-orange-500/15 hover:from-amber-500/25 hover:to-orange-500/25 text-[#7A1C1C] dark:text-amber-300 border-amber-400/50 shadow-2xs'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="mainNavActivePill"
+                        className="absolute inset-0 rounded-xl pointer-events-none bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515] border border-[#7A1C1C]"
+                        transition={{
+                          type: 'spring',
+                          stiffness: 420,
+                          damping: 32,
+                        }}
+                      />
+                    )}
+
+                    {/* Main Click Button (Opens Admin Control) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAdminMenuOpen(false);
+                        if (onNavigateToAdmin) onNavigateToAdmin('client_approvals');
+                        else onTabChange('admin_control');
+                      }}
+                      className="relative z-10 flex items-center gap-1.5 px-2 py-1 lg:px-2.5 lg:py-1.5 cursor-pointer"
+                      title="सुपरएडमिन नियन्त्रण कक्ष खोल्नुहोस्"
+                    >
+                      <Crown className={`w-3.5 h-3.5 ${isActive ? 'text-amber-300' : 'text-amber-600 dark:text-amber-400'} shrink-0`} />
+                      <span className="font-extrabold">{item.labelNepali}</span>
+                    </button>
+
+                    {/* Dropdown Toggle Chevron */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsAdminMenuOpen((prev) => !prev);
+                      }}
+                      className="relative z-10 pr-2 pl-0.5 py-1 lg:py-1.5 cursor-pointer opacity-80 hover:opacity-100 transition-opacity"
+                      title="एडमिन द्रुत पहुँच मेनु (Admin Quick Menu)"
+                    >
+                      <ChevronDown
+                        className={`w-3 h-3 transition-transform duration-200 ${
+                          isAdminMenuOpen ? 'rotate-180 text-amber-400' : ''
+                        }`}
+                      />
+                    </button>
+                  </motion.div>
+
+                  {/* Admin Quick Access Dropdown Menu */}
+                  {isAdminMenuOpen && (
+                    <div className="absolute left-0 mt-1.5 w-72 sm:w-80 bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border-2 border-amber-400/80 dark:border-stone-700 p-2.5 z-[100] animate-in fade-in slide-in-from-top-1">
+                      {/* Header */}
+                      <div className="px-3 py-2 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-[#7A1C1C] text-amber-300 flex items-center justify-center font-bold">
+                            <Crown className="w-4 h-4" />
+                          </div>
+                          <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
+                            सुपरएडमिन कार्यक्षेत्र
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-stone-950">
+                          Super Admin
+                        </span>
+                      </div>
+
+                      {/* 6 Admin Functions from Image 2 */}
+                      <div className="py-1.5 space-y-1">
+                        {/* 1. Super Admin Control */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAdminMenuOpen(false);
+                            if (onNavigateToAdmin) onNavigateToAdmin('client_approvals');
+                            else onTabChange('admin_control');
+                          }}
+                          className="w-full text-left p-2 rounded-xl hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2.5 text-xs font-bold text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+                        >
+                          <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="block truncate text-[#7A1C1C] dark:text-amber-300 font-bold">👑 सुपरएडमिन नियन्त्रण कक्ष</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal block truncate">खरिद आवेदन रुजु, यजमान तथा प्रणाली नियन्त्रण</span>
+                          </div>
+                        </button>
+
+                        {/* 2. User Control */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAdminMenuOpen(false);
+                            if (onNavigateToAdmin) onNavigateToAdmin('user_control');
+                            else onTabChange('user_control');
+                          }}
+                          className="w-full text-left p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-stone-800 flex items-center gap-2.5 text-xs font-bold text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+                        >
+                          <Sliders className="w-4 h-4 text-blue-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="block truncate">🎛️ प्रयोगकर्ता नियन्त्रण (User Control)</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal block truncate">ग्राहक मोबाइल लाइसेन्स तथा मेनु अनुमति</span>
+                          </div>
+                        </button>
+
+                        {/* 3. Store & Library Admin */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAdminMenuOpen(false);
+                            onTabChange('store_admin');
+                          }}
+                          className="w-full text-left p-2 rounded-xl hover:bg-orange-50 dark:hover:bg-stone-800 flex items-center gap-2.5 text-xs font-bold text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+                        >
+                          <ShoppingBag className="w-4 h-4 text-orange-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="block truncate">📦 स्टोर एवं डिजिटल पुस्तकालय एडमिन</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal block truncate">सामग्री, मूल्य, स्टक तथा ई-बुक व्यवस्थापन</span>
+                          </div>
+                        </button>
+
+                        {/* 4. POS Terminal */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAdminMenuOpen(false);
+                            onTabChange('pos');
+                          }}
+                          className="w-full text-left p-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-stone-800 flex items-center gap-2.5 text-xs font-bold text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+                        >
+                          <CreditCard className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="block truncate">💳 काउन्टर POS बिलिङ टर्मिनल</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal block truncate">प्रत्यक्ष काउन्टर बिक्री र बिल प्रिन्ट</span>
+                          </div>
+                        </button>
+
+                        {/* 5. News & Articles Editor */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAdminMenuOpen(false);
+                            onTabChange('news_editor');
+                          }}
+                          className="w-full text-left p-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-stone-800 flex items-center gap-2.5 text-xs font-bold text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+                        >
+                          <Newspaper className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="block truncate">📰 समाचार तथा लेख सम्पादक</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal block truncate">चाडपर्व, मुहूर्त विश्लेषण र लेख प्रकाशन</span>
+                          </div>
+                        </button>
+
+                        {/* 6. System Settings */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAdminMenuOpen(false);
+                            if (onNavigateToAdmin) onNavigateToAdmin('settings');
+                            else if (onOpenSettingsModal) onOpenSettingsModal('astro');
+                          }}
+                          className="w-full text-left p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-2.5 text-xs font-bold text-stone-800 dark:text-stone-200 transition-colors border-t border-stone-200 dark:border-stone-800 mt-1 pt-2 cursor-pointer"
+                        >
+                          <Settings className="w-4 h-4 text-stone-500 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="block truncate">⚙️ प्रणाली सेटिङ</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal block truncate">लेटरहेड, संस्थागत विवरण र ज्योतिष कन्फिग</span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             if (isSewa) {
               return (
@@ -1793,6 +2004,87 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 </div>
               </div>
 
+              {/* ── SECTION 0: सुपरएडमिन नियन्त्रण (Super Admin Suite) ── */}
+              {isSuperAdminOrAdmin && (
+                <div className="mb-3">
+                  <p className="text-[10px] font-black text-[#7A1C1C] dark:text-amber-400 uppercase tracking-wider mb-1.5 px-1 flex items-center gap-1.5">
+                    <Crown className="w-3.5 h-3.5 text-amber-500" />
+                    <span>👑 सुपरएडमिन नियन्त्रण (Super Admin Suite)</span>
+                  </p>
+                  <div className="bg-amber-500/10 dark:bg-stone-850/90 rounded-2xl border border-amber-400/40 dark:border-stone-800 overflow-hidden divide-y divide-amber-400/20 dark:divide-stone-800 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onNavigateToAdmin) onNavigateToAdmin('client_approvals');
+                        else onTabChange('admin_control');
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold text-[#7A1C1C] dark:text-amber-300 hover:bg-amber-500/20 text-left cursor-pointer"
+                    >
+                      <Crown className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>👑 सुपरएडमिन नियन्त्रण कक्ष (Control Center)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onNavigateToAdmin) onNavigateToAdmin('user_control');
+                        else onTabChange('user_control');
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2 text-xs font-bold text-stone-800 dark:text-stone-200 hover:bg-amber-500/20 text-left cursor-pointer"
+                    >
+                      <Sliders className="w-4 h-4 text-blue-500 shrink-0" />
+                      <span>🎛️ प्रयोगकर्ता नियन्त्रण (User Control)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('store_admin');
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2 text-xs font-bold text-stone-800 dark:text-stone-200 hover:bg-amber-500/20 text-left cursor-pointer"
+                    >
+                      <ShoppingBag className="w-4 h-4 text-orange-500 shrink-0" />
+                      <span>📦 स्टोर एवं पुस्तकालय एडमिन</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('pos');
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2 text-xs font-bold text-stone-800 dark:text-stone-200 hover:bg-amber-500/20 text-left cursor-pointer"
+                    >
+                      <CreditCard className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <span>💳 काउन्टर POS बिलिङ टर्मिनल</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('news_editor');
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2 text-xs font-bold text-stone-800 dark:text-stone-200 hover:bg-amber-500/20 text-left cursor-pointer"
+                    >
+                      <Newspaper className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>📰 समाचार तथा लेख सम्पादक</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onNavigateToAdmin) onNavigateToAdmin('settings');
+                        else if (onOpenSettingsModal) onOpenSettingsModal('astro');
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2 text-xs font-bold text-stone-800 dark:text-stone-200 hover:bg-amber-500/20 text-left cursor-pointer"
+                    >
+                      <Settings className="w-4 h-4 text-stone-500 shrink-0" />
+                      <span>⚙️ प्रणाली सेटिङ</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* ── SECTION 1: मुख्य मेनु (Main Menus List) ── */}
               <div>
                 <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
@@ -1800,7 +2092,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 </p>
                 <div className="bg-stone-50/90 dark:bg-stone-850/80 rounded-2xl border border-stone-200/80 dark:border-stone-800 overflow-hidden divide-y divide-stone-200/50 dark:divide-stone-800/60 shadow-2xs">
                   {visibleNavItems
-                    .filter((i) => i.id !== 'sewa')
+                    .filter((i) => i.id !== 'sewa' && i.id !== 'admin_control')
                     .map((item) => {
                       const MIcon = item.icon;
                       const isJyotishi = item.id === 'jyotishi';
