@@ -557,7 +557,7 @@ export const AdminPageServiceControlSection: React.FC<AdminPageServiceControlSec
                         <div className="grid grid-cols-3 gap-1">
                           <button
                             type="button"
-                            onClick={() => updatePage(page.id, { status: 'active' })}
+                            onClick={() => updatePage(page.id, { status: 'active', hideInNavigation: false })}
                             className={`py-1.5 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${
                               isActive
                                 ? 'bg-emerald-600 text-white shadow'
@@ -579,7 +579,7 @@ export const AdminPageServiceControlSection: React.FC<AdminPageServiceControlSec
                           </button>
                           <button
                             type="button"
-                            onClick={() => updatePage(page.id, { status: 'disabled' })}
+                            onClick={() => updatePage(page.id, { status: 'disabled', hideInNavigation: true })}
                             className={`py-1.5 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${
                               isDisabled
                                 ? 'bg-rose-600 text-white shadow'
@@ -610,8 +610,14 @@ export const AdminPageServiceControlSection: React.FC<AdminPageServiceControlSec
                         <span>शीर्ष मेनु बारमा देखाउने:</span>
                         <input
                           type="checkbox"
-                          checked={!page.hideInNavigation}
-                          onChange={(e) => updatePage(page.id, { hideInNavigation: !e.target.checked })}
+                          checked={!page.hideInNavigation && page.status !== 'disabled'}
+                          onChange={(e) => {
+                            const isShowing = e.target.checked;
+                            updatePage(page.id, {
+                              hideInNavigation: !isShowing,
+                              ...(isShowing && page.status === 'disabled' ? { status: 'active' } : {})
+                            });
+                          }}
                           className="w-4 h-4 accent-amber-500 rounded"
                         />
                       </label>
