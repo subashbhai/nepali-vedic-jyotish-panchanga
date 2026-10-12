@@ -46,6 +46,7 @@ export interface RBACUser {
   storeAssigned?: string;
   birthProfileId?: string;
   birthDetails?: BirthDetails;
+  photoUrl?: string;
 }
 
 export interface RBACSession {
@@ -61,6 +62,7 @@ export interface RBACSession {
   birthProfileId?: string;
   birthDetails?: BirthDetails;
   phone?: string;
+  photoUrl?: string;
   createdAtISO: string;
   lastActivityISO: string;
 }
@@ -486,10 +488,10 @@ export function getUserDashboardTarget(role?: string): UserDashboardTarget {
     case 'CUSTOMER':
     default:
       return {
-        tab: 'yajaman',
-        labelNepali: 'यजमान सेवा ड्यासबोर्ड',
-        descriptionNepali: 'मेरो परामर्श, बुकिङ, चिना तथा अर्डरहरू',
-        badge: 'Yajaman Portal',
+        tab: 'user_dashboard',
+        labelNepali: 'व्यक्तिगत प्रयोगकर्ता ड्यासबोर्ड (My Space)',
+        descriptionNepali: 'व्यक्तिगत प्रोफाइल, फोटो, शुभ समय, दैनिक-मासिक राशिफल र वैदिक उपायहरू',
+        badge: 'User Dashboard',
         moduleType: 'yajaman',
       };
   }
@@ -904,5 +906,60 @@ export function deleteRBACUser(
   return {
     success: true,
     message: `${target.fullName} को खाता सफलतापूर्वक मेटाइयो।`
+  };
+}
+
+/**
+ * Update user's profile details and photo, syncing with current session
+ */
+export function updateRBACUserProfile(
+  userId: string,
+  updates: {
+    fullName?: string;
+    photoUrl?: string;
+    phone?: string;
+    email?: string;
+    birthDetails?: BirthDetails;
+  }
+): { success: boolean; message: string; user?: RBACUser } {
+  const users = getStoredRBACUsers();
+  const index = users.findIndex(u => u.id === userId);
+  if (index === -1) {
+    return { success: false, message: 'प्रयोगकर्ता भेटिएन।' };
+  }
+
+  const current = users[index];
+  const updatedUser: RBACUser = {
+    ...current,
+    fullName: updates.fullName !== undefined ? updates.fullName.trim() : current.fullName,
+    photoUrl: updates.photoUrl !== undefined ? updates.photoUrl : current.photoUrl,
+    phone: updates.phone !== undefined ? updates.phone.trim() : current.phone,
+    email: updates.email !== undefined ? updates.email.trim() : current.email,
+    birthDetails: updates.birthDetails !== undefined ? updates.birthDetails : current.birthDetails
+  };
+
+  users[index] = updatedUser;
+  saveRBACUsers(users);
+
+  // Sync active session if it matches this user
+  const activeSession = getActiveRBACSession();
+  if (activeSession && activeSession.userId === userId) {
+    const updatedSession: RBACSession = {
+      ...activeSession,
+      fullName: updatedUser.fullName,
+      photoUrl: updatedUser.photoUrl,
+      phone: updatedUser.phone,
+      birthDetails: updatedUser.birthDetails,
+      lastActivityISO: new Date().toISOString()
+    };
+    setRBACSession(updatedSession);
+  }
+
+  window.dispatchEvent(new CustomEvent('balananda_user_profile_updated', { detail: updatedUser }));
+
+  return {
+    success: true,
+    message: 'प्रयोगकर्ता प्रोफाइल सफलतापूर्वक अद्यावधिक भयो।',
+    user: updatedUser
   };
 }

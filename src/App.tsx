@@ -86,6 +86,7 @@ const OrgProfileView = lazy(() => import('./components/profile/OrgProfileView').
 const TransitNotificationCenterModal = lazy(() => import('./components/TransitNotificationCenterModal').then((m) => ({ default: m.TransitNotificationCenterModal })));
 const DailyWhatsAppDispatchManager = lazy(() => import('./components/admin/DailyWhatsAppDispatchManager').then((m) => ({ default: m.DailyWhatsAppDispatchManager })));
 const UserControlMasterView = lazy(() => import('./components/admin/UserControlMasterView').then((m) => ({ default: m.UserControlMasterView })));
+const UserDashboardView = lazy(() => import('./components/dashboard/UserDashboardView').then((m) => ({ default: m.UserDashboardView })));
 import { DailyWhatsAppReminderBanner } from './components/common/DailyWhatsAppReminderBanner';
 import { GlobalSiteNoticeBanner } from './components/common/GlobalSiteNoticeBanner';
 import { DeviceUpdateNotificationBanner } from './components/common/DeviceUpdateNotificationBanner';
@@ -153,6 +154,7 @@ export const TAB_TO_HASH: Record<string, string> = {
   vastu: 'vastu',
   vivah: 'vivah',
   yajaman: 'yajaman',
+  user_dashboard: 'user_dashboard',
   samachar: 'samachar',
   kharedi: 'pasal',
   pustak: 'pustak',
@@ -195,6 +197,11 @@ export const HASH_TO_TAB: Record<string, NavTab> = {
   '': 'dashboard',
   'dashboard': 'dashboard',
   'home': 'dashboard',
+  'user_dashboard': 'user_dashboard',
+  'user-dashboard': 'user_dashboard',
+  'my-dashboard': 'user_dashboard',
+  'mydashboard': 'user_dashboard',
+  'profile': 'user_dashboard',
   'panchanga': 'panchanga',
   'panchang': 'panchanga',
   'jyotish': 'jyotishi',
@@ -2196,6 +2203,24 @@ export default function App() {
               activeProfile={activeProfile} 
               initialSubTab={vastuSubTab} 
               onOpenPurchaseModal={() => setIsClientPurchaseLeadModalOpen(true)}
+            />
+          )}
+
+          {activeTab === 'user_dashboard' && (
+            <UserDashboardView
+              rbacSession={rbacSession}
+              activeProfile={resolvedUserProfile || (activeProfile && activeProfile.id !== 'live_current_moment' ? activeProfile : null)}
+              todayPanchanga={todayPanchanga}
+              todayAD={todayAD}
+              todayBS={todayBS}
+              transitPlanets={todayTransitPlanets}
+              orgProfile={orgProfile}
+              onNavigateHome={() => navigateTab('dashboard')}
+              onNavigateTab={navigateTab}
+              onUpdateProfile={(updated) => {
+                setActiveProfile(updated);
+                saveProfile(updated);
+              }}
             />
           )}
 
