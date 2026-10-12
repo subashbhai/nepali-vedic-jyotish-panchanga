@@ -829,15 +829,6 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                       <button
                         type="button"
-                        onClick={() => setYajamanTab('create_post')}
-                        className="px-3.5 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-800 dark:text-stone-200 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 transition-all flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4 text-[#D97706]" />
-                        <span>+ नयाँ पोस्ट</span>
-                      </button>
-
-                      <button
-                        type="button"
                         onClick={() => setYajamanTab('book_service')}
                         className="px-4 py-2 bg-gradient-to-r from-[#D97706] to-[#B45309] text-white text-xs sm:text-sm font-bold rounded-xl shadow-md hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer"
                       >
@@ -889,14 +880,12 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
               {[
                 { id: 'feed', label: 'सामुदायिक फिड', icon: MessageSquare, highlight: true },
                 { id: 'rashifal', label: 'मेरो व्यक्तिगत राशिफल', icon: Sparkles, highlight: true },
-                { id: 'create_post', label: '+ नयाँ पोस्ट', icon: Plus },
                 { id: 'dashboard', label: 'सेवा वर्गहरू', icon: Compass },
                 { id: 'book_service', label: 'सेवा Book गर्नुहोस्', icon: Sparkles },
                 { id: 'my_bookings', label: 'मेरो Bookings', icon: Calendar },
                 { id: 'providers', label: 'विशेषज्ञ सूची', icon: Users },
                 { id: 'how_to_use', label: 'प्रयोग विधि', icon: FileText },
                 { id: 'rules', label: 'सामुदायिक नियम', icon: ShieldCheck },
-                { id: 'admin_moderation', label: 'नियन्त्रण केन्द्र', icon: ShieldAlert },
                 { id: 'notifications', label: 'सूचनाहरू', icon: Bell },
                 { id: 'profile', label: 'मेरो प्रोफाइल', icon: User },
               ].map((tab) => {
@@ -973,14 +962,6 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleOpenCreatePost}
-                        className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>+ नयाँ पोस्ट राख्नुहोस्</span>
-                      </button>
                       <button
                         type="button"
                         onClick={() => setYajamanTab('how_to_use')}
@@ -1082,15 +1063,8 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
                       कुनै पनि पोस्ट फेला परेन
                     </h3>
                     <p className="text-xs text-stone-500 max-w-sm mx-auto">
-                      तपाईंको खोज अनुसार पोस्ट उपलब्ध छैन। कृपया फिल्टर परिवर्तन गर्नुहोस् वा पहिलो पोस्ट सिर्जना गर्नुहोस्।
+                      तपाईंको खोज अनुसार पोस्ट उपलब्ध छैन। कृपया फिल्टर परिवर्तन गर्नुहोस्।
                     </p>
-                    <button
-                      type="button"
-                      onClick={handleOpenCreatePost}
-                      className="px-4 py-2 bg-[#7A1C1C] text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
-                    >
-                      + नयाँ पोस्ट राख्नुहोस्
-                    </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
