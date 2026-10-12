@@ -245,7 +245,6 @@ export interface NavigationProps {
   onOpenDateConverter?: () => void;
   onOpenOrgProfile?: () => void;
   onOpenThemeModal?: () => void;
-  onNavigateToAdmin?: (tab?: string) => void;
   profiles?: BirthDetails[];
 }
 
@@ -378,7 +377,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   onOpenDateConverter,
   onOpenOrgProfile,
   onOpenThemeModal,
-  onNavigateToAdmin,
   profiles = [],
 }) => {
   const [isSewaMenuOpen, setIsSewaMenuOpen] = useState(false);
@@ -388,7 +386,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
-  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -398,7 +395,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const unifiedSettingsRef = useRef<HTMLDivElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
-  const adminMenuRef = useRef<HTMLDivElement>(null);
 
   const isSuperOrStoreAdmin =
     rbacSession?.role === 'SUPER_ADMIN' ||

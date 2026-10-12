@@ -150,6 +150,12 @@ export const AdminControlPanel: React.FC<{
     }
   }, [initialTab]);
 
+  React.useEffect(() => {
+    if (!window.location.hash.includes('superadmin')) {
+      window.location.hash = '#/superadmin';
+    }
+  }, []);
+
   const fallbackPanchanga = React.useMemo(() => {
     if (todayPanchanga) return todayPanchanga;
     try {

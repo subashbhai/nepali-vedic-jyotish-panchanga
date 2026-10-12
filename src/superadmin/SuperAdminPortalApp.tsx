@@ -312,6 +312,7 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
         {/* ── MAIN CONTENT WORKSPACE (Totally isolated, NO client horoscopes, NO client navigation) ── */}
         <main className="flex-1 bg-[#0F0D0B] overflow-y-auto p-3 sm:p-5 lg:p-6 min-h-0">
           <SuperAdminControlCenter
+            session={session}
             initialTab={activeTab}
             profiles={profiles}
             todayPanchanga={todayPanchanga}
