@@ -180,6 +180,16 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, string[]> = {
   ]
 };
 
+// Safe local hash function to avoid circular dependency TDZ during module evaluation
+function safeHashPassword(plain: string): string {
+  let hash = 0;
+  for (let i = 0; i < plain.length; i++) {
+    hash = (hash << 5) - hash + plain.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash.toString(16);
+}
+
 // Default Initial Accounts - Seeded with subash khanal
 export const INITIAL_SEED_USERS: RBACUser[] = [
   {
@@ -187,7 +197,7 @@ export const INITIAL_SEED_USERS: RBACUser[] = [
     username: '9841755199',
     phone: '9841755199',
     fullName: 'subash khanal',
-    passwordHash: hashPassword('3AACKE84'),
+    passwordHash: safeHashPassword('3AACKE84'),
     role: 'CUSTOMER',
     roleNameNepali: 'ग्राहक (आजीवन सदस्य)',
     status: 'active',
@@ -256,8 +266,8 @@ export function getStoredRBACUsers(): RBACUser[] {
       if (idx === -1) {
         parsed.unshift(seed);
         changed = true;
-      } else if (seed.phone === '9841755199' && parsed[idx].passwordHash !== hashPassword('3AACKE84')) {
-        parsed[idx].passwordHash = hashPassword('3AACKE84');
+      } else if (seed.phone === '9841755199' && parsed[idx].passwordHash !== safeHashPassword('3AACKE84')) {
+        parsed[idx].passwordHash = safeHashPassword('3AACKE84');
         changed = true;
       }
     }
