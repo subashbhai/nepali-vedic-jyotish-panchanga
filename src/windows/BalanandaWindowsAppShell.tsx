@@ -29,6 +29,7 @@ import {
 } from './db/windowsSecureStore';
 import { analyzeVastuFloorPlan } from '../core/vastu/vastuAnalysis';
 import { DeviceUpdateNotificationBanner } from '../components/common/DeviceUpdateNotificationBanner';
+import { isTabVisibleInNavigation } from '../db/pageServiceControlStore';
 
 interface BalanandaWindowsAppShellProps {
   onExitToWeb?: () => void;
@@ -60,6 +61,17 @@ export const BalanandaWindowsAppShell: React.FC<BalanandaWindowsAppShellProps> =
   }, [activeProjectId]);
 
   const vastuAnalysis = analyzeVastuFloorPlan(floorPlan?.placements || []);
+
+  const [navVersion, setNavVersion] = useState(0);
+  useEffect(() => {
+    const handleUpdate = () => setNavVersion(v => v + 1);
+    window.addEventListener('page-service-control-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('page-service-control-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
 
   const birthProfiles = getAllBirthProfiles();
   const activeProfile = birthProfiles[0];
@@ -115,31 +127,35 @@ export const BalanandaWindowsAppShell: React.FC<BalanandaWindowsAppShellProps> =
             <span>होम (Home)</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveService('JYOTISH')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeService === 'JYOTISH'
-                ? 'bg-amber-500 text-stone-950 shadow-xs'
-                : 'text-stone-600 dark:text-stone-400 hover:text-amber-600'
-            }`}
-          >
-            <span>🔮</span>
-            <span>ज्योतिष सेवा</span>
-          </button>
+          {isTabVisibleInNavigation('jyotishi').visible && (
+            <button
+              type="button"
+              onClick={() => setActiveService('JYOTISH')}
+              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeService === 'JYOTISH'
+                  ? 'bg-amber-500 text-stone-950 shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-amber-600'
+              }`}
+            >
+              <span>🔮</span>
+              <span>ज्योतिष सेवा</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveService('VASTU')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeService === 'VASTU'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'text-stone-600 dark:text-stone-400 hover:text-emerald-600'
-            }`}
-          >
-            <span>🏠</span>
-            <span>वास्तु सेवा</span>
-          </button>
+          {isTabVisibleInNavigation('vastu').visible && (
+            <button
+              type="button"
+              onClick={() => setActiveService('VASTU')}
+              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeService === 'VASTU'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-emerald-600'
+              }`}
+            >
+              <span>🏠</span>
+              <span>वास्तु सेवा</span>
+            </button>
+          )}
         </nav>
 
         {/* Right Action Buttons */}

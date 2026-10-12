@@ -62,7 +62,7 @@ import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
-import { getStoredPageServiceConfig, isTabVisibleInNavigation, initSyncPageServiceConfigFromServer } from '../db/pageServiceControlStore';
+import { getStoredPageServiceConfig, isTabVisibleInNavigation, initSyncPageServiceConfigFromServer, mapTabKeyToFeatureId } from '../db/pageServiceControlStore';
 import { checkFeatureAccess } from '../db/menuControlStore';
 import { ChangePasswordModal } from './auth/ChangePasswordModal';
 
@@ -599,7 +599,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               ? activeTab === 'sewa'
               : activeTab === item.id && activeModule === 'MAIN';
 
-            const featureAccess = checkFeatureAccess(item.id);
+            const featId = mapTabKeyToFeatureId(item.id);
+            const featureAccess = checkFeatureAccess(featId);
             const isClosed = featureAccess.state === 'close';
             const isLocked = featureAccess.state === 'lock';
 
@@ -1809,7 +1810,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                         : isVastu
                         ? activeTab === 'vastu'
                         : activeTab === item.id && activeModule === 'MAIN';
-                      const access = checkFeatureAccess(item.id);
+                      const featId = mapTabKeyToFeatureId(item.id);
+                      const access = checkFeatureAccess(featId);
                       const isClosed = access.state === 'close';
                       const isLocked = access.state === 'lock';
 

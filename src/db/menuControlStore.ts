@@ -903,7 +903,7 @@ export function checkFeatureAccess(featureId: string): {
     if (rbacRaw) {
       const rbac = JSON.parse(rbacRaw);
       if (rbac.role === 'SUPER_ADMIN' || rbac.role === 'ADMIN') {
-        return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: true };
+        return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: false };
       }
     }
   } catch {}
@@ -913,7 +913,7 @@ export function checkFeatureAccess(featureId: string): {
     if (adminRaw) {
       const admin = JSON.parse(adminRaw);
       if (admin && admin.role) {
-        return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: true };
+        return { allowed: true, state: 'open', reasonNepali: '', hasPersonalPolicy: false };
       }
     }
   } catch {}

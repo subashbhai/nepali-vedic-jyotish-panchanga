@@ -564,12 +564,6 @@ export function isTabVisibleInNavigation(tabKey: string): { visible: boolean; is
   const page = cfg.pages?.find(p => p.tabKey === tabKey);
   if (page) {
     if (page.hideInNavigation || page.status === 'disabled') {
-      // Check if user has an explicit per-mobile override that forces it open
-      const featId = mapTabKeyToFeatureId(tabKey);
-      const userAccess = checkFeatureAccess(featId);
-      if (userAccess.hasPersonalPolicy && userAccess.state === 'open') {
-        return { visible: true, isUserOverride: true };
-      }
       return { visible: false, isUserOverride: false };
     }
   }
