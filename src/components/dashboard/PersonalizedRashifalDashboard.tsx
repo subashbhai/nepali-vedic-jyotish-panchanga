@@ -180,6 +180,7 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
         timeZone: 5.75
       },
       moonRashi: editForm.moonRashi,
+      photoUrl: prof?.photoUrl,
       clientId: prof?.clientId || 'client_self',
       notes: 'प्रयोगकर्ताद्वारा अनुकूलित व्यक्तिगत जन्म विवरण'
     };
@@ -304,9 +305,17 @@ export const PersonalizedRashifalDashboard: React.FC<PersonalizedRashifalDashboa
           {/* User Profile Summary Tag with Customize Action */}
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/15 flex items-center justify-between gap-4 shrink-0 flex-wrap sm:flex-nowrap">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-700 text-white font-bold text-xl flex items-center justify-center shadow-inner shrink-0">
-                {(effectiveProfile?.name || 'सु').charAt(0)}
-              </div>
+              {effectiveProfile?.photoUrl ? (
+                <img
+                  src={effectiveProfile.photoUrl}
+                  alt={effectiveProfile.name}
+                  className="w-12 h-12 rounded-xl object-cover border-2 border-amber-400 shrink-0 shadow-md"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-700 text-white font-bold text-xl flex items-center justify-center shadow-inner shrink-0">
+                  {(effectiveProfile?.name || 'सु').charAt(0)}
+                </div>
+              )}
               <div className="text-xs space-y-0.5">
                 <div className="font-bold text-sm text-white flex items-center gap-1.5">
                   <span>{effectiveProfile?.name || 'subash khanal'}</span>

@@ -448,10 +448,18 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
             <button
               type="button"
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/40 text-amber-100 text-xs font-medium cursor-pointer transition-all select-none shadow-xs group"
+              className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/40 text-amber-100 text-xs font-medium cursor-pointer transition-all select-none shadow-xs group"
               title="मेरो खाता तथा ड्यासबोर्ड (My Dashboard) खोल्न क्लिक गर्नुहोस्"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+              {rbacSession.photoUrl ? (
+                <img
+                  src={rbacSession.photoUrl}
+                  alt={rbacSession.fullName}
+                  className="w-7 h-7 rounded-xl object-cover border border-amber-400 shrink-0"
+                />
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+              )}
               <div className="flex flex-col text-left">
                 <span className="font-bold text-white text-xs leading-tight truncate max-w-[90px] sm:max-w-[120px]">
                   {rbacSession.fullName}
@@ -468,9 +476,17 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
                 {/* User Profile Header Card */}
                 <div className="p-3 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/50 dark:from-stone-800 dark:via-stone-800/90 dark:to-stone-800/60 rounded-xl border border-amber-200/70 dark:border-stone-700 mb-2">
                   <div className="flex items-start gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-stone-950 font-black flex items-center justify-center shrink-0 text-sm shadow-xs border border-amber-300">
-                      {rbacSession.fullName ? rbacSession.fullName.charAt(0).toUpperCase() : 'U'}
-                    </div>
+                    {rbacSession.photoUrl ? (
+                      <img
+                        src={rbacSession.photoUrl}
+                        alt={rbacSession.fullName}
+                        className="w-10 h-10 rounded-xl object-cover border-2 border-amber-400 shrink-0 shadow-xs"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-stone-950 font-black flex items-center justify-center shrink-0 text-sm shadow-xs border border-amber-300">
+                        {rbacSession.fullName ? rbacSession.fullName.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-xs text-stone-900 dark:text-stone-100 truncate">

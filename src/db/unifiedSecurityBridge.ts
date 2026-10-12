@@ -659,18 +659,20 @@ export function authenticateUnifiedUser(
     };
   }
 
-  const session: RBACSession = {
-    token: `BLN-RBAC-${foundUser.id}-${Date.now()}`,
-    userId: foundUser.id,
-    username: foundUser.username,
-    fullName: foundUser.fullName,
-    role: foundUser.role,
-    roleNameNepali: foundUser.roleNameNepali,
-    status: 'active',
-    permissions: foundUser.permissions,
-    createdAtISO: new Date().toISOString(),
-    lastActivityISO: new Date().toISOString()
-  };
+    const session: RBACSession = {
+      token: `BLN-RBAC-${foundUser.id}-${Date.now()}`,
+      userId: foundUser.id,
+      username: foundUser.username,
+      fullName: foundUser.fullName,
+      role: foundUser.role,
+      roleNameNepali: foundUser.roleNameNepali,
+      status: 'active',
+      permissions: foundUser.permissions,
+      photoUrl: foundUser.photoUrl,
+      phone: foundUser.phone,
+      createdAtISO: new Date().toISOString(),
+      lastActivityISO: new Date().toISOString()
+    };
 
   setRBACSession(session);
 

@@ -130,6 +130,7 @@ export type NavTab =
   | 'help'
   | 'jyotishi'
   // Secondary / compatibility tabs:
+  | 'user_dashboard'
   | 'rashifal'
   | 'yajaman'
   | 'kundali' 
