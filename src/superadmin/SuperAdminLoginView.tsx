@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, User, AlertCircle, ArrowLeft, Loader2, Key } from 'lucide-react';
 import { setSuperAdminSession, SuperAdminSessionState } from './auth/superAdminAuthStore';
+import { setAdminSession } from '../db/adminStore';
 
 interface SuperAdminLoginViewProps {
   onLoginSuccess: (session: SuperAdminSessionState) => void;
@@ -56,6 +57,18 @@ export const SuperAdminLoginView: React.FC<SuperAdminLoginViewProps> = ({
       };
 
       setSuperAdminSession(session);
+      try {
+        setAdminSession({
+          adminId: session.adminId,
+          username: session.username,
+          fullName: session.fullName,
+          role: 'super_admin',
+          roleNameNepali: session.roleNameNepali,
+          permissions: ['*'],
+          loginTimeISO: session.loginTimeISO,
+          lastActivityISO: session.lastActivityISO
+        });
+      } catch {}
       onLoginSuccess(session);
     } catch (err: any) {
       console.error('Superadmin login error:', err);
@@ -75,6 +88,18 @@ export const SuperAdminLoginView: React.FC<SuperAdminLoginViewProps> = ({
           lastActivityISO: new Date().toISOString()
         };
         setSuperAdminSession(fallbackSession);
+        try {
+          setAdminSession({
+            adminId: fallbackSession.adminId,
+            username: fallbackSession.username,
+            fullName: fallbackSession.fullName,
+            role: 'super_admin',
+            roleNameNepali: fallbackSession.roleNameNepali,
+            permissions: ['*'],
+            loginTimeISO: fallbackSession.loginTimeISO,
+            lastActivityISO: fallbackSession.lastActivityISO
+          });
+        } catch {}
         onLoginSuccess(fallbackSession);
       } else {
         setErrorMsg(err.message || 'लगइन प्रमाणिकरण असफल भयो। सही पासवर्ड राख्नुहोस्।');

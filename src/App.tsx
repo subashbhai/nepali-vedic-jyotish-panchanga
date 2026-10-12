@@ -372,28 +372,16 @@ const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } 
 const getInitialRBACSession = (): RBACSession | null => {
   if (typeof window === 'undefined') return null;
   const existing = getActiveRBACSession();
-  if (existing) return existing;
-
-  // 1. Sync from active AdminSession in adminStore if present
-  try {
-    const adminActive = getActiveAdminSession();
-    if (adminActive) {
-      const s: RBACSession = {
-        token: 'admin_store_synced_token',
-        userId: adminActive.adminId || 'usr_superadmin_master',
-        username: adminActive.username || 'admin',
-        fullName: adminActive.fullName || 'मुख्य प्रशासक (Super Admin)',
-        role: 'SUPER_ADMIN',
-        roleNameNepali: adminActive.roleNameNepali || 'मुख्य प्रशासक (Super Admin)',
-        status: 'active',
-        permissions: ['all', 'manage_all_modules', 'user_management', 'finance_management'],
-        createdAtISO: adminActive.loginTimeISO || new Date().toISOString(),
-        lastActivityISO: new Date().toISOString()
-      };
-      setRBACSession(s);
-      return s;
+  if (existing) {
+    // Isolated Super Admin security: Normal client site must NEVER load Super Admin!
+    if (existing.role === 'SUPER_ADMIN') {
+      try {
+        localStorage.removeItem('balananda_rbac_session_v2');
+      } catch {}
+      return null;
     }
-  } catch {}
+    return existing;
+  }
 
   // 2. Direct portal parameters or hash detection
   try {
@@ -1115,6 +1103,12 @@ export default function App() {
       return;
     }
 
+    if (resolved === 'admin_control' || resolved === 'user_control') {
+      window.location.hash = '#/superadmin';
+      setIsSuperAdminRoute(true);
+      return;
+    }
+
     const isPublic = PUBLIC_UNAUTH_NAV_IDS.has(resolved as NavTab);
     const isAdminPortal = ADMIN_PORTAL_TABS.has(resolved as NavTab);
     if (!rbacSession && !isPublic && !isAdminPortal) {
@@ -1809,10 +1803,6 @@ export default function App() {
             onNewProfile={handleOpenNewKundaliModal}
             onOpenSettings={() => handleOpenSettings('astro')}
             onNavigateToApplyExpert={() => navigateTab('apply_expert')}
-            onNavigateToAdmin={(tab) => {
-              setAdminInitialTab(tab);
-              navigateTab('admin_control');
-            }}
             settings={settings}
             onToggleTheme={handleToggleTheme}
             todayBS={todayBS}
@@ -1852,10 +1842,6 @@ export default function App() {
             onOpenDateConverter={() => navigateTab('date_converter')}
             onOpenOrgProfile={() => navigateTab('org_profile')}
             onOpenThemeModal={() => setIsClientThemeModalOpen(true)}
-            onNavigateToAdmin={(tab) => {
-              setAdminInitialTab(tab || 'client_approvals');
-              navigateTab('admin_control');
-            }}
             profiles={profiles}
             onOpenVastuModal={(subTab) => {
               if (subTab) {
@@ -2534,11 +2520,6 @@ export default function App() {
             setIsClientPurchaseLeadModalOpen(false);
           }}
           targetFeatureName={lockedFeatureName}
-          onNavigateToAdmin={(tab) => {
-            setIsClientPurchaseLeadModalOpen(false);
-            setAdminInitialTab(tab || 'client_approvals');
-            navigateTab('admin_control');
-          }}
         />
 
         {/* Client Theme & Yajaman Broadcast Modal */}

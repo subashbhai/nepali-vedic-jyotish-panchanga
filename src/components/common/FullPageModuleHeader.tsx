@@ -443,7 +443,7 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
         )}
 
         {/* User / Login Status */}
-        {rbacSession ? (
+        {rbacSession && rbacSession.role !== 'SUPER_ADMIN' ? (
           <div className="relative z-50" ref={userMenuRef}>
             <button
               type="button"
@@ -500,9 +500,7 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
                     onClick={() => {
                       setIsUserMenuOpen(false);
                       const target = getUserDashboardTarget(rbacSession.role);
-                      if (target.tab === 'admin_control' && onNavigateToAdmin) {
-                        onNavigateToAdmin('client_approvals');
-                      } else if (onNavigateTab) {
+                      if (onNavigateTab) {
                         onNavigateTab(target.tab);
                       }
                     }}
@@ -529,26 +527,24 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
                     </div>
                   </button>
 
-                  {/* Quick Access links for Super Admin or Store Admin */}
-                  {(rbacSession.role === 'SUPER_ADMIN' || rbacSession.role === 'STORE_ADMIN') && onNavigateTab && (
+                  {/* Quick Access links for Store Admin */}
+                  {rbacSession.role === 'STORE_ADMIN' && onNavigateTab && (
                     <div className="pt-2 border-t border-stone-100 dark:border-stone-800 space-y-1">
                       <div className="px-2 py-0.5 text-[9px] font-bold text-stone-500 dark:text-stone-400 uppercase">
                         द्रुत पहुँच (Quick Access):
                       </div>
 
-                      {rbacSession.role !== 'STORE_ADMIN' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            onNavigateTab('store_admin');
-                          }}
-                          className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
-                          <span>🏬 स्टोर एवं डिजिटल पुस्तकालय एडमिन</span>
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          onNavigateTab('store_admin');
+                        }}
+                        className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
+                        <span>🏬 स्टोर एवं डिजिटल पुस्तकालय एडमिन</span>
+                      </button>
 
                       <button
                         type="button"
@@ -561,34 +557,6 @@ export const FullPageModuleHeader: React.FC<FullPageModuleHeaderProps> = memo(({
                         <ShoppingBag className="w-3.5 h-3.5 text-indigo-600" />
                         <span>💳 काउन्टर POS बिलिङ टर्मिनल</span>
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          onNavigateTab('news_editor');
-                        }}
-                        className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
-                      >
-                        <Newspaper className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>📰 समाचार तथा लेख सम्पादक</span>
-                      </button>
-
-                      {rbacSession.role === 'SUPER_ADMIN' && onNavigateToAdmin && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              onNavigateToAdmin('user_control');
-                            }}
-                            className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center gap-2 cursor-pointer transition-colors"
-                          >
-                            <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                            <span>🎛️ प्रयोगकर्ता नियन्त्रण (User Control)</span>
-                          </button>
-                        </>
-                      )}
                     </div>
                   )}
 
