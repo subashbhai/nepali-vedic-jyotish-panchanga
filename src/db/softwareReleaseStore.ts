@@ -316,3 +316,129 @@ export async function calculateFileSha256(file: File | Blob): Promise<string> {
   }
   return 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 }
+
+/**
+ * Loads releases from server /api/software/releases
+ */
+export async function fetchReleasesFromServer(): Promise<SoftwareReleaseRecord[]> {
+  try {
+    if (typeof window === 'undefined' || typeof fetch === 'undefined') return loadAllSoftwareReleases();
+    const res = await fetch('/api/software/releases');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.releases) && data.releases.length > 0) {
+        saveAllSoftwareReleases(data.releases);
+        return data.releases;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch releases from server:', err);
+  }
+  return loadAllSoftwareReleases();
+}
+
+/**
+ * Uploads a physical software package (.exe, .apk, .dmg, .zip) to the server
+ * and registers it as an official downloadable release
+ */
+export async function uploadSoftwareFileToServer(params: {
+  file: File;
+  softwareVersion: string;
+  platform: SoftwarePlatform;
+  softwareName?: string;
+  releaseNotes?: string;
+  publishImmediately?: boolean;
+  onProgress?: (percent: number) => void;
+}): Promise<{ success: boolean; message: string; release?: SoftwareReleaseRecord; downloadUrl?: string }> {
+  try {
+    const { file, softwareVersion, platform, softwareName, releaseNotes, publishImmediately = true, onProgress } = params;
+
+    if (onProgress) onProgress(15);
+
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const commaIndex = result.indexOf(',');
+        resolve(commaIndex >= 0 ? result.substring(commaIndex + 1) : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    if (onProgress) onProgress(60);
+
+    const res = await fetch('/api/software/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        fileBase64: base64Data,
+        softwareVersion,
+        platform,
+        softwareName,
+        releaseNotes,
+        publishImmediately
+      })
+    });
+
+    if (onProgress) onProgress(90);
+
+    const data = await res.json();
+    if (onProgress) onProgress(100);
+
+    if (data?.success) {
+      await fetchReleasesFromServer();
+      return {
+        success: true,
+        message: data.message || 'सफ्टवेयर सफलतापूर्वक अपलोड भयो!',
+        release: data.release,
+        downloadUrl: data.downloadUrl
+      };
+    } else {
+      return {
+        success: false,
+        message: data?.error || 'सफ्टवेयर अपलोड गर्न सकिएन।'
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'सफ्टवेयर अपलोड गर्दा प्राविधिक त्रुटि भयो।'
+    };
+  }
+}
+
+/**
+ * Synchronizes setting as official release with backend
+ */
+export async function serverSetOfficialRelease(releaseId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`/api/software/releases/${encodeURIComponent(releaseId)}/set-official`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (data?.success) {
+      await fetchReleasesFromServer();
+      return { success: true, message: data.message || 'सफलतापूर्वक आधिकारिक बनाइयो।' };
+    }
+  } catch {}
+  return setAsOfficialRelease(releaseId);
+}
+
+/**
+ * Synchronizes deleting release with backend
+ */
+export async function serverDeleteRelease(releaseId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`/api/software/releases/${encodeURIComponent(releaseId)}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (data?.success) {
+      await fetchReleasesFromServer();
+      return { success: true, message: data.message || 'सफलतापूर्वक हटाइयो।' };
+    }
+  } catch {}
+  return deleteSoftwareRelease(releaseId);
+}

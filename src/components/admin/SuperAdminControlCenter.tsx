@@ -125,6 +125,7 @@ import { StoreMediaAdminTab } from './StoreMediaAdminTab';
 import { MenuControlPanel } from './MenuControlPanel';
 import { UserControlMasterView } from './UserControlMasterView';
 import { SoftwareReleaseManagerModal } from '../superadmin/SoftwareReleaseManagerModal';
+import { AdminSoftwareUploadSection } from './sections/AdminSoftwareUploadSection';
 import { getStoredClientLeads, ClientLead } from '../../db/clientLeadStore';
 import {
   getStoredVivahProfiles,
@@ -651,7 +652,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       defaultTab: 'settings',
       items: [
         { id: 'settings', label: 'प्रणाली र संस्थागत सेटिङ्स', icon: Settings },
-        { id: 'software_releases', label: 'सफ्टवेयर रिलिज व्यवस्थापन', icon: Download, badge: 'Official' },
+        { id: 'software_releases', label: 'सफ्टवेयर डाउनलोड तथा इन्स्टलर अपलोड', icon: Download, badge: 'अपलोड' },
         { id: 'security_audit', label: 'सुरक्षा र अडिट लग', icon: Lock },
         { id: 'reports', label: 'विश्लेषणात्मक प्रतिवेदन', icon: TrendingUp },
         { id: 'backup', label: 'डाटा ब्याकअप & रिस्टोर', icon: Database }
@@ -1406,12 +1407,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
 
                 {/* ── BLOCK 7: SETTINGS, SECURITY & BACKUP ── */}
                 {activeTab === 'settings' && <AdminSettingsSection />}
-                {activeTab === 'software_releases' && (
-                  <SoftwareReleaseManagerModal
-                    isOpen={true}
-                    onClose={() => setActiveTab('settings')}
-                  />
-                )}
+                {activeTab === 'software_releases' && <AdminSoftwareUploadSection />}
                 {activeTab === 'security_audit' && (
                   <AdminSecurityAuditSection auditLogs={auditLogs} onRefresh={loadAllData} />
                 )}
