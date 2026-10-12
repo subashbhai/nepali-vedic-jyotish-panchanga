@@ -11,6 +11,7 @@
  */
 
 import { convertADToBS, fromDevanagariNumerals } from '../utils/nepaliCalendar';
+import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from './securityBlacklist';
 
 export type AccessState = 'open' | 'close' | 'lock';
 export type SubscriptionPeriod = '1_year' | '5_years' | 'lifetime';
@@ -522,13 +523,24 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
     if (typeof window === 'undefined') return DEFAULT_DEMO_CLIENT_POLICIES;
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_DEMO_CLIENT_POLICIES));
-      return DEFAULT_DEMO_CLIENT_POLICIES;
+      const initial = DEFAULT_DEMO_CLIENT_POLICIES.filter(c => !isPermanentlyDeleted(c.mobile) && !isPermanentlyDeleted(c.loginId));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+      return initial;
     }
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
+    if (Array.isArray(parsed)) {
       let needsPersist = false;
-      const sanitized = parsed.map((r: any) => {
+      // Filter out any user that was permanently deleted
+      const activeOnly = parsed.filter((r: any) => {
+        if (!r) return false;
+        if (isPermanentlyDeleted(r.mobile) || isPermanentlyDeleted(r.loginId) || isPermanentlyDeleted(r.id)) {
+          needsPersist = true;
+          return false;
+        }
+        return true;
+      });
+
+      const sanitized = activeOnly.map((r: any) => {
         const cleanCreatedAtBS = sanitizeBSDateString(r.createdAtBS, '२०८१-०१-०१');
         const cleanExpiresAtBS = sanitizeBSDateString(r.expiresAtBS, 'आजीवन (Lifetime)');
         if (typeof r.createdAtBS === 'object' || typeof r.expiresAtBS === 'object') {
@@ -541,19 +553,15 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
         };
       });
 
-      // Ensure essential default accounts (e.g. Subash Khanal 9841755199) always exist and have current credentials
-      for (const def of DEFAULT_DEMO_CLIENT_POLICIES) {
-        const defDigits = def.mobile.replace(/\D/g, '').slice(-10);
-        const existingIdx = sanitized.findIndex((c: any) => {
-          const cMob = (c.mobile || '').replace(/\D/g, '').slice(-10);
-          return (cMob && cMob === defDigits) || (c.loginId && def.loginId && c.loginId.toLowerCase() === def.loginId.toLowerCase());
-        });
-        if (existingIdx === -1) {
-          sanitized.unshift(def);
-          needsPersist = true;
-        } else if (def.mobile === '9841755199' && (!sanitized[existingIdx].passwordPlain || sanitized[existingIdx].passwordPlain === 'Jyotish#8758')) {
-          sanitized[existingIdx].passwordPlain = '3AACKE84';
-          sanitized[existingIdx].passwordHash = hashPassword('3AACKE84');
+      // Maintain valid credentials for master accounts only if they ALREADY exist and are NOT deleted
+      const subashIdx = sanitized.findIndex((c: any) => {
+        const cMob = (c.mobile || '').replace(/\D/g, '').slice(-10);
+        return cMob === '9841755199';
+      });
+      if (subashIdx !== -1 && !isPermanentlyDeleted('9841755199')) {
+        if (!sanitized[subashIdx].passwordPlain || sanitized[subashIdx].passwordPlain === 'Jyotish#8758') {
+          sanitized[subashIdx].passwordPlain = '3AACKE84';
+          sanitized[subashIdx].passwordHash = hashPassword('3AACKE84');
           needsPersist = true;
         }
       }
@@ -563,11 +571,36 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
       }
       return sanitized;
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_DEMO_CLIENT_POLICIES));
-    return DEFAULT_DEMO_CLIENT_POLICIES;
+    const initial = DEFAULT_DEMO_CLIENT_POLICIES.filter(c => !isPermanentlyDeleted(c.mobile) && !isPermanentlyDeleted(c.loginId));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+    return initial;
   } catch (e) {
     console.error('Failed to load client policies:', e);
-    return DEFAULT_DEMO_CLIENT_POLICIES;
+    return [];
+  }
+}
+
+// Permanently delete a client policy record
+export function deleteClientPolicyPermanently(mobileOrId: string): boolean {
+  try {
+    if (typeof window === 'undefined' || !mobileOrId) return false;
+    addPermanentlyDeletedIdentifier(mobileOrId);
+    const current = loadAllClientPolicies();
+    const norm = mobileOrId.trim().toLowerCase();
+    const digits = mobileOrId.replace(/\D/g, '').slice(-10);
+    const filtered = current.filter(c => {
+      const cMob = (c.mobile || '').replace(/\D/g, '').slice(-10);
+      const cId = (c.id || '').toLowerCase();
+      const cLogin = (c.loginId || '').toLowerCase();
+      if (digits && digits.length >= 7 && cMob === digits) return false;
+      if (cId === norm || cLogin === norm) return false;
+      return true;
+    });
+    saveAllClientPolicies(filtered);
+    return true;
+  } catch (e) {
+    console.error('Failed to delete client policy permanently:', e);
+    return false;
   }
 }
 

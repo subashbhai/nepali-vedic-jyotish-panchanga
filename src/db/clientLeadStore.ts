@@ -488,3 +488,27 @@ export function exportClientsToCSV(): string {
 
   return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
 }
+
+/**
+ * Permanently delete a client lead / approval record
+ */
+export function deleteClientLeadPermanently(mobileOrId: string): boolean {
+  if (typeof window === 'undefined' || !mobileOrId) return false;
+  try {
+    const current = getStoredClientLeads();
+    const norm = mobileOrId.trim().toLowerCase();
+    const digits = mobileOrId.replace(/\D/g, '').slice(-10);
+    const filtered = current.filter(l => {
+      const lMob = (l.mobile || '').replace(/\D/g, '').slice(-10);
+      const lId = (l.id || '').toLowerCase();
+      if (digits && digits.length >= 7 && lMob === digits) return false;
+      if (lId === norm) return false;
+      return true;
+    });
+    saveClientLeads(filtered);
+    return true;
+  } catch (e) {
+    console.error('Failed to delete client lead:', e);
+    return false;
+  }
+}
