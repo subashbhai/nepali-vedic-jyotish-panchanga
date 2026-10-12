@@ -381,17 +381,17 @@ export const Header: React.FC<HeaderProps> = memo(({
                           </button>
                         )}
 
-                        {rbacSession.role === 'SUPER_ADMIN' && onNavigateToAdmin && (
+                        {rbacSession.role === 'SUPER_ADMIN' && (
                           <button
                             type="button"
                             onClick={() => {
                               setIsUserMenuOpen(false);
-                              onNavigateToAdmin('user_control');
+                              window.location.href = '/#/superadmin';
                             }}
                             className="w-full text-left p-1.5 px-2 rounded-lg text-[11px] font-bold text-[#7A1C1C] dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
                           >
                             <Crown className="w-3.5 h-3.5 text-amber-600" />
-                            <span>👑 सुपरएडमिन नियन्त्रण कक्ष</span>
+                            <span>👑 सुपरएडमिन पोर्टल (Super Admin Portal ↗)</span>
                           </button>
                         )}
                       </div>
