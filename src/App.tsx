@@ -33,6 +33,7 @@ import { printElement } from './utils/pdfGenerator';
 import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './components/common/AppUpdateNotificationModal';
 import { isMobileApp, isDesktopApp } from './utils/appVersionManager';
 import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
+import { GlobalNepaliInputManager } from './components/common/GlobalNepaliInputManager';
 
 const BalanandaMobileAppShell = lazy(() => import('./mobile/BalanandaMobileAppShell').then((m) => ({ default: m.BalanandaMobileAppShell })));
 const BalanandaWindowsAppShell = lazy(() => import('./windows/BalanandaWindowsAppShell').then((m) => ({ default: m.BalanandaWindowsAppShell })));

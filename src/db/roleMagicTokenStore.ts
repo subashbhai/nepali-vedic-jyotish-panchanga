@@ -1,4 +1,5 @@
 import { getAppBaseUrl } from '../utils/urlHelper';
+import type { RBACSession, SystemRole } from './rbacStore';
 
 export type MagicLinkRole = 'ADMIN' | 'STORE_ADMIN' | 'POS_STAFF' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR' | 'SUPER_ADMIN';
 

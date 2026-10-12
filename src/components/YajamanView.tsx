@@ -349,6 +349,7 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
     const bs = convertADToBS(today);
     return `${bs.year}-${bs.month.toString().padStart(2, '0')}-${bs.day.toString().padStart(2, '0')}`;
   });
+  const [prefTime, setPrefTime] = useState('१०:०० बिहान');
   const [serviceLocationText, setServiceLocationText] = useState(() => {
     if (effectiveYajaman?.address && effectiveYajaman?.district) {
       return `${effectiveYajaman.address}, ${effectiveYajaman.localLevel || ''}, ${effectiveYajaman.district}`.replace(/,\s*,/g, ',').trim();
