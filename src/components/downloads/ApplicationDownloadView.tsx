@@ -23,7 +23,10 @@ import {
   Lock,
   Globe,
   Server,
-  FileCode
+  FileCode,
+  Play,
+  Film,
+  Volume2
 } from 'lucide-react';
 import {
   DEFAULT_DIRECT_DOWNLOADS,
@@ -240,7 +243,88 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
         </div>
       )}
 
-      {/* 2. Platform Grid (Windows, Android, Mac, iOS) */}
+      {/* 2. Full HD Demonstration Video Section (A-Z Video Guide with Nepali Male Voice) */}
+      <div className="bg-gradient-to-br from-[#7A1C1C] via-[#8C2222] to-[#5C1105] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-amber-400/80 space-y-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-amber-300/30 pb-5">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-200 border border-amber-300/40 text-xs font-bold">
+              <Film className="w-4 h-4 text-amber-300" />
+              <span>आधिकारिक प्रदर्शन भिडियो (Official Demonstration Video)</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-black font-serif text-white tracking-wide">
+              सफ्टवेयरको सम्पूर्ण A to Z भिडियो गाइड (नेपाली आवाज)
+            </h2>
+            <p className="text-xs sm:text-sm text-amber-100/90 max-w-2xl leading-relaxed">
+              नेपाली भाषामा केटा मान्छेको ओजस्वी स्वरमा सम्पूर्ण मेनु, सब-मेनु, प्रयोगकर्ता दर्ता, सुरक्षित लगइन, कुण्डली, पञ्चाङ्ग तथा प्रिन्ट प्रणालीको प्रत्यक्ष प्रदर्शन।
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <a
+              href="./downloads/balananda-jyotish-demonstration-video.mp4"
+              download="balananda-jyotish-demonstration-video.mp4"
+              onClick={() => setDownloadNotice('Demonstration Video (.mp4) को डाउनलोड सुरु भयो...')}
+              className="py-3 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 cursor-pointer transition-transform active:scale-95 text-center"
+            >
+              <Download className="w-4 h-4 text-stone-950" />
+              <span>भिडियो डाउनलोड गर्नुहोस् (Full HD • ७ MB)</span>
+            </a>
+          </div>
+        </div>
+
+        {/* Video Player */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+          <div className="lg:col-span-2 rounded-2xl overflow-hidden border-2 border-amber-300/60 shadow-2xl bg-black">
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              poster="./balananda-logo.jpg"
+              className="w-full h-auto max-h-[480px] object-contain mx-auto"
+            >
+              <source src="./downloads/balananda-jyotish-demonstration-video.mp4" type="video/mp4" />
+              तपाईंको ब्राउजरले भिडियो ट्याग समर्थन गर्दैन। कृपया डाउनलोड लिङ्कबाट भिडियो डाउनलोड गर्नुहोस्।
+            </video>
+          </div>
+
+          {/* 12 Chapters Overview */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-300 uppercase tracking-wider">
+              <Volume2 className="w-4 h-4" />
+              <span>भिडियोमा समेटिएका १२ वटा खण्डहरू:</span>
+            </div>
+
+            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1 text-xs">
+              {[
+                '१. सफ्टवेयर परिचय तथा प्रामाणिक शास्त्रहरू',
+                '२. नयाँ प्रयोगकर्ता दर्ता (User Signup & Profile)',
+                '३. सुरक्षित लगइन तथा २४ घण्टे निःशुल्क ट्रायल',
+                '४. जन्मकुण्डली, नवमांश (D9) तथा १६ वर्ग कुण्डली',
+                '५. विंशोत्तरी र योगिनी महादशा तथा ग्रह गोचर',
+                '६. नेपाली पञ्चाङ्ग, पात्रो तथा दैनिक साइत-मुहूर्त',
+                '७. ११६ शास्त्रीय प्रश्न ज्योतिष तथा संस्कृत श्लोक',
+                '८. अंक ज्योतिष, केपी प्रणाली तथा नेमा ज्योतिष',
+                '९. विवाह मेलापक तथा ३६ गुण अष्टकूट मिलान',
+                '१०. वैदिक वास्तु शास्त्र, १६ दिशा तथा कम्पास',
+                '११. बृहत् चिना, टिप्पन तथा A4 लेटरहेड प्रिन्ट',
+                '१२. ५००+ ई-पुस्तकालय, AI ज्योतिषी र होस्टिङ'
+              ].map((chap, i) => (
+                <div
+                  key={i}
+                  className="p-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-stone-100 flex items-center gap-2 transition-colors"
+                >
+                  <Play className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="font-medium truncate">{chap}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Platform Grid (Windows, Android, Mac, iOS) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
         
         {/* PLATFORM 1: Windows (कम्प्युटर एप) */}

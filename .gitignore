@@ -10,3 +10,6 @@ dist_electron/
 *.zip
 *.apk
 public/downloads/*.apk
+demo_video_work/
+*.mp4
+public/downloads/*.mp4
