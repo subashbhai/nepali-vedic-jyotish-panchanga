@@ -41,6 +41,8 @@ import {
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { MenuControlPanel } from '../MenuControlPanel';
+import { unifiedUserSyncService } from '../../../services/unifiedUserSyncService';
+import { ClientLead } from '../../../db/clientLeadStore';
 
 export interface SuperAdminUser {
   id: string;
@@ -226,6 +228,15 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   const [mobileActionUser, setMobileActionUser] = useState<SuperAdminUser | null>(null);
   const [switchboardModalUser, setSwitchboardModalUser] = useState<SuperAdminUser | null>(null);
 
+  // ── DUAL TABLE STATE: 1. REGISTERED USERS vs 2. PURCHASED USERS ──
+  const [activeTableTab, setActiveTableTab] = useState<'registered_users' | 'purchased_users'>('registered_users');
+  const [purchasedUsers, setPurchasedUsers] = useState<ClientLead[]>(() => unifiedUserSyncService.getPurchasedUsers());
+  const [purchaseFilter, setPurchaseFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [paymentApprovalModalLead, setPaymentApprovalModalLead] = useState<ClientLead | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+  const [showRejectBox, setShowRejectBox] = useState(false);
+  const [approvalAdminName, setApprovalAdminName] = useState('SuperAdmin');
+
   // Edit form state
   const [editForm, setEditForm] = useState({
     fullName: '',
@@ -247,46 +258,178 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch users from API
+  // Fetch users from unified sync + API
   const fetchUsers = useCallback(async (quiet = false) => {
     if (!quiet) setIsLoading(true);
     try {
-      const params = new URLSearchParams({
-        search: debouncedSearch,
-        filter: filterType,
-        sort: sortBy,
-        page: String(currentPage),
-        limit: String(pageSize)
-      });
+      // 1. Sync Cloud Relay & Local Storage (ensures cross-device GitHub Pages synchronization)
+      await unifiedUserSyncService.syncAllData(true);
+      const regList = unifiedUserSyncService.getRegisteredUsers();
+      const purList = unifiedUserSyncService.getPurchasedUsers();
+      setPurchasedUsers(purList);
 
-      const res = await fetch(`/api/superadmin/users?${params.toString()}`, {
-        headers: getSuperAdminAuthHeaders()
-      });
+      // 2. Try Node.js Express server if available (/api/superadmin/users)
+      let serverUsers: SuperAdminUser[] = [];
+      let serverStats: UserStats | null = null;
+      try {
+        const params = new URLSearchParams({
+          search: debouncedSearch,
+          filter: filterType,
+          sort: sortBy,
+          page: String(currentPage),
+          limit: String(pageSize)
+        });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const res = await fetch(`/api/superadmin/users?${params.toString()}`, {
+          headers: getSuperAdminAuthHeaders()
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.users)) {
+            serverUsers = data.users;
+            if (data.stats) serverStats = data.stats;
+          }
+        }
+      } catch {
+        // Expected on GitHub Pages static deployment
       }
 
-      const data = await res.json();
-      if (data.success) {
-        setUsers(data.users || []);
-        setTotalPages(data.totalPages || 1);
-        setTotalCount(data.total || 0);
-        if (data.stats) {
-          setStats(data.stats);
+      // 3. Build unified SuperAdminUser list
+      const userMap = new Map<string, SuperAdminUser>();
+
+      // Server users first
+      serverUsers.forEach(u => {
+        const key = (u.phone || u.id).replace(/\D/g, '').slice(-10) || u.id;
+        userMap.set(key, u);
+      });
+
+      // Merge client & cloud registered users
+      regList.forEach(ru => {
+        const key = (ru.phone || ru.id).replace(/\D/g, '').slice(-10) || ru.id;
+        const purchaseInfo = unifiedUserSyncService.checkUserPurchaseAlert(ru.phone || ru.id);
+
+        if (userMap.has(key)) {
+          // Enhance existing user with latest purchase alert lead
+          const existing = userMap.get(key)!;
+          if (purchaseInfo.lead && (!existing.purchaseLead || purchaseInfo.isPending)) {
+            existing.purchaseLead = {
+              id: purchaseInfo.lead.id,
+              status: purchaseInfo.lead.status,
+              planId: purchaseInfo.lead.planId || 'yearly_both',
+              planNameNepali: purchaseInfo.lead.planNameNepali || '१ वर्षको सदस्यता',
+              planAmountNPR: purchaseInfo.lead.planAmountNPR || 2100,
+              paymentMethod: purchaseInfo.lead.paymentMethod || 'esewa',
+              transactionId: purchaseInfo.lead.transactionId,
+              submittedAtISO: purchaseInfo.lead.submittedAtISO,
+              submittedAtBS: purchaseInfo.lead.submittedAtBS
+            };
+          }
+        } else {
+          // Add new registered user
+          userMap.set(key, {
+            id: ru.id,
+            customerId: ru.customerId || `ग्राहक-${(ru.phone || '००००').slice(-4)}`,
+            fullName: ru.fullName,
+            address: ru.savedAddresses?.[0]?.streetAddress || 'काठमाडौँ',
+            phone: ru.phone,
+            email: ru.email || '',
+            whatsapp: ru.phone,
+            dobBS: ru.birthDetails?.dateBS || '',
+            dobAD: ru.birthDetails?.dateAD || '',
+            birthTime: ru.birthDetails?.time || '',
+            gender: ru.birthDetails?.gender || 'पुरुष',
+            role: ru.role,
+            roleNameNepali: ru.roleNameNepali || 'यजमान / ग्राहक',
+            status: ru.status || 'active',
+            mobileVerified: ru.mobileVerified,
+            emailVerified: ru.emailVerified,
+            createdAtISO: ru.createdAtISO,
+            createdAtBS: ru.createdAtBS,
+            jyotishAccess: {
+              unlocked: purchaseInfo.isApproved,
+              period: purchaseInfo.isApproved ? '1_year' : null
+            },
+            vastuAccess: {
+              unlocked: purchaseInfo.isApproved,
+              period: purchaseInfo.isApproved ? '1_year' : null
+            },
+            trial: {
+              hasUsedTrial: false,
+              isTrialActive: false
+            },
+            purchaseLead: purchaseInfo.lead ? {
+              id: purchaseInfo.lead.id,
+              status: purchaseInfo.lead.status,
+              planId: purchaseInfo.lead.planId || 'yearly_both',
+              planNameNepali: purchaseInfo.lead.planNameNepali || '१ वर्षको सदस्यता',
+              planAmountNPR: purchaseInfo.lead.planAmountNPR || 2100,
+              paymentMethod: purchaseInfo.lead.paymentMethod || 'esewa',
+              transactionId: purchaseInfo.lead.transactionId,
+              submittedAtISO: purchaseInfo.lead.submittedAtISO,
+              submittedAtBS: purchaseInfo.lead.submittedAtBS
+            } : null
+          });
         }
-        if (!debouncedSearch && filterType === 'all' && currentPage === 1) {
-          cachedSuperAdminUsersData = {
-            users: data.users || [],
-            stats: data.stats || stats,
-            totalPages: data.totalPages || 1,
-            totalCount: data.total || 0
-          };
-        }
-        setLastRefreshedAt(new Date());
+      });
+
+      let finalUsers = Array.from(userMap.values());
+
+      // Filter locally for static GitHub Pages support
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase().trim();
+        finalUsers = finalUsers.filter(u => 
+          (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+          (u.phone && u.phone.includes(q)) ||
+          (u.email && u.email.toLowerCase().includes(q)) ||
+          (u.address && u.address.toLowerCase().includes(q)) ||
+          (u.customerId && u.customerId.toLowerCase().includes(q))
+        );
+      }
+
+      if (filterType === 'active') finalUsers = finalUsers.filter(u => u.status === 'active');
+      else if (filterType === 'suspended') finalUsers = finalUsers.filter(u => u.status === 'suspended');
+      else if (filterType === 'purchase_requested') {
+        finalUsers = finalUsers.filter(u => {
+          const chk = unifiedUserSyncService.checkUserPurchaseAlert(u.phone || u.id);
+          return chk.isPending;
+        });
+      } else if (filterType === 'approved_subscription') {
+        finalUsers = finalUsers.filter(u => {
+          const chk = unifiedUserSyncService.checkUserPurchaseAlert(u.phone || u.id);
+          return chk.isApproved;
+        });
+      }
+
+      setUsers(finalUsers);
+      setTotalCount(finalUsers.length);
+      setTotalPages(Math.max(1, Math.ceil(finalUsers.length / pageSize)));
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const liveStats: UserStats = serverStats || {
+        totalUsers: userMap.size,
+        todaySignups: Array.from(userMap.values()).filter(u => (u.createdAtISO || '').startsWith(todayStr)).length,
+        activeUsers: Array.from(userMap.values()).filter(u => u.status === 'active').length,
+        suspendedUsers: Array.from(userMap.values()).filter(u => u.status === 'suspended').length,
+        inTrialUsers: 0,
+        trialExpiredUsers: 0,
+        approvedSubscribers: purList.filter(p => p.status === 'PURCHASE_APPROVED').length,
+        pendingPurchases: purList.filter(p => p.status === 'PURCHASE_PENDING').length
+      };
+
+      setStats(liveStats);
+      setLastRefreshedAt(new Date());
+
+      if (!debouncedSearch && filterType === 'all' && currentPage === 1) {
+        cachedSuperAdminUsersData = {
+          users: finalUsers,
+          stats: liveStats,
+          totalPages: Math.max(1, Math.ceil(finalUsers.length / pageSize)),
+          totalCount: finalUsers.length
+        };
       }
     } catch (err: any) {
-      console.warn('[SuperAdminUserManagement] Fetch failed:', err);
+      console.warn('[SuperAdminUserManagement] Fetch warning:', err);
     } finally {
       if (!quiet) setIsLoading(false);
     }
@@ -687,8 +830,54 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
         </div>
       </div>
 
+      {/* ── DUAL TABLE SWITCHER: 1. SIGNUP USERS vs 2. PURCHASED USERS ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-stone-900 border border-stone-800 p-1.5 rounded-2xl shadow-lg">
+        <button
+          type="button"
+          onClick={() => setActiveTableTab('registered_users')}
+          className={`py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+            activeTableTab === 'registered_users'
+              ? 'bg-amber-500 text-stone-950 font-black shadow-md'
+              : 'text-stone-300 hover:text-white hover:bg-stone-800'
+          }`}
+        >
+          <Users className="w-4 h-4 shrink-0" />
+          <span>१. दर्ता / साइनअप भएका प्रयोगकर्ताहरू</span>
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono ${
+            activeTableTab === 'registered_users' ? 'bg-stone-950 text-amber-400 font-black' : 'bg-stone-800 text-stone-300'
+          }`}>
+            {toDevanagariNumerals(users.length)}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTableTab('purchased_users')}
+          className={`py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+            activeTableTab === 'purchased_users'
+              ? 'bg-gradient-to-r from-rose-600 to-amber-600 text-white font-black shadow-md'
+              : 'text-stone-300 hover:text-white hover:bg-stone-800'
+          }`}
+        >
+          <CreditCard className="w-4 h-4 shrink-0" />
+          <span>२. सफ्टवेयर खरिद गरेका प्रयोगकर्ताहरू</span>
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono ${
+            activeTableTab === 'purchased_users' ? 'bg-stone-950 text-rose-400 font-black' : 'bg-stone-800 text-stone-300'
+          }`}>
+            {toDevanagariNumerals(purchasedUsers.length)}
+          </span>
+          {stats.pendingPurchases > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+              🔴 {toDevanagariNumerals(stats.pendingPurchases)} प्रमाणीकरण बाँकी
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* ── Search, Filters and Sorting Bar ── */}
-      <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 shadow-sm space-y-3">
+      {activeTableTab === 'registered_users' && (
+      <div className="space-y-4">
+        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Search Box */}
           <div className="relative flex-1">
@@ -779,6 +968,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 <th className="py-3 px-3 min-w-[140px]">जन्ममिति</th>
                 <th className="py-3 px-3 min-w-[130px]">WhatsApp नम्बर</th>
                 <th className="py-3 px-3 min-w-[130px]">दर्ता मिति</th>
+                <th className="py-3 px-3 min-w-[170px]">खरिद स्थिति / अलर्ट</th>
                 <th className="py-3 px-3 min-w-[130px]">खाता स्थिति</th>
                 <th className="py-3 px-3 text-center min-w-[90px]">कार्य</th>
               </tr>
@@ -786,14 +976,14 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             <tbody className="divide-y divide-stone-800/60 text-xs text-stone-300">
               {isLoading && users.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center text-stone-400 space-y-3">
+                  <td colSpan={10} className="py-16 text-center text-stone-400 space-y-3">
                     <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
                     <p className="text-sm font-bold text-stone-300">डेटाबेसबाट प्रयोगकर्ताहरू लोड हुँदैछ...</p>
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center text-stone-400 space-y-2">
+                  <td colSpan={10} className="py-16 text-center text-stone-400 space-y-2">
                     <Users className="w-10 h-10 text-stone-600 mx-auto" />
                     <p className="text-sm font-bold text-stone-200">कुनै पनि प्रयोगकर्ता फेला परेन।</p>
                     <p className="text-xs text-stone-500">खोज वा फिल्टर परिवर्तन गरेर हेर्नुहोस्।</p>
@@ -904,7 +1094,51 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                         </div>
                       </td>
 
-                      {/* 8. खाता स्थिति */}
+                      {/* 8. खरिद स्थिति र रेड अलर्ट (Purchase Status & RED ALERT) */}
+                      <td className="py-3 px-3">
+                        {(() => {
+                          const pCheck = unifiedUserSyncService.checkUserPurchaseAlert(user.phone || user.id);
+                          if (pCheck.isPending && pCheck.lead) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPaymentApprovalModalLead(pCheck.lead!);
+                                }}
+                                className="px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/60 hover:bg-rose-500/30 transition-all flex items-center gap-1.5 animate-pulse cursor-pointer shadow-lg shadow-rose-950/50"
+                                title="खरिद अनुरोध हेर्नुहोस् र स्वीकृत गर्नुहोस्"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0" />
+                                <span>🔴 खरिद अनुरोध (रू. {toDevanagariNumerals(pCheck.lead.planAmountNPR || 0)})</span>
+                              </button>
+                            );
+                          }
+                          if (pCheck.isApproved) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (pCheck.lead) setPaymentApprovalModalLead(pCheck.lead);
+                                }}
+                                className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                                title="स्वीकृत भुक्तानी तथा लाइसेन्स विवरण हेर्नुहोस्"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span>🟢 खरिद स्वीकृत ({pCheck.lead?.planNameNepali || 'सक्रिय'})</span>
+                              </button>
+                            );
+                          }
+                          return (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] text-stone-400 bg-stone-800/60 border border-stone-700/60">
+                              ⚪ निःशुल्क / डेमो
+                            </span>
+                          );
+                        })()}
+                      </td>
+
+                      {/* 9. खाता स्थिति */}
                       <td className="py-3 px-3">
                         <div className="space-y-1">
                           {/* Main status badge */}
@@ -1038,6 +1272,336 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           </div>
         </div>
       </div>
+      </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ── TABLE 2: DEDICATED PURCHASED USERS & APPLICATIONS TABLE ── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {activeTableTab === 'purchased_users' && (
+        <div className="space-y-4">
+          {/* Purchase Search and Filter Controls */}
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Search Box */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="खरिदकर्ताको नाम, मोबाइल, कारोबार ID (Txn Code), वा ठेगाना खोज्नुहोस्..."
+                  className="w-full pl-10 pr-4 py-2 bg-stone-950 border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setPurchaseFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    purchaseFilter === 'all'
+                      ? 'bg-amber-500 text-stone-950 font-black shadow-sm'
+                      : 'bg-stone-950 text-stone-300 hover:bg-stone-800 border border-stone-800'
+                  }`}
+                >
+                  सबै आवेदन ({toDevanagariNumerals(purchasedUsers.length)})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPurchaseFilter('pending')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    purchaseFilter === 'pending'
+                      ? 'bg-rose-500 text-white font-black shadow-sm'
+                      : 'bg-stone-950 text-rose-400 hover:bg-stone-800 border border-rose-900/40'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  <span>विचाराधीन ({toDevanagariNumerals(purchasedUsers.filter(p => p.status === 'PURCHASE_PENDING').length)})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPurchaseFilter('approved')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    purchaseFilter === 'approved'
+                      ? 'bg-emerald-500 text-stone-950 font-black shadow-sm'
+                      : 'bg-stone-950 text-emerald-400 hover:bg-stone-800 border border-emerald-900/40'
+                  }`}
+                >
+                  स्वीकृत ग्राहक ({toDevanagariNumerals(purchasedUsers.filter(p => p.status === 'PURCHASE_APPROVED').length)})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPurchaseFilter('rejected')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    purchaseFilter === 'rejected'
+                      ? 'bg-stone-700 text-white font-black shadow-sm'
+                      : 'bg-stone-950 text-stone-400 hover:bg-stone-800 border border-stone-800'
+                  }`}
+                >
+                  अस्वीकृत ({toDevanagariNumerals(purchasedUsers.filter(p => p.status === 'PURCHASE_REJECTED').length)})
+                </button>
+              </div>
+            </div>
+
+            {/* Instruction Tip */}
+            <div className="bg-gradient-to-r from-rose-950/40 to-amber-950/30 border border-rose-900/40 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs text-rose-300">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>
+                  यस तालिकामा सफ्टवेयर खरिदका लागि eSewa, Khalti वा बैंकबाट रकम भुक्तानी गरी आवेदन दिएका ग्राहकहरू रहेका छन्। भुक्तानी जाँच गरी <strong>"स्वीकृत गर्नुहोस्"</strong> बटन थिच्नासाथ ग्राहकको सेवा स्वतः अनलक हुनेछ।
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-amber-400 font-bold hidden sm:inline whitespace-nowrap">
+                जम्मा आवेदन: {toDevanagariNumerals(purchasedUsers.length)}
+              </span>
+            </div>
+          </div>
+
+          {/* Purchased Users Table */}
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl shadow-xl overflow-hidden">
+            <div className="overflow-x-auto min-h-[380px]">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-stone-950/80 border-b border-stone-800 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                    <th className="py-3 px-3 text-center w-12">क्र.सं.</th>
+                    <th className="py-3 px-3 min-w-[160px]">ग्राहकको नाम</th>
+                    <th className="py-3 px-3 min-w-[150px]">सम्पर्क / WhatsApp</th>
+                    <th className="py-3 px-3 min-w-[130px]">ठेगाना</th>
+                    <th className="py-3 px-3 min-w-[160px]">खरिद गरेको योजना</th>
+                    <th className="py-3 px-3 min-w-[110px]">भुक्तानी माध्यम</th>
+                    <th className="py-3 px-3 min-w-[150px]">कारोबार ID (Txn)</th>
+                    <th className="py-3 px-3 min-w-[110px]">रकम (NPR)</th>
+                    <th className="py-3 px-3 min-w-[120px]">आवेदन मिति</th>
+                    <th className="py-3 px-3 min-w-[130px]">स्थिति</th>
+                    <th className="py-3 px-3 text-center min-w-[150px]">कारबाही</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-800/60 text-xs text-stone-300">
+                  {(() => {
+                    let filteredPurchases = purchasedUsers;
+                    if (purchaseFilter === 'pending') {
+                      filteredPurchases = filteredPurchases.filter(p => p.status === 'PURCHASE_PENDING');
+                    } else if (purchaseFilter === 'approved') {
+                      filteredPurchases = filteredPurchases.filter(p => p.status === 'PURCHASE_APPROVED');
+                    } else if (purchaseFilter === 'rejected') {
+                      filteredPurchases = filteredPurchases.filter(p => p.status === 'PURCHASE_REJECTED');
+                    }
+
+                    if (searchQuery) {
+                      const q = searchQuery.toLowerCase().trim();
+                      filteredPurchases = filteredPurchases.filter(p => 
+                        (p.fullName && p.fullName.toLowerCase().includes(q)) ||
+                        (p.mobile && p.mobile.includes(q)) ||
+                        (p.transactionId && p.transactionId.toLowerCase().includes(q)) ||
+                        (p.address && p.address.toLowerCase().includes(q)) ||
+                        (p.email && p.email.toLowerCase().includes(q))
+                      );
+                    }
+
+                    if (filteredPurchases.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={11} className="py-16 text-center text-stone-400 space-y-2">
+                            <CreditCard className="w-10 h-10 text-stone-600 mx-auto" />
+                            <p className="text-sm font-bold text-stone-200">कुनै पनि खरिद आवेदन फेला परेन।</p>
+                            <p className="text-xs text-stone-500">नयाँ खरिद अनुरोध आएपछि यहाँ स्वतः देखिनेछ।</p>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filteredPurchases.map((lead, idx) => {
+                      const isPending = lead.status === 'PURCHASE_PENDING';
+                      const isApproved = lead.status === 'PURCHASE_APPROVED';
+                      const isRejected = lead.status === 'PURCHASE_REJECTED';
+
+                      return (
+                        <tr 
+                          key={lead.id}
+                          className={`hover:bg-stone-800/50 transition-colors ${
+                            isPending ? 'bg-rose-950/20' : ''
+                          }`}
+                        >
+                          {/* 1. क्र.सं. */}
+                          <td className="py-3 px-3 text-center font-mono text-stone-400">
+                            {toDevanagariNumerals(idx + 1)}
+                          </td>
+
+                          {/* 2. ग्राहकको नाम */}
+                          <td className="py-3 px-3">
+                            <div className="font-extrabold text-stone-100 flex items-center gap-1.5">
+                              <span>{lead.fullName || 'ग्राहक'}</span>
+                            </div>
+                            <div className="text-[10px] text-stone-400 font-mono">
+                              ID: {lead.id}
+                            </div>
+                          </td>
+
+                          {/* 3. सम्पर्क */}
+                          <td className="py-3 px-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 font-mono font-bold text-stone-200">
+                                <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span>{lead.mobile || 'उपलब्ध छैन'}</span>
+                              </div>
+                              {lead.whatsapp && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWhatsApp(lead.whatsapp)}
+                                  className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-mono transition-colors cursor-pointer"
+                                  title="WhatsApp मा कुरा गर्नुहोस्"
+                                >
+                                  <MessageCircle className="w-3 h-3 text-emerald-400 shrink-0" />
+                                  <span className="underline decoration-dotted">{lead.whatsapp}</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 4. ठेगाना */}
+                          <td className="py-3 px-3 text-stone-300">
+                            <div className="flex items-center gap-1 truncate max-w-[140px]" title={lead.address}>
+                              <MapPin className="w-3 h-3 text-amber-500 shrink-0" />
+                              <span>{lead.address || 'नेपाल'}</span>
+                            </div>
+                          </td>
+
+                          {/* 5. प्याकेज */}
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-amber-300 text-xs">
+                              {lead.planNameNepali || '१ वर्षको सदस्यता'}
+                            </div>
+                            <div className="text-[10px] text-stone-400">
+                              {lead.planId?.includes('lifetime') ? 'आजीवन पहुँच' : '१ वर्षको म्याद'}
+                            </div>
+                          </td>
+
+                          {/* 6. भुक्तानी माध्यम */}
+                          <td className="py-3 px-3">
+                            {lead.paymentMethod === 'esewa' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-950/80 text-green-400 border border-green-800">
+                                eSewa
+                              </span>
+                            ) : lead.paymentMethod === 'khalti' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-950/80 text-purple-400 border border-purple-800">
+                                Khalti
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950/80 text-blue-400 border border-blue-800">
+                                Bank Transfer
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 7. कारोबार ID */}
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono text-amber-400 font-bold text-xs select-all">
+                                {lead.transactionId || 'उपलब्ध छैन'}
+                              </span>
+                              {lead.transactionId && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(lead.transactionId!, 'कारोबार कोड')}
+                                  className="p-1 hover:bg-stone-800 rounded text-stone-400 hover:text-stone-200 cursor-pointer"
+                                  title="Txn ID प्रतिलिपि गर्नुहोस्"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 8. रकम */}
+                          <td className="py-3 px-3">
+                            <span className="font-extrabold text-stone-100 font-mono text-sm">
+                              रु. {toDevanagariNumerals(lead.planAmountNPR || 0)}
+                            </span>
+                          </td>
+
+                          {/* 9. मिति */}
+                          <td className="py-3 px-3">
+                            <div className="space-y-0.5">
+                              <p className="text-stone-200 font-medium">{lead.submittedAtBS || '२०८१'}</p>
+                              <p className="text-[10px] text-stone-500 font-mono">
+                                {lead.submittedAtISO ? new Date(lead.submittedAtISO).toLocaleDateString('en-CA') : ''}
+                              </p>
+                            </div>
+                          </td>
+
+                          {/* 10. स्थिति */}
+                          <td className="py-3 px-3">
+                            {isPending ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/50 animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                                🔴 प्रमाणीकरण बाँकी
+                              </span>
+                            ) : isApproved ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                🟢 स्वीकृत
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-stone-800 text-stone-400 border border-stone-700">
+                                <XCircle className="w-3 h-3 text-stone-500" />
+                                🔴 अस्वीकृत
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 11. कारबाही */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => setPaymentApprovalModalLead(lead)}
+                                className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold border border-stone-700 cursor-pointer transition-colors flex items-center gap-1"
+                                title="सम्पूर्ण विवरण तथा भौचर हेर्नुहोस्"
+                              >
+                                <Info className="w-3 h-3 text-amber-400" />
+                                <span>विवरण</span>
+                              </button>
+
+                              {isPending && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const res = unifiedUserSyncService.approvePurchase(lead.id, approvalAdminName);
+                                    showToast(res.messageNepali);
+                                    fetchUsers(true);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                                  title="तत्काल खरिद स्वीकृत गरी सेवा खुल्ला गर्नुहोस्"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>स्वीकृत</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* ── CUSTOM RIGHT-CLICK CONTEXT MENU (Bounded to Viewport) ── */}
@@ -2044,6 +2608,309 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 initialSelectedMobile={switchboardModalUser.phone}
                 onBackToUsers={() => setSwitchboardModalUser(null)}
               />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ── MODAL 7: PAYMENT DETAILS & INSTANT APPROVAL MODAL ── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {paymentApprovalModalLead && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150">
+          <div className="w-full max-w-xl bg-stone-900 border border-amber-500/60 rounded-3xl p-5 sm:p-7 space-y-5 max-h-[92vh] overflow-y-auto shadow-2xl text-stone-100">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-stone-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-amber-600 text-white flex items-center justify-center font-black shadow-lg">
+                  <CreditCard className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-lg text-white">
+                    सफ्टवेयर खरिद तथा भुक्तानी प्रमाणीकरण
+                  </h3>
+                  <p className="text-xs text-amber-400 font-mono">
+                    आवेदन ID: {paymentApprovalModalLead.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentApprovalModalLead(null);
+                  setShowRejectBox(false);
+                }}
+                className="p-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Customer Details Box */}
+            <div className="bg-stone-950/80 border border-stone-800 rounded-2xl p-4 space-y-2.5">
+              <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                <span>१. खरिदकर्ता / ग्राहक विवरण</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-stone-400 text-[11px] block">ग्राहकको पूरा नाम:</span>
+                  <span className="font-extrabold text-stone-100 text-sm">
+                    {paymentApprovalModalLead.fullName || 'ग्राहक'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-400 text-[11px] block">सम्पर्क मोबाइल नम्बर:</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-mono font-bold text-emerald-400 text-sm">
+                      {paymentApprovalModalLead.mobile || 'उपलब्ध छैन'}
+                    </span>
+                    {paymentApprovalModalLead.mobile && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(paymentApprovalModalLead.mobile, 'मोबाइल नम्बर')}
+                        className="p-1 hover:bg-stone-800 rounded text-stone-400 hover:text-stone-200 cursor-pointer"
+                        title="नम्बर प्रतिलिपि गर्नुहोस्"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-stone-400 text-[11px] block">ठेगाना:</span>
+                  <span className="text-stone-200 font-medium">
+                    {paymentApprovalModalLead.address || 'नेपाल'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-400 text-[11px] block">इमेल ठेगाना:</span>
+                  <span className="text-stone-200 font-mono">
+                    {paymentApprovalModalLead.email || 'उपलब्ध छैन'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Direct Communication Buttons */}
+              <div className="pt-2 flex items-center gap-2 border-t border-stone-800/80">
+                {paymentApprovalModalLead.whatsapp && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenWhatsApp(paymentApprovalModalLead.whatsapp || paymentApprovalModalLead.mobile)}
+                    className="flex-1 py-1.5 px-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>WhatsApp मा कुरा गर्नुहोस्</span>
+                  </button>
+                )}
+                {paymentApprovalModalLead.mobile && (
+                  <a
+                    href={`tel:${paymentApprovalModalLead.mobile}`}
+                    className="py-1.5 px-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-blue-400" />
+                    <span>फोन गर्नुहोस्</span>
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Payment & Package Box */}
+            <div className="bg-stone-950/80 border border-stone-800 rounded-2xl p-4 space-y-3">
+              <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>२. भुक्तानी तथा खरिद गरिएको प्याकेज</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="bg-stone-900/90 p-3 rounded-xl border border-stone-800">
+                  <span className="text-stone-400 text-[11px] block">खरिद गरिएको योजना:</span>
+                  <span className="font-extrabold text-amber-400 text-sm block mt-0.5">
+                    {paymentApprovalModalLead.planNameNepali || '१ वर्षको सदस्यता'}
+                  </span>
+                  <span className="text-[10px] text-stone-500">
+                    {paymentApprovalModalLead.planId?.includes('lifetime') ? 'आजीवन असीमित पहुँच' : '१ वर्षको पूर्ण लाइसेन्स'}
+                  </span>
+                </div>
+
+                <div className="bg-stone-900/90 p-3 rounded-xl border border-stone-800">
+                  <span className="text-stone-400 text-[11px] block">जम्मा भुक्तानी रकम:</span>
+                  <span className="font-black text-emerald-400 text-base font-mono block mt-0.5">
+                    रु. {toDevanagariNumerals(paymentApprovalModalLead.planAmountNPR || 0)}
+                  </span>
+                  <span className="text-[10px] text-stone-500">करसहित कुल रकम</span>
+                </div>
+
+                <div className="bg-stone-900/90 p-3 rounded-xl border border-stone-800">
+                  <span className="text-stone-400 text-[11px] block">भुक्तानी माध्यम:</span>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    {paymentApprovalModalLead.paymentMethod === 'esewa' ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-green-950 text-green-400 border border-green-800">
+                        eSewa (मोबाइल वालेट)
+                      </span>
+                    ) : paymentApprovalModalLead.paymentMethod === 'khalti' ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-950 text-purple-400 border border-purple-800">
+                        Khalti (डिजिटल वालेट)
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-950 text-blue-400 border border-blue-800">
+                        बैंक दाखिला (Bank Transfer)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-stone-900/90 p-3 rounded-xl border border-stone-800">
+                  <span className="text-stone-400 text-[11px] block">कारोबार नम्बर (Transaction ID):</span>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="font-mono font-black text-amber-300 text-sm select-all">
+                      {paymentApprovalModalLead.transactionId || 'उपलब्ध छैन'}
+                    </span>
+                    {paymentApprovalModalLead.transactionId && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(paymentApprovalModalLead.transactionId!, 'कारोबार कोड')}
+                        className="p-1 hover:bg-stone-800 rounded text-stone-400 hover:text-stone-200 cursor-pointer"
+                        title="प्रतिलिपि गर्नुहोस्"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-stone-400 pt-1">
+                <span>आवेदन मिति (BS): <strong className="text-stone-200">{paymentApprovalModalLead.submittedAtBS || '२०८१'}</strong></span>
+                <span>आवेदन समय (AD): <strong className="text-stone-200 font-mono">{paymentApprovalModalLead.submittedAtISO ? new Date(paymentApprovalModalLead.submittedAtISO).toLocaleString() : ''}</strong></span>
+              </div>
+            </div>
+
+            {/* Current Status Box */}
+            <div>
+              {paymentApprovalModalLead.status === 'PURCHASE_PENDING' ? (
+                <div className="bg-rose-950/40 border border-rose-800/80 rounded-2xl p-3.5 text-xs text-rose-300 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-rose-200">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                    <span>🔴 भुक्तानी प्रमाणीकरण बाँकी (Verification Pending)</span>
+                  </div>
+                  <p className="text-[11px] text-rose-300/90 leading-relaxed">
+                    कृपया आफ्नो eSewa, Khalti वा बैंक खातामा उल्लिखित कारोबार ID (Txn: {paymentApprovalModalLead.transactionId}) र रकम रु. {toDevanagariNumerals(paymentApprovalModalLead.planAmountNPR || 0)} जम्मा भएको रुजु गर्नुहोस्। रकम प्राप्त भएको खण्डमा तलको हरियो बटन थिचेर तुरुन्त स्वीकृत गर्नुहोस्।
+                  </p>
+                </div>
+              ) : paymentApprovalModalLead.status === 'PURCHASE_APPROVED' ? (
+                <div className="bg-emerald-950/40 border border-emerald-800/80 rounded-2xl p-3.5 text-xs text-emerald-300 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-emerald-200">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>🟢 खरिद पहिल्यै स्वीकृत भइसकेको छ (Service Unlocked & Active)</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-300/90">
+                    स्वीकृत गर्ने प्रशासक: {paymentApprovalModalLead.approvedBy || 'SuperAdmin'} • मिति: {paymentApprovalModalLead.approvedAtBS || '२०८१'}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-stone-800 border border-stone-700 rounded-2xl p-3.5 text-xs text-stone-300 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-stone-200">
+                    <XCircle className="w-4 h-4 text-rose-400" />
+                    <span>🔴 खरिद आवेदन अस्वीकृत गरिएको छ</span>
+                  </div>
+                  <p className="text-[11px] text-stone-400">
+                    कारण: {paymentApprovalModalLead.rejectionReason || 'अमान्य भुक्तानी'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Rejection Reason Form (if clicked Reject) */}
+            {showRejectBox && (
+              <div className="bg-rose-950/30 border border-rose-900 rounded-2xl p-3 space-y-2 text-xs animate-in fade-in duration-100">
+                <label className="text-rose-300 font-bold block">अस्वीकृत गर्ने कारण खुलाउनुहोस्:</label>
+                <input
+                  type="text"
+                  value={rejectionReasonInput}
+                  onChange={(e) => setRejectionReasonInput(e.target.value)}
+                  placeholder="जस्तै: रकम बैंक खातामा प्राप्त भएन, कारोबार ID मिलेन..."
+                  className="w-full p-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-100 outline-none text-xs"
+                />
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectBox(false)}
+                    className="px-3 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-xs"
+                  >
+                    रद्द
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const res = unifiedUserSyncService.rejectPurchase(paymentApprovalModalLead.id, rejectionReasonInput || 'अमान्य भुक्तानी प्रमाण');
+                      showToast(res.messageNepali);
+                      setPaymentApprovalModalLead(null);
+                      setShowRejectBox(false);
+                      setRejectionReasonInput('');
+                      fetchUsers(true);
+                    }}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs"
+                  >
+                    अस्वीकृति पुष्टि गर्नुहोस्
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-stone-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentApprovalModalLead(null);
+                  setShowRejectBox(false);
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+              >
+                बन्द गर्नुहोस्
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {paymentApprovalModalLead.status !== 'PURCHASE_REJECTED' && !showRejectBox && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectBox(true)}
+                    className="px-3.5 py-2.5 bg-stone-800 hover:bg-rose-950 text-rose-400 hover:text-rose-300 border border-stone-700 hover:border-rose-800 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+                  >
+                    अस्वीकृत गर्नुहोस्
+                  </button>
+                )}
+
+                {paymentApprovalModalLead.status !== 'PURCHASE_APPROVED' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const res = unifiedUserSyncService.approvePurchase(paymentApprovalModalLead.id, approvalAdminName);
+                      showToast(res.messageNepali);
+                      setPaymentApprovalModalLead(null);
+                      fetchUsers(true);
+                    }}
+                    className="flex-1 sm:flex-initial px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black rounded-xl text-xs shadow-lg shadow-emerald-950/60 cursor-pointer transition-all flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>स्वीकृत गरी सेवा खुल्ला गर्नुहोस् (Approve & Unlock)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const res = unifiedUserSyncService.approvePurchase(paymentApprovalModalLead.id, approvalAdminName);
+                      showToast(res.messageNepali);
+                      setPaymentApprovalModalLead(null);
+                      fetchUsers(true);
+                    }}
+                    className="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-700/60 hover:bg-emerald-600 text-white font-bold rounded-xl text-xs cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>लाइसेन्स पुनः नवीकरण / सक्रिय गर्नुहोस्</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
