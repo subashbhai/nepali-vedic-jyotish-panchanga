@@ -309,6 +309,82 @@ export const AdminUserManagementSection: React.FC<AdminUserManagementSectionProp
                 <p><strong className="text-stone-400">इमेल:</strong> <span className="text-stone-200">{selectedUser.email || 'उपलब्ध छैन'}</span></p>
                 <p><strong className="text-stone-400">भूमिका:</strong> <span className="text-amber-300 font-bold">{selectedUser.roleNameNepali}</span></p>
                 <p><strong className="text-stone-400">दर्ता मिति:</strong> <span className="text-stone-300 font-mono">{selectedUser.createdAtBS}</span></p>
+                {selectedUser.birthDetails && (
+                  <div className="pt-2 mt-2 border-t border-stone-800 text-[11px] space-y-1">
+                    <p><strong className="text-amber-400">जन्म मिति:</strong> <span className="text-stone-300">{selectedUser.birthDetails.dateBS || selectedUser.birthDetails.dateAD}</span></p>
+                    <p><strong className="text-amber-400">जन्म समय:</strong> <span className="text-stone-300">{selectedUser.birthDetails.time}</span></p>
+                    <p><strong className="text-amber-400">जन्म स्थान:</strong> <span className="text-stone-300">{selectedUser.birthDetails.location?.name || selectedUser.birthDetails.location?.district}</span></p>
+                  </div>
+                )}
+              </div>
+
+              {/* Independent Jyotish & Vastu Licensing Controls */}
+              <div className="bg-stone-950 p-3 rounded-xl border border-stone-800 space-y-2">
+                <div className="flex items-center justify-between pb-1 border-b border-stone-800">
+                  <span className="font-bold text-stone-200">ज्योतिष तथा वास्तु सेवा पहुँच नियन्त्रण</span>
+                  <span className="text-[10px] text-amber-400 font-bold">सुपरएडमिन विशेष</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="p-2 rounded-lg bg-stone-900 border border-stone-800 space-y-1.5 text-center">
+                    <span className="block font-bold text-stone-300 text-[11px]">ज्योतिष सेवा (Jyotish)</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const isUnlocked = Boolean((selectedUser as any).jyotishAccess?.unlocked);
+                        const nextAction = isUnlocked ? 'lock' : 'unlock';
+                        try {
+                          const res = await fetch(`/api/users/${encodeURIComponent(selectedUser.id)}/permissions`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              serviceKey: 'jyotish',
+                              action: nextAction,
+                              duration: '1_year'
+                            })
+                          });
+                          const data = await res.json();
+                          alert(data.message || 'सफलतापूर्वक सम्पन्न भयो।');
+                          onRefresh();
+                        } catch (err) {
+                          alert('अनुरोध असफल भयो।');
+                        }
+                      }}
+                      className="w-full py-1 px-2 rounded-lg text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-stone-950 transition-colors cursor-pointer"
+                    >
+                      {(selectedUser as any).jyotishAccess?.unlocked ? '🔒 ज्योतिष लक गर्नुहोस्' : '🔓 ज्योतिष अनलक (१ वर्ष)'}
+                    </button>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-stone-900 border border-stone-800 space-y-1.5 text-center">
+                    <span className="block font-bold text-stone-300 text-[11px]">वास्तु सेवा (Vastu)</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const isUnlocked = Boolean((selectedUser as any).vastuAccess?.unlocked);
+                        const nextAction = isUnlocked ? 'lock' : 'unlock';
+                        try {
+                          const res = await fetch(`/api/users/${encodeURIComponent(selectedUser.id)}/permissions`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              serviceKey: 'vastu',
+                              action: nextAction,
+                              duration: '1_year'
+                            })
+                          });
+                          const data = await res.json();
+                          alert(data.message || 'सफलतापूर्वक सम्पन्न भयो।');
+                          onRefresh();
+                        } catch (err) {
+                          alert('अनुरोध असफल भयो।');
+                        }
+                      }}
+                      className="w-full py-1 px-2 rounded-lg text-[10px] font-bold bg-indigo-500 hover:bg-indigo-600 text-white transition-colors cursor-pointer"
+                    >
+                      {(selectedUser as any).vastuAccess?.unlocked ? '🔒 वास्तु लक गर्नुहोस्' : '🔓 वास्तु अनलक (१ वर्ष)'}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Password Reset Action */}

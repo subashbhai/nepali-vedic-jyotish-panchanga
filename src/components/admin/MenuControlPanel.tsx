@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Search,
   User,
+  Users,
   Phone,
   Calendar,
   Save,
@@ -25,7 +26,9 @@ import {
   AlertCircle,
   Plus,
   RefreshCw,
-  Laptop
+  Laptop,
+  CreditCard,
+  Crown
 } from 'lucide-react';
 import {
   CATEGORIZED_FEATURES,
@@ -39,13 +42,29 @@ import {
   calculatePeriodExpiry,
   resetClientDeviceLock,
   getDefaultPermissionsMap,
-  sanitizeBSDateString
+  sanitizeBSDateString,
+  syncPoliciesFromServer,
+  savePolicyToServer
 } from '../../db/menuControlStore';
+import { AdminServiceLicenseSection } from './sections/AdminServiceLicenseSection';
 
-export const MenuControlPanel: React.FC = () => {
+interface MenuControlPanelProps {
+  initialSelectedMobile?: string;
+  onBackToUsers?: () => void;
+  onOpenPayments?: (mobile: string) => void;
+  onOpenLicenses?: (mobile: string) => void;
+}
+
+export const MenuControlPanel: React.FC<MenuControlPanelProps> = ({
+  initialSelectedMobile,
+  onBackToUsers,
+  onOpenPayments,
+  onOpenLicenses
+}) => {
+  const [activeViewMode, setActiveViewMode] = useState<'switchboard' | 'licenses'>('switchboard');
   const [policies, setPolicies] = useState<ClientAccessRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMobile, setSelectedMobile] = useState<string | null>(null);
+  const [selectedMobile, setSelectedMobile] = useState<string | null>(initialSelectedMobile || null);
 
   // New Client Form Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -56,30 +75,54 @@ export const MenuControlPanel: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [copiedMobile, setCopiedMobile] = useState<string | null>(null);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load Policies
-  const refreshPolicies = () => {
+  // Load Policies from Database & Local Cache
+  const refreshPolicies = async () => {
+    setIsSyncing(true);
+    // 1. Instant local load
     const list = loadAllClientPolicies();
-    setPolicies(list);
-    if (!selectedMobile && list.length > 0) {
-      setSelectedMobile(list[0].mobile);
+    if (list.length > 0) {
+      setPolicies(list);
+      if (!selectedMobile) {
+        setSelectedMobile(initialSelectedMobile || list[0].mobile);
+      }
+    }
+    // 2. Fetch fresh real registered users from backend database
+    try {
+      const serverPolicies = await syncPoliciesFromServer();
+      if (serverPolicies && serverPolicies.length > 0) {
+        setPolicies(serverPolicies);
+        if (!selectedMobile || !serverPolicies.some(p => p.mobile === selectedMobile)) {
+          setSelectedMobile(initialSelectedMobile || serverPolicies[0].mobile);
+        }
+      }
+    } catch (e) {
+      console.warn('Sync failed:', e);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
   useEffect(() => {
+    if (initialSelectedMobile) {
+      setSelectedMobile(initialSelectedMobile);
+    }
     refreshPolicies();
 
     const handleUpdate = () => {
       refreshPolicies();
     };
     window.addEventListener('client-policies-updated', handleUpdate);
+    window.addEventListener('user-registered', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
     return () => {
       window.removeEventListener('client-policies-updated', handleUpdate);
+      window.removeEventListener('user-registered', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, []);
+  }, [initialSelectedMobile]);
 
   // Filtered policies based on search query
   const filteredPolicies = useMemo(() => {
@@ -93,7 +136,7 @@ export const MenuControlPanel: React.FC = () => {
   // Currently selected client record for editing
   const selectedPolicy = useMemo(() => {
     if (!selectedMobile) return null;
-    return policies.find(p => p.mobile === selectedMobile) || null;
+    return policies.find(p => p.mobile === selectedMobile || p.id === selectedMobile) || null;
   }, [policies, selectedMobile]);
 
   // Open modal with pre-generated password
@@ -133,7 +176,7 @@ export const MenuControlPanel: React.FC = () => {
   };
 
   // Update a single permission for selected user
-  const handlePermissionChange = (featureId: string, state: AccessState) => {
+  const handlePermissionChange = async (featureId: string, state: AccessState) => {
     if (!selectedPolicy) return;
 
     const updatedPermissions = {
@@ -148,12 +191,20 @@ export const MenuControlPanel: React.FC = () => {
     setPolicies(updatedPolicies);
     saveAllClientPolicies(updatedPolicies);
 
-    setSaveSuccessMsg('सुविधा पहुँच सफलतापूर्वक अद्यावधिक भयो!');
+    // Save to real database server
+    await savePolicyToServer(
+      selectedPolicy.id || selectedPolicy.mobile,
+      updatedPermissions,
+      selectedPolicy.period,
+      selectedPolicy.status
+    );
+
+    setSaveSuccessMsg(`सुविधा '${featureId}' पहुँच परिवर्तन भई '${state.toUpperCase()}' डेटाबेसमा सुरक्षित भयो!`);
     setTimeout(() => setSaveSuccessMsg(null), 2500);
   };
 
   // Category Bulk Toggles (All Open, All Close, All Lock)
-  const handleCategoryBulkToggle = (category: 'jyotish' | 'vastu' | 'other', state: AccessState) => {
+  const handleCategoryBulkToggle = async (category: 'jyotish' | 'vastu' | 'other', state: AccessState) => {
     if (!selectedPolicy) return;
 
     const group = CATEGORIZED_FEATURES.find(g => g.category === category);
@@ -171,7 +222,15 @@ export const MenuControlPanel: React.FC = () => {
     setPolicies(updatedPolicies);
     saveAllClientPolicies(updatedPolicies);
 
-    setSaveSuccessMsg(`क्याटेगोरीका सम्पूर्ण सुविधाहरू '${state.toUpperCase()}' गरियो!`);
+    // Save to real database server
+    await savePolicyToServer(
+      selectedPolicy.id || selectedPolicy.mobile,
+      newPerms,
+      selectedPolicy.period,
+      selectedPolicy.status
+    );
+
+    setSaveSuccessMsg(`क्याटेगोरीका सम्पूर्ण सुविधाहरू '${state.toUpperCase()}' गरी डेटाबेसमा सुरक्षित गरियो!`);
     setTimeout(() => setSaveSuccessMsg(null), 2500);
   };
 
@@ -250,13 +309,74 @@ export const MenuControlPanel: React.FC = () => {
           </p>
         </div>
 
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {onBackToUsers && (
+            <button
+              type="button"
+              onClick={onBackToUsers}
+              className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs sm:text-sm rounded-2xl border border-stone-700 shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Users className="w-4 h-4 text-amber-400" />
+              <span>← प्रयोगकर्ता व्यवस्थापन</span>
+            </button>
+          )}
+          {onOpenPayments && (
+            <button
+              type="button"
+              onClick={() => onOpenPayments(selectedMobile || '')}
+              className="px-4 py-2.5 bg-blue-500/15 hover:bg-blue-500/30 text-blue-300 font-bold text-xs sm:text-sm rounded-2xl border border-blue-500/40 shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <CreditCard className="w-4 h-4 text-blue-400" />
+              <span>भुक्तानी रुजु (eSewa)</span>
+            </button>
+          )}
+          {onOpenLicenses && (
+            <button
+              type="button"
+              onClick={() => onOpenLicenses(selectedMobile || '')}
+              className="px-4 py-2.5 bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 font-bold text-xs sm:text-sm rounded-2xl border border-purple-500/40 shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Crown className="w-4 h-4 text-purple-400" />
+              <span>सदस्यता & लाइसेन्स</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs sm:text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>नयाँ प्रयोगकर्ता दर्ता / पासवर्ड</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Mode Switcher Tabs */}
+      <div className="flex border-b border-stone-800 gap-3 pb-1">
         <button
           type="button"
-          onClick={handleOpenAddModal}
-          className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs sm:text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer"
+          onClick={() => setActiveViewMode('licenses')}
+          className={`py-2 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeViewMode === 'licenses'
+              ? 'bg-amber-500 text-stone-950 shadow-md font-extrabold'
+              : 'bg-stone-900 text-stone-400 hover:text-stone-200 border border-stone-800'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>नयाँ मोबाइल दर्ता / पासवर्ड जेनेरेट</span>
+          <Lock className="w-4 h-4" />
+          <span>१. मुख्य सेवा लाइसेन्स लक/अनलक (Jyotish & Vastu Lock)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveViewMode('switchboard')}
+          className={`py-2 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeViewMode === 'switchboard'
+              ? 'bg-amber-500 text-stone-950 shadow-md font-extrabold'
+              : 'bg-stone-900 text-stone-400 hover:text-stone-200 border border-stone-800'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>२. उप-मेनु स्विचबोर्ड (Detailed Submenus)</span>
         </button>
       </div>
 
@@ -267,7 +387,12 @@ export const MenuControlPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Main Grid: Left Column = Clients Directory, Right Column = Feature Permissions Switchboard */}
+      {activeViewMode === 'licenses' ? (
+        <div className="bg-stone-900 border border-stone-800 rounded-3xl p-4 sm:p-6 shadow-xl">
+          <AdminServiceLicenseSection />
+        </div>
+      ) : (
+      /* Main Grid: Left Column = Clients Directory, Right Column = Feature Permissions Switchboard */
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Registered Clients List (4 cols) */}
         <div className="lg:col-span-4 space-y-3">
@@ -325,9 +450,16 @@ export const MenuControlPanel: React.FC = () => {
                           <strong className="text-xs font-bold block truncate text-stone-100">
                             {c.fullName}
                           </strong>
-                          <span className="font-mono text-xs text-amber-400 block font-bold mt-0.5">
-                            {c.mobile}
-                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {c.customerId && (
+                              <span className="text-[10px] font-mono text-amber-300 font-bold bg-amber-500/20 px-1 py-0.2 rounded">
+                                {c.customerId}
+                              </span>
+                            )}
+                            <span className="font-mono text-xs text-amber-400 font-bold">
+                              {c.mobile}
+                            </span>
+                          </div>
                         </div>
 
                         <span
@@ -369,15 +501,28 @@ export const MenuControlPanel: React.FC = () => {
               {/* Selected User Quick Info Header */}
               <div className="bg-stone-950 border border-stone-800/90 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <User className="w-4 h-4 text-amber-400" />
                     <h3 className="text-base font-black text-stone-100">{selectedPolicy.fullName}</h3>
+                    {selectedPolicy.customerId && (
+                      <span className="text-[11px] font-mono text-amber-300 font-bold px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded-lg">
+                        {selectedPolicy.customerId}
+                      </span>
+                    )}
                     <span className="text-xs font-mono font-bold text-amber-400 px-2 py-0.5 bg-amber-500/10 rounded-lg">
                       {selectedPolicy.mobile}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                      selectedPolicy.status === 'suspended'
+                        ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                        : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                    }`}>
+                      {selectedPolicy.status === 'suspended' ? 'निलम्बित (Suspended)' : 'सक्रिय (Active)'}
                     </span>
                   </div>
                   <p className="text-xs text-stone-400">
                     दर्ता मिति: {sanitizeBSDateString(selectedPolicy.createdAtBS)} • म्याद समाप्ति: <strong>{sanitizeBSDateString(selectedPolicy.expiresAtBS)}</strong>
+                    {selectedPolicy.address && <span> • ठेगाना: {selectedPolicy.address}</span>}
                   </p>
                 </div>
 
@@ -571,6 +716,7 @@ export const MenuControlPanel: React.FC = () => {
           )}
         </div>
       </div>
+      )}
 
       {/* Modal: Add New Client Mobile & Auto Generate Password */}
       {isAddModalOpen && (

@@ -4,7 +4,7 @@
   "description": "नेपाली वैदिक ज्योतिष, पञ्चाङ्ग, कुण्डली तथा वास्तु सेवा प्रणाली",
   "author": "Balananda Jyotish <subashbhai@gmail.com>",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -17,11 +17,17 @@
     "desktop:build": "vite build && electron-builder --win",
     "desktop:build-portable": "vite build && electron-builder --win portable",
     "desktop:build-mac": "vite build && electron-builder --mac",
-    "desktop:pack": "vite build && electron-builder --dir"
+    "desktop:pack": "vite build && electron-builder --dir",
+    "mobile:sync": "vite build && powershell -Command \"Remove-Item -Path dist/downloads/*.apk, dist/downloads/*.exe -Force -ErrorAction SilentlyContinue\" && cap sync android && powershell -Command \"Remove-Item -Path android/app/src/main/assets/public/downloads -Recurse -Force -ErrorAction SilentlyContinue\"",
+    "mobile:build-apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build_apk.ps1"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/three": "^0.186.0",
@@ -40,6 +46,7 @@
     "three": "^0.186.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",

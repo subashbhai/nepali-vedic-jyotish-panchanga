@@ -39,6 +39,7 @@ export interface BirthDetails {
   gender: Gender;
   dateAD: string; // YYYY-MM-DD
   dateBS?: string; // YYYY-MM-DD Nepali date
+  entryCalendarType?: 'BS' | 'AD'; // Primary calendar type chosen by user (BS vs AD)
   time: string; // HH:mm 24hr
   timeSeconds?: string; // ss
   timeAccuracy?: 'exact' | 'estimated' | 'unclear';
@@ -729,7 +730,12 @@ export interface OrganizationProfile {
   intro: string;
   tagline?: string;
   shlokaText?: string;
+  shlokaSource?: string;
+  shlokaMeaning?: string;
+  mottoText?: string;
+  missionText?: string;
   visionText?: string;
+  sankalpaText?: string;
   objectivesList?: string[];
   newJourneyTitle?: string;
   newJourneyText?: string;

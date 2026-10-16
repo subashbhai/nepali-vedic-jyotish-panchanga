@@ -1,5 +1,7 @@
 import { BirthDetails, PanchangaData, PlanetPosition } from '../types/astrology';
 import { RASHI_DATA } from './astroCalculations';
+import { getDailyRashifalForRashi } from '../db/rashifalStore';
+import { calculateChandrabala } from './muhurtaEngine';
 
 export interface QuickHoroscopeInsight {
   rashiName: string;
@@ -12,30 +14,9 @@ export interface QuickHoroscopeInsight {
   luckyTime: string;
 }
 
-const COLORS = [
-  'पहेँलो (Yellow)',
-  'रातो (Red)',
-  'सेतो (White)',
-  'सुन्तला (Orange)',
-  'गुलाबी (Pink)',
-  'हरियो (Green)',
-  'आसमानी (Sky Blue)',
-  'केशरी (Saffron)'
-];
-
-const DIRECTIONS = [
-  'पूर्व (East)',
-  'उत्तर (North)',
-  'ईशान (North-East)',
-  'उत्तर-पश्चिम (North-West)',
-  'दक्षिण-पूर्व (South-East)'
-];
-
-const LUCKY_NUMBERS = ['३', '५', '७', '९', '१', '८', '६', '२'];
-
 /**
  * Calculates a quick, personalized daily horoscope summary based on the active profile's Moon sign,
- * Lagna, and today's Panchanga data.
+ * Lagna, Chandrabala, and today's Panchanga data using the authentic Vedic engine.
  */
 export function generateQuickHoroscopeInsight(
   profile: BirthDetails | null,
@@ -46,25 +27,45 @@ export function generateQuickHoroscopeInsight(
   const profileName = profile?.name?.trim() || 'जातक';
   const rashi = RASHI_DATA.find((r) => r.name === moonRashiName) || RASHI_DATA[0];
   const rashiId = rashi.id;
-  
-  const tithiLength = todayPanchanga?.tithi?.name?.length || 4;
-  const rating = 74 + ((rashiId * 7 + tithiLength * 3) % 22);
 
-  const luckyColor = COLORS[(rashiId + 2) % COLORS.length];
-  const luckyDirection = DIRECTIONS[rashiId % DIRECTIONS.length];
-  const luckyNumber = LUCKY_NUMBERS[(rashiId * 3) % LUCKY_NUMBERS.length];
+  // Retrieve authentic classical Vedic attributes from rashifalStore
+  const dailyItem = getDailyRashifalForRashi(rashiId);
 
-  const summary = `जातक ${profileName}का लागि आजको दिन ${moonRashiName} राशिमा चन्द्रमा तथा ताराबलको अनुकूलताले गर्दा आत्मबल, पराक्रम र नयाँ योजनाहरू थाल्न शुभ रहनेछ। सोचेका कार्यहरू क्रमशः सफल हुनेछन्।`;
+  // Determine Transit Moon Rashi from today's Panchanga
+  let transitMoonRashiId = 1;
+  if (todayPanchanga?.moonRashi) {
+    const transitRashi = RASHI_DATA.find((r) => r.name === todayPanchanga.moonRashi);
+    if (transitRashi) transitMoonRashiId = transitRashi.id;
+  }
+
+  // Calculate authentic Chandrabala
+  const chandrabala = calculateChandrabala(rashiId, transitMoonRashiId);
+
+  let overallRating = dailyItem.overallScore || 80;
+  let summary = dailyItem.overallSummary;
+
+  if (chandrabala) {
+    if (chandrabala.isFavorable) {
+      overallRating = Math.max(overallRating, 82);
+      summary = `जातक ${profileName}का लागि आज ${moonRashiName} राशिमा ${chandrabala.statusNepali} अनुकूल रहेकाले आत्मबल, पराक्रम र नयाँ योजनाहरू थाल्न अत्यन्त शुभ रहनेछ। सोचेका कार्यहरू उत्साहका साथ सम्पन्न हुनेछन्।`;
+    } else if (chandrabala.houseFromMoon === 4 || chandrabala.houseFromMoon === 8 || chandrabala.houseFromMoon === 12) {
+      overallRating = Math.min(overallRating, 62);
+      summary = `जातक ${profileName}का लागि आज ${moonRashiName} राशिमा ${chandrabala.statusNepali} (भाव ${chandrabala.houseFromMoon}) रहेकाले अनावश्यक खर्च, हतारका निर्णय र वादविवादबाट बच्नुहोला। संयमित भई दिन व्यतीत गर्नु उत्तम हुनेछ।`;
+    } else {
+      overallRating = 72;
+      summary = `जातक ${profileName}का लागि आज ${moonRashiName} राशिमा मध्यम चन्द्रबल रहेकाले दैनिक कार्यहरू सामान्य रूपमा अघि बढ्नेछन्। इष्टदेवको आराधना गरी कर्मशील रहनुहोला।`;
+    }
+  }
 
   return {
     rashiName: moonRashiName,
     rashiId,
-    overallRating: rating,
+    overallRating,
     summary,
-    luckyColor,
-    luckyNumber,
-    luckyDirection,
-    luckyTime: 'बिहान ०८:१५ देखि १०:०० सम्म',
+    luckyColor: dailyItem.luckyColor || 'पहेंलो',
+    luckyNumber: dailyItem.luckyNumber || '३',
+    luckyDirection: dailyItem.luckyDirection || 'पूर्व',
+    luckyTime: dailyItem.favorableTime || 'बिहान ०८:१५ देखि १०:०० सम्म',
   };
 }
 

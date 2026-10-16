@@ -343,10 +343,10 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
   const currentPatrikaMeta = PATRIKA_TYPES_LIST.find((t) => t.key === activeSubTab) || PATRIKA_TYPES_LIST[0];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="w-full max-w-full overflow-x-hidden space-y-4 sm:space-y-6 animate-in fade-in duration-200">
       
       {/* 1. TOP BAR: Jatak Search & Quick Actions */}
-      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-[#E6E0D5] dark:border-stone-800 p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-[#E6E0D5] dark:border-stone-800 p-3 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4">
         
         {/* Search Input for Jatak */}
         <div className="relative flex-1 max-w-lg">
@@ -1048,20 +1048,25 @@ export const PatrikaView: React.FC<PatrikaViewProps> = ({
         </button>
       </div>
 
-      {/* 6. PRINTABLE PATRIKA DOCUMENT AREA */}
-      <div id="patrika_printable_document_area">
-        <DynamicPatrikaDocument
-          subCategory={activeSubTab}
-          profile={profile}
-          lagna={lagna}
-          planets={planets}
-          panchanga={panchanga}
-          orgProfile={orgProfile}
-          astrologer={activeAstrologer}
-          patrikaFormatMode={patrikaFormatMode}
-          selectedPrintPages={selectedPrintPages}
-          hideParentPhone={hideParentPhone}
-        />
+      {/* 6. PRINTABLE PATRIKA DOCUMENT AREA (Responsive Wrapper for Mobile, Tablet & Print) */}
+      <div
+        id="patrika_printable_document_area"
+        className="w-full max-w-full overflow-x-auto overflow-y-hidden touch-pan-x py-2 px-0 sm:px-2 flex justify-center"
+      >
+        <div className="w-full max-w-full min-w-0">
+          <DynamicPatrikaDocument
+            subCategory={activeSubTab}
+            profile={profile}
+            lagna={lagna}
+            planets={planets}
+            panchanga={panchanga}
+            orgProfile={orgProfile}
+            astrologer={activeAstrologer}
+            patrikaFormatMode={patrikaFormatMode}
+            selectedPrintPages={selectedPrintPages}
+            hideParentPhone={hideParentPhone}
+          />
+        </div>
       </div>
 
       {/* 6. PATRIKA ARCHIVE & HISTORY LOG */}

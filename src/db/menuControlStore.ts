@@ -397,115 +397,7 @@ export function generateLicenseCodePassword(): string {
   return result;
 }
 
-export const DEFAULT_DEMO_CLIENT_POLICIES: ClientAccessRecord[] = [
-  {
-    id: 'client_subash_khanal',
-    mobile: '9841755199',
-    fullName: 'subash khanal',
-    loginId: '9841755199',
-    passwordPlain: '3AACKE84',
-    passwordHash: hashPassword('3AACKE84'),
-    createdAtISO: '2025-01-01T10:00:00.000Z',
-    createdAtBS: '२०८१-०९-१७',
-    period: 'lifetime',
-    expiresAtTimestamp: Date.now() + 50 * 365 * 24 * 60 * 60 * 1000,
-    expiresAtBS: 'आजीवन (Lifetime)',
-    status: 'active',
-    permissions: getDefaultPermissionsMap()
-  },
-  {
-    id: 'client_demo_subash',
-    mobile: '9866416556',
-    fullName: 'Subash Bhandari',
-    loginId: 'subash9866',
-    passwordPlain: '7F9K3D2P',
-    passwordHash: hashPassword('7F9K3D2P'),
-    createdAtISO: '2025-01-10T10:00:00.000Z',
-    createdAtBS: '२०८१-०९-२६',
-    period: '1_year',
-    expiresAtTimestamp: Date.now() + 365 * 24 * 60 * 60 * 1000,
-    expiresAtBS: '२०८२-०९-२६',
-    status: 'active',
-    permissions: {
-      kundali: 'open',
-      faladesh: 'close',
-      dasha: 'lock',
-      gochar: 'open',
-      navamsha: 'open',
-      muhurta: 'open',
-      sanskar: 'close',
-      vastu_project: 'open',
-      vastu_compass: 'open',
-      vastu_mandala: 'open',
-      vastu_audit: 'close',
-      vastu_report: 'lock',
-      panchanga: 'open',
-      calendar: 'open',
-      date_converter: 'open',
-      kharedi: 'open'
-    }
-  },
-  {
-    id: 'client_demo_ram',
-    mobile: '9812345678',
-    fullName: 'Ram Thapa',
-    loginId: 'ram9812',
-    passwordPlain: 'KJ8M4L9Q',
-    passwordHash: hashPassword('KJ8M4L9Q'),
-    createdAtISO: '2025-01-05T08:30:00.000Z',
-    createdAtBS: '२०८१-०९-२१',
-    period: '5_years',
-    expiresAtTimestamp: Date.now() + 5 * 365 * 24 * 60 * 60 * 1000,
-    expiresAtBS: '२०८६-०९-२१',
-    status: 'active',
-    permissions: getDefaultPermissionsMap()
-  },
-  {
-    id: 'client_demo_sita',
-    mobile: '9845678901',
-    fullName: 'Sita Karki',
-    loginId: 'sita9845',
-    passwordPlain: 'Z6P7V8N3',
-    passwordHash: hashPassword('Z6P7V8N3'),
-    createdAtISO: '2024-12-15T12:00:00.000Z',
-    createdAtBS: '२०८१-०८-३०',
-    period: 'lifetime',
-    expiresAtTimestamp: Date.now() + 50 * 365 * 24 * 60 * 60 * 1000,
-    expiresAtBS: 'आजीवन (Lifetime)',
-    status: 'active',
-    permissions: getDefaultPermissionsMap()
-  },
-  {
-    id: 'client_demo_hari',
-    mobile: '9823456789',
-    fullName: 'Hari Sharma',
-    loginId: 'hari9823',
-    passwordPlain: 'B1N9K6Q2',
-    passwordHash: hashPassword('B1N9K6Q2'),
-    createdAtISO: '2025-01-01T09:15:00.000Z',
-    createdAtBS: '२०८१-०९-१७',
-    period: '1_year',
-    expiresAtTimestamp: Date.now() + 365 * 24 * 60 * 60 * 1000,
-    expiresAtBS: '२०८२-०९-१७',
-    status: 'suspended',
-    permissions: getDefaultPermissionsMap()
-  },
-  {
-    id: 'client_demo_gita',
-    mobile: '9701234567',
-    fullName: 'Gita Adhikari',
-    loginId: 'gita9701',
-    passwordPlain: 'L8M3P7H5',
-    passwordHash: hashPassword('L8M3P7H5'),
-    createdAtISO: '2025-01-08T14:40:00.000Z',
-    createdAtBS: '२०८१-०९-२४',
-    period: '5_years',
-    expiresAtTimestamp: Date.now() + 5 * 365 * 24 * 60 * 60 * 1000,
-    expiresAtBS: '२०८६-०९-२४',
-    status: 'active',
-    permissions: getDefaultPermissionsMap()
-  }
-];
+export const DEFAULT_DEMO_CLIENT_POLICIES: ClientAccessRecord[] = [];
 
 // Helper to safely format BS date to string
 export function sanitizeBSDateString(val: any, fallback: string = ''): string {
@@ -520,19 +412,41 @@ export function sanitizeBSDateString(val: any, fallback: string = ''): string {
 // Load all client policies
 export function loadAllClientPolicies(): ClientAccessRecord[] {
   try {
-    if (typeof window === 'undefined') return DEFAULT_DEMO_CLIENT_POLICIES;
+    if (typeof window === 'undefined') return [];
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      const initial = DEFAULT_DEMO_CLIENT_POLICIES.filter(c => !isPermanentlyDeleted(c.mobile) && !isPermanentlyDeleted(c.loginId));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-      return initial;
+      return [];
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       let needsPersist = false;
-      // Filter out any user that was permanently deleted
+      // Filter out any demo user or permanently deleted user
       const activeOnly = parsed.filter((r: any) => {
         if (!r) return false;
+        const mob = (r.mobile || '').replace(/\D/g, '').slice(-10);
+        const name = (r.fullName || '').toLowerCase().trim();
+        const id = (r.id || '').toLowerCase().trim();
+        // Purge all legacy demo dummy users
+        if (
+          id === 'client_subash_khanal' ||
+          id === 'client_demo_ram' || 
+          id === 'client_demo_sita' || 
+          id === 'client_demo_hari' || 
+          id === 'client_demo_gita' ||
+          mob === '9841755199' ||
+          mob === '9812345678' ||
+          mob === '9845678901' ||
+          mob === '9823456789' ||
+          mob === '9701234567' ||
+          name === 'subash khanal' ||
+          name === 'ram thapa' ||
+          name === 'sita karki' ||
+          name === 'hari sharma' ||
+          name === 'gita adhikari'
+        ) {
+          needsPersist = true;
+          return false;
+        }
         if (isPermanentlyDeleted(r.mobile) || isPermanentlyDeleted(r.loginId) || isPermanentlyDeleted(r.id)) {
           needsPersist = true;
           return false;
@@ -553,27 +467,12 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
         };
       });
 
-      // Maintain valid credentials for master accounts only if they ALREADY exist and are NOT deleted
-      const subashIdx = sanitized.findIndex((c: any) => {
-        const cMob = (c.mobile || '').replace(/\D/g, '').slice(-10);
-        return cMob === '9841755199';
-      });
-      if (subashIdx !== -1 && !isPermanentlyDeleted('9841755199')) {
-        if (!sanitized[subashIdx].passwordPlain || sanitized[subashIdx].passwordPlain === 'Jyotish#8758') {
-          sanitized[subashIdx].passwordPlain = '3AACKE84';
-          sanitized[subashIdx].passwordHash = hashPassword('3AACKE84');
-          needsPersist = true;
-        }
-      }
-
       if (needsPersist) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
       }
       return sanitized;
     }
-    const initial = DEFAULT_DEMO_CLIENT_POLICIES.filter(c => !isPermanentlyDeleted(c.mobile) && !isPermanentlyDeleted(c.loginId));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-    return initial;
+    return [];
   } catch (e) {
     console.error('Failed to load client policies:', e);
     return [];
@@ -628,6 +527,62 @@ export function saveAllClientPolicies(records: ClientAccessRecord[]): void {
     } catch {}
   } catch (e) {
     console.error('Failed to save client policies:', e);
+  }
+}
+
+// Helper to get Superadmin Auth Headers
+function getSuperAdminAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  try {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('balananda_superadmin_auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      headers['x-superadmin-token'] = 'SUPER_ADMIN';
+    }
+  } catch {}
+  return headers;
+}
+
+// Fetch real registered users & policies directly from backend server!
+export async function syncPoliciesFromServer(): Promise<ClientAccessRecord[]> {
+  try {
+    const res = await fetch('/api/superadmin/menu-policies', {
+      headers: getSuperAdminAuthHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.policies) && data.policies.length > 0) {
+        saveAllClientPolicies(data.policies);
+        return data.policies;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to sync menu policies from server:', e);
+  }
+  return loadAllClientPolicies();
+}
+
+// Save policy to server for specific user
+export async function savePolicyToServer(
+  userIdOrMobile: string,
+  permissions: Record<string, AccessState>,
+  period?: SubscriptionPeriod,
+  status?: 'active' | 'suspended'
+): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/superadmin/menu-policies/${encodeURIComponent(userIdOrMobile)}`, {
+      method: 'POST',
+      headers: getSuperAdminAuthHeaders(),
+      body: JSON.stringify({ permissions, period, status })
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn('Failed to save policy to server:', e);
+    return false;
   }
 }
 

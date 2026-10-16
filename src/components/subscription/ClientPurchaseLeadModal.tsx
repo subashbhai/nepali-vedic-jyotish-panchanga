@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import {
   start24HourTrial,
+  start24HourTrialAsync,
   submitPurchaseApplication,
   is24HourTrialActive,
   isDeviceTrialExpired,
@@ -28,6 +29,7 @@ import {
   isClientPurchaseApproved
 } from '../../db/clientLeadStore';
 import { SOFTWARE_SUPPORT_CONTACT, PAYMENT_RECIPIENT_FULL_ID } from '../../db/subscriptionStore';
+import { getActiveRBACSession } from '../../db/rbacStore';
 
 interface ClientPurchaseLeadModalProps {
   isOpen: boolean;
@@ -71,12 +73,23 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   const trialActive = is24HourTrialActive();
   const remainingTrialSeconds = getTrialRemainingSeconds();
 
+  const activeSession = getActiveRBACSession();
+
   useEffect(() => {
     if (isOpen) {
       setErrorMsg(null);
       setSuccessMsg(null);
+      if (activeSession) {
+        if (activeSession.fullName && !fullName) setFullName(activeSession.fullName);
+        if ((activeSession.phone || activeSession.username) && !mobile) {
+          const ph = activeSession.phone || activeSession.username;
+          setMobile(ph);
+          if (!whatsapp) setWhatsapp(ph);
+        }
+        if ((activeSession as any).email && !email) setEmail((activeSession as any).email);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, activeSession]);
 
   if (!isOpen) return null;
 
@@ -110,7 +123,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   };
 
   // Handler: Start 24-Hour Free Trial
-  const handleActivateTrial = () => {
+  const handleActivateTrial = async () => {
     setErrorMsg(null);
     if (!isFormValid) {
       setErrorMsg('कृपया नाम, ठेगाना, मोबाइल नं., इमेल र ह्वाट्सएप नम्बर सबै अनिवार्य रूपमा भर्नुहोस्।');
@@ -123,8 +136,8 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const res = start24HourTrial({
+    try {
+      const res = await start24HourTrialAsync({
         fullName: fullName.trim(),
         address: address.trim(),
         mobile: mobile.trim(),
@@ -142,7 +155,36 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
       } else {
         setErrorMsg(res.messageNepali);
       }
-    }, 400);
+    } catch {
+      setIsSubmitting(false);
+      setErrorMsg('परीक्षण सुरु गर्दा समस्या भयो। कृपया पुनः प्रयास गर्नुहोस्।');
+    }
+  };
+
+  // Handler: Proceed to purchase plans with instant lead registration
+  const handleProceedToPurchasePlans = () => {
+    setErrorMsg(null);
+    if (!isFormValid) {
+      setErrorMsg('कृपया नाम, ठेगाना, मोबाइल नं., इमेल र ह्वाट्सएप नम्बर सबै ५ वटै विवरण अनिवार्य रूपमा भर्नुहोस्।');
+      return;
+    }
+    setShowPurchasePlans(true);
+    try {
+      submitPurchaseApplication({
+        fullName: fullName.trim(),
+        address: address.trim(),
+        mobile: mobile.trim(),
+        email: email.trim(),
+        whatsapp: whatsapp.trim(),
+        planId: currentPlanKey as any,
+        planNameNepali: currentPlan.label,
+        planAmountNPR: currentPlan.price,
+        paymentMethod: selectedGateway,
+        transactionId: 'भुक्तानी प्रक्रियामा (In Progress)',
+      });
+    } catch (e) {
+      console.warn('[ClientPurchaseModal] Instant lead registration error:', e);
+    }
   };
 
   // Handler: Submit Purchase Application
@@ -155,10 +197,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
       return;
     }
 
-    if (!transactionCode.trim()) {
-      setErrorMsg('कृपया रकम भुक्तानी पश्चात eSewa / Khalti / Bank को कारोबार नम्बर (Transaction ID) उल्लेख गर्नुहोस्।');
-      return;
-    }
+    const finalTx = transactionCode.trim() || 'भुक्तानी रुजु बाँकी (Pending eSewa)';
 
     setIsSubmitting(true);
     setTimeout(() => {
@@ -172,7 +211,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         planNameNepali: currentPlan.label,
         planAmountNPR: currentPlan.price,
         paymentMethod: selectedGateway,
-        transactionId: transactionCode.trim(),
+        transactionId: finalTx,
       });
       setIsSubmitting(false);
 
@@ -181,7 +220,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
       } else {
         setErrorMsg(res.messageNepali);
       }
-    }, 500);
+    }, 400);
   };
 
   return (
@@ -218,6 +257,38 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         </div>
 
         <div className="p-5 sm:p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* Active Registered User Badge / Guest Login Notice */}
+          {activeSession ? (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  प्रमाणीकृत खाता: <strong>{activeSession.fullName}</strong> ({activeSession.phone || activeSession.username})
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">
+                दर्ता भएको सदस्य
+              </span>
+            </div>
+          ) : (
+            <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>खरिद वा परीक्षण गर्न पहिले खाता लगइन वा दर्ता गर्नुहोस्।</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  window.dispatchEvent(new CustomEvent('open-rbac-auth-modal'));
+                }}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shrink-0 cursor-pointer"
+              >
+                खाता लगइन वा नयाँ दर्ता ↗
+              </button>
+            </div>
+          )}
+
           {/* Trial Status Notice if active or expired */}
           {trialActive && (
             <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-2xl flex items-center gap-2.5 text-xs text-amber-900 dark:text-amber-200">
@@ -402,7 +473,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
                     {/* खरिद गर्ने बटन */}
                     <button
                       type="button"
-                      onClick={() => setShowPurchasePlans(true)}
+                      onClick={handleProceedToPurchasePlans}
                       className="p-4 rounded-2xl border-2 border-amber-500 bg-gradient-to-br from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 text-left transition-all flex flex-col justify-between cursor-pointer shadow-sm active:scale-98"
                     >
                       <div>
@@ -542,16 +613,20 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
                   {/* Submit Button */}
                   <button
                     type="submit"
-                    disabled={!isFormValid || !transactionCode.trim() || isSubmitting}
+                    disabled={!isFormValid || isSubmitting}
                     className={`w-full py-3 rounded-2xl font-bold text-sm text-white transition-all shadow-md flex items-center justify-center gap-2 ${
-                      isFormValid && transactionCode.trim() && !isSubmitting
+                      isFormValid && !isSubmitting
                         ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 cursor-pointer active:scale-98'
                         : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
                     }`}
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>
-                      {isSubmitting ? 'आवेदन दर्ता गरिँदैछ...' : 'खरिद आवेदन पेश गर्नुहोस् (सुपरएडमिन स्वीकृति)'}
+                      {isSubmitting
+                        ? 'आवेदन दर्ता गरिँदैछ...'
+                        : transactionCode.trim()
+                        ? 'खरिद आवेदन पेश गर्नुहोस् (सुपरएडमिन स्वीकृति)'
+                        : 'खरिद आवेदन पेश गर्नुहोस् (रकम पछि रुजु गर्ने)'}
                     </span>
                   </button>
                   <p className="text-[11px] text-center text-stone-500 dark:text-stone-400">

@@ -92,18 +92,10 @@ export const GreenOmBorderFrame: React.FC<{
 
   return (
     <div
-      className={`brihat-cheena-page printable-page a4-preview-container relative bg-[#FFFDF5] text-stone-900 border-4 border-[#166534] p-1.5 sm:p-2.5 my-4 print:my-0 font-serif shadow-xl print:shadow-none box-border flex flex-col justify-between overflow-hidden ${className}`}
+      className={`brihat-cheena-page printable-page a4-preview-container relative w-full max-w-[210mm] bg-[#FFFDF5] text-stone-900 border-2 sm:border-4 border-[#166534] p-1.5 sm:p-2.5 my-2 sm:my-4 print:my-0 font-serif shadow-xl print:shadow-none box-border flex flex-col justify-between overflow-x-hidden ${className}`}
       style={{
-        width: '210mm',
-        height: '297mm',
-        maxHeight: '297mm',
-        maxWidth: '210mm',
         margin: '0 auto',
         boxSizing: 'border-box',
-        pageBreakAfter: pageNumber === totalPages ? 'auto' : 'always',
-        pageBreakInside: 'avoid',
-        breakInside: 'avoid',
-        breakAfter: pageNumber === totalPages ? 'auto' : 'page',
       }}
     >
       {/* Outer Om Top Row (Green) */}

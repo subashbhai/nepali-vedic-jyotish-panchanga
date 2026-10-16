@@ -426,16 +426,17 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                         ? 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50'
                         : 'text-amber-800 bg-amber-50 dark:bg-amber-950/50'
                     }`}>
-                      {hasRealApk ? 'सिधै डाउनलोड (२८ MB)' : 'क्लाउड बिल्ड हुँदैछ'}
+                      {hasRealApk ? `सिधै डाउनलोड (${androidRelease?.fileSizeFormatted || '102 MB'})` : 'क्लाउड बिल्ड हुँदैछ'}
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-500">
                     {hasRealApk
-                      ? 'कम्प्युटर वा फोनमा सिधै .apk फाइल डाउनलोड गरी इन्स्टल गर्नुहोस् (~२८ MB)।'
+                      ? `कम्प्युटर वा फोनमा सिधै .apk फाइल डाउनलोड गरी इन्स्टल गर्नुहोस् (~${androidRelease?.fileSizeFormatted || '102 MB'})।`
                       : 'नयाँ APK फाइल क्लाउडमा तयार भइरहेको छ। तत्काल मोबाइलमा चलाउन २ नम्बरको १-क्लिक इन्स्टल वा QR स्क्यान गर्नुहोस्।'}
                   </p>
-                  <button
-                    type="button"
+                  <a
+                    href={downloadUrls.androidApk || getApkDirectDownloadUrl()}
+                    download="nepali-vedic-jyotish-panchanga.apk"
                     onClick={() => {
                       const targetApk = downloadUrls.androidApk || getApkDirectDownloadUrl();
                       handleStartDownload(
@@ -444,7 +445,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                         'Android APK (.apk)'
                       );
                     }}
-                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer"
+                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-102 cursor-pointer text-center"
                   >
                     {downloadingFile === 'nepali-vedic-jyotish-panchanga.apk' ? (
                       <Check className="w-4 h-4 text-emerald-200" />
@@ -452,7 +453,7 @@ export const AppDownloadModal: React.FC<AppDownloadModalProps> = ({
                       <Download className="w-4 h-4" />
                     )}
                     <span>Android APK (.apk) सिधै डाउनलोड गर्नुहोस्</span>
-                  </button>
+                  </a>
                 </div>
 
                 {/* Option 2: 1-Click PWA Install */}

@@ -17,11 +17,16 @@ import {
   Check,
   X,
   Zap,
-  Trash2
+  Trash2,
+  RefreshCw,
+  Sliders,
+  Users,
+  CreditCard
 } from 'lucide-react';
 import {
   ClientLead,
   getStoredClientLeads,
+  syncClientLeadsFromServer,
   superAdminApprovePurchase,
   superAdminRejectPurchase,
   superAdminApproveByTransactionId,
@@ -30,25 +35,59 @@ import {
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 
 interface AdminClientApprovalsSectionProps {
+  initialUserPhone?: string;
   onRefresh?: () => void;
+  onNavigateToUsers?: (mobile?: string) => void;
+  onNavigateToSwitchboard?: (mobile?: string) => void;
+  onNavigateToLicenses?: (mobile?: string) => void;
 }
 
-export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionProps> = ({ onRefresh }) => {
-  const [leads, setLeads] = useState<ClientLead[]>([]);
+export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionProps> = ({
+  initialUserPhone,
+  onRefresh,
+  onNavigateToUsers,
+  onNavigateToSwitchboard,
+  onNavigateToLicenses
+}) => {
+  const [leads, setLeads] = useState<ClientLead[]>(() => getStoredClientLeads());
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PURCHASE_PENDING' | 'PURCHASE_APPROVED' | 'TRIAL_ACTIVE'>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialUserPhone || '');
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
   const [manualTxInput, setManualTxInput] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const loadLeads = () => {
+  const loadLeads = async (forceServer: boolean = false) => {
+    // 1. Instant local state load
     setLeads(getStoredClientLeads());
+
+    // 2. Server synchronization
+    if (forceServer) setIsSyncing(true);
+    try {
+      const fresh = await syncClientLeadsFromServer();
+      if (Array.isArray(fresh)) {
+        setLeads(fresh);
+      }
+    } catch (e) {
+      console.warn('[AdminClientApprovals] Failed to sync with server:', e);
+    } finally {
+      if (forceServer) setIsSyncing(false);
+    }
   };
 
   useEffect(() => {
-    loadLeads();
-    const handleLeadsUpdated = () => loadLeads();
+    loadLeads(true);
+    const handleLeadsUpdated = () => loadLeads(false);
     window.addEventListener('client-leads-updated', handleLeadsUpdated);
-    return () => window.removeEventListener('client-leads-updated', handleLeadsUpdated);
+
+    // Auto-poll server every 4 seconds for real-time live incoming purchase leads
+    const interval = setInterval(() => {
+      loadLeads(false);
+    }, 4000);
+
+    return () => {
+      window.removeEventListener('client-leads-updated', handleLeadsUpdated);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleApprove = (leadId: string, clientName: string) => {
@@ -57,6 +96,9 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
       setActionSuccessMsg(res.messageNepali);
       loadLeads();
       onRefresh?.();
+      window.dispatchEvent(new CustomEvent('service-license-updated'));
+      window.dispatchEvent(new CustomEvent('client-policies-updated'));
+      window.dispatchEvent(new CustomEvent('user-registered'));
       setTimeout(() => setActionSuccessMsg(null), 4000);
     } else {
       alert(res.messageNepali);
@@ -73,6 +115,9 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
       setActionSuccessMsg(res.messageNepali);
       loadLeads();
       onRefresh?.();
+      window.dispatchEvent(new CustomEvent('service-license-updated'));
+      window.dispatchEvent(new CustomEvent('client-policies-updated'));
+      window.dispatchEvent(new CustomEvent('user-registered'));
       setManualTxInput('');
       setTimeout(() => setActionSuccessMsg(null), 5000);
     } else {
@@ -130,11 +175,54 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
           </p>
         </div>
 
-        {actionSuccessMsg && (
-          <div className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl animate-in fade-in">
-            ✓ {actionSuccessMsg}
-          </div>
-        )}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {onNavigateToUsers && (
+            <button
+              type="button"
+              onClick={() => onNavigateToUsers()}
+              className="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>← प्रयोगकर्ता व्यवस्थापन</span>
+            </button>
+          )}
+          {onNavigateToSwitchboard && (
+            <button
+              type="button"
+              onClick={() => onNavigateToSwitchboard()}
+              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Sliders className="w-3.5 h-3.5 text-amber-400" />
+              <span>मेनु स्विचबोर्ड</span>
+            </button>
+          )}
+          {onNavigateToLicenses && (
+            <button
+              type="button"
+              onClick={() => onNavigateToLicenses()}
+              className="px-3 py-1.5 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Crown className="w-3.5 h-3.5 text-purple-400" />
+              <span>सदस्यता & लाइसेन्स</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => loadLeads(true)}
+            disabled={isSyncing}
+            className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="सर्भरबाट नयाँ आवेदनहरू ताजा गर्नुहोस्"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : 'text-stone-400'}`} />
+            <span>{isSyncing ? 'लोड हुँदैछ...' : 'ताजा गर्नुहोस् (Refresh)'}</span>
+          </button>
+
+          {actionSuccessMsg && (
+            <div className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl animate-in fade-in">
+              ✓ {actionSuccessMsg}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Quick Direct Transaction Approver Box */}
@@ -339,6 +427,37 @@ export const AdminClientApprovalsSection: React.FC<AdminClientApprovalsSectionPr
                         </div>
                       </div>
                     )}
+
+                    {/* Interlink Quick Navigation Pill Toolbar */}
+                    <div className="flex items-center gap-2 pt-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToSwitchboard?.(lead.mobile)}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="यस ग्राहकको मेनु स्विचबोर्ड खोल्नुहोस्"
+                      >
+                        <Sliders className="w-3 h-3" />
+                        <span>मेनु स्विचबोर्ड</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToUsers?.(lead.mobile)}
+                        className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="प्रयोगकर्ता व्यवस्थापन तालिकामा यो विवरण हेर्नुहोस्"
+                      >
+                        <Users className="w-3 h-3 text-amber-400" />
+                        <span>प्रयोगकर्ता प्रोफाइल</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToLicenses?.(lead.mobile)}
+                        className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="सदस्यता तथा लाइसेन्स नियन्त्रण हेर्नुहोस्"
+                      >
+                        <Crown className="w-3 h-3" />
+                        <span>लाइसेन्स & ट्रायल</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Actions */}

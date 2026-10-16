@@ -12,8 +12,17 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+             // Exclude nested APK, EXE and installer packages from mobile assets
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:*.apk:*.exe:downloads'
+        }
+        sourceSets {
+            main {
+                assets {
+                    exclude '**/*.apk'
+                    exclude '**/*.exe'
+                    exclude '**/downloads/**'
+                }
+            }
         }
     }
     buildTypes {

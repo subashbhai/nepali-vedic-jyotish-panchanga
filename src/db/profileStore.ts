@@ -19,6 +19,54 @@ const STORAGE_KEY_ASTROLOGERS = 'sukdev_astrologers_v1';
 const STORAGE_KEY_PUROHITS = 'sukdev_purohits_v1';
 const STORAGE_KEY_VASTU_EXPERTS = 'sukdev_vastu_experts_v1';
 const STORAGE_KEY_PATRIKA_RECORDS = 'sukdev_patrika_records_v1';
+import { getCachedAstroCalculation } from '../utils/astroCache';
+import { convertBSToADFull } from '../utils/bsCalendarData';
+
+/**
+ * Ensures birth profile is enriched with authentic Vedic astronomical calculation
+ * (Janma Rashi / Moon sign, Lagna, Nakshatra) based on DOB, Time, and Location.
+ */
+export function enrichProfileWithAstroCalculations(profile: BirthDetails): BirthDetails {
+  if (!profile || profile.id === 'live_current_moment' || profile.name?.includes('तात्कालिक')) {
+    return profile;
+  }
+
+  // 1. Resolve AD birth date if missing but BS is provided
+  let adDate = profile.dateAD;
+  if (!adDate && profile.dateBS) {
+    try {
+      const match = profile.dateBS.match(/\d+/g);
+      if (match && match.length >= 3) {
+        adDate = convertBSToADFull(parseInt(match[0], 10), parseInt(match[1], 10), parseInt(match[2], 10));
+      }
+    } catch {}
+  }
+
+  const timeStr = profile.time && profile.time.trim() !== '' ? profile.time : '12:00';
+  const lat = profile.location?.latitude ?? 27.7172;
+  const lng = profile.location?.longitude ?? 85.3240;
+  const tz = profile.location?.timeZone ?? 5.75;
+
+  if (adDate) {
+    try {
+      const calc = getCachedAstroCalculation(adDate, timeStr, lat, lng, tz, 'Lahiri');
+      if (calc?.moon) {
+        return {
+          ...profile,
+          dateAD: adDate,
+          moonRashi: calc.moon.rashiName,
+          lagnaRashi: calc.lagna?.rashiName,
+          nakshatra: calc.moon.nakshatraName,
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to calculate astro properties for profile:', e);
+    }
+  }
+
+  return profile;
+}
+
 
 /**
  * Generates a dynamic real-time profile based on the EXACT CURRENT (recent) date and time
@@ -66,40 +114,45 @@ export const DEFAULT_ORG_PROFILE: OrganizationProfile = {
   phone: '+९७७-९७६४४००५३३',
   email: 'suwashdmk@gmail.com',
   address: 'काठमाडौँ, नेपाल',
-  tagline: 'नेपालकै सबैभन्दा भरपर्दो वैदिक सेवा • सनातन धर्म र प्रामाणिक वास्तुको संगम',
-  mangalShloka: '॥ श्री गणेशाय नमः ॥ ॥ श्री वास्तुपुरुषाय नमः ॥ ॥ श्री कुलदेवतायै नमः ॥',
+  tagline: 'सनातन वैदिक ज्ञान, शास्त्रीय मर्यादा एवं प्रामाणिक सेवाको पावन संगम',
+  mottoText: 'ज्ञानमा शास्त्रीय आधार, आचरणमा सत्यनिष्ठा, सेवामा श्रद्धा र प्रविधिमा आधुनिकता',
+  mangalShloka: '॥ श्रीगणेशाय नमः ॥ ॥ श्रीवास्तुपुरुषाय नमः ॥ ॥ श्रीकुलदेवतायै नमः ॥',
   astrologerName: 'ज्योतिषाचार्य सुकदेव शर्मा',
   astrologerTitle: 'वरिष्ठ वास्तुविद् तथा ज्योतिषाचार्य',
-  shlokaText: 'ॐ सह नाववतु।\nसह नौ भुनक्तु।\nसह वीर्यं करवावहै।\nतेजस्विनावधीतमस्तु मा विद्विषावहै॥\nॐ शान्तिः शान्तिः शान्तिः॥',
-  intro: 'बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा वैदिक सनातन परम्परा, ज्योतिषीय ज्ञान, वास्तुशास्त्र तथा कर्मकाण्डीय संस्कारलाई आधुनिक प्रविधिसँग जोड्दै व्यवस्थित र सेवामुखी रूपमा अघि बढाउने उद्देश्यले हालै स्थापना गरिएको संस्था हो।\n\nसंस्थाले ज्योतिष, पत्रिका तथा कुण्डली, कर्मकाण्ड तथा संस्कार, वास्तु, मुहूर्त तथा सम्बन्धित वैदिक सेवाहरूलाई आधुनिक digital platform मार्फत सरल, व्यवस्थित र पहुँचयोग्य बनाउने लक्ष्य राखेको छ।\n\nनवस्थापित संस्थाका रूपमा निरन्तर अध्ययन, प्रविधिको सदुपयोग, सेवा प्रदायकको व्यावसायिक व्यवस्थापन तथा सेवाग्राहीप्रतिको जिम्मेवारीलाई प्राथमिकता दिँदै दीर्घकालीन रूपमा विश्वसनीय वैदिक सेवा प्रणाली निर्माण गर्ने हाम्रो उद्देश्य हो।',
-  visionText: 'वैदिक ज्ञान र परम्पराको मूल भावनालाई संरक्षण गर्दै आधुनिक प्रविधिको माध्यमबाट ज्योतिष, वास्तु तथा कर्मकाण्डीय सेवाहरूलाई व्यवस्थित, पारदर्शी, सुरक्षित र सेवाग्राहीमैत्री बनाउनु।',
+  shlokaText: 'ॐ सह नाववतु।\nसह नौ भुनक्तु।\nसह वीर्यं करवावहै।\nतेजस्वि नावधीतमस्तु मा विद्विषावहै॥\nॐ शान्तिः शान्तिः शान्तिः॥',
+  shlokaSource: 'कृष्ण यजुर्वेदीय तैत्तिरीयोपनिषद् (ब्रह्मानन्दवल्ली)',
+  shlokaMeaning: 'परमात्माले हामी दुवै (सेवा प्रदायक र सेवाग्राही) को साथसाथै रक्षा गरून्। हामी दुवैलाई साथसाथै पोषण गरून्। हामी परस्पर मिलेर पराक्रम र सामर्थ्य प्राप्त गरौँ। हाम्रो अध्ययन र ज्ञान तेजस्वी तथा प्रकाशमान होस्। हामीबीच कहिल्यै द्वेष नहोस्। आधिभौतिक, आधिदैविक र आध्यात्मिक त्रिविध ताप शान्त हुन्।',
+  intro: 'सनातन वैदिक ज्ञान केवल परम्पराको स्मृति मात्र होइन; मानव जीवनलाई धर्म, ऋत, विवेक, अनुशासन र सदाचारतर्फ अभिमुख गराउने शाश्वत ज्ञानपरम्परा हो। यही पवित्र भावना र शास्त्रीय निष्ठाबाट प्रेरित भई ‘बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवा’ ले वैदिक ज्योतिष, वास्तुशास्त्र, कर्मकाण्डीय संस्कार तथा धार्मिक अनुष्ठानसम्बन्धी सेवाहरूलाई मौलिक मर्यादा, शास्त्रसम्मत विधि र आधुनिक डिजिटल प्रविधिको समन्वयमा सेवाग्राहीसमक्ष सरल एवं व्यवस्थित रूपमा पुर्‍याउने उद्देश्य लिएको छ।\n\nहामी नवस्थापित वैदिक सेवा संस्था हौँ। शताब्दियौँ पुरानो ऐतिहासिकताको आडम्बर नगरी, हामी वैदिक ज्ञानप्रतिको अनन्य श्रद्धा, निरन्तर स्वाध्याय, शास्त्रीय अनुशीलन, पारदर्शी आचरण तथा सेवाग्राहीप्रतिको गम्भीर उत्तरदायित्वलाई आफ्नो मूल आधार मान्दछौँ।\n\nज्योतिषलाई काल र कर्मफलको मार्गदर्शनका रूपमा, वास्तुलाई प्रकृति र जीवनको सामञ्जस्यका रूपमा तथा कर्मकाण्डलाई मन्त्र र विधिको अनुशासित संस्कारका रूपमा जनसमक्ष स्थापित गर्नु हाम्रो अभीष्ट हो। प्रविधिको सदुपयोग गर्दै सेवाग्राहीलाई भ्रम र भयबाट मुक्त राखी शास्त्रीय समाधानतर्फ डोर्‍याउनु नै हाम्रो सेवाधर्म हो।',
+  missionText: 'वैदिक ज्ञान, शास्त्रीय मर्यादा, सदाचार र निष्काम सेवाभावका आधारमा ज्योतिष, वास्तु तथा कर्मकाण्डसम्बन्धी सेवाहरूलाई व्यवस्थित, जिम्मेवार र सबैका लागि सहज पहुँचयोग्य बनाउनु।',
+  visionText: 'सनातन वैदिक परम्पराप्रति अनन्य श्रद्धा राख्दै गहन अध्ययन, प्रामाणिकता, पारदर्शिता र आधुनिक प्रविधिको सदुपयोगद्वारा एक विश्वसनीय, मर्यादित र लोकमङ्गलकारी वैदिक सेवा प्रणालीको विकास गर्नु।',
+  sankalpaText: 'प्रत्येक सेवामा हृदयको श्रद्धा, सत्यनिष्ठा, शुद्ध संकल्प, सेवाग्राहीको मर्यादा, व्यक्तिगत विवरणको पूर्ण गोपनीयता र धर्मसम्मत आचरणलाई सर्वोपरि राखी निष्कपट भावले लोकमङ्गलका निम्ति समर्पित रहनु।',
   objectivesList: [
-    'वैदिक ज्ञान र परम्पराको संरक्षण',
-    'ज्योतिषीय सेवा तथा पत्रिका प्रणालीको डिजिटल व्यवस्थापन',
-    'कर्मकाण्ड तथा संस्कार सेवाको व्यवस्थित booking प्रणाली',
-    'प्रमाणित/आधिकारिक सेवा प्रदायकलाई डिजिटल platform मा जोड्नु',
-    'यजमान र सेवा प्रदायकबीच सुरक्षित communication प्रणाली',
-    'वास्तु तथा अन्य वैदिक सेवाहरूलाई आधुनिक माध्यमबाट उपलब्ध गराउनु',
-    'वैदिक सामग्री तथा पुस्तकहरूको व्यवस्थित digital/online सेवा विकास गर्नु'
+    'वैदिक ज्ञान, सनातन परम्परा तथा शास्त्रीय मर्यादाको संरक्षण र संवर्धन',
+    'ज्योतिषीय परामर्श, जन्मपत्रिका तथा कुण्डली प्रणालीको सुव्यवस्थित डिजिटल व्यवस्थापन',
+    'कर्मकाण्ड, पूजा–अनुष्ठान तथा संस्कार सेवाको पारदर्शी र अनुशासित व्यवस्थापन',
+    'शास्त्रीय वास्तु परामर्शलाई आधुनिक स्थापत्य र प्रविधिसँग जोडी व्यावहारिक समाधान प्रदान गर्नु',
+    'यजमान तथा सेवाग्राहीसँग सत्यनिष्ठ, गोप्य र मर्यादित संवाद प्रणाली कायम राख्नु',
+    'वैदिक वाङ्मय, पञ्चाङ्ग तथा शास्त्रीय ज्ञानसामग्रीलाई डिजिटल माध्यममार्फत पहुँचयोग्य बनाउनु'
   ],
-  newJourneyTitle: 'नवप्रारम्भ — दीर्घकालीन यात्रा',
-  newJourneyText: 'यो संस्था हालै स्थापना भएको नयाँ संस्था हो। नयाँ सुरुवातसँगै दीर्घकालीन लक्ष्य बोकेर वैदिक ज्ञान, परम्परा, प्रविधि र सेवाको समन्वय गर्दै क्रमशः अझ व्यवस्थित तथा विश्वसनीय सेवा प्रणाली निर्माण गर्ने हाम्रो संकल्प हो।',
+  newJourneyTitle: 'नवप्रारम्भ — निष्ठापूर्ण सेवा यात्रा',
+  newJourneyText: 'यो संस्था हालै स्थापना भएको नवप्रारम्भ हो। कुनै कृत्रिम अतिरञ्जना बिना, सनातन परम्पराको गरिमा र प्रविधिको सामर्थ्यलाई जोडेर क्रमशः एक निष्कलङ्क, अनुशासित र लोकमङ्गलकारी वैदिक सेवा प्रणाली निर्माण गर्ने हाम्रो दृढ सङ्कल्प छ।',
   coreValues: [
-    { title: 'ज्ञान', desc: 'सनातन वैदिक शास्त्र, ज्योतिष र कर्मकाण्डको सही तथा प्रमाणिक ज्ञानप्रतिको प्रतिबद्धता।' },
-    { title: 'परम्परा', desc: 'प्राचीन गुरु-परम्परा र वैदिक रीतिरिवाजको मर्यादा संरक्षण।' },
-    { title: 'विश्वसनीयता', desc: 'सेवाग्राहीप्रतिको पूर्ण उत्तरदायित्व, यथार्थपरक परामर्श र गोपनीयता।' },
-    { title: 'पारदर्शिता', desc: 'दक्षता, शुल्क तथा सेवा प्रक्रियामा पूर्ण स्पष्टता र पारदर्शिता।' },
-    { title: 'सेवा', desc: 'व्यावसायिकताभन्दा माथि उठेर धर्म, संस्कृति र समाज कल्याणको सेवाभाव।' }
+    { title: 'ज्ञान', desc: 'वेद, शास्त्र, ज्योतिष, वास्तु र कर्मकाण्डसम्बन्धी ज्ञानको निरन्तर अध्ययन, विवेकपूर्ण प्रयोग तथा प्रामाणिकताको खोजी।' },
+    { title: 'परम्परा', desc: 'ऋषि–महर्षिको ज्ञानपरम्परा, गुरु–शिष्य मर्यादा, वैदिक संस्कार, मन्त्रविधि र सनातन सांस्कृतिक सम्पदाप्रति अगाध सम्मान।' },
+    { title: 'विश्वसनीयता', desc: 'सेवाग्राहीसँग सत्यनिष्ठ व्यवहार, यथार्थपरक परामर्श, व्यक्तिगत विवरणको पूर्ण गोपनीयता र जिम्मेवार सेवा।' },
+    { title: 'पारदर्शिता', desc: 'सेवा प्रक्रिया, परामर्श विधि, समय, मर्यादा र शुल्कको स्पष्टतासहित उत्तरदायी एवं निष्कपट आचरण।' },
+    { title: 'सेवा', desc: 'व्यावसायिकताभन्दा माथि उठेर श्रद्धा, करुणा, सद्भाव र लोकमङ्गलको भावबाट प्रेरित निष्कपट सेवाभाव।' },
+    { title: 'सदाचार', desc: 'मन, वचन र कर्मको शुचिता तथा धर्मसम्मत नैतिक आचरणको पालना।' }
   ],
   website: 'www.balanandavaidiksewa.com',
   logoUrl: '/logo.png',
   mainPhotoUrl: getDefaultMainPhotoSvg(),
-  headerNote: 'नेपालकै सबैभन्दा भरपर्दो वैदिक सेवा • सनातन धर्म र प्रामाणिक वास्तुको संगम',
+  headerNote: 'सनातन वैदिक ज्ञान, शास्त्रीय मर्यादा एवं प्रामाणिक सेवाको पावन संगम',
   footerNote: 'सम्पर्क: +९७७-९७६४४००५३३ | इमेल: suwashdmk@gmail.com | वेबसाइट: www.balanandavaidiksewa.com',
   showLogoOnBills: true,
   showPhotoOnReports: true,
-  registeredNo: 'दर्ता नं. १२३४/०८०',
-  panNo: 'PAN: ६०१२३४५६७',
+  registeredNo: 'दर्ता नं. ',
+  panNo: 'PAN: ',
 };
 
 export const DEFAULT_ASTROLOGERS: AstrologerProfile[] = [
@@ -186,12 +239,21 @@ export function getStoredProfiles(): BirthDetails[] {
       return [];
     }
     const parsed: BirthDetails[] = JSON.parse(raw);
-    // Strip out legacy demo profiles (sample_1, sample_2, Ram Sharma, Sita Devi)
+    // Clean up any legacy dummy visitor keys from localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('balananda_user_birth_profile_user_self');
+        localStorage.removeItem('balananda_user_birth_profile_client_self');
+      } catch {}
+    }
+    // Strip out legacy demo profiles and visitor dummy profiles
     const cleaned = Array.isArray(parsed)
       ? parsed.filter(
           (p) =>
             p &&
             !p.id?.startsWith('sample_') &&
+            p.id !== 'user_profile_user_self' &&
+            p.id !== 'user_profile_client_self' &&
             p.name !== 'राम शर्मा' &&
             p.name !== 'सीता देवी'
         )
@@ -249,7 +311,18 @@ export function getUserPersonalBirthProfile(
   userName?: string | null,
   userPhone?: string | null
 ): BirthDetails | null {
-  if (!userId && !userName && !userPhone) return null;
+  // Strictly return null if no authenticated user ID or if visitor identifier
+  if (!userId || userId === 'user_self' || userId === 'client_self') {
+    return null;
+  }
+
+  // 0. Check active RBAC session birthDetails first
+  const currentSession = getActiveRBACSession();
+  if (currentSession && (currentSession.userId === userId || currentSession.username === userId || (userPhone && currentSession.phone === userPhone))) {
+    if (currentSession.birthDetails && currentSession.birthDetails.id !== 'live_current_moment') {
+      return enrichProfileWithAstroCalculations(currentSession.birthDetails);
+    }
+  }
 
   // 1. Try local storage key specific to this user
   if (typeof window !== 'undefined' && userId) {
@@ -258,8 +331,8 @@ export function getUserPersonalBirthProfile(
       const raw = localStorage.getItem(userKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.name && parsed.id !== 'live_current_moment') {
-          return parsed;
+        if (parsed && parsed.name && parsed.id !== 'live_current_moment' && parsed.id !== 'user_profile_user_self') {
+          return enrichProfileWithAstroCalculations(parsed);
         }
       }
     } catch {}
@@ -269,78 +342,50 @@ export function getUserPersonalBirthProfile(
   const allProfiles = getStoredProfiles();
   if (userId) {
     const userProfile = allProfiles.find(
-      (p) => p.id !== 'live_current_moment' && (p.clientId === userId || p.id === `user_profile_${userId}`)
+      (p) => p.id !== 'live_current_moment' && p.id !== 'user_profile_user_self' && (p.clientId === userId || p.id === `user_profile_${userId}`)
     );
-    if (userProfile) return userProfile;
+    if (userProfile) return enrichProfileWithAstroCalculations(userProfile);
   }
 
   if (userName) {
     const cleanName = userName.trim().toLowerCase();
     const matchedByName = allProfiles.find(
-      (p) => p.id !== 'live_current_moment' && p.name && p.name.trim().toLowerCase() === cleanName
+      (p) => p.id !== 'live_current_moment' && p.id !== 'user_profile_user_self' && p.name && p.name.trim().toLowerCase() === cleanName
     );
-    if (matchedByName) return matchedByName;
+    if (matchedByName) return enrichProfileWithAstroCalculations(matchedByName);
   }
 
-  // 3. Fallback: Create and persist a personalized profile for this logged-in user
-  const effectiveName = userName || 'प्रयोगकर्ता';
-  const effectiveId = userId ? `user_profile_${userId}` : `user_profile_${Date.now()}`;
-
-  const defaultProf: BirthDetails = {
-    id: effectiveId,
-    name: effectiveName,
-    gender: 'पुरुष',
-    dateBS: '२०४६-०५-१५',
-    dateAD: '1989-08-30',
-    time: '06:30',
-    location: {
-      name: 'काठमाडौँ, नेपाल',
-      district: 'काठमाडौँ',
-      province: 'बागमती',
-      country: 'नेपाल',
-      latitude: 27.7172,
-      longitude: 85.3240,
-      timeZone: 5.75,
-    },
-    moonRashi: 'कन्या', // User in screenshot has Kanya
-    clientId: userId || 'client_self',
-    notes: 'प्रयोगकर्ताको व्यक्तिगत जन्म विवरण तथा राशिफल प्रोफाइल'
-  };
-
-  if (typeof window !== 'undefined' && userId) {
-    try {
-      localStorage.setItem(`balananda_user_birth_profile_${userId}`, JSON.stringify(defaultProf));
-    } catch {}
-  }
-  saveProfile(defaultProf);
-
-  return defaultProf;
+  // If no saved personal profile exists for this user, do NOT invent an arbitrary past birthdate.
+  // Returning null ensures the application uses the authentic live current moment profile for calculations.
+  return null;
 }
 
 export function saveUserPersonalBirthProfile(
   userId: string,
   profile: BirthDetails
 ): void {
+  const enriched = enrichProfileWithAstroCalculations(profile);
   if (typeof window !== 'undefined' && userId) {
     try {
-      localStorage.setItem(`balananda_user_birth_profile_${userId}`, JSON.stringify(profile));
+      localStorage.setItem(`balananda_user_birth_profile_${userId}`, JSON.stringify(enriched));
     } catch {}
   }
-  saveProfile(profile);
+  saveProfile(enriched);
 }
 
 export function saveProfile(profile: BirthDetails): BirthDetails {
+  const enriched = enrichProfileWithAstroCalculations(profile);
   const profiles = getStoredProfiles();
-  const id = profile.id || `profile_${Date.now()}`;
-  const customerId = profile.customerId || `ग्राह-${String(profiles.length + 1).padStart(3, '०')}`;
+  const id = enriched.id || `profile_${Date.now()}`;
+  const customerId = enriched.customerId || `ग्राह-${String(profiles.length + 1).padStart(3, '०')}`;
   const currentSession = getActiveRBACSession();
-  const clientId = profile.clientId || currentSession?.userId || 'client_self';
+  const clientId = enriched.clientId || currentSession?.userId || 'client_self';
   const updatedProfile = { 
-    ...profile, 
+    ...enriched, 
     id, 
     customerId,
     clientId,
-    createdAt: profile.createdAt || new Date().toISOString() 
+    createdAt: enriched.createdAt || new Date().toISOString() 
   };
 
   const index = profiles.findIndex((p) => p.id === id);
@@ -452,12 +497,37 @@ export function getStoredOrgProfile(): OrganizationProfile {
       return DEFAULT_ORG_PROFILE;
     }
     const parsed = JSON.parse(raw);
-    if (!parsed.name || parsed.name.includes('सुकदेव') || !parsed.logoUrl || parsed.logoUrl.includes('सुकदेव') || parsed.logoUrl.startsWith('data:image/svg')) {
+    if (
+      !parsed.name || 
+      parsed.name.includes('सुकदेव') || 
+      !parsed.logoUrl || 
+      parsed.logoUrl.includes('सुकदेव') || 
+      parsed.logoUrl.startsWith('data:image/svg') ||
+      !parsed.missionText ||
+      !parsed.sankalpaText ||
+      !parsed.mottoText ||
+      parsed.registeredNo?.includes('१२३४')
+    ) {
       parsed.name = DEFAULT_ORG_PROFILE.name;
       parsed.phone = DEFAULT_ORG_PROFILE.phone;
+      parsed.email = DEFAULT_ORG_PROFILE.email;
+      parsed.address = DEFAULT_ORG_PROFILE.address;
+      parsed.website = DEFAULT_ORG_PROFILE.website;
       parsed.headerNote = DEFAULT_ORG_PROFILE.headerNote;
       parsed.intro = DEFAULT_ORG_PROFILE.intro;
       parsed.footerNote = DEFAULT_ORG_PROFILE.footerNote;
+      parsed.tagline = DEFAULT_ORG_PROFILE.tagline;
+      parsed.mottoText = DEFAULT_ORG_PROFILE.mottoText;
+      parsed.mangalShloka = DEFAULT_ORG_PROFILE.mangalShloka;
+      parsed.missionText = DEFAULT_ORG_PROFILE.missionText;
+      parsed.visionText = DEFAULT_ORG_PROFILE.visionText;
+      parsed.sankalpaText = DEFAULT_ORG_PROFILE.sankalpaText;
+      parsed.shlokaText = DEFAULT_ORG_PROFILE.shlokaText;
+      parsed.shlokaSource = DEFAULT_ORG_PROFILE.shlokaSource;
+      parsed.shlokaMeaning = DEFAULT_ORG_PROFILE.shlokaMeaning;
+      parsed.coreValues = DEFAULT_ORG_PROFILE.coreValues;
+      parsed.registeredNo = DEFAULT_ORG_PROFILE.registeredNo;
+      parsed.panNo = DEFAULT_ORG_PROFILE.panNo;
       parsed.logoUrl = '/logo.png';
       parsed.mainPhotoUrl = DEFAULT_ORG_PROFILE.mainPhotoUrl;
     }

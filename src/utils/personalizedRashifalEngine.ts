@@ -23,6 +23,39 @@ import {
   getYearlyRashifalForRashi
 } from '../db/rashifalStore';
 import { toDevanagariNumerals } from './nepaliCalendar';
+import { convertBSToADFull } from './bsCalendarData';
+import { CANONICAL_RASHI_MAP } from './unifiedAstroFaladeshChain';
+
+/**
+ * Robustly resolves natal astronomical calculation for any birth profile
+ */
+export function resolveProfileNatalAstro(profile: BirthDetails | null) {
+  if (!profile || profile.id === 'live_current_moment' || profile.name?.includes('तात्कालिक')) {
+    return null;
+  }
+  let adDate = profile.dateAD;
+  if (!adDate && profile.dateBS) {
+    try {
+      const match = profile.dateBS.match(/\d+/g);
+      if (match && match.length >= 3) {
+        adDate = convertBSToADFull(parseInt(match[0], 10), parseInt(match[1], 10), parseInt(match[2], 10));
+      }
+    } catch {}
+  }
+  if (!adDate) return null;
+  const timeStr = profile.time && profile.time.trim() !== '' ? profile.time : '12:00';
+  const lat = profile.location?.latitude ?? 27.7172;
+  const lng = profile.location?.longitude ?? 85.3240;
+  const tz = profile.location?.timeZone ?? 5.75;
+
+  try {
+    return getCachedAstroCalculation(adDate, timeStr, lat, lng, tz, 'Lahiri');
+  } catch (e) {
+    console.warn('Failed to calculate natal astro for profile:', e);
+    return null;
+  }
+}
+
 
 export interface PersonalizedDailyResult {
   isPersonalized: boolean;
@@ -89,36 +122,19 @@ export function generatePersonalizedDailyRashifal(
     (profile.name && profile.name.includes('तात्कालिक'))
   );
 
-  // Determine if profile exists and has natal data
-  let natalAstro = null;
-  let hasValidBirthData = false;
-  let hasTime = false;
+  // Determine if profile exists and calculate authentic Vedic natal data
+  const natalAstro = resolveProfileNatalAstro(profile);
+  const hasValidBirthData = Boolean(natalAstro?.moon);
+  const hasTime = Boolean(profile?.time && profile.time.trim() !== '');
 
-  if (!isLiveDummy && (profile?.dateAD || profile?.dateBS)) {
-    try {
-      const lat = profile?.location?.latitude || 27.7172;
-      const lng = profile?.location?.longitude || 85.3240;
-      const tz = profile?.location?.timeZone || 5.75;
-      const timeStr = profile?.time && profile.time.trim() !== '' ? profile.time : '12:00';
-      hasTime = Boolean(profile?.time && profile.time.trim() !== '');
-
-      natalAstro = getCachedAstroCalculation(profile!.dateAD, timeStr, lat, lng, tz);
-      hasValidBirthData = Boolean(natalAstro?.moon);
-    } catch (e) {
-      console.warn('Natal calculation fallback:', e);
-    }
-  }
-
-  // Resolve Active Rashi ID
+  // Resolve Active Rashi ID: Prioritize authentic computed natal Moon sign
   let activeRashiId = preferredRashiId || 1;
   let activeRashiName = 'मेष';
   let janmaNakshatraName = '';
   let lagnaName = '';
 
   if (hasValidBirthData && natalAstro?.moon) {
-    if (!preferredRashiId) {
-      activeRashiId = natalAstro.moon.rashiId;
-    }
+    activeRashiId = preferredRashiId || natalAstro.moon.rashiId;
     activeRashiName = natalAstro.moon.rashiName;
     janmaNakshatraName = natalAstro.moon.nakshatraName || '';
     lagnaName = natalAstro.lagna?.rashiName || '';
@@ -126,9 +142,7 @@ export function generatePersonalizedDailyRashifal(
     const matched = RASHI_DATA.find(r => r.name === profile.moonRashi);
     if (matched) {
       activeRashiName = matched.name;
-      if (!preferredRashiId) {
-        activeRashiId = matched.id;
-      }
+      activeRashiId = preferredRashiId || matched.id;
     }
   }
 
@@ -223,7 +237,12 @@ export function generatePersonalizedDailyRashifal(
     sadeSatiStatus: sadeSatiResult,
     item: {
       ...baseItem,
-      rashiName: rashiDisplayName
+      rashiName: rashiDisplayName,
+      luckyColor: CANONICAL_RASHI_MAP[activeRashiId]?.canonicalLuckyColor || baseItem.luckyColor,
+      luckyNumber: CANONICAL_RASHI_MAP[activeRashiId]?.canonicalLuckyNumber || baseItem.luckyNumber,
+      luckyDirection: CANONICAL_RASHI_MAP[activeRashiId]?.canonicalLuckyDirection || baseItem.luckyDirection,
+      mantra: CANONICAL_RASHI_MAP[activeRashiId]?.mantra || baseItem.mantra,
+      remedy: CANONICAL_RASHI_MAP[activeRashiId]?.vedicRemedy || baseItem.remedy
     },
     personalSynthesis
   };
@@ -248,7 +267,12 @@ export function generatePersonalizedMonthlyRashifal(
   const nativeName = (!isLiveDummy && profile?.name) ? profile.name : 'जातक';
   let isPersonalized = false;
 
-  if (profile && !isLiveDummy) {
+  const natalAstro = resolveProfileNatalAstro(profile);
+  if (natalAstro?.moon) {
+    isPersonalized = true;
+    activeRashiId = preferredRashiId || natalAstro.moon.rashiId;
+    activeRashiName = natalAstro.moon.rashiName;
+  } else if (profile && !isLiveDummy) {
     isPersonalized = true;
     if (profile.moonRashi && !preferredRashiId) {
       const found = RASHI_DATA.find(r => r.name === profile.moonRashi);
@@ -294,7 +318,12 @@ export function generatePersonalizedYearlyRashifal(
   const nativeName = (!isLiveDummy && profile?.name) ? profile.name : 'जातक';
   let isPersonalized = false;
 
-  if (profile && !isLiveDummy) {
+  const natalAstroYearly = resolveProfileNatalAstro(profile);
+  if (natalAstroYearly?.moon) {
+    isPersonalized = true;
+    activeRashiId = preferredRashiId || natalAstroYearly.moon.rashiId;
+    activeRashiName = natalAstroYearly.moon.rashiName;
+  } else if (profile && !isLiveDummy) {
     isPersonalized = true;
     if (profile.moonRashi && !preferredRashiId) {
       const found = RASHI_DATA.find(r => r.name === profile.moonRashi);

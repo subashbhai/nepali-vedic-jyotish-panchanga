@@ -52,8 +52,8 @@ export const DailyHoroscopeAlertBanner: React.FC<DailyHoroscopeAlertBannerProps>
 }) => {
   const profileId = activeProfile?.id || 'default';
   const profileName = activeProfile?.name?.trim() || 'जातक';
-  const moonRashi = moon?.rashiName || todayPanchanga?.moonRashi || 'मेष';
-  const lagnaRashi = lagna?.rashiName || 'मेष';
+  const moonRashi = activeProfile?.moonRashi || moon?.rashiName || todayPanchanga?.moonRashi || 'मेष';
+  const lagnaRashi = activeProfile?.lagnaRashi || lagna?.rashiName || 'मेष';
 
   const [isDismissed, setIsDismissed] = useState<boolean>(() =>
     isDailyBannerDismissed(todayAD, profileId)

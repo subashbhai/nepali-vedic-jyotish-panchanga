@@ -47,7 +47,10 @@ tfoot {
 }
 
 /* Screen Preview Container for A4 Paper Sheet Simulation */
-.a4-preview-container {
+.a4-preview-container,
+.a4-patrika-page,
+.brihat-cheena-page,
+.printable-page {
   width: 210mm;
   min-height: 297mm;
   margin: 1.5rem auto;
@@ -60,12 +63,19 @@ tfoot {
 }
 
 @media screen and (max-width: 850px) {
-  .a4-preview-container {
-    width: 100%;
-    min-height: auto;
-    margin: 0.5rem 0;
-    box-shadow: none;
-    border-radius: 12px;
+  .a4-preview-container,
+  .a4-patrika-page,
+  .brihat-cheena-page,
+  .printable-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0.75rem 0 !important;
+    box-shadow: none !important;
+    border-radius: 12px !important;
+    overflow-x: hidden !important;
   }
 }
 

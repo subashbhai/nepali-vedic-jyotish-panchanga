@@ -128,18 +128,10 @@ export const GreenOmBorderFrame: React.FC<{
 
   return (
     <div
-      className={`print-page printable-page a4-patrika-page relative w-full bg-white text-stone-900 border-2 border-[#166534] p-1.5 sm:p-2.5 my-4 print:my-0 font-serif shadow-lg print:shadow-none box-border flex flex-col justify-between overflow-hidden ${className}`}
+      className={`print-page printable-page a4-patrika-page relative w-full max-w-[210mm] bg-white text-stone-900 border-2 border-[#166534] p-1.5 sm:p-2.5 my-2 sm:my-4 print:my-0 font-serif shadow-lg print:shadow-none box-border flex flex-col justify-between overflow-x-hidden ${className}`}
       style={{
-        width: '210mm',
-        height: '297mm',
-        maxHeight: '297mm',
-        maxWidth: '210mm',
         margin: '0 auto',
         boxSizing: 'border-box',
-        pageBreakAfter: 'always',
-        pageBreakInside: 'avoid',
-        breakInside: 'avoid',
-        breakAfter: 'page',
         backgroundColor: '#ffffff',
       }}
     >
@@ -613,9 +605,9 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
               एतत्समयजा ग्रहस्पष्टतालिका एवं मुख्य चतुष्कोण कुण्डली चक्रम्
             </div>
 
-            {/* Planetary Positions Table */}
-            <div className="overflow-x-auto shrink-0">
-              <table className="w-full text-center text-xs border border-stone-800 border-collapse font-serif">
+            {/* Planetary Positions Table with Touch Scroll */}
+            <div className="overflow-x-auto w-full max-w-full touch-pan-x shrink-0 rounded-lg border border-stone-800">
+              <table className="w-full min-w-[500px] text-center text-[10px] sm:text-xs border-collapse font-serif">
                 <thead>
                   <tr className="bg-amber-100/70 text-stone-900 font-bold border-b border-stone-800">
                     <th className="p-1 border-r border-stone-800">ग्रहा:</th>
@@ -678,8 +670,8 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
               </table>
             </div>
 
-            {/* 2x2 Grid of 4 Diamond Kundali Charts with Blue Pill Labels */}
-            <div className="grid grid-cols-2 gap-3 pt-0.5">
+            {/* Grid of 4 Diamond Kundali Charts: 1-col on mobile, 2-col on tablet/print */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-2 sm:gap-3 pt-0.5">
               {/* Top Left: Lagna Chart */}
               <NorthIndianDiamondChart
                 title="लग्न कुण्डली (D1)"
@@ -793,8 +785,8 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
               <div className="text-center font-bold text-red-700 text-xs sm:text-sm">
                 १. अथ भुक्तोनीत विशोत्तरी महादशा चक्रम् (१२० वर्षे पूर्ण कालचक्र)
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-center text-xs border border-stone-800 border-collapse font-serif">
+              <div className="overflow-x-auto w-full max-w-full touch-pan-x rounded-lg border border-stone-800">
+                <table className="w-full min-w-[480px] text-center text-[10.5px] sm:text-xs border-collapse font-serif">
                   <thead>
                     <tr className="bg-stone-100 text-blue-800 font-bold border-b border-stone-800">
                       {orderedVimLords.map((l) => (
@@ -813,7 +805,7 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
                       <td className="p-1 font-bold text-stone-900">वर्ष</td>
                     </tr>
                     {/* Row 2: Cumulative Years, Months, Days */}
-                    <tr className="border-b border-stone-800 text-[11px]">
+                    <tr className="border-b border-stone-800 text-[10px] sm:text-[11px]">
                       <td className="p-1 border-r border-stone-800">०<br />३<br />१०</td>
                       <td className="p-1 border-r border-stone-800">२०<br />३<br />१५</td>
                       <td className="p-1 border-r border-stone-800">२६<br />३<br />१६</td>
@@ -835,8 +827,8 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
               <div className="text-center font-bold text-red-700 text-xs sm:text-sm">
                 २. अथ भुक्तोनीत त्रिभागी महादशा चक्रम् (८० वर्षे चक्र)
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-center text-xs border border-stone-800 border-collapse font-serif">
+              <div className="overflow-x-auto w-full max-w-full touch-pan-x rounded-lg border border-stone-800">
+                <table className="w-full min-w-[480px] text-center text-[10.5px] sm:text-xs border-collapse font-serif">
                   <thead>
                     <tr className="bg-stone-100 text-blue-800 font-bold border-b border-stone-800">
                       {orderedTriLords.map((l) => (
@@ -856,7 +848,7 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
                       <td className="p-1 font-bold text-stone-900">वर्ष<br />मास</td>
                     </tr>
                     {/* Row 2: Cumulative End Dates */}
-                    <tr className="border-b border-stone-800 text-[11px]">
+                    <tr className="border-b border-stone-800 text-[10px] sm:text-[11px]">
                       <td className="p-1 border-r border-stone-800">०<br />२<br />७</td>
                       <td className="p-1 border-r border-stone-800">१३<br />६<br />१०</td>
                       <td className="p-1 border-r border-stone-800">१७<br />६<br />११</td>
@@ -878,8 +870,8 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
               <div className="text-center font-bold text-red-700 text-xs sm:text-sm">
                 ३. अथ भुक्तोनीत योगिनी महादशा चक्रम् (३६ वर्षे चक्र - २ चक्र ७२ वर्ष)
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-center text-xs border border-stone-800 border-collapse font-serif">
+              <div className="overflow-x-auto w-full max-w-full touch-pan-x rounded-lg border border-stone-800">
+                <table className="w-full min-w-[480px] text-center text-[10.5px] sm:text-xs border-collapse font-serif">
                   <thead>
                     <tr className="bg-stone-100 text-blue-800 font-bold border-b border-stone-800">
                       {orderedYoginis.map((y) => (
@@ -897,7 +889,7 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
                       <td className="p-1 font-bold text-stone-900">वर्ष</td>
                     </tr>
                     {/* Row 2: Cycle 1 Cumulative */}
-                    <tr className="border-b border-stone-800 text-[11px]">
+                    <tr className="border-b border-stone-800 text-[10px] sm:text-[11px]">
                       <td className="p-1 border-r border-stone-800">०<br />२<br />२६</td>
                       <td className="p-1 border-r border-stone-800">७<br />२<br />२८</td>
                       <td className="p-1 border-r border-stone-800">१५<br />२<br />३०</td>
@@ -909,7 +901,7 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
                       <td className="p-1 font-bold text-stone-900">वर्ष<br />मास<br />दिन</td>
                     </tr>
                     {/* Row 3: Cycle 2 Cumulative */}
-                    <tr className="text-[11px]">
+                    <tr className="text-[10px] sm:text-[11px]">
                       <td className="p-1 border-r border-stone-800">३६<br />३<br />४</td>
                       <td className="p-1 border-r border-stone-800">४३<br />३<br />६</td>
                       <td className="p-1 border-r border-stone-800">५१<br />३<br />८</td>
@@ -1013,8 +1005,8 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
             </div>
 
             {/* Section 7: Closing Sanskrit Shloka & Official Certification Signature (Last Page Bottom-Right Corner) */}
-            <div className="pt-2 border-t-2 border-[#166534] flex items-center justify-between gap-3 shrink-0">
-              <div className="space-y-1 text-left max-w-[50%]">
+            <div className="pt-2 border-t-2 border-[#166534] flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3 shrink-0">
+              <div className="space-y-1 text-center sm:text-left w-full sm:max-w-[55%]">
                 <p className="text-red-700 font-bold text-xs leading-tight">
                   न मया धारिता शंकु घटिका नैव साधिता |<br />
                   परोपदेशवेलायां लिखिता जन्मपत्रिका ॥
@@ -1029,7 +1021,7 @@ export const CheenaDocument: React.FC<CheenaDocumentProps> = ({
               </div>
 
               {/* Prominent Official Astrologer Seal Stamp & Signature in Bottom-Right Corner */}
-              <div className="shrink-0">
+              <div className="shrink-0 flex justify-center w-full sm:w-auto">
                 <OfficialAstrologerSeal
                   orgProfile={orgProfile}
                   astrologer={astrologer}

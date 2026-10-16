@@ -8,7 +8,8 @@ import {
   resetRBACUserPassword,
   getRoleLabelNepali,
   getActiveRBACSession,
-  clearRBACSession
+  clearRBACSession,
+  syncUsersFromServer
 } from '../../db/rbacStore';
 import { registerOrUpdateClientPolicy } from '../../db/menuControlStore';
 import { start7DayTrial } from '../../db/subscriptionStore';
@@ -38,7 +39,7 @@ import {
   Check
 } from 'lucide-react';
 import { BirthDetails, LocationData, Gender } from '../../types/astrology';
-import { saveProfile, getStoredProfiles } from '../../db/profileStore';
+import { saveProfile, getStoredProfiles, saveUserPersonalBirthProfile } from '../../db/profileStore';
 import { convertBSToADFull, convertADToBSFull } from '../../utils/bsCalendarData';
 import { toDevanagariNumerals, fromDevanagariNumerals } from '../../utils/nepaliCalendar';
 import { WORLD_LOCATIONS_DATA, searchWorldLocations } from '../../data/worldLocations';
@@ -286,7 +287,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     }
   };
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -296,7 +297,25 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       return;
     }
 
-    const res = authenticateRBACUser(phoneOrUsername.trim(), password.trim());
+    let res = authenticateRBACUser(phoneOrUsername.trim(), password.trim());
+
+    if (!res.success) {
+      try {
+        const sRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneOrUsername: phoneOrUsername.trim(), password: password.trim() })
+        });
+        const sData = await sRes.json();
+        if (sData && sData.success && sData.user) {
+          await syncUsersFromServer();
+          res = authenticateRBACUser(phoneOrUsername.trim(), password.trim());
+        } else if (sData && sData.error) {
+          setErrorMsg(sData.error);
+          return;
+        }
+      } catch {}
+    }
 
     if (res.success && res.session) {
       setSuccessMsg(res.message);
@@ -385,6 +404,13 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       setErrorMsg(regRes.message);
       return;
     }
+
+    // Bind personal birth profile to user ID and phone
+    if (regRes.user?.id) {
+      saveUserPersonalBirthProfile(regRes.user.id, savedProfile);
+    }
+    saveUserPersonalBirthProfile(signupPhone.trim(), savedProfile);
+    saveUserPersonalBirthProfile(savedProfile.id, savedProfile);
 
     // Automatically register client into Super Admin Menu Access Control System
     try {

@@ -17,7 +17,8 @@ import {
   TrendingUp,
   UserCheck,
   Info,
-  ChevronRight
+  ChevronRight,
+  BookOpen
 } from 'lucide-react';
 import {
   BirthDetails,
@@ -31,6 +32,7 @@ import { calculateShivaVaas, calculateAgniVaas } from '../../utils/saitEngine';
 import { calculateGocharAndSadeSati } from '../../utils/gocharEngine';
 import { RASHI_DATA, NAKSHATRA_DATA } from '../../utils/astroCalculations';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
+import { getUnifiedNativeDailyPrediction, UnifiedNativeDailyPrediction } from '../../utils/unifiedAstroFaladeshChain';
 
 interface PersonalizedMemberAstrologyHubProps {
   profile: BirthDetails;
@@ -48,6 +50,7 @@ export const PersonalizedMemberAstrologyHub: React.FC<PersonalizedMemberAstrolog
   transitPlanets = []
 }) => {
   const [horoscopePeriod, setHoroscopePeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
+  const [showClassicalPramans, setShowClassicalPramans] = useState<boolean>(true);
 
   // Compute the native's astrological chart from their registered birth data
   const astroData = useMemo(() => {
@@ -118,34 +121,30 @@ export const PersonalizedMemberAstrologyHub: React.FC<PersonalizedMemberAstrolog
     };
   }, [birthDasha]);
 
+  // Unified Master Prediction Chain (0.1% Precision, Zero Discrepancy)
+  const unifiedPrediction = useMemo(() => {
+    return getUnifiedNativeDailyPrediction(profile, todayPanchanga, transitPlanets, todayBS);
+  }, [profile, todayPanchanga, transitPlanets, todayBS]);
+
   // Personalized Horoscopes
   const personalizedPredictions = useMemo(() => {
-    const moonRashi = birthMoon?.rashiName || 'मेष';
-    const moonRashiId = birthMoon?.rashiId || 1;
-    const dayScore = chandrabala?.isFavorable ? (tarabala?.isFavorable ? 92 : 82) : 65;
-
-    const luckyColors = ['पहेंलो', 'रातो', 'सेतो', 'सुन्तला', 'गुलाबी', 'हरियो', 'नीलो'];
-    const luckyColor = luckyColors[(moonRashiId + 2) % luckyColors.length];
-    const luckyNumbers = ['१', '३', '५', '७', '९'];
-    const luckyNumber = luckyNumbers[(moonRashiId * 2) % luckyNumbers.length];
-    const luckyDirections = ['पूर्व', 'उत्तर', 'ईशान', 'उत्तर-पश्चिम'];
-    const luckyDirection = luckyDirections[moonRashiId % luckyDirections.length];
+    const moonRashi = birthMoon?.rashiName || unifiedPrediction.moonRashi || 'मेष';
 
     return {
       daily: {
-        score: dayScore,
-        verdict: dayScore >= 80 ? 'शुभ एवं कार्यसिद्धिदायक' : 'सामान्य एवं सतर्कतापूर्वक कार्य गर्ने दिन',
-        summary: `जातक ${profile.name} का लागि आज चन्द्रबल (${chandrabala?.houseFromMoon || 1} औं भाव) र ताराबल (${tarabala?.taraNameNepali || 'शुभ'}) को प्रभावले गर्दा मान-प्रतिष्ठा, पारिवारिक सुख र रोकिएका कार्यहरूमा गति मिल्नेछ।`,
-        career: `व्यापार तथा पेसागत क्षेत्रमा सकारात्मक ऊर्जा रहनेछ। नयाँ सम्पर्कहरू फलदायी साबित हुनेछन्। महत्वपूर्ण सम्झौताका लागि आजको समय अनुकूल छ।`,
-        finance: `आर्थिक पक्ष मजबुत बन्नेछ। विगतको लगानीबाट प्रतिफल मिल्ने सम्भावना छ, तर अनावश्यक खर्च नियन्त्रण गर्नुहोस्।`,
-        health: `शारीरिक तथा मानसिक स्फूर्ति राम्रो रहनेछ। बिहान सूर्य नमस्कार वा प्राणायाम गर्दा अझै ऊर्जा प्राप्त हुनेछ।`,
-        love: `पारिवारिक तथा दाम्पत्य सम्बन्धमा सद्भाव र आत्मीयता बढ्नेछ। प्रियजनको सहयोगले मन प्रसन्न रहनेछ।`,
-        luckyColor,
-        luckyNumber,
-        luckyDirection,
-        luckyTime: 'बिहान ०८:०० देखि १०:३० सम्म',
-        mantra: `ॐ सोमाय नमः (वा ॐ नमो भगवते वासुदेवाय)`,
-        remedy: `आज बिहान घरबाट निस्कँदा मीठो वा दही ग्रहण गर्नुहोस् र पूर्व वा उत्तर दिशा फर्केर यात्रा सुरु गर्नुहोस्।`
+        score: unifiedPrediction.dayScore,
+        verdict: unifiedPrediction.overallVerdict,
+        summary: unifiedPrediction.overallSummary,
+        career: unifiedPrediction.career,
+        finance: unifiedPrediction.finance,
+        health: unifiedPrediction.health,
+        love: unifiedPrediction.loveAndFamily,
+        luckyColor: unifiedPrediction.luckyColor,
+        luckyNumber: unifiedPrediction.luckyNumber,
+        luckyDirection: unifiedPrediction.luckyDirection,
+        luckyTime: unifiedPrediction.favorableTime,
+        mantra: unifiedPrediction.mantra,
+        remedy: unifiedPrediction.remedy
       },
       monthly: {
         title: `${todayPanchanga.masaInfo?.masaName || 'चालु महिना'}को व्यक्तिगत फलादेश`,
@@ -163,7 +162,7 @@ export const PersonalizedMemberAstrologyHub: React.FC<PersonalizedMemberAstrolog
         spiritualRemedy: `वर्षभरि प्रत्येक बिहीबार भगवान विष्णु वा लक्ष्मीनारायणको पूजा एवं शनिश्चरी अमावस्यामा दीपदान गर्नुहोस्।`
       }
     };
-  }, [profile.name, birthMoon, chandrabala, tarabala, todayPanchanga, todayBS]);
+  }, [profile.name, birthMoon, unifiedPrediction, todayPanchanga, todayBS]);
 
   const abhijitDisplay: string = typeof todayPanchanga.abhijitMuhurta === 'object' && todayPanchanga.abhijitMuhurta !== null
     ? `${todayPanchanga.abhijitMuhurta.start} - ${todayPanchanga.abhijitMuhurta.end}`
@@ -480,6 +479,70 @@ export const PersonalizedMemberAstrologyHub: React.FC<PersonalizedMemberAstrolog
           </div>
         </div>
 
+      </div>
+
+      {/* ------------------------------------------------------------ */}
+      {/* 4. CLASSICAL SHALOKAS & EVIDENCE (शास्त्रीय प्रमाण श्लोक)      */}
+      {/* ------------------------------------------------------------ */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-stone-900 dark:to-stone-950 border border-amber-300/80 dark:border-amber-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-amber-200 dark:border-stone-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#7A1C1C] text-white flex items-center justify-center font-bold text-sm shadow-xs">
+              <BookOpen className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-stone-900 dark:text-stone-100 font-serif">
+                शास्त्रीय प्रमाण एवं श्लोक आधार (Classical Astrological Authority)
+              </h3>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                फलदीपिका, बृहत् पराशर होरा शास्त्र र मुहूर्तचिन्तामणिका मूल श्लोकहरू
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowClassicalPramans(!showClassicalPramans)}
+            className="px-3 py-1 bg-white dark:bg-stone-800 border border-amber-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-lg text-xs font-bold hover:bg-amber-50 transition-all cursor-pointer"
+          >
+            {showClassicalPramans ? 'संक्षिप्त गर्नुहोस् ▴' : 'श्लोकहरू हेर्नुहोस् ▾'}
+          </button>
+        </div>
+
+        {showClassicalPramans && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+            {unifiedPrediction.shastricPramans.map((praman, idx) => (
+              <div
+                key={idx}
+                className="p-4 bg-white dark:bg-stone-900 rounded-xl border border-amber-200/90 dark:border-stone-800 space-y-2 shadow-2xs hover:shadow-md transition-all"
+              >
+                <div className="flex items-center justify-between border-b border-amber-100 dark:border-stone-800 pb-2">
+                  <span className="text-xs font-bold text-[#7A1C1C] dark:text-amber-400 font-serif">
+                    {praman.title}
+                  </span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 bg-amber-50 dark:bg-stone-800 px-2 py-0.5 rounded-full border border-amber-200/60 dark:border-stone-700 font-mono">
+                    {praman.source.split('(')[0].trim()}
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-amber-50/70 dark:bg-stone-800/80 rounded-lg border-l-2 border-[#7A1C1C] text-xs font-serif text-stone-900 dark:text-amber-100 whitespace-pre-line leading-relaxed">
+                  {praman.sanskrit}
+                </div>
+
+                <div className="text-[11px] text-stone-600 dark:text-stone-300 leading-normal">
+                  <strong className="text-stone-800 dark:text-stone-200 block text-[10px] uppercase font-bold text-amber-900 dark:text-amber-300">
+                    नेपाली भावार्थ:
+                  </strong>
+                  {praman.meaningNepali}
+                </div>
+
+                <div className="text-[10px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded-md border border-emerald-200/60 dark:border-emerald-900/60 leading-tight">
+                  <strong className="font-bold">मार्गदर्शन: </strong>
+                  {praman.practicalGuidance}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
     </div>
