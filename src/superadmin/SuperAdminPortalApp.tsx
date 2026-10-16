@@ -17,7 +17,9 @@ import {
   X,
   Bell,
   RefreshCw,
-  HeartHandshake
+  HeartHandshake,
+  Key,
+  ShoppingBag
 } from 'lucide-react';
 import { SuperAdminSessionState, clearSuperAdminSession } from './auth/superAdminAuthStore';
 import { SuperAdminControlCenter } from '../components/admin/SuperAdminControlCenter';
@@ -47,9 +49,12 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
   const [activeTab, setActiveTab] = useState<string>(() => {
     // Map initialSubRoute to SuperAdminControlCenter tab
     if (initialSubRoute === 'users' || initialSubRoute === 'user-management') return 'user_list';
-    if (initialSubRoute === 'access-control' || initialSubRoute === 'menu-control') return 'menu_switchboard';
-    if (initialSubRoute === 'subscriptions' || initialSubRoute === 'finance') return 'finance';
-    if (initialSubRoute === 'payments' || initialSubRoute === 'client-approvals') return 'client_approvals';
+    if (initialSubRoute === 'access-control' || initialSubRoute === 'menu-control' || initialSubRoute === 'switchboard') return 'menu_switchboard';
+    if (initialSubRoute === 'magic-links' || initialSubRoute === 'magic_links' || initialSubRoute === 'links' || initialSubRoute === 'role-links') return 'role_magic_links';
+    if (initialSubRoute === 'store-pos' || initialSubRoute === 'pos' || initialSubRoute === 'store' || initialSubRoute === 'store_admin') return 'store_pos';
+    if (initialSubRoute === 'subscriptions' || initialSubRoute === 'service_licenses' || initialSubRoute === 'licenses' || initialSubRoute === 'trials') return 'service_licenses';
+    if (initialSubRoute === 'payments' || initialSubRoute === 'client-approvals' || initialSubRoute === 'approvals') return 'client_approvals';
+    if (initialSubRoute === 'finance') return 'finance';
     if (initialSubRoute === 'content' || initialSubRoute === 'samachar') return 'samachar_editor';
     if (initialSubRoute === 'software' || initialSubRoute === 'downloads') return 'software_releases';
     if (initialSubRoute === 'settings') return 'settings';
@@ -75,6 +80,20 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
       icon: LayoutDashboard
     },
     {
+      id: 'role_magic_links',
+      subRoute: 'magic-links',
+      labelNepali: 'सक्रिय लिङ्क जेनेरेटर',
+      labelEnglish: 'Active Links (POS & Store)',
+      icon: Key
+    },
+    {
+      id: 'store_pos',
+      subRoute: 'store-pos',
+      labelNepali: 'स्टोर एडमिन तथा POS काउन्टर',
+      labelEnglish: 'Store Admin & POS Terminal',
+      icon: ShoppingBag
+    },
+    {
       id: 'user_list',
       subRoute: 'users',
       labelNepali: 'प्रयोगकर्ता व्यवस्थापन',
@@ -96,7 +115,7 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
       icon: CreditCard
     },
     {
-      id: 'finance',
+      id: 'service_licenses',
       subRoute: 'subscriptions',
       labelNepali: 'सदस्यता तथा लाइसेन्स',
       labelEnglish: 'Subscriptions & Trials',
@@ -326,6 +345,10 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
                 onNavigateToClientSoftware();
               } else {
                 setActiveTab(tab);
+                const item = navMenuItems.find(i => i.id === tab || i.subRoute === tab);
+                if (item) {
+                  window.location.hash = `/superadmin/${item.subRoute}`;
+                }
               }
             }}
           />

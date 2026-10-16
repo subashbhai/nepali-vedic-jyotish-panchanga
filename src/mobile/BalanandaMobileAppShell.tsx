@@ -51,6 +51,8 @@ import { BirthInputModal } from '../components/BirthInputModal';
 import { saveProfile } from '../db/profileStore';
 import { saveOrUpdateMobileBirthProfile } from './db/mobileAuthStore';
 import { BirthDetails } from '../types/astrology';
+import { MobileNetworkBanner } from '../components/common/MobileNetworkBanner';
+import { mobileHybridSync } from '../services/mobileHybridSync';
 
 export const BalanandaMobileAppShell: React.FC<{
   onExitToWeb?: () => void;
@@ -98,6 +100,52 @@ export const BalanandaMobileAppShell: React.FC<{
       window.removeEventListener('balananda_mobile_profiles_changed', handleProfilesChange);
     };
   }, []);
+
+  // Native Android Hardware Back Button Handling
+  useEffect(() => {
+    mobileHybridSync.init();
+
+    const unregister = mobileHybridSync.registerBackButtonHandler(() => {
+      // 1. Close open modals / sheets
+      if (isBirthModalOpen) {
+        setIsBirthModalOpen(false);
+        setEditingBirthProfile(null);
+        return true;
+      }
+      if (isAuthModalOpen) {
+        setIsAuthModalOpen(false);
+        return true;
+      }
+      if (isProfileSheetOpen) {
+        setIsProfileSheetOpen(false);
+        return true;
+      }
+      if (isQuickActionWheelOpen) {
+        setIsQuickActionWheelOpen(false);
+        return true;
+      }
+      if (isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+        return true;
+      }
+      // 2. Return to home tab if on another tab
+      if (currentTab !== 'home') {
+        setCurrentTab('home');
+        return true;
+      }
+      // 3. At home tab: allow native exit
+      return false;
+    });
+
+    return () => unregister();
+  }, [
+    isBirthModalOpen,
+    isAuthModalOpen,
+    isProfileSheetOpen,
+    isQuickActionWheelOpen,
+    isMobileMenuOpen,
+    currentTab
+  ]);
 
   const handleSaveBirthProfile = (prof: BirthDetails) => {
     saveProfile(prof);
@@ -244,6 +292,9 @@ export const BalanandaMobileAppShell: React.FC<{
           </button>
         </div>
       </header>
+
+      {/* Network Status & Offline Mode Banner */}
+      <MobileNetworkBanner />
 
       {/* ── Scroll-Down Main Menu for Mobile App ── */}
       {isMobileMenuOpen && (

@@ -31,7 +31,7 @@ export interface ElectronUpdaterStatus {
   total?: number;
 }
 
-export const CURRENT_APP_VERSION = '1.0.5';
+export const CURRENT_APP_VERSION = '1.0.6';
 export const GITHUB_REPO_OWNER = 'subashbhai';
 export const GITHUB_REPO_NAME = 'nepali-vedic-jyotish-panchanga';
 export const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/latest`;
@@ -42,19 +42,19 @@ export const GITHUB_ALL_RELEASES_API_URL = `https://api.github.com/repos/${GITHU
  * Perfectly compatible with GitHub Pages (https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/downloads/...)
  */
 export function getApkDirectDownloadUrl(): string {
-  if (typeof window === 'undefined') return './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.5';
+  if (typeof window === 'undefined') return './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.6';
   const origin = window.location.origin;
   const pathname = window.location.pathname;
 
   // On GitHub Pages (https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/...)
   if (pathname.includes('/nepali-vedic-jyotish-panchanga')) {
-    return `${origin}/nepali-vedic-jyotish-panchanga/downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.5`;
+    return `${origin}/nepali-vedic-jyotish-panchanga/downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.6`;
   }
 
   const basePath = pathname.endsWith('/') 
     ? pathname 
     : pathname.substring(0, pathname.lastIndexOf('/') + 1);
-  return `${origin}${basePath}downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.5`;
+  return `${origin}${basePath}downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.6`;
 }
 
 /**
@@ -62,11 +62,11 @@ export function getApkDirectDownloadUrl(): string {
  * Automatically triggers browser download manager without opening GitHub repo tabs
  */
 export const DEFAULT_DIRECT_DOWNLOADS = {
-  windowsSetup: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-setup-1.0.5.exe`,
-  windowsPortable: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-1.0.5.exe`,
-  androidApk: typeof window !== 'undefined' ? getApkDirectDownloadUrl() : './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.5',
-  macDmg: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-1.0.5.dmg`,
-  macZip: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-1.0.5-arm64-mac.zip`,
+  windowsSetup: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-setup-1.0.6.exe`,
+  windowsPortable: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-1.0.6.exe`,
+  androidApk: typeof window !== 'undefined' ? getApkDirectDownloadUrl() : './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.6',
+  macDmg: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-1.0.6.dmg`,
+  macZip: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-1.0.6-arm64-mac.zip`,
 };
 
 /**
@@ -197,7 +197,7 @@ export async function checkLatestRelease(): Promise<RemoteReleaseInfo | null> {
       assets.push({
         name: 'nepali-vedic-jyotish-panchanga.apk',
         downloadUrl: getApkDirectDownloadUrl(),
-        size: 27800663,
+        size: 107063141,
         platform: 'android',
       });
     }
@@ -303,17 +303,57 @@ export interface TargetedUpdateAsset {
 }
 
 /**
+ * Structure for Platform-Specific Update Metadata API
+ */
+export interface PlatformUpdateMetadata {
+  success: boolean;
+  platform: 'android' | 'windows' | 'web' | 'mac';
+  channel: string;
+  latestVersion: string;
+  minimumSupportedVersion: string;
+  releaseNotes: string;
+  downloadUrl: string | null;
+  fileType: 'apk' | 'exe' | 'web' | 'dmg';
+  fileSize: number;
+  sha256?: string;
+  publishedAt: string;
+  mandatory: boolean;
+  packageId?: string;
+  error?: string;
+}
+
+/**
+ * Fetches platform-specific update metadata from the server API
+ */
+export async function fetchPlatformUpdate(platform?: ClientDevicePlatform): Promise<PlatformUpdateMetadata | null> {
+  const currentPlat = platform || getClientDevicePlatform();
+  try {
+    const url = `/api/app/updates?platform=${encodeURIComponent(currentPlat)}&channel=stable&currentVersion=${encodeURIComponent(CURRENT_APP_VERSION)}`;
+    const resp = await fetch(url);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.success) {
+        return data as PlatformUpdateMetadata;
+      }
+    }
+  } catch (e) {
+    console.warn('[AppVersionManager] fetchPlatformUpdate failed:', e);
+  }
+  return null;
+}
+
+/**
  * Filter Engine: Returns the platform-targeted update asset for the current user's device.
- * Guarantees Android users receive .apk, Windows users receive .exe, Mac users receive .dmg.
+ * Guarantees Android users receive ONLY .apk, Windows users receive ONLY .exe.
  */
 export function getTargetedUpdateAsset(release: RemoteReleaseInfo | null): TargetedUpdateAsset {
   const platform = getClientDevicePlatform();
   const cleanVer = release?.version?.replace(/^v/i, '') || CURRENT_APP_VERSION;
 
   if (platform === 'android') {
-    const apkAsset = release?.assets?.find(a => a.platform === 'android' || a.name.toLowerCase().endsWith('.apk'));
-    const downloadUrl = apkAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.androidApk;
-    const fileName = apkAsset?.name || 'nepali-vedic-jyotish-panchanga.apk';
+    // Prefer verified local direct download
+    const downloadUrl = getApkDirectDownloadUrl();
+    const fileName = 'nepali-vedic-jyotish-panchanga.apk';
     return {
       platform: 'android',
       downloadUrl,
@@ -321,12 +361,14 @@ export function getTargetedUpdateAsset(release: RemoteReleaseInfo | null): Targe
       fileType: 'apk',
       labelNepali: 'Android APK (.apk)',
       labelEnglish: 'Android APK',
-      size: apkAsset?.size || 29420663,
+      size: 214141804,
     };
   }
 
+  const assets = Array.isArray(release?.assets) ? release.assets : [];
+
   if (platform === 'mac') {
-    const macAsset = release?.assets?.find(a => a.platform === 'mac' || a.name.toLowerCase().endsWith('.dmg'));
+    const macAsset = assets.find(a => a.platform === 'mac' || a.name.toLowerCase().endsWith('.dmg'));
     const downloadUrl = macAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.macDmg;
     const fileName = macAsset?.name || `nepali-vedic-jyotish-panchanga-${cleanVer}.dmg`;
     return {
@@ -341,9 +383,9 @@ export function getTargetedUpdateAsset(release: RemoteReleaseInfo | null): Targe
   }
 
   // Windows (Default for PC / Desktop)
-  const winAsset = release?.assets?.find(a => a.platform === 'windows' && a.name.toLowerCase().includes('setup'))
-    || release?.assets?.find(a => a.platform === 'windows')
-    || release?.assets?.find(a => a.name.toLowerCase().endsWith('.exe'));
+  const winAsset = assets.find(a => a.platform === 'windows' && a.name.toLowerCase().includes('setup'))
+    || assets.find(a => a.platform === 'windows')
+    || assets.find(a => a.name.toLowerCase().endsWith('.exe'));
   const downloadUrl = winAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.windowsSetup;
   const fileName = winAsset?.name || `nepali-vedic-jyotish-panchanga-setup-${cleanVer}.exe`;
 
@@ -445,16 +487,27 @@ export async function triggerDesktopDownloadUpdate(customUrl?: string): Promise<
  */
 export function triggerDirectBrowserDownload(fileUrl: string, fileName?: string): void {
   if (typeof window === 'undefined') return;
-  const a = document.createElement('a');
-  a.href = fileUrl;
-  if (fileName) {
-    a.setAttribute('download', fileName);
+  try {
+    const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent || '');
+    if (isMobile && (fileUrl.endsWith('.apk') || fileUrl.includes('.apk?'))) {
+      // Direct navigation to attachment URL triggers native Android Download Manager smoothly
+      window.location.href = fileUrl;
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = fileUrl;
+    if (fileName) {
+      a.setAttribute('download', fileName);
+    }
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 100);
+  } catch {
+    window.location.href = fileUrl;
   }
-  // IMPORTANT: Do NOT set a.target = '_blank' because that opens an empty/new tab.
-  // Direct anchor click initiates native browser download without opening any other tab!
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
 }
 
 /**

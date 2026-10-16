@@ -1,9 +1,9 @@
 {
-  "version": "1.0.5",
-  "buildTime": "2026-10-04T05:15:00.000Z",
+  "version": "1.0.6",
+  "buildTime": "2026-10-14T17:05:00.000Z",
   "productName": "बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग",
-  "releaseNotes": "मोबाइल तथा कम्प्युटरमा पूर्ण ज्योतिष सेवा विकल्पहरू, नयाँ जन्मकुण्डली फारम, भौगोलिक स्थान चयन, A4 प्रिन्ट/PDF लाइसेन्स अनलक तथा प्रत्यक्ष अटो-अपडेट प्रणाली।",
-  "apkUrl": "https://subashbhai.github.io/nepali-vedic-jyotish-panchanga/downloads/nepali-vedic-jyotish-panchanga.apk",
-  "windowsSetupUrl": "https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-setup-1.0.5.exe",
-  "windowsPortableUrl": "https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-1.0.5.exe"
+  "releaseNotes": "नयाँ एकीकृत कुण्डली फलादेश शृङ्खला (Zero Discrepancy), फलदीपिका, बृहत् पराशर होरा शास्त्र र मुहूर्तचिन्तामणिका शास्त्रीय प्रमाण श्लोकहरू, अंक ज्योतिष तथा नेमा ज्योतिष स्वचालित समन्वय र उच्च गतिको कार्यसम्पादन।",
+  "apkUrl": "/downloads/nepali-vedic-jyotish-panchanga.apk",
+  "windowsSetupUrl": "https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-setup-1.0.6.exe",
+  "windowsPortableUrl": "https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-1.0.6.exe"
 }

@@ -389,7 +389,7 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
   // 1. BRIHAT CHEENA -> Exactly 10 Pages
   if (subCategory === 'brihat_china') {
     return (
-      <div ref={containerRef} id="printable-patrika-wrapper" className="w-full flex justify-center">
+      <div ref={containerRef} id="printable-patrika-wrapper" className="w-full max-w-full overflow-x-hidden flex justify-center">
         <BrihatCheenaDocument
           profile={safeProfile}
           lagna={safeLagna}
@@ -406,7 +406,7 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
   // 2. CHEENA (or JANMAKUNDALI) -> Exactly 3 Pages
   if (subCategory === 'china' || subCategory === 'janmakundali') {
     return (
-      <div ref={containerRef} id="printable-patrika-wrapper" className="w-full flex justify-center">
+      <div ref={containerRef} id="printable-patrika-wrapper" className="w-full max-w-full overflow-x-hidden flex justify-center">
         <CheenaDocument
           profile={safeProfile}
           lagna={safeLagna}
@@ -425,7 +425,7 @@ export const DynamicPatrikaDocument: React.FC<DynamicPatrikaDocumentProps> = ({
   // =========================================================================
   if (subCategory === 'tippan') {
     return (
-      <div ref={containerRef} id="printable-patrika-wrapper" className="w-full flex justify-center">
+      <div ref={containerRef} id="printable-patrika-wrapper" className="w-full max-w-full overflow-x-hidden flex justify-center">
         <GreenOmBorderFrame className="space-y-1.5">
           {/* Header */}
           <GaneshaHeaderCenter

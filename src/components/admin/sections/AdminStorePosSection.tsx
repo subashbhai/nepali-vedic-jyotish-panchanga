@@ -17,12 +17,21 @@ import {
   Phone,
   User,
   MapPin,
-  Calendar
+  Calendar,
+  Key,
+  Copy,
+  ExternalLink,
+  Share2,
+  Sparkles,
+  ShieldCheck,
+  Globe
 } from 'lucide-react';
 import { Product, StoreOrder, OrderStatus } from '../../../types/vedicStoreTypes';
 import { formatNPRCurrency } from '../../../db/subscriptionStore';
 import { updateOrderStatus, getStoredOrders } from '../../../db/vedicStore';
 import { InvoiceModal } from '../../vedicPasal/InvoiceModal';
+import { AdminRoleMagicLinksSection } from './AdminRoleMagicLinksSection';
+import { getAppBaseUrl } from '../../../utils/urlHelper';
 
 interface AdminStorePosSectionProps {
   products: Product[];
@@ -35,12 +44,26 @@ export const AdminStorePosSection: React.FC<AdminStorePosSectionProps> = ({
   orders: initialOrders,
   onRefresh
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'products'>('orders');
+  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'products' | 'magic_links'>('orders');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<StoreOrder | null>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [liveOrders, setLiveOrders] = useState<StoreOrder[]>(initialOrders);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const baseAppUrl = getAppBaseUrl();
+
+  const handleCopyLink = (url: string, key: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2500);
+  };
+
+  const getWhatsAppShareUrl = (url: string, roleTitle: string) => {
+    const text = `नमस्ते,\nबालानन्द सफ्टवेयरको *${roleTitle}* प्रत्यक्ष सक्रिय लिङ्क यहाँ उपलब्ध छ:\n\n🔗 सिधै प्रवेश गर्नुहोस्:\n${url}\n\nयस लिङ्कबाट सिधै कुनै पासवर्डको झन्झट बिना ड्यासबोर्ड खुल्नेछ।`;
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  };
 
   // Sync orders with incoming props and real-time events
   useEffect(() => {
@@ -136,6 +159,144 @@ export const AdminStorePosSection: React.FC<AdminStorePosSectionProps> = ({
         </div>
       </div>
 
+      {/* 🌟 Quick Direct Access Links for POS & Store Admin */}
+      <div className="bg-gradient-to-r from-stone-900 via-stone-950 to-stone-900 border border-amber-500/40 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-stone-800 pb-3">
+          <div className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-amber-400" />
+            <h3 className="text-sm sm:text-base font-bold text-amber-100 font-serif">
+              सक्रिय प्रत्यक्ष लगइन लिङ्कहरू (Active Direct Access for Counter & Store)
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('magic_links')}
+            className="text-xs text-amber-400 hover:text-amber-300 font-bold underline flex items-center gap-1 cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>सबै म्याजिक लिङ्क जेनेरेटर खोल्नुहोस्</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* POS Staff Card */}
+          <div className="p-3.5 rounded-2xl bg-stone-900/90 border border-emerald-500/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                🛍️ काउन्टर POS टर्मिनल (POS Staff)
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                Active 24/7
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-400">
+              काउन्टर क्यासियरलाई यो लिङ्क पठाउनुहोस्; लगइन बिना नै सिधै द्रुत बिलिङ टर्मिनल खुल्छ।
+            </p>
+            <div className="flex items-center gap-2 bg-black/60 p-1.5 rounded-xl border border-stone-800">
+              <input
+                type="text"
+                readOnly
+                value={`${baseAppUrl}?portal=pos`}
+                className="flex-1 bg-transparent text-emerald-400 font-mono text-[11px] px-2 outline-none select-all"
+              />
+              <button
+                type="button"
+                onClick={() => handleCopyLink(`${baseAppUrl}?portal=pos`, 'pos')}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-stone-950 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+              >
+                {copiedKey === 'pos' ? (
+                  <>
+                    <Check className="w-3 h-3 text-stone-950" />
+                    <span>कपी भयो!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>कपी</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={getWhatsAppShareUrl(`${baseAppUrl}?portal=pos`, 'काउन्टर POS टर्मिनल')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors cursor-pointer"
+                title="WhatsApp मा पठाउनुहोस्"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+              </a>
+              <a
+                href={`${baseAppUrl}?portal=pos`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
+                title="नयाँ ट्याबमा खोल्नुहोस्"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          {/* Store Admin Card */}
+          <div className="p-3.5 rounded-2xl bg-stone-900/90 border border-amber-500/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                🏬 वैदिक स्टोर एडमिन (Store Admin)
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/30">
+                Active 24/7
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-400">
+              स्टोर म्यानेजरलाई यो लिङ्क पठाउनुहोस्; सिधै सामान व्यवस्थापन, अर्डर र स्टक ड्यासबोर्ड खुल्छ।
+            </p>
+            <div className="flex items-center gap-2 bg-black/60 p-1.5 rounded-xl border border-stone-800">
+              <input
+                type="text"
+                readOnly
+                value={`${baseAppUrl}?portal=store_admin`}
+                className="flex-1 bg-transparent text-amber-400 font-mono text-[11px] px-2 outline-none select-all"
+              />
+              <button
+                type="button"
+                onClick={() => handleCopyLink(`${baseAppUrl}?portal=store_admin`, 'store_admin')}
+                className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+              >
+                {copiedKey === 'store_admin' ? (
+                  <>
+                    <Check className="w-3 h-3 text-stone-950" />
+                    <span>कपी भयो!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>कपी</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={getWhatsAppShareUrl(`${baseAppUrl}?portal=store_admin`, 'वैदिक स्टोर एडमिन')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors cursor-pointer"
+                title="WhatsApp मा पठाउनुहोस्"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+              </a>
+              <a
+                href={`${baseAppUrl}?portal=store_admin`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors cursor-pointer"
+                title="नयाँ ट्याबमा खोल्नुहोस्"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Sub Tabs */}
       <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-3">
         <div className="flex items-center gap-2">
@@ -162,6 +323,18 @@ export const AdminStorePosSection: React.FC<AdminStorePosSectionProps> = ({
           >
             <ShoppingBag className="w-4 h-4" />
             <span>पूजा सामग्री उत्पाद सूची ({products.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('magic_links')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeSubTab === 'magic_links'
+                ? 'bg-amber-500 text-stone-950 shadow-md font-black'
+                : 'bg-stone-900 text-stone-300 hover:bg-stone-800'
+            }`}
+          >
+            <Key className="w-4 h-4" />
+            <span>सक्रिय लिङ्क जेनेरेटर (POS & Store Links)</span>
           </button>
         </div>
 
@@ -194,7 +367,7 @@ export const AdminStorePosSection: React.FC<AdminStorePosSectionProps> = ({
       </div>
 
       {/* Orders List View */}
-      {activeSubTab === 'orders' ? (
+      {activeSubTab === 'orders' && (
         <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-2xl">
           {filteredOrders.length === 0 ? (
             <div className="p-12 text-center text-stone-400 space-y-2">
@@ -329,8 +502,10 @@ export const AdminStorePosSection: React.FC<AdminStorePosSectionProps> = ({
             </div>
           )}
         </div>
-      ) : (
-        /* Products Table View */
+      )}
+
+      {/* Products Table View */}
+      {activeSubTab === 'products' && (
         <div className="bg-stone-900 border border-stone-800 rounded-3xl p-4 overflow-x-auto shadow-xl">
           <table className="w-full text-left text-xs text-stone-300">
             <thead className="bg-stone-950 text-stone-400 font-bold uppercase text-[10px] tracking-wider border-b border-stone-800">
@@ -358,6 +533,13 @@ export const AdminStorePosSection: React.FC<AdminStorePosSectionProps> = ({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Magic Links & Role Token Generator Tab */}
+      {activeSubTab === 'magic_links' && (
+        <div className="space-y-6">
+          <AdminRoleMagicLinksSection />
         </div>
       )}
 

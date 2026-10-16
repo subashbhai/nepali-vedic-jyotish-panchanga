@@ -1,0 +1,46 @@
+[
+  {
+    "id": "book_01",
+    "type": "book",
+    "title": "बृहत् पाराशर होराशास्त्र (पूर्वाद्र्ध र उत्तरार्ध)",
+    "author": "महर्षि पराशर",
+    "category": "ज्योतिष शास्त्र",
+    "description": "वैदिक ज्योतिषको मुख्य आधार ग्रन्थ।",
+    "url": "#",
+    "coverImage": "/books/horashastra.jpg",
+    "addedAtISO": "2026-10-13T09:05:49.759Z"
+  },
+  {
+    "id": "book_02",
+    "type": "book",
+    "title": "मानसागरी पद्धति",
+    "author": "हरगोविन्द पाठक",
+    "category": "फलित ज्योतिष",
+    "description": "विस्तृत जन्मकुण्डली फलादेश संग्रह।",
+    "url": "#",
+    "coverImage": "/books/manasagari.jpg",
+    "addedAtISO": "2026-10-13T09:05:49.759Z"
+  },
+  {
+    "id": "video_01",
+    "type": "video",
+    "title": "कुण्डलीमा नवग्रह र १२ भावको शास्त्रीय विश्लेषण",
+    "author": "नेपाली वैदिक ज्योतिष",
+    "category": "भिडियो कक्षा",
+    "description": "लग्न भावदेखि व्यय भावसम्मको प्रत्यक्ष फलादेश विधि।",
+    "url": "https://www.youtube.com",
+    "coverImage": "/videos/kundali_class.jpg",
+    "addedAtISO": "2026-10-13T09:05:49.759Z"
+  },
+  {
+    "id": "audio_01",
+    "type": "audio",
+    "title": "श्री नवग्रह स्तोत्रम् एवं वैदिक शान्ति मन्त्र",
+    "author": "वेद ध्वनि",
+    "category": "मन्त्र तथा स्तोत्र",
+    "description": "ग्रह शान्ति र दैनिक जपका लागि शुद्ध वैदिक मन्त्रोच्चारण।",
+    "url": "#",
+    "coverImage": "/audio/navagraha.jpg",
+    "addedAtISO": "2026-10-13T09:05:49.759Z"
+  }
+]

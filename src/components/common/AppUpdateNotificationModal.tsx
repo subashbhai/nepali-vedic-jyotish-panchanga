@@ -30,6 +30,7 @@ import {
   triggerDirectBrowserDownload,
   triggerInAppOrDirectDownload,
   getTargetedUpdateAsset,
+  getClientDevicePlatform,
   isAndroidDevice
 } from '../../utils/appVersionManager';
 
@@ -52,7 +53,11 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
 }) => {
   if (!isOpen) return null;
 
+  const clientPlatform = getClientDevicePlatform();
   const isDesktop = isDesktopApp();
+  const isAndroid = clientPlatform === 'android';
+  const isWindows = clientPlatform === 'windows' || isDesktop;
+
   const targetVersion = remoteRelease?.version || electronStatus.version || CURRENT_APP_VERSION;
   const isDownloaded = electronStatus.status === 'downloaded';
   const isDownloading = electronStatus.status === 'downloading';
@@ -97,10 +102,16 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400 text-stone-950 font-bold text-[10.5px] uppercase tracking-wider mb-1">
                 <Sparkles className="w-3 h-3" />
-                <span>नयाँ संस्करण उपलब्ध</span>
+                <span>
+                  {isAndroid ? 'Android Update' : isWindows ? 'Windows Update' : 'सफ्टवेयर अपडेट'}
+                </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black font-serif text-white leading-tight">
-                सफ्टवेयर अपडेट (Live Update)
+                {isAndroid 
+                  ? 'नयाँ Android Update उपलब्ध छ' 
+                  : isWindows 
+                  ? 'नयाँ Windows Software Update उपलब्ध छ' 
+                  : 'सफ्टवेयर अपडेट (Live Update)'}
               </h2>
             </div>
           </div>
@@ -188,47 +199,80 @@ export const AppUpdateNotificationModal: React.FC<AppUpdateNotificationModalProp
             </div>
           </div>
 
-          {/* Direct In-App Download Platform Buttons */}
+          {/* Platform-Specific Verified Download Section */}
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-stone-700 dark:text-stone-300">
-              यसै सफ्टवेयरमा सिधै डाउनलोड गर्नुहोस् (Direct Downloads):
+              यस यन्त्रका लागि आधिकारिक अपडेट (Verified Download):
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleStartInAppDownload}
-                className="flex items-center justify-between p-2.5 rounded-xl border border-blue-300/80 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/70 dark:hover:bg-blue-900/40 transition-all text-xs text-blue-900 dark:text-blue-200 group cursor-pointer text-left"
-              >
-                <div className="flex items-center gap-2">
-                  <Laptop className="w-4 h-4 text-blue-600 shrink-0" />
-                  <div>
-                    <span className="font-bold block">Windows Setup (.exe)</span>
-                    <span className="text-[10px] text-stone-500">
-                      {formatFileSize(winAsset?.size || 0) || 'सिधै सफ्टवेयरमा डाउनलोड'}
-                    </span>
-                  </div>
-                </div>
-                <Download className="w-3.5 h-3.5 text-blue-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
-              </button>
-
+            
+            {/* 1. ANDROID: Shows ONLY Android APK (.apk) */}
+            {isAndroid && (
               <button
                 type="button"
                 onClick={() => {
-                  const apkUrl = apkAsset?.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.androidApk;
+                  const apkUrl = targetedAsset.downloadUrl || DEFAULT_DIRECT_DOWNLOADS.androidApk;
                   triggerDirectBrowserDownload(apkUrl, 'nepali-vedic-jyotish-panchanga.apk');
                 }}
-                className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-300/80 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 transition-all text-xs text-emerald-900 dark:text-emerald-200 group cursor-pointer text-left"
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl border-2 border-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-98 transition-all text-sm text-emerald-900 dark:text-emerald-100 group cursor-pointer text-left shadow-md"
               >
-                <div className="flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-stone-950 flex items-center justify-center shrink-0 shadow-xs">
+                    <Smartphone className="w-5 h-5 text-stone-950 stroke-[2.5]" />
+                  </div>
                   <div>
-                    <span className="font-bold block">Android APK (.apk)</span>
-                    <span className="text-[10px] text-stone-500">मोबाइलका लागि सिधै डाउनलोड</span>
+                    <span className="font-bold text-sm block">Android APK (.apk) डाउनलोड गर्नुहोस्</span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">
+                      एन्ड्रोइड मोबाइलका लागि आधिकारिक प्याकेज
+                    </span>
                   </div>
                 </div>
-                <Download className="w-3.5 h-3.5 text-emerald-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
+                <Download className="w-5 h-5 text-emerald-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
               </button>
-            </div>
+            )}
+
+            {/* 2. WINDOWS: Shows ONLY Windows Setup (.exe) */}
+            {isWindows && !isAndroid && (
+              <button
+                type="button"
+                onClick={handleStartInAppDownload}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl border-2 border-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:scale-98 transition-all text-sm text-blue-900 dark:text-blue-100 group cursor-pointer text-left shadow-md"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Laptop className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">Windows Setup (.exe) डाउनलोड गर्नुहोस्</span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">
+                      {formatFileSize(winAsset?.size || 0) || 'विन्डोज कम्प्युटरका लागि आधिकारिक इन्स्टलर'}
+                    </span>
+                  </div>
+                </div>
+                <Download className="w-5 h-5 text-blue-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
+              </button>
+            )}
+
+            {/* 3. MAC: Shows ONLY Mac (.dmg) */}
+            {clientPlatform === 'mac' && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerDirectBrowserDownload(targetedAsset.downloadUrl, targetedAsset.fileName);
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl border-2 border-purple-400 bg-purple-500/10 hover:bg-purple-500/20 active:scale-98 transition-all text-sm text-purple-900 dark:text-purple-100 group cursor-pointer text-left shadow-md"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Apple className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">macOS DMG (.dmg) डाउनलोड गर्नुहोस्</span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">Apple Mac का लागि इन्स्टलर</span>
+                  </div>
+                </div>
+                <Download className="w-5 h-5 text-purple-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
+              </button>
+            )}
           </div>
         </div>
 

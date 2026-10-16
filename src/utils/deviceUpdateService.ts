@@ -250,14 +250,14 @@ class DeviceUpdateManager {
   public async applyUpdateNow(): Promise<void> {
     if (typeof window === 'undefined') return;
 
-    // 1. Desktop App Mode
+    // 1. Desktop Windows App Mode
     if (isDesktopApp()) {
       const electronAPI = (window as any).electronAPI;
       if (electronAPI?.restartAndInstall) {
         electronAPI.restartAndInstall();
         return;
       }
-      if (this.updateInfo?.windowsExeUrl) {
+      if (this.updateInfo?.windowsExeUrl && !this.updateInfo.windowsExeUrl.toLowerCase().endsWith('.apk')) {
         await triggerDesktopDownloadUpdate(this.updateInfo.windowsExeUrl);
         return;
       }
@@ -265,7 +265,17 @@ class DeviceUpdateManager {
       return;
     }
 
-    // 2. Mobile PWA / Web Browser Mode
+    // 2. Android Device / APK Mode (Strict Isolation: NEVER download .exe!)
+    if (isMobileApp() || getClientDevicePlatform() === 'android') {
+      const apkUrl = this.updateInfo?.apkUrl || getApkDirectDownloadUrl();
+      // Ensure it is strictly an APK
+      if (!apkUrl.toLowerCase().endsWith('.exe')) {
+        triggerDirectBrowserDownload(apkUrl, 'nepali-vedic-jyotish-panchanga.apk');
+        return;
+      }
+    }
+
+    // 3. Web Browser Mode (PWA cache refresh)
     try {
       // Clear HTTP / CacheStorage caches
       if ('caches' in window) {

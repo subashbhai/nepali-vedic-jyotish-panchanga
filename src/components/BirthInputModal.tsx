@@ -153,29 +153,62 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
     setName(prof.name || '');
     
     // Parse BS Date if exists
+    let bsLoaded = false;
     if (prof.dateBS) {
-      const bsMatch = prof.dateBS.match(/(\d{4})[^\d]+(\d{1,2})[^\d]+(\d{1,2})/);
+      // Normalize any Devanagari numerals to standard digits before matching
+      const cleanBS = fromDevanagariNumerals(prof.dateBS).trim();
+      const bsMatch = cleanBS.match(/(\d{4})[^\d]+(\d{1,2})[^\d]+(\d{1,2})/);
       if (bsMatch) {
-        setYear(fromDevanagariNumerals(bsMatch[1]));
-        setMonth(fromDevanagariNumerals(bsMatch[2]));
-        setGate(fromDevanagariNumerals(bsMatch[3]));
-        setEra('BS');
-      } else if (prof.dateAD) {
-        const parts = prof.dateAD.split('-');
-        if (parts.length === 3) {
-          setYear(parts[0]);
-          setMonth(String(parseInt(parts[1], 10)));
-          setGate(String(parseInt(parts[2], 10)));
-          setEra('AD');
+        const y = bsMatch[1];
+        const m = String(parseInt(bsMatch[2], 10));
+        const d = String(parseInt(bsMatch[3], 10));
+        const numY = parseInt(y, 10);
+        if (numY >= 1970 && numY <= 2150) {
+          setYear(y);
+          setMonth(m);
+          setGate(d);
+          setEra('BS');
+          bsLoaded = true;
         }
       }
-    } else if (prof.dateAD) {
-      const parts = prof.dateAD.split('-');
-      if (parts.length === 3) {
-        setYear(parts[0]);
-        setMonth(String(parseInt(parts[1], 10)));
-        setGate(String(parseInt(parts[2], 10)));
-        setEra('AD');
+    }
+
+    if (!bsLoaded) {
+      if (prof.dateAD) {
+        const parts = prof.dateAD.split('-');
+        if (parts.length === 3) {
+          const adY = parts[0];
+          const adM = String(parseInt(parts[1], 10));
+          const adD = String(parseInt(parts[2], 10));
+
+          if ((prof as any).entryCalendarType === 'AD') {
+            setYear(adY);
+            setMonth(adM);
+            setGate(adD);
+            setEra('AD');
+          } else {
+            // Default Nepali Vedic display: convert AD date to accurate BS date!
+            try {
+              const conv = convertADToBSFull(prof.dateAD);
+              if (conv && conv.year && conv.month && conv.day) {
+                setYear(String(conv.year));
+                setMonth(String(conv.month));
+                setGate(String(conv.day));
+                setEra('BS');
+              } else {
+                setYear(adY);
+                setMonth(adM);
+                setGate(adD);
+                setEra('AD');
+              }
+            } catch {
+              setYear(adY);
+              setMonth(adM);
+              setGate(adD);
+              setEra('AD');
+            }
+          }
+        }
       }
     }
 
@@ -388,6 +421,50 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
     setIsGhadiPalaOpen(false);
   };
 
+  // Instant Bi-directional Era Toggle (BS <-> AD)
+  // Converts date between BS and AD strictly upon user click!
+  const handleToggleEra = (targetEra: 'BS' | 'AD') => {
+    if (targetEra === era) return;
+
+    const rawY = parseInt(fromDevanagariNumerals(year) || '0', 10);
+    const rawM = parseInt(fromDevanagariNumerals(month) || '0', 10);
+    const rawD = parseInt(fromDevanagariNumerals(gate) || '0', 10);
+
+    if (targetEra === 'AD') {
+      // User clicked 'ई.स' -> Convert current BS year, month, gate to AD date
+      if (rawY >= 1970 && rawY <= 2150 && rawM >= 1 && rawM <= 12 && rawD >= 1 && rawD <= 32) {
+        try {
+          const adStr = convertBSToADFull(rawY, rawM, rawD);
+          if (adStr && adStr.includes('-')) {
+            const [adY, adM, adD] = adStr.split('-');
+            setYear(adY);
+            setMonth(String(parseInt(adM, 10)));
+            setGate(String(parseInt(adD, 10)));
+          }
+        } catch (err) {
+          console.warn('Error converting BS to AD:', err);
+        }
+      }
+      setEra('AD');
+    } else {
+      // User clicked 'बि.स' -> Convert current AD year, month, gate to BS date
+      if (rawY >= 1900 && rawY <= 2100 && rawM >= 1 && rawM <= 12 && rawD >= 1 && rawD <= 31) {
+        try {
+          const adIso = `${rawY}-${String(rawM).padStart(2, '0')}-${String(rawD).padStart(2, '0')}`;
+          const bsObj = convertADToBSFull(adIso);
+          if (bsObj && bsObj.year && bsObj.month && bsObj.day) {
+            setYear(String(bsObj.year));
+            setMonth(String(bsObj.month));
+            setGate(String(bsObj.day));
+          }
+        } catch (err) {
+          console.warn('Error converting AD to BS:', err);
+        }
+      }
+      setEra('BS');
+    }
+  };
+
   // Submit Handler
   const handleSaveProfile = (e?: React.FormEvent, forceNew: boolean = false) => {
     if (e) e.preventDefault();
@@ -464,6 +541,7 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
       gender,
       dateAD: finalDateAD,
       dateBS: finalDateBS,
+      entryCalendarType: era,
       time: formattedTimeStr,
       timeSeconds: formattedSecStr,
       location: locationData,
@@ -673,7 +751,8 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
                     : '-- नयाँ कुण्डली लेख्नुहोस् (वा यहाँबाट सुरक्षित छान्नुहोस्) --'}
                 </option>
                 {savedProfilesList.map((p) => {
-                  const dateInfo = p.dateBS ? `वि.सं. ${p.dateBS}` : (p.dateAD ? `ई.सं. ${p.dateAD}` : '');
+                  const cleanBS = p.dateBS ? p.dateBS.replace(/^(?:वि\.सं\.\s*)+/g, '').trim() : '';
+                  const dateInfo = cleanBS ? `वि.सं. ${cleanBS}` : (p.dateAD ? `ई.सं. ${p.dateAD}` : '');
                   const timeInfo = p.time ? `${p.time}` : '';
                   const placeInfo = p.location?.name ? `${p.location.name}` : '';
                   const extra = [dateInfo, timeInfo, placeInfo].filter(Boolean).join(' • ');
@@ -719,51 +798,53 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
           {/* 2. साल | महिना | गते */}
           <div className="space-y-1">
             <div className="flex items-center gap-6 text-stone-600 dark:text-stone-300 text-xs">
-              <span className="w-20">साल</span>
-              <span className="w-20">महिना</span>
-              <span className="w-20">गते</span>
+              <span className="w-20">{era === 'BS' ? 'साल' : 'Year (साल)'}</span>
+              <span className="w-20">{era === 'BS' ? 'महिना' : 'Month (महिना)'}</span>
+              <span className="w-20">{era === 'BS' ? 'गते' : 'Day (दिन)'}</span>
             </div>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
-                className="w-20 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded px-2.5 py-1.5 text-center text-sm text-stone-800 dark:text-stone-100 focus:ring-1 focus:ring-blue-500"
+                className="w-20 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded px-2.5 py-1.5 text-center text-sm text-stone-800 dark:text-stone-100 focus:ring-1 focus:ring-blue-500 font-medium"
               />
               <input
                 type="text"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="w-20 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded px-2.5 py-1.5 text-center text-sm text-stone-800 dark:text-stone-100 focus:ring-1 focus:ring-blue-500"
+                className="w-20 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded px-2.5 py-1.5 text-center text-sm text-stone-800 dark:text-stone-100 focus:ring-1 focus:ring-blue-500 font-medium"
               />
               <input
                 type="text"
                 value={gate}
                 onChange={(e) => setGate(e.target.value)}
-                className="w-20 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded px-2.5 py-1.5 text-center text-sm text-stone-800 dark:text-stone-100 focus:ring-1 focus:ring-blue-500"
+                className="w-20 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded px-2.5 py-1.5 text-center text-sm text-stone-800 dark:text-stone-100 focus:ring-1 focus:ring-blue-500 font-medium"
               />
 
               {/* Toggle [बि.स | ई.स] */}
               <div className="flex items-center border border-stone-300 dark:border-stone-700 rounded overflow-hidden shadow-2xs ml-auto">
                 <button
                   type="button"
-                  onClick={() => setEra('BS')}
-                  className={`px-3 py-1.5 font-medium transition-colors ${
+                  onClick={() => handleToggleEra('BS')}
+                  className={`px-3 py-1.5 font-medium transition-colors cursor-pointer ${
                     era === 'BS'
-                      ? 'bg-[#3B82F6] text-white'
-                      : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-100'
+                      ? 'bg-[#3B82F6] text-white shadow-inner font-semibold'
+                      : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                   }`}
+                  title="विक्रम संवत् (वि.सं.) मा रूपान्तरण गर्नुहोस्"
                 >
                   बि.स
                 </button>
                 <button
                   type="button"
-                  onClick={() => setEra('AD')}
-                  className={`px-3 py-1.5 font-medium transition-colors ${
+                  onClick={() => handleToggleEra('AD')}
+                  className={`px-3 py-1.5 font-medium transition-colors cursor-pointer ${
                     era === 'AD'
-                      ? 'bg-[#3B82F6] text-white'
-                      : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-100'
+                      ? 'bg-[#3B82F6] text-white shadow-inner font-semibold'
+                      : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                   }`}
+                  title="ईस्वी संवत् (ई.सं.) मा रूपान्तरण गर्नुहोस्"
                 >
                   ई.स
                 </button>

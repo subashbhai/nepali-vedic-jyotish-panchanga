@@ -889,63 +889,11 @@ export function isTrialEligible(): boolean {
 
 /**
  * Check if printing/exporting is permitted for this user.
- * Note: Only Jyotish Patrika Print ('kundali') and Vastu Report ('vastu') are subject to subscription/trial lock.
- * ALL other documents (including Baidik Pasal payment vouchers, receipts, invoices, books, etc.) are 100% FREE!
+ * MASTER REBUILD: All print restrictions, demo locks, and watermarks are 100% UNLOCKED.
+ * Kundali, Panchanga, Patrika, Cheena, and Vastu reports are all fully printable in A4 format.
  */
 export function canUserPrintDocuments(docType?: 'kundali' | 'vastu' | 'general'): { allowed: boolean; reasonNepali: string } {
-  if (typeof window === 'undefined') return { allowed: true, reasonNepali: '' };
-
-  // 1. Any non-astrology document (Baidik Pasal payment voucher, receipts, etc.) is ALWAYS 100% FREE!
-  if (docType !== 'kundali' && docType !== 'vastu') {
-    return { allowed: true, reasonNepali: '' };
-  }
-
-  // 2. Direct Software Full Access License Key
-  if (isSoftwareFullAccessUnlocked()) {
-    return { allowed: true, reasonNepali: '' };
-  }
-
-  // 3. SuperAdmin / Admin check from RBAC or Admin Control session
-  try {
-    const rbacRaw = localStorage.getItem('balananda_rbac_active_session_v1');
-    if (rbacRaw) {
-      const session = JSON.parse(rbacRaw);
-      if (session.role === 'SUPER_ADMIN' || session.role === 'STORE_ADMIN' || session.role === 'POS_STAFF') {
-        return { allowed: true, reasonNepali: '' };
-      }
-    }
-  } catch {}
-
-  try {
-    const adminRaw = localStorage.getItem('balananda_admin_active_session_v1');
-    if (adminRaw) {
-      const admin = JSON.parse(adminRaw);
-      if (admin && admin.role) {
-        return { allowed: true, reasonNepali: '' };
-      }
-    }
-  } catch {}
-
-  // 4. Subscription status
-  const status = evaluateSubscriptionStatus();
-  if (status.isActive && !status.isTrial && (status.effectivePlanId === 'monthly' || status.effectivePlanId === 'yearly' || status.effectivePlanId === 'lifetime')) {
-    return { allowed: true, reasonNepali: '' };
-  }
-
-  // 5. Trial Mode restriction (strictly for Kundali and Vastu only)
-  if (status.isActive && status.isTrial) {
-    const featureName = docType === 'kundali' ? 'कुण्डली तथा चिना' : 'वास्तु नक्सा तथा प्रतिवेदन';
-    return {
-      allowed: false,
-      reasonNepali: `निःशुल्क ७ दिने परीक्षण (Trial) मा ${featureName} प्रिन्ट वा PDF डाउनलोड गर्ने सुविधा उपलब्ध छैन। आधिकारिक प्रिन्ट गर्नका लागि कृपया पूर्ण सदस्यता लिनुहोस्।`
-    };
-  }
-
-  // 6. Free or Expired
-  return {
-    allowed: false,
-    reasonNepali: 'कुण्डली तथा वास्तु नक्सा प्रिन्ट गर्नका लागि आधिकारिक सदस्यता आवश्यक पर्दछ।'
-  };
+  return { allowed: true, reasonNepali: '' };
 }
 
 /**

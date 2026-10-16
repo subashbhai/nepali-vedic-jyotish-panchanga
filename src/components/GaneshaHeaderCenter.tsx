@@ -78,19 +78,19 @@ export const GaneshaHeaderCenter: React.FC<GaneshaHeaderCenterProps> = ({
           <div className="flex items-center justify-between gap-1 sm:gap-2">
             
             {/* Left Side: Vedic Mangal Kalash (बायाँ पट्टी अति नै सुन्दर कलश) */}
-            <div className="shrink-0 flex flex-col items-center justify-center pl-1 sm:pl-2">
+            <div className="shrink-0 hidden xs:flex flex-col items-center justify-center pl-0.5 sm:pl-2">
               <VedicKalash size={kalashSize} />
             </div>
 
             {/* Center: Divine Lord Ganesha on Blooming Lotus + Sacred Sanskrit Shloka */}
-            <div className="flex-1 flex flex-col items-center justify-center text-center min-w-0 px-1">
+            <div className="flex-1 flex flex-col items-center justify-center text-center min-w-0 px-0.5 sm:px-1">
               
               {/* Lord Ganesha seated on Lotus Image */}
               <div className="relative mb-0.5">
                 <img
                   src={getAssetUrl('/assets/deities/ganesha_lotus.jpg')}
                   alt="भगवान् श्री गणेश"
-                  className="w-24 h-24 sm:w-28 sm:h-28 object-contain select-none"
+                  className="w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 object-contain select-none"
                   onError={(e) => {
                     handleImageFallback(e, [
                       getAssetUrl('/assets/deities/ganesha.jpg'),
@@ -140,7 +140,7 @@ export const GaneshaHeaderCenter: React.FC<GaneshaHeaderCenterProps> = ({
             </div>
 
             {/* Right Side: Matching Vedic Mangal Kalash (दायाँ पट्टी अति नै सुन्दर कलश) */}
-            <div className="shrink-0 flex flex-col items-center justify-center pr-1 sm:pr-2">
+            <div className="shrink-0 hidden xs:flex flex-col items-center justify-center pr-0.5 sm:pr-2">
               <VedicKalash size={kalashSize} />
             </div>
 

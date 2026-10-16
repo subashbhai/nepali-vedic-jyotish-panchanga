@@ -59,25 +59,24 @@ import {
 import { PatrikaSubCategory, BirthDetails } from '../types/astrology';
 import { RBACSession } from '../db/rbacStore';
 import { evaluateSubscriptionStatus, is3DayTrialActive, start3DayTrial, is7DayTrialActive } from '../db/subscriptionStore';
-import { is24HourTrialActive, isClientPurchaseApproved } from '../db/clientLeadStore';
+import { is24HourTrialActive, isClientPurchaseApproved, getStoredClientLeads, syncClientLeadsFromServer } from '../db/clientLeadStore';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { AppDownloadModal, PlatformTab } from './AppDownloadModal';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { DEFAULT_DIRECT_DOWNLOADS, triggerDirectBrowserDownload, isDesktopApp } from '../utils/appVersionManager';
 import { getStoredPageServiceConfig, isTabVisibleInNavigation, initSyncPageServiceConfigFromServer, mapTabKeyToFeatureId } from '../db/pageServiceControlStore';
 import { checkFeatureAccess } from '../db/menuControlStore';
+import { checkServiceAccess, syncUserLicensesFromServer } from '../db/serviceLicenseStore';
 import { ChangePasswordModal } from './auth/ChangePasswordModal';
+import { mobileHybridSync } from '../services/mobileHybridSync';
 
-// Public menus visible on the first screen before login (Jyotish & Vastu are free to use)
+// Public menus visible on the first screen before login (Jyotish & Vastu require active trial or purchase license)
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
   'dashboard',
   'panchanga',
-  'jyotishi',
-  'vastu',
   'sewa',
   'vivah',
   'yajaman',
-  'user_dashboard',
   'calendar',
   'samachar',
   'kharedi',
@@ -91,8 +90,6 @@ export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
 export const NORMAL_USER_ALLOWED_TABS = new Set<NavTab>([
   'dashboard',
   'panchanga',
-  'jyotishi',
-  'vastu',
   'sewa',
   'calendar',
   'samachar',
@@ -245,6 +242,7 @@ export interface NavigationProps {
   onOpenVastuModal?: (subTab?: any) => void;
   hasFullAccess?: boolean;
   onOpenPurchaseModal?: (lockedFeatureName?: string) => void;
+  onOpenServiceLockedModal?: (serviceKey: 'jyotish' | 'vastu') => void;
   onOpenDateConverter?: () => void;
   onOpenOrgProfile?: () => void;
   onOpenThemeModal?: () => void;
@@ -350,18 +348,12 @@ export const TabTransition: React.FC<TabTransitionProps> = ({
   className = 'w-full flex-1 flex flex-col min-h-0',
 }) => {
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={activeTab}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-        className={className}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <div
+      key={activeTab}
+      className={`${className} animate-in fade-in duration-75`}
+    >
+      {children}
+    </div>
   );
 };
 
@@ -377,11 +369,50 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   onOpenVastuModal,
   hasFullAccess = false,
   onOpenPurchaseModal,
+  onOpenServiceLockedModal,
   onOpenDateConverter,
   onOpenOrgProfile,
   onOpenThemeModal,
   profiles = [],
 }) => {
+  const [licenseRevision, setLicenseRevision] = useState(0);
+
+  useEffect(() => {
+    const handleLicenseUpdate = () => {
+      setLicenseRevision((v) => v + 1);
+    };
+    window.addEventListener('service-license-updated', handleLicenseUpdate);
+    window.addEventListener('storage', handleLicenseUpdate);
+    window.addEventListener('trial-status-updated', handleLicenseUpdate);
+    window.addEventListener('software-full-access-updated', handleLicenseUpdate);
+    window.addEventListener('client-leads-updated', handleLicenseUpdate);
+    window.addEventListener('subscription-status-updated', handleLicenseUpdate);
+
+    // Initial server sync for user licenses and client leads if user is logged in
+    const userPhone = rbacSession?.phone || rbacSession?.username;
+    if (userPhone) {
+      syncUserLicensesFromServer(userPhone);
+      syncClientLeadsFromServer();
+    }
+
+    return () => {
+      window.removeEventListener('service-license-updated', handleLicenseUpdate);
+      window.removeEventListener('storage', handleLicenseUpdate);
+      window.removeEventListener('trial-status-updated', handleLicenseUpdate);
+      window.removeEventListener('software-full-access-updated', handleLicenseUpdate);
+      window.removeEventListener('client-leads-updated', handleLicenseUpdate);
+      window.removeEventListener('subscription-status-updated', handleLicenseUpdate);
+    };
+  }, [rbacSession]);
+
+  const isJyotishUnlocked = useMemo(() => {
+    return checkServiceAccess('jyotish', rbacSession).allowed;
+  }, [rbacSession, licenseRevision]);
+
+  const isVastuUnlocked = useMemo(() => {
+    return checkServiceAccess('vastu', rbacSession).allowed;
+  }, [rbacSession, licenseRevision]);
+
   const [isSewaMenuOpen, setIsSewaMenuOpen] = useState(false);
   const [sewaDropdownPosition, setSewaDropdownPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
@@ -391,6 +422,24 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
   const [downloadModalPlatform, setDownloadModalPlatform] = useState<PlatformTab>('WINDOWS');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [expandedMobileSections, setExpandedMobileSections] = useState<Record<string, boolean>>({
+    jyotish: true,
+    vastu: false,
+    karmakanda: false,
+    vivah: false,
+    store: false,
+    downloads: false,
+    settings: false,
+    admin: false,
+  });
+
+  const toggleMobileSection = (key: string) => {
+    setExpandedMobileSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { isInstalled, isInstallable, install } = usePWAInstall();
   const sewaButtonRef = useRef<HTMLButtonElement>(null);
@@ -403,9 +452,21 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     rbacSession?.role === 'SUPER_ADMIN' ||
     rbacSession?.role === 'STORE_ADMIN' ||
     rbacSession?.role === 'POS_STAFF';
-  const isTrialActive = is24HourTrialActive() || is3DayTrialActive() || is7DayTrialActive();
-  const isApprovedClient = isClientPurchaseApproved();
-  const isFullyUnlocked = isSuperOrStoreAdmin || !!hasFullAccess || isTrialActive || isApprovedClient;
+
+  const userPhoneDigits = (rbacSession?.phone || rbacSession?.username || '').replace(/\D/g, '').slice(-10);
+  const userLeads = getStoredClientLeads();
+  const currentUserLead = userPhoneDigits
+    ? userLeads.find((l) => (l.mobile || l.whatsapp || '').replace(/\D/g, '').slice(-10) === userPhoneDigits)
+    : null;
+  const isRegisteredOnlyUser = currentUserLead?.status === 'REGISTERED_USER';
+  const isUserTrialActive = currentUserLead
+    ? (currentUserLead.status === 'TRIAL_ACTIVE' && !!currentUserLead.trialExpiresAtISO && new Date(currentUserLead.trialExpiresAtISO).getTime() > Date.now())
+    : (rbacSession ? false : (is24HourTrialActive() || is3DayTrialActive() || is7DayTrialActive()));
+  const isUserApprovedClient = currentUserLead
+    ? currentUserLead.status === 'PURCHASE_APPROVED'
+    : isClientPurchaseApproved();
+
+  const isFullyUnlocked = isSuperOrStoreAdmin || (!isRegisteredOnlyUser && (!!hasFullAccess || isUserTrialActive || isUserApprovedClient));
 
   const updateSewaPosition = () => {
     if (sewaButtonRef.current) {
@@ -449,9 +510,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
         setIsDownloadDropdownOpen(false);
       }
-      if (adminMenuRef.current && !adminMenuRef.current.contains(e.target as Node)) {
-        setIsAdminMenuOpen(false);
-      }
     };
     const handleScrollOrResize = () => {
       if (isSewaMenuOpen) {
@@ -468,16 +526,21 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     };
   }, [isSewaMenuOpen]);
 
-  // Lock body scroll when mobile scroll-down menu is open
+  // Lock body scroll and register Android hardware back button handler when mobile drawer is open
   useEffect(() => {
     if (isMobileDrawerOpen) {
       document.body.style.overflow = 'hidden';
+      const unregister = mobileHybridSync.registerBackButtonHandler(() => {
+        setIsMobileDrawerOpen(false);
+        return true;
+      });
+      return () => {
+        document.body.style.overflow = '';
+        unregister();
+      };
     } else {
       document.body.style.overflow = '';
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [isMobileDrawerOpen]);
 
   const handle3DayTrialClick = () => {
@@ -556,7 +619,81 @@ export const Navigation: React.FC<NavigationProps> = memo(({
 
   return (
     <nav className="text-[#2D241E] dark:text-stone-100 transition-colors">
-      <div className="max-w-[1700px] w-full mx-auto px-2 sm:px-3 py-1.5 flex items-center justify-between gap-1.5 sm:gap-2 relative">
+      {/* 📱 Dedicated Mobile Top Navigation Bar (< 768px / md:hidden) */}
+      <div className="md:hidden flex items-center justify-between px-3 py-2 bg-[#FBF7EE] dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 shadow-2xs">
+        {/* Left: Branding & Active Section Title */}
+        <button
+          type="button"
+          onClick={() => onTabChange('dashboard')}
+          className="flex items-center gap-2 min-w-0 text-left cursor-pointer active:opacity-80 transition-opacity"
+          title="गृहपृष्ठमा जानुहोस्"
+        >
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7A1C1C] to-[#931F1F] text-amber-300 font-serif font-black flex items-center justify-center text-sm shadow-xs shrink-0 border border-amber-400/40">
+            ॐ
+          </div>
+          <div className="min-w-0">
+            <span className="font-serif font-black text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-400 block truncate leading-tight">
+              बालानन्द ज्योतिष
+            </span>
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="text-[10px] text-stone-600 dark:text-stone-300 font-semibold truncate leading-tight">
+                {activeModule === 'JYOTISH' ? 'ज्योतिष सेवा' : activeTab === 'vastu' ? 'वास्तु सेवा' : (MAIN_NAV_ITEMS.find((i) => i.id === activeTab)?.labelNepali || activeTab)}
+              </span>
+            </div>
+          </div>
+        </button>
+
+        {/* Right: Quick actions + Prominent Hamburger Button (>= 44x44px touch targets) */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {rbacSession ? (
+            <div
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/30 text-[11px] font-bold text-[#7A1C1C] dark:text-amber-300 max-w-[120px] truncate"
+              title={rbacSession.fullName}
+            >
+              <div className="w-5 h-5 rounded-full bg-[#7A1C1C] text-amber-300 flex items-center justify-center text-[10px] shrink-0 font-serif font-black">
+                {rbacSession.fullName?.charAt(0) || 'U'}
+              </div>
+              <span className="truncate">{rbacSession.fullName}</span>
+            </div>
+          ) : (
+            onOpenAuthModal && (
+              <button
+                type="button"
+                onClick={onOpenAuthModal}
+                className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 bg-[#7A1C1C] hover:bg-[#8B2323] text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                title="साइन इन / लगइन"
+              >
+                <LogIn className="w-4 h-4 text-amber-300" />
+                <span className="hidden xs:inline">साइन इन</span>
+              </button>
+            )
+          )}
+
+          {/* Prominent Hamburger Drawer Trigger (>= 44x44px) */}
+          <button
+            type="button"
+            onClick={() => setIsMobileDrawerOpen((prev) => !prev)}
+            className={`min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl border shadow-xs flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-95 ${
+              isMobileDrawerOpen
+                ? 'bg-[#7A1C1C] text-amber-300 border-[#5C1515] ring-2 ring-amber-400/50'
+                : 'bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100'
+            }`}
+            aria-label={isMobileDrawerOpen ? 'मेनु बन्द गर्नुहोस्' : 'मेनु खोल्नुहोस्'}
+            aria-expanded={isMobileDrawerOpen}
+            title="सम्पूर्ण मेनु सूची हेर्नुहोस् (Menu)"
+          >
+            {isMobileDrawerOpen ? (
+              <X className="w-5 h-5 text-current" />
+            ) : (
+              <Menu className="w-5 h-5 text-current" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 💻 Desktop & Tablet Navigation Bar (>= 768px / hidden md:flex) */}
+      <div className="hidden md:flex max-w-[1700px] w-full mx-auto px-2 sm:px-3 py-1.5 items-center justify-between gap-1.5 sm:gap-2 relative">
 
         {/* ☰ Mobile / Tablet Hamburger Dropdown Button (3rd Image Style) */}
         <button
@@ -609,7 +746,10 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             const featId = mapTabKeyToFeatureId(item.id);
             const featureAccess = checkFeatureAccess(featId);
             const isClosed = featureAccess.state === 'close';
-            const isLocked = featureAccess.state === 'lock';
+
+            // User-Specific Service Licensing (strictly for Jyotish and Vastu only)
+            const isServiceLocked = isJyotishi ? !isJyotishUnlocked : isVastu ? !isVastuUnlocked : false;
+            const isLocked = isServiceLocked || (featureAccess.state === 'lock' && !isJyotishi && !isVastu);
 
             if (isSewa) {
               return (
@@ -1395,8 +1535,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               type="button"
               onClick={() => {
                 setIsSewaMenuOpen(false);
-                if (!isFullyUnlocked) {
-                  if (onOpenPurchaseModal) onOpenPurchaseModal('ज्योतिष');
+                if (!isJyotishUnlocked) {
+                  if (onOpenPurchaseModal) onOpenPurchaseModal('ज्योतिष सेवा');
                   return;
                 }
                 if (onEnterJyotish) onEnterJyotish();
@@ -1413,9 +1553,16 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-red-700">
                       मुख्य ज्योतिष कार्यक्षेत्र
                     </span>
-                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-stone-950">
-                      प्रवेश
-                    </span>
+                    {!isJyotishUnlocked ? (
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5 text-amber-500" />
+                        लक
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-stone-950">
+                        प्रवेश
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
                     बृहत् जन्मकुण्डली, फलादेश, दशा, गोचर
@@ -1492,8 +1639,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   return;
                 }
                 setIsSewaMenuOpen(false);
-                if (!isFullyUnlocked && vastuCheck.state === 'lock') {
-                  if (onOpenPurchaseModal) onOpenPurchaseModal('वास्तुशास्त्र');
+                if (!isVastuUnlocked) {
+                  if (onOpenPurchaseModal) onOpenPurchaseModal('वास्तु सेवा');
                   return;
                 }
                 if (onOpenVastuModal) onOpenVastuModal('project');
@@ -1510,9 +1657,16 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-emerald-700">
                       वास्तु परियोजना तथा कम्पास
                     </span>
-                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-600 text-white">
-                      विन्डो
-                    </span>
+                    {!isVastuUnlocked ? (
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5 text-emerald-600" />
+                        लक
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-600 text-white">
+                        विन्डो
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
                     ३६०° कम्पास, मण्डल, अडिट र प्रमाणपत्र
@@ -1539,7 +1693,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                         alert(vastuSubAccess.reasonNepali || 'यो वास्तु सेवा प्रशासकद्वारा बन्द गरिएको छ।');
                         return;
                       }
-                      if (isVastuLocked) {
+                      if (!isVastuUnlocked || isVastuLocked) {
                         if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali);
                         else alert(vastuSubAccess.reasonNepali || 'यो सुविधा लक गरिएको छ।');
                         return;
@@ -1639,7 +1793,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             </div>
 
             {/* Scrollable Menu Content */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 space-y-3.5 [scrollbar-width:thin]">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 space-y-3.5 pb-28 [scrollbar-width:thin]">
 
               {/* ── SECTION 0: द्रुत पहुँच (Quick Access 2x2 Grid) ── */}
               <div>
@@ -1698,22 +1852,31 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       type="button"
                       onClick={() => {
                         setIsMobileDrawerOpen(false);
+                        if (!isJyotishUnlocked) {
+                          if (onOpenPurchaseModal) onOpenPurchaseModal('ज्योतिष सेवा');
+                          return;
+                        }
                         if (onEnterJyotish) onEnterJyotish();
                         else onTabChange('jyotishi');
                       }}
-                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
-                        activeModule === 'JYOTISH' || activeTab === 'jyotishi'
+                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-left transition-all cursor-pointer ${
+                        !isJyotishUnlocked
+                          ? 'bg-amber-500/10 border-amber-500/40 text-amber-800 dark:text-amber-300'
+                          : activeModule === 'JYOTISH' || activeTab === 'jyotishi'
                           ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
                           : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-red-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
-                        <Sparkles className="w-4 h-4" />
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-red-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold block truncate">ज्योतिष सेवा</span>
+                          <span className="text-[10px] opacity-75 block truncate">कुण्डली/फलादेश</span>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold block truncate">ज्योतिष सेवा</span>
-                        <span className="text-[10px] opacity-75 block truncate">कुण्डली/फलादेश</span>
-                      </div>
+                      {!isJyotishUnlocked && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                     </button>
                   )}
 
@@ -1722,415 +1885,935 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       type="button"
                       onClick={() => {
                         setIsMobileDrawerOpen(false);
+                        if (!isVastuUnlocked) {
+                          if (onOpenPurchaseModal) onOpenPurchaseModal('वास्तु सेवा');
+                          return;
+                        }
                         onTabChange('vastu');
                       }}
-                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
-                        activeTab === 'vastu'
+                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-left transition-all cursor-pointer ${
+                        !isVastuUnlocked
+                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-800 dark:text-emerald-300'
+                          : activeTab === 'vastu'
                           ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
                           : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-emerald-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <Compass className="w-4 h-4" />
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                          <Compass className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold block truncate">वास्तु सेवा</span>
+                          <span className="text-[10px] opacity-75 block truncate">कम्पास/अडिट</span>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold block truncate">वास्तु सेवा</span>
-                        <span className="text-[10px] opacity-75 block truncate">कम्पास/अडिट</span>
-                      </div>
+                      {!isVastuUnlocked && <Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
                     </button>
                   )}
                 </div>
               </div>
 
+              {/* ========================================================= */}
+              {/* ACCORDION 1: वैदिक ज्योतिष सेवा (Vedic Astrology Suite)     */}
+              {/* ========================================================= */}
+              <div className="rounded-2xl border border-amber-300/60 dark:border-stone-800 bg-amber-50/40 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => toggleMobileSection('jyotish')}
+                  className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-amber-500/15 via-red-500/10 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                  aria-expanded={expandedMobileSections.jyotish}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300 block truncate">
+                        १. वैदिक ज्योतिष सेवा (Jyotish)
+                      </span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                        कुण्डली, फलादेश, दशा, गोचर, प्रश्न, अङ्क
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-stone-700 text-stone-800 dark:text-amber-300">
+                      ७ शाखा
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-[#7A1C1C] dark:text-amber-400 transition-transform duration-200 ${
+                        expandedMobileSections.jyotish ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
 
+                {expandedMobileSections.jyotish && (
+                  <div className="p-2.5 space-y-2 border-t border-amber-200/70 dark:border-stone-800 animate-in fade-in duration-150">
+                    {/* Primary Hero Card */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (!isJyotishUnlocked) {
+                          if (onOpenPurchaseModal) onOpenPurchaseModal('ज्योतिष सेवा');
+                          return;
+                        }
+                        if (onEnterJyotish) onEnterJyotish();
+                        else onTabChange('jyotishi');
+                      }}
+                      className="w-full min-h-[52px] text-left p-3 rounded-xl border border-amber-500/60 bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white flex items-center justify-between group shadow-sm cursor-pointer active:scale-[0.98] transition-all"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-white/20 text-amber-300 flex items-center justify-center shrink-0">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-bold text-xs sm:text-sm block">
+                            मुख्य ज्योतिष कार्यक्षेत्र
+                          </span>
+                          <p className="text-[10px] text-amber-200/90 truncate">
+                            बृहत् जन्मकुण्डली, फलादेश, विंशोत्तरी दशा, गोचर
+                          </p>
+                        </div>
+                      </div>
+                      {!isJyotishUnlocked ? (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-200 border border-amber-400/50 flex items-center gap-1 shrink-0">
+                          <Lock className="w-3 h-3 text-amber-300" />
+                          लक
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 shrink-0">
+                          प्रवेश ↗
+                        </span>
+                      )}
+                    </button>
 
-              {/* ── SECTION 1: मुख्य मेनु (Main Menus List) ── */}
-              <div>
-                <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
-                  📌 मुख्य मेनु (Main Navigation)
-                </p>
-                <div className="bg-stone-50/90 dark:bg-stone-850/80 rounded-2xl border border-stone-200/80 dark:border-stone-800 overflow-hidden divide-y divide-stone-200/50 dark:divide-stone-800/60 shadow-2xs">
-                  {visibleNavItems
-                    .filter((i) => i.id !== 'sewa' && i.id !== 'admin_control')
-                    .map((item) => {
-                      const MIcon = item.icon;
-                      const isJyotishi = item.id === 'jyotishi';
-                      const isVastu = item.id === 'vastu';
-                      const mIsActive = isJyotishi
-                        ? activeModule === 'JYOTISH' || activeTab === 'jyotishi'
-                        : isVastu
-                        ? activeTab === 'vastu'
-                        : activeTab === item.id && activeModule === 'MAIN';
-                      const featId = mapTabKeyToFeatureId(item.id);
-                      const access = checkFeatureAccess(featId);
-                      const isClosed = access.state === 'close';
-                      const isLocked = access.state === 'lock';
-
-                      const mIsAllowed = !rbacSession
-                        ? PUBLIC_UNAUTH_NAV_IDS.has(item.id)
-                        : (isFullyUnlocked || NORMAL_USER_ALLOWED_TABS.has(item.id));
-
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            if (isClosed) {
-                              alert(access.reasonNepali || 'यो मेनु प्रशासकद्वारा बन्द गरिएको छ।');
-                              return;
-                            }
-                            if (isLocked) {
-                              if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali);
-                              else alert(access.reasonNepali || 'यो सुविधा लक गरिएको छ।');
-                              return;
-                            }
-                            setIsMobileDrawerOpen(false);
-                            if (isJyotishi) {
-                              if (onEnterJyotish) onEnterJyotish();
-                              else onTabChange('jyotishi');
-                              return;
-                            }
-                            if (isVastu) {
-                              onTabChange('vastu');
-                              return;
-                            }
-                            if (!rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(item.id)) {
-                              if (onOpenAuthModal) onOpenAuthModal();
-                              return;
-                            }
-                            if (!mIsAllowed) {
-                              if (onOpenPurchaseModal) onOpenPurchaseModal(item.labelNepali);
-                              return;
-                            }
-                            onTabChange(item.id);
-                          }}
-                          className={`w-full flex items-center gap-3 px-3.5 py-3 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                            isClosed
-                              ? 'opacity-40 grayscale cursor-not-allowed bg-stone-100 dark:bg-stone-900/60 text-stone-400'
-                              : mIsActive
-                              ? 'bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white shadow-xs'
-                              : 'text-stone-800 dark:text-stone-200 hover:bg-amber-50/70 dark:hover:bg-stone-800 active:bg-amber-100'
-                          }`}
-                        >
-                          <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                              mIsActive
-                                ? 'bg-white/20 text-amber-300'
-                                : 'bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400'
+                    {/* Secondary Jyotish Modules */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {ANYA_FALADESH_ITEMS.map((sub) => {
+                        const SIcon = sub.icon;
+                        const sActive = activeTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => {
+                              setIsMobileDrawerOpen(false);
+                              onTabChange(sub.id);
+                            }}
+                            className={`min-h-[44px] p-2 rounded-xl text-left border flex items-center gap-2 transition-all cursor-pointer ${
+                              sActive
+                                ? 'bg-amber-500/20 border-amber-500 text-[#7A1C1C] dark:text-amber-300 font-bold shadow-2xs'
+                                : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-amber-400 active:bg-amber-50'
                             }`}
                           >
-                            <MIcon className="w-4 h-4" />
-                          </div>
-                          <span className="flex-1 text-left">{item.labelNepali}</span>
-                          {!mIsAllowed && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                          <ChevronRight
-                            className={`w-3.5 h-3.5 shrink-0 ${
-                              mIsActive ? 'text-amber-300' : 'text-stone-400'
-                            }`}
-                          />
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
+                            <div className="w-6 h-6 rounded-md bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                              <SIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[11px] font-semibold block truncate">
+                                {sub.labelNepali}
+                              </span>
+                              <span className="text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                                {sub.badge}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
 
-              {/* ── SECTION 2: वैदिक ज्योतिष सेवा (Vedic Astrology Suite) ── */}
-              <div>
-                <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1.5 px-1 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" />
-                  <span>वैदिक ज्योतिष सेवा (Vedic Jyotish Suite)</span>
-                </p>
-                <div className="bg-gradient-to-br from-amber-500/10 via-red-500/5 to-amber-500/10 dark:bg-stone-850/90 rounded-2xl border border-amber-400/50 p-2.5 space-y-2 shadow-2xs">
-                  {/* Big Prominent Action Card */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      if (onEnterJyotish) onEnterJyotish();
-                      else onTabChange('jyotishi');
-                    }}
-                    className="w-full text-left p-3 rounded-xl border border-amber-500/60 bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white flex items-center justify-between group shadow-sm cursor-pointer active:scale-98 transition-all"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-white/20 text-amber-300 flex items-center justify-center shrink-0">
-                        <Sparkles className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="font-bold text-xs sm:text-sm block">
-                          मुख्य ज्योतिष कार्यक्षेत्र
-                        </span>
-                        <p className="text-[10px] text-amber-200/90 truncate">
-                          बृहत् जन्मकुण्डली, फलादेश, दशा, गोचर
-                        </p>
-                      </div>
+                      {/* Patrika Submenu */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileDrawerOpen(false);
+                          onTabChange('patrika');
+                        }}
+                        className={`min-h-[44px] p-2 rounded-xl text-left border flex items-center gap-2 transition-all cursor-pointer ${
+                          activeTab === 'patrika'
+                            ? 'bg-amber-500/20 border-amber-500 text-[#7A1C1C] dark:text-amber-300 font-bold shadow-2xs'
+                            : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-amber-400 active:bg-amber-50'
+                        }`}
+                      >
+                        <div className="w-6 h-6 rounded-md bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                          <FileText className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[11px] font-semibold block truncate">
+                            चिना / पत्रिका
+                          </span>
+                          <span className="text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                            टिप्पन
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Daily Rashifal */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileDrawerOpen(false);
+                          onTabChange('rashifal');
+                        }}
+                        className={`min-h-[44px] p-2 rounded-xl text-left border flex items-center gap-2 transition-all cursor-pointer ${
+                          activeTab === 'rashifal'
+                            ? 'bg-amber-500/20 border-amber-500 text-[#7A1C1C] dark:text-amber-300 font-bold shadow-2xs'
+                            : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-amber-400 active:bg-amber-50'
+                        }`}
+                      >
+                        <div className="w-6 h-6 rounded-md bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                          <Sun className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[11px] font-semibold block truncate">
+                            दैनिक राशिफल
+                          </span>
+                          <span className="text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                            १२ राशि
+                          </span>
+                        </div>
+                      </button>
                     </div>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 shrink-0">
-                      प्रवेश ↗
-                    </span>
-                  </button>
-
-                  {/* Other Faladesh & Astrology tools */}
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                    {ANYA_FALADESH_ITEMS.map((sub) => {
-                      const SIcon = sub.icon;
-                      const sActive = activeTab === sub.id;
-                      return (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          onClick={() => {
-                            setIsMobileDrawerOpen(false);
-                            onTabChange(sub.id);
-                          }}
-                          className={`p-2 rounded-xl text-left border flex items-center gap-2 transition-all cursor-pointer ${
-                            sActive
-                              ? 'bg-amber-500/20 border-amber-500 text-[#7A1C1C] dark:text-amber-300 font-bold'
-                              : 'bg-white/80 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-amber-400'
-                          }`}
-                        >
-                          <div className="w-6 h-6 rounded-md bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
-                            <SIcon className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <span className="text-[11px] font-semibold block truncate">
-                              {sub.labelNepali}
-                            </span>
-                            <span className="text-[9px] text-amber-700 dark:text-amber-400 font-medium">
-                              {sub.badge}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* ── SECTION 3: वास्तुशास्त्र सेवा (Vastu Suite) ── */}
-              <div>
-                <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1.5 px-1 flex items-center gap-1">
-                  <Compass className="w-3 h-3" />
-                  <span>वास्तुशास्त्र सेवा (Vastu Shastra Suite)</span>
-                </p>
-                <div className="bg-emerald-500/10 dark:bg-stone-850/90 rounded-2xl border border-emerald-400/50 p-2.5 space-y-2 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      if (onOpenVastuModal) onOpenVastuModal('project');
-                      else onTabChange('vastu');
-                    }}
-                    className="w-full text-left p-3 rounded-xl border border-emerald-600/60 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex items-center justify-between group shadow-sm cursor-pointer active:scale-98 transition-all"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-white/20 text-emerald-300 flex items-center justify-center shrink-0">
-                        <Compass className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="font-bold text-xs sm:text-sm block">
-                          वास्तुशास्त्र मुख्य कक्ष
-                        </span>
-                        <p className="text-[10px] text-emerald-200/90 truncate">
-                          डिजिटल कम्पास, मण्डल, पञ्चतत्त्व, अडिट
-                        </p>
-                      </div>
+              {/* ========================================================= */}
+              {/* ACCORDION 2: वास्तुशास्त्र सेवा (Vastu Shastra Suite)       */}
+              {/* ========================================================= */}
+              <div className="rounded-2xl border border-emerald-300/60 dark:border-stone-800 bg-emerald-50/40 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => toggleMobileSection('vastu')}
+                  className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                  aria-expanded={expandedMobileSections.vastu}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <Compass className="w-4 h-4" />
                     </div>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-400 text-stone-950 shrink-0">
-                      प्रवेश ↗
-                    </span>
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                    {VASTU_SUBMENU_ITEMS.slice(0, 4).map((vi) => {
-                      const VI = vi.icon;
-                      return (
-                        <button
-                          key={vi.id}
-                          type="button"
-                          onClick={() => {
-                            setIsMobileDrawerOpen(false);
-                            if (onOpenVastuModal) onOpenVastuModal(vi.id);
-                            else onTabChange('vastu');
-                          }}
-                          className="p-2 rounded-xl text-left border bg-white/80 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-emerald-400 flex items-center gap-2 transition-all cursor-pointer"
-                        >
-                          <div className="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                            <VI className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <span className="text-[11px] font-semibold block truncate">
-                              {vi.labelNepali}
-                            </span>
-                            <span className="text-[9px] text-emerald-700 dark:text-emerald-400 font-medium">
-                              {vi.badge}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 block truncate">
+                        २. वास्तुशास्त्र सेवा (Vastu Shastra)
+                      </span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                        कम्पास, मण्डल, पञ्चतत्त्व, आवासीय/व्यावसायिक अडिट
+                      </span>
+                    </div>
                   </div>
-                </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/80 dark:bg-stone-700 text-stone-800 dark:text-emerald-300">
+                      ६ मोड्युल
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-emerald-700 dark:text-emerald-400 transition-transform duration-200 ${
+                        expandedMobileSections.vastu ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {expandedMobileSections.vastu && (
+                  <div className="p-2.5 space-y-2 border-t border-emerald-200/70 dark:border-stone-800 animate-in fade-in duration-150">
+                    {/* Primary Hero Card */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (!isVastuUnlocked) {
+                          if (onOpenPurchaseModal) onOpenPurchaseModal('वास्तु सेवा');
+                          return;
+                        }
+                        if (onOpenVastuModal) onOpenVastuModal('project');
+                        else onTabChange('vastu');
+                      }}
+                      className="w-full min-h-[52px] text-left p-3 rounded-xl border border-emerald-600/60 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex items-center justify-between group shadow-sm cursor-pointer active:scale-[0.98] transition-all"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-white/20 text-emerald-300 flex items-center justify-center shrink-0">
+                          <Compass className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-bold text-xs sm:text-sm block">
+                            वास्तुशास्त्र मुख्य कक्ष
+                          </span>
+                          <p className="text-[10px] text-emerald-200/90 truncate">
+                            डिजिटल कम्पास, मण्डल, पञ्चतत्त्व, अडिट
+                          </p>
+                        </div>
+                      </div>
+                      {!isVastuUnlocked ? (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/50 flex items-center gap-1 shrink-0">
+                          <Lock className="w-3 h-3 text-emerald-300" />
+                          लक
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-400 text-stone-950 shrink-0">
+                          प्रवेश ↗
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Vastu Submenu Modules */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {VASTU_SUBMENU_ITEMS.map((vi) => {
+                        const VI = vi.icon;
+                        return (
+                          <button
+                            key={vi.id}
+                            type="button"
+                            onClick={() => {
+                              setIsMobileDrawerOpen(false);
+                              if (onOpenVastuModal) onOpenVastuModal(vi.id);
+                              else onTabChange('vastu');
+                            }}
+                            className="min-h-[44px] p-2 rounded-xl text-left border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700/80 text-stone-700 dark:text-stone-300 hover:border-emerald-400 active:bg-emerald-50 flex items-center gap-2 transition-all cursor-pointer"
+                          >
+                            <div className="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                              <VI className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[11px] font-semibold block truncate">
+                                {vi.labelNepali}
+                              </span>
+                              <span className="text-[9px] text-emerald-700 dark:text-emerald-400 font-medium">
+                                {vi.badge}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* ── SECTION 4: उपकरण, सेटिङ तथा डाउनलोड (Tools & Downloads) ── */}
-              <div>
-                <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
-                  ⚙️ प्रणाली, सेटिङ तथा डाउनलोड
-                </p>
-                <div className="bg-stone-50/90 dark:bg-stone-850/80 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-2 space-y-1">
-                  {/* 3 Download Sub-menus */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      onTabChange('app_download');
-                    }}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors ${
-                      activeTab === 'app_download'
-                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 font-bold'
-                        : 'hover:bg-blue-50/60 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200'
-                    }`}
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
-                      <Laptop className="w-4 h-4" />
+              {/* ========================================================= */}
+              {/* ACCORDION 3: कर्मकाण्ड तथा संस्कार (Rituals & Calendar)   */}
+              {/* ========================================================= */}
+              <div className="rounded-2xl border border-blue-300/60 dark:border-stone-800 bg-blue-50/40 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => toggleMobileSection('karmakanda')}
+                  className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-blue-500/15 via-indigo-500/10 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                  aria-expanded={expandedMobileSections.karmakanda}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                      <Scroll className="w-4 h-4" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">१. Application Download (एप्लिकेसन)</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">Windows, Android APK, Mac, iOS</span>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-blue-900 dark:text-blue-300 block truncate">
+                        ३. कर्मकाण्ड तथा संस्कार (Rituals & Patro)
+                      </span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                        पञ्चाङ्ग, पात्रो, यजमान, पूजा पद्धति
+                      </span>
                     </div>
-                  </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-200/80 dark:bg-stone-700 text-stone-800 dark:text-blue-300">
+                      ४ सेवा
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-blue-700 dark:text-blue-400 transition-transform duration-200 ${
+                        expandedMobileSections.karmakanda ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      onTabChange('books_download');
-                    }}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors ${
-                      activeTab === 'books_download'
-                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-bold'
-                        : 'hover:bg-amber-50/60 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200'
-                    }`}
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">२. Books Download (पुस्तक)</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">वैदिक धर्मशास्त्र तथा पूजा पद्धति (PDF)</span>
-                    </div>
-                  </button>
+                {expandedMobileSections.karmakanda && (
+                  <div className="p-2.5 space-y-1.5 border-t border-blue-200/70 dark:border-stone-800 animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('panchanga');
+                      }}
+                      className={`w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border ${
+                        activeTab === 'panchanga'
+                          ? 'bg-blue-100 dark:bg-blue-950/60 border-blue-400 text-blue-900 dark:text-blue-200 font-bold'
+                          : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200'
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">दैनिक पञ्चाङ्ग एवं मुहूर्त</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">तिथि, वार, नक्षत्र, योग, करण</span>
+                      </div>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      onTabChange('media_download');
-                    }}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors ${
-                      activeTab === 'media_download'
-                        ? 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-900 dark:text-cyan-200 font-bold'
-                        : 'hover:bg-cyan-50/60 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200'
-                    }`}
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 flex items-center justify-center shrink-0">
-                      <Music className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">३. Media Download (मिडिया)</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">मन्त्र स्तोत्र अडियो, HD वालपेपर तथा चार्ट</span>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('calendar');
+                      }}
+                      className={`w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border ${
+                        activeTab === 'calendar'
+                          ? 'bg-blue-100 dark:bg-blue-950/60 border-blue-400 text-blue-900 dark:text-blue-200 font-bold'
+                          : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200'
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">वैदिक पात्रो (Nepali Calendar)</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">चाडपर्व, बिदा, विवाह/व्रतबन्ध लगन</span>
+                      </div>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      if (onOpenSettingsModal) onOpenSettingsModal('astro');
-                    }}
-                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('yajaman');
+                      }}
+                      className={`w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border ${
+                        activeTab === 'yajaman'
+                          ? 'bg-blue-100 dark:bg-blue-950/60 border-blue-400 text-blue-900 dark:text-blue-200 font-bold'
+                          : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200'
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">यजमान तथा ग्राहक व्यवस्थापन</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">यजमान नामावली, पूजा इतिहास र गोत्र</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('knowledge');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-purple-500/15 text-purple-700 dark:text-purple-400 flex items-center justify-center shrink-0">
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">पूजा विधि तथा धर्मशास्त्र ज्ञान</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">सामग्री सूची, मन्त्र र विधि विधान</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ========================================================= */}
+              {/* ACCORDION 4: विवाह मिलान (Vivah Milan & Compatibility)     */}
+              {/* ========================================================= */}
+              <div className="rounded-2xl border border-rose-300/60 dark:border-stone-800 bg-rose-50/40 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    onTabChange('vivah');
+                  }}
+                  className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-rose-500/15 via-pink-500/10 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center shrink-0">
+                      <HeartHandshake className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-rose-900 dark:text-rose-300 block truncate">
+                        ४. विवाह मिलान (Vivah Milan)
+                      </span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                        ३६ गुण मिलान, नाडी, भकूट तथा मङ्गल दोष
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-200/80 dark:bg-stone-700 text-stone-800 dark:text-rose-300">
+                      ३६ गुण
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-rose-700 dark:text-rose-400" />
+                  </div>
+                </button>
+              </div>
+
+              {/* ========================================================= */}
+              {/* ACCORDION 5: वैदिक पसल तथा ग्रन्थ (Store & Library)        */}
+              {/* ========================================================= */}
+              <div className="rounded-2xl border border-amber-400/60 dark:border-stone-800 bg-amber-50/30 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => toggleMobileSection('store')}
+                  className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-amber-600/15 via-orange-500/10 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                  aria-expanded={expandedMobileSections.store}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-800 dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-amber-300 block truncate">
+                        ५. वैदिक पसल एवं सूचना (Store & Info)
+                      </span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                        पूजा पसल, संस्था परिचय, समाचार
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-stone-700 text-stone-800 dark:text-amber-300">
+                      ३ शाखा
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-amber-800 dark:text-amber-400 transition-transform duration-200 ${
+                        expandedMobileSections.store ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {expandedMobileSections.store && (
+                  <div className="p-2.5 space-y-1.5 border-t border-amber-200/70 dark:border-stone-800 animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('kharedi');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <ShoppingBag className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">वैदिक पूजा सामग्री पसल</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">रुद्राक्ष, शालिग्राम, यन्त्र, पूजा सामग्री</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onOpenOrgProfile) onOpenOrgProfile();
+                        else onTabChange('org_profile');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">संस्था प्रोफाइल एवं परिचय</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">सेवाहरू, सम्पर्क ठेगाना र विवरण</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('samachar');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <Newspaper className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">पञ्चाङ्ग तथा खगोल समाचार</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">चाडपर्व, ग्रहण र शास्त्रीय समाचार</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ========================================================= */}
+              {/* ACCORDION 6: डाउनलोड केन्द्र (Download Center)             */}
+              {/* ========================================================= */}
+              <div className="rounded-2xl border border-cyan-300/60 dark:border-stone-800 bg-cyan-50/30 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => toggleMobileSection('downloads')}
+                  className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                  aria-expanded={expandedMobileSections.downloads}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-800 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                      <Download className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-cyan-950 dark:text-cyan-300 block truncate">
+                        ६. डाउनलोड केन्द्र (Download Hub)
+                      </span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                        एप्लिकेसन, PDF ग्रन्थ तथा मन्त्र मिडिया
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-200/80 dark:bg-stone-700 text-stone-800 dark:text-cyan-300">
+                      ३ हब
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-cyan-800 dark:text-cyan-400 transition-transform duration-200 ${
+                        expandedMobileSections.downloads ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {expandedMobileSections.downloads && (
+                  <div className="p-2.5 space-y-1.5 border-t border-cyan-200/70 dark:border-stone-800 animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('app_download');
+                      }}
+                      className={`w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border ${
+                        activeTab === 'app_download'
+                          ? 'bg-blue-100 dark:bg-blue-950/60 border-blue-400 text-blue-900 dark:text-blue-200 font-bold'
+                          : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200'
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Laptop className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">१. Application Download</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">Windows (.exe), Android (.apk), Mac</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('books_download');
+                      }}
+                      className={`w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border ${
+                        activeTab === 'books_download'
+                          ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-400 text-amber-900 dark:text-amber-200 font-bold'
+                          : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200'
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">२. Books Download (ई-पुस्तक)</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">धर्मशास्त्र तथा पूजा पद्धति (PDF)</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('media_download');
+                      }}
+                      className={`w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border ${
+                        activeTab === 'media_download'
+                          ? 'bg-cyan-100 dark:bg-cyan-950/60 border-cyan-400 text-cyan-900 dark:text-cyan-200 font-bold'
+                          : 'bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200'
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                        <Music className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">३. Media Download (मिडिया)</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">मन्त्र स्तोत्र अडियो, HD वालपेपर, चार्ट</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ========================================================= */}
+              {/* ACCORDION 7: उपकरण एवं सेटिङ (Tools & Settings)            */}
+              {/* ========================================================= */}
+              <div className="rounded-2xl border border-stone-300 dark:border-stone-800 bg-stone-100/50 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => toggleMobileSection('settings')}
+                  className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-stone-300/30 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                  aria-expanded={expandedMobileSections.settings}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-stone-300/40 dark:bg-stone-700 text-stone-800 dark:text-stone-300 flex items-center justify-center shrink-0">
                       <Settings className="w-4 h-4" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">⚙️ प्रणाली तथा ज्योतिष गणना सेटिङ</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">अयनांश, ग्रह गणना र स्थान</span>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-200 block truncate">
+                        ७. उपकरण एवं सेटिङ (Tools & Settings)
+                      </span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                        मिति रूपान्तरण, लेटरहेड, थिम, क्लाउड सिंक, FAQ
+                      </span>
                     </div>
-                  </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-300">
+                      ६ उपकरण
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-stone-700 dark:text-stone-400 transition-transform duration-200 ${
+                        expandedMobileSections.settings ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      if (onOpenSettingsModal) onOpenSettingsModal('letterhead');
-                    }}
-                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">📋 लेटरहेड ब्यानर सेटिङ</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">आफ्नो नाम, लोगो र ब्यानर</span>
-                    </div>
-                  </button>
+                {expandedMobileSections.settings && (
+                  <div className="p-2.5 space-y-1.5 border-t border-stone-200 dark:border-stone-800 animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onOpenDateConverter) onOpenDateConverter();
+                        else onTabChange('date_converter');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <ArrowRightLeft className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">मिति रूपान्तरण (BS ⇄ AD Converter)</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">विक्रम संवत् तथा ईस्वी सन् रूपान्तरण</span>
+                      </div>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      if (onOpenThemeModal) onOpenThemeModal();
-                    }}
-                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-purple-500/15 text-purple-700 dark:text-purple-400 flex items-center justify-center shrink-0">
-                      <Palette className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">🎨 सफ्टवेयर थिम र रङ्ग</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">५ वैदिक रङ्ग तथा पृष्ठभूमि</span>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onOpenSettingsModal) onOpenSettingsModal('astro');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0">
+                        <Settings className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">प्रणाली तथा ज्योतिष गणना सेटिङ</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">अयनांश, स्थान र ग्रह गणना</span>
+                      </div>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      setIsCloudSyncModalOpen(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-emerald-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                      <CloudCheck className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">☁️ क्लाउड सिंक तथा ब्याकअप</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">डेटा सुरक्षित भण्डारण</span>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onOpenSettingsModal) onOpenSettingsModal('letterhead');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">लेटरहेड ब्यानर सेटिङ</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">व्यक्तिगत नाम, लोगो र ब्यानर</span>
+                      </div>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      onTabChange('help');
-                    }}
-                    className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 cursor-pointer transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-                      <HelpCircle className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">❓ मद्दत, ट्यूटोरियल तथा FAQ</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">सफ्टवेयर प्रयोग विधि</span>
-                    </div>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        if (onOpenThemeModal) onOpenThemeModal();
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-purple-500/15 text-purple-700 dark:text-purple-400 flex items-center justify-center shrink-0">
+                        <Palette className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">सफ्टवेयर थिम र रङ्ग</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">५ वैदिक रङ्ग तथा पृष्ठभूमि</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        setIsCloudSyncModalOpen(true);
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <CloudCheck className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">क्लाउड सिंक तथा ब्याकअप</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">डेटा सुरक्षित भण्डारण र रिस्टोर</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('help');
+                      }}
+                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <HelpCircle className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold block truncate">मद्दत, ट्यूटोरियल तथा FAQ</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">सफ्टवेयर प्रयोग विधि र प्रश्नोत्तर</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* ── SECTION 5: प्रयोगकर्ता खाता (User Authentication) ── */}
-              <div>
+              {/* ========================================================= */}
+              {/* ACCORDION 8: प्रशासनिक नियन्त्रण (Admin Control)           */}
+              {/* ========================================================= */}
+              {(isSuperOrStoreAdmin || (rbacSession && rbacSession.role !== 'CUSTOMER')) && (
+                <div className="rounded-2xl border border-red-300/70 dark:border-stone-800 bg-red-50/40 dark:bg-stone-850/60 overflow-hidden shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => toggleMobileSection('admin')}
+                    className="w-full min-h-[48px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left bg-gradient-to-r from-red-600/15 to-transparent dark:from-stone-800 dark:to-stone-850 cursor-pointer active:opacity-80 transition-all"
+                    aria-expanded={expandedMobileSections.admin}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-red-500/20 text-[#7A1C1C] dark:text-red-400 flex items-center justify-center shrink-0">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-red-300 block truncate">
+                          ८. प्रशासनिक नियन्त्रण (Admin Desk)
+                        </span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate">
+                          सुपरएडमिन, स्टोर, POS, समाचार, विवाह
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-200/80 dark:bg-stone-700 text-stone-800 dark:text-red-300">
+                        प्रशासन
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-[#7A1C1C] dark:text-red-400 transition-transform duration-200 ${
+                          expandedMobileSections.admin ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {expandedMobileSections.admin && (
+                    <div className="p-2.5 space-y-1.5 border-t border-red-200/70 dark:border-stone-800 animate-in fade-in duration-150">
+                      {/* Super Admin Portal link */}
+                      {rbacSession?.role === 'SUPER_ADMIN' && (
+                        <a
+                          href="/superadmin"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white shadow-xs"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-white/20 text-amber-300 flex items-center justify-center shrink-0">
+                            <Crown className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold block truncate">सुपरएडमिन पोर्टल (Super Admin Portal)</span>
+                            <span className="text-[10px] text-amber-200 truncate block">सेवा लक/अनडक, प्रयोगकर्ता र वित्तीय नियन्त्रण</span>
+                          </div>
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileDrawerOpen(false);
+                          onTabChange('store_admin');
+                        }}
+                        className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                          <ShoppingBag className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-bold block truncate">स्टोर एवं डिजिटल पुस्तकालय एडमिन</span>
+                          <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">सामग्री सूची, अर्डर तथा PDF व्यवस्थापन</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileDrawerOpen(false);
+                          onTabChange('pos');
+                        }}
+                        className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                          <ShoppingBag className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-bold block truncate">काउन्टर POS बिलिङ टर्मिनल</span>
+                          <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">प्रत्यक्ष बिक्री, इनभ्वाइस तथा रसिद प्रिन्ट</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileDrawerOpen(false);
+                          onTabChange('news_editor');
+                        }}
+                        className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                          <Newspaper className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-bold block truncate">समाचार तथा लेख सम्पादक</span>
+                          <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">पञ्चाङ्ग, खगोल तथा धर्म समाचार प्रकाशन</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileDrawerOpen(false);
+                          onTabChange('vivah_admin');
+                        }}
+                        className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-400 flex items-center justify-center shrink-0">
+                          <HeartHandshake className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-bold block truncate">विवाह बायोडाटा सुपरभाइजर</span>
+                          <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">बायोडाटा प्रमाणीकरण र मिलान सुपरीवेक्षण</span>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ========================================================= */}
+              {/* SECTION: प्रयोगकर्ता खाता (User Authentication)            */}
+              {/* ========================================================= */}
+              <div className="pt-2">
                 <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
                   👤 प्रयोगकर्ता खाता (User Account)
                 </p>
@@ -2155,7 +2838,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                             setIsMobileDrawerOpen(false);
                             onLogoutRBAC();
                           }}
-                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer"
+                          className="min-h-[44px] px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer active:scale-95"
                         >
                           <LogOut className="w-3.5 h-3.5" />
                           <span>लगआउट</span>
@@ -2169,7 +2852,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                         setIsMobileDrawerOpen(false);
                         setIsChangePasswordOpen(true);
                       }}
-                      className="w-full py-2 px-3 rounded-xl bg-amber-100/80 dark:bg-stone-700/80 hover:bg-amber-200 text-amber-950 dark:text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-300/60 dark:border-stone-600 cursor-pointer transition-colors"
+                      className="w-full min-h-[44px] py-2 px-3 rounded-xl bg-amber-100/80 dark:bg-stone-700/80 hover:bg-amber-200 text-amber-950 dark:text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-300/60 dark:border-stone-600 cursor-pointer transition-colors active:scale-[0.98]"
                     >
                       <KeyRound className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                       <span>🔐 पासवर्ड परिवर्तन (Change Password)</span>
@@ -2183,7 +2866,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                         setIsMobileDrawerOpen(false);
                         onOpenAuthModal();
                       }}
-                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98 transition-transform"
+                      className="w-full min-h-[48px] py-3 px-4 rounded-xl bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-[0.98] transition-transform"
                     >
                       <LogIn className="w-4 h-4 text-amber-300" />
                       <span>साइन इन / लगइन गर्नुहोस्</span>
@@ -2192,8 +2875,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 )}
               </div>
 
-              {/* Extra Bottom Cushion */}
-              <div className="h-6" />
+              {/* Extra Safe-Area Bottom Cushion (pb-28 applied to parent + cushion) */}
+              <div className="h-10" />
             </div>
           </div>
         </>

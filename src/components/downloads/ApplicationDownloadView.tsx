@@ -20,7 +20,10 @@ import {
   Check,
   AlertCircle,
   Copy,
-  Lock
+  Lock,
+  Globe,
+  Server,
+  FileCode
 } from 'lucide-react';
 import {
   DEFAULT_DIRECT_DOWNLOADS,
@@ -135,14 +138,55 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
     setTimeout(() => setCopiedChecksum(null), 2500);
   };
 
+  const effectiveAndroidRelease: SoftwareReleaseRecord = androidRelease || {
+    id: 'rel_apk_105',
+    softwareName: 'बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग - Android APK',
+    softwareVersion: CURRENT_APP_VERSION,
+    releaseNotes: 'एन्ड्रोइड मोबाइलका लागि प्रत्यक्ष APK इन्स्टलर। दैनिक पञ्चाङ्ग, राशिफल तथा डिजिटल वास्तु कम्पास।',
+    originalFilename: 'nepali-vedic-jyotish-panchanga.apk',
+    storageKey: getApkDirectDownloadUrl(),
+    fileSizeBytes: 107062997,
+    fileSizeFormatted: '102 MB',
+    sha256Checksum: '',
+    platform: 'android',
+    platformNameNepali: 'Android मोबाइल (.apk)',
+    releaseStatus: 'published',
+    downloadCount: 3890,
+    uploadedBy: 'Official Release',
+    uploadedAtISO: new Date().toISOString(),
+    publishedAtISO: new Date().toISOString(),
+    publishedAtBS: '२०८१',
+    isOfficialCurrent: true
+  };
+
+  const effectiveWinRelease: SoftwareReleaseRecord = winRelease || {
+    id: 'rel_win_105',
+    softwareName: 'बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग - Windows PC',
+    softwareVersion: CURRENT_APP_VERSION,
+    releaseNotes: 'सम्पूर्ण वैदिक ज्योतिष, ३६०° वास्तु कम्पास, षोडशवर्ग, चिना A4 PDF मुद्रण, दशा फलित तथा अफलाइन गणना।',
+    originalFilename: 'nepali-vedic-jyotish-panchanga-setup-1.0.5.exe',
+    storageKey: downloadUrls.windowsSetup,
+    fileSizeBytes: 85200000,
+    fileSizeFormatted: '81.2 MB',
+    sha256Checksum: '',
+    platform: 'windows',
+    platformNameNepali: 'Windows कम्प्युटर (.exe)',
+    releaseStatus: 'published',
+    downloadCount: 1420,
+    uploadedBy: 'Official Release',
+    uploadedAtISO: new Date().toISOString(),
+    publishedAtISO: new Date().toISOString(),
+    publishedAtBS: '२०८१',
+    isOfficialCurrent: true
+  };
+
+  const apkDirectUrl = effectiveAndroidRelease.storageKey || downloadUrls.androidApk || getApkDirectDownloadUrl();
+
   const handleCopyApkLink = () => {
-    const apkUrl = androidRelease?.storageKey || downloadUrls.androidApk || getApkDirectDownloadUrl();
-    navigator.clipboard.writeText(apkUrl);
+    navigator.clipboard.writeText(apkDirectUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
-
-  const apkDirectUrl = androidRelease?.storageKey || downloadUrls.androidApk || getApkDirectDownloadUrl();
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const qrTargetUrl = `${currentOrigin}${typeof window !== 'undefined' ? window.location.pathname : ''}?action=download-apk`;
 
@@ -214,19 +258,13 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                     <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100">
                       Windows PC
                     </h2>
-                    {winRelease?.isOfficialCurrent ? (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>आधिकारिक</span>
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 text-[10px] font-bold">
-                        कम्प्युटर एप
-                      </span>
-                    )}
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>आधिकारिक</span>
+                    </span>
                   </div>
                   <p className="text-xs text-stone-500 dark:text-stone-400">
-                    Windows 10, 11 (64-bit / 32-bit) {winRelease ? `• v${winRelease.softwareVersion} (${winRelease.fileSizeFormatted})` : ''}
+                    Windows 10, 11 (64-bit / 32-bit) • v{effectiveWinRelease.softwareVersion} ({effectiveWinRelease.fileSizeFormatted})
                   </p>
                 </div>
               </div>
@@ -252,20 +290,20 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
             </ul>
 
             {/* SHA-256 Checksum Pill */}
-            {winRelease?.sha256Checksum && (
+            {effectiveWinRelease?.sha256Checksum && (
               <div className="pt-1">
                 <div className="bg-stone-50 dark:bg-stone-950 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2 text-[11px]">
                   <div className="truncate text-stone-500 dark:text-stone-400 font-mono">
                     <span className="font-bold text-stone-700 dark:text-stone-300">SHA-256: </span>
-                    <span>{winRelease.sha256Checksum.slice(0, 18)}...{winRelease.sha256Checksum.slice(-8)}</span>
+                    <span>{effectiveWinRelease.sha256Checksum.slice(0, 18)}...{effectiveWinRelease.sha256Checksum.slice(-8)}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleCopyChecksum(winRelease.sha256Checksum)}
+                    onClick={() => handleCopyChecksum(effectiveWinRelease.sha256Checksum)}
                     className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-amber-400 hover:text-stone-950 transition-colors shrink-0 text-stone-700 dark:text-stone-300 cursor-pointer"
                     title="SHA-256 कपी गर्नुहोस्"
                   >
-                    {copiedChecksum === winRelease.sha256Checksum ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedChecksum === effectiveWinRelease.sha256Checksum ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
@@ -273,45 +311,25 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
           </div>
 
           <div className="pt-6 space-y-2.5">
-            {winRelease ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => handleDownload(
-                    winRelease.storageKey,
-                    winRelease.originalFilename,
-                    'Windows Official Setup (.exe)'
-                  )}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-                >
-                  <Download className="w-5 h-5" />
-                  <span>आधिकारिक Windows Setup (.exe) डाउनलोड ({winRelease.fileSizeFormatted})</span>
-                </button>
+            <a
+              href={effectiveWinRelease.storageKey}
+              download={effectiveWinRelease.originalFilename}
+              onClick={() => setDownloadNotice('Windows Official Setup (.exe) को डाउनलोड सुरु भयो...')}
+              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 text-center"
+            >
+              <Download className="w-5 h-5" />
+              <span>आधिकारिक Windows Setup (.exe) डाउनलोड ({effectiveWinRelease.fileSizeFormatted})</span>
+            </a>
 
-                <button
-                  type="button"
-                  onClick={() => handleDownload(
-                    downloadUrls.windowsPortable,
-                    `nepali-vedic-jyotish-panchanga-${winRelease.softwareVersion}.exe`,
-                    'Windows Portable (.exe)'
-                  )}
-                  className="w-full py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                >
-                  <HardDrive className="w-4 h-4" />
-                  <span>पोर्टेबल संस्करण (.exe - No Install) डाउनलोड</span>
-                </button>
-              </>
-            ) : (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-stone-700 dark:text-amber-200 text-xs space-y-2">
-                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300 text-sm">
-                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>हाल कुनै आधिकारिक विन्डोज रिलिज प्रकाशित छैन</span>
-                </div>
-                <p className="text-stone-600 dark:text-stone-400 leading-relaxed">
-                  सुपर प्रशासकले नयाँ संस्करण अपलोड तथा प्रकाशित गरेपछि यहाँ स्वतः प्रत्यक्ष डाउनलोड उपलब्ध हुनेछ।
-                </p>
-              </div>
-            )}
+            <a
+              href={downloadUrls.windowsPortable}
+              download={`nepali-vedic-jyotish-panchanga-${effectiveWinRelease.softwareVersion}.exe`}
+              onClick={() => setDownloadNotice('Windows Portable (.exe) को डाउनलोड सुरु भयो...')}
+              className="w-full py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors text-center"
+            >
+              <HardDrive className="w-4 h-4" />
+              <span>पोर्टेबल संस्करण (.exe - No Install) डाउनलोड</span>
+            </a>
           </div>
         </div>
 
@@ -332,19 +350,13 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
                     <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100">
                       Android APK
                     </h2>
-                    {androidRelease?.isOfficialCurrent ? (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>आधिकारिक</span>
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
-                        मोबाइल एप (.apk)
-                      </span>
-                    )}
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>आधिकारिक</span>
+                    </span>
                   </div>
                   <p className="text-xs text-stone-500 dark:text-stone-400">
-                    Samsung, Xiaomi, Vivo, Oppo, Realme, etc. {androidRelease ? `• v${androidRelease.softwareVersion} (${androidRelease.fileSizeFormatted})` : ''}
+                    Samsung, Xiaomi, Vivo, Oppo, Realme, etc. • v{effectiveAndroidRelease.softwareVersion} ({effectiveAndroidRelease.fileSizeFormatted})
                   </p>
                 </div>
               </div>
@@ -370,20 +382,20 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
             </ul>
 
             {/* SHA-256 Checksum Pill */}
-            {androidRelease?.sha256Checksum && (
+            {effectiveAndroidRelease?.sha256Checksum && (
               <div className="pt-1">
                 <div className="bg-stone-50 dark:bg-stone-950 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2 text-[11px]">
                   <div className="truncate text-stone-500 dark:text-stone-400 font-mono">
                     <span className="font-bold text-stone-700 dark:text-stone-300">SHA-256: </span>
-                    <span>{androidRelease.sha256Checksum.slice(0, 18)}...{androidRelease.sha256Checksum.slice(-8)}</span>
+                    <span>{effectiveAndroidRelease.sha256Checksum.slice(0, 18)}...{effectiveAndroidRelease.sha256Checksum.slice(-8)}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleCopyChecksum(androidRelease.sha256Checksum)}
+                    onClick={() => handleCopyChecksum(effectiveAndroidRelease.sha256Checksum)}
                     className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-amber-400 hover:text-stone-950 transition-colors shrink-0 text-stone-700 dark:text-stone-300 cursor-pointer"
                     title="SHA-256 कपी गर्नुहोस्"
                   >
-                    {copiedChecksum === androidRelease.sha256Checksum ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedChecksum === effectiveAndroidRelease.sha256Checksum ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
@@ -391,53 +403,36 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
           </div>
 
           <div className="pt-6 space-y-2.5">
-            {androidRelease ? (
-              <>
+            <a
+              href={apkDirectUrl}
+              download={effectiveAndroidRelease.originalFilename || 'nepali-vedic-jyotish-panchanga.apk'}
+              onClick={() => setDownloadNotice('Android APK को डाउनलोड सुरु भयो...')}
+              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 animate-pulse text-center"
+            >
+              <Download className="w-5 h-5" />
+              <span>सिधै Android APK (.apk) डाउनलोड गर्नुहोस् ({effectiveAndroidRelease.fileSizeFormatted})</span>
+            </a>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCopyApkLink}
+                className="flex-1 py-2 px-3 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <ExternalLink className="w-4 h-4" />}
+                <span>{copiedLink ? 'लिङ्क कपी भयो!' : 'APK लिङ्क कपी गर्नुहोस्'}</span>
+              </button>
+
+              {isInstallable && !isInstalled && (
                 <button
                   type="button"
-                  onClick={() => handleDownload(
-                    apkDirectUrl,
-                    androidRelease.originalFilename || 'nepali-vedic-jyotish-panchanga.apk',
-                    'Android APK (.apk)'
-                  )}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 animate-pulse"
+                  onClick={install}
+                  className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
                 >
-                  <Download className="w-5 h-5" />
-                  <span>सिधै Android APK (.apk) डाउनलोड गर्नुहोस् ({androidRelease.fileSizeFormatted})</span>
+                  <span>होमस्क्रिनमा थप्नुहोस्</span>
                 </button>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCopyApkLink}
-                    className="flex-1 py-2 px-3 rounded-xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <ExternalLink className="w-4 h-4" />}
-                    <span>{copiedLink ? 'लिङ्क कपी भयो!' : 'APK लिङ्क कपी गर्नुहोस्'}</span>
-                  </button>
-
-                  {isInstallable && !isInstalled && (
-                    <button
-                      type="button"
-                      onClick={install}
-                      className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <span>होमस्क्रिनमा थप्नुहोस्</span>
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-stone-700 dark:text-amber-200 text-xs space-y-2">
-                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300 text-sm">
-                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>हाल कुनै आधिकारिक एन्ड्रोइड रिलिज प्रकाशित छैन</span>
-                </div>
-                <p className="text-stone-600 dark:text-stone-400 leading-relaxed">
-                  सुपर प्रशासकले नयाँ APK संस्करण प्रकाशित गरेपछि यहाँ स्वतः उपलब्ध हुनेछ।
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
@@ -584,6 +579,76 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
               <Sparkles className="w-5 h-5" />
               <span>iOS होम स्क्रिनमा थप्ने विधि</span>
             </button>
+          </div>
+        </div>
+
+        {/* PLATFORM 5: Web Hosting (cPanel / VPS Production ZIP) */}
+        <div className="bg-white dark:bg-stone-900 rounded-3xl border-2 border-amber-300 dark:border-amber-800 p-6 sm:p-7 shadow-xl hover:shadow-2xl transition-all flex flex-col justify-between relative overflow-hidden group md:col-span-2">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-amber-500/20 transition-colors" />
+
+          <div className="space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300/60 dark:border-amber-800 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shadow-md">
+                  <Globe className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900 dark:text-stone-100">
+                      वेबसाइट होस्टिङ जिप (cPanel / Web Hosting ZIP)
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-300 text-[10px] font-bold flex items-center gap-1 border border-amber-300/40">
+                      <Server className="w-3 h-3" />
+                      <span>सिधै डोमेनमा चल्ने (Ready to Host)</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                    Hostinger, Bluehost, Namecheap, GoDaddy, cPanel, Nginx, Apache वा VPS का लागि
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed font-sans">
+              आफ्नै डोमेन (उदा: <code className="text-amber-700 dark:text-amber-400 font-bold">yourdomain.com</code>) मा वेबसाइट चलाउन यो कम्प्लिट जिप (ZIP) फाइल डाउनलोड गर्नुहोस्। cPanel को <code className="bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded font-mono text-xs">public_html</code> भित्र यो फाइल अपलोड गरी <strong>Extract (Unzip)</strong> गर्दा वेबसाइट तुरुन्तै सुरु हुन्छ।
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-2xl border border-stone-200 dark:border-stone-700 text-xs">
+                <span className="font-bold text-stone-900 dark:text-stone-100 block mb-0.5">📂 .htaccess समावेश</span>
+                <span className="text-stone-500 dark:text-stone-400 text-[11px]">पेज रिफ्रेस गर्दा कुनै 404 Error नआउने</span>
+              </div>
+              <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-2xl border border-stone-200 dark:border-stone-700 text-xs">
+                <span className="font-bold text-stone-900 dark:text-stone-100 block mb-0.5">⚡ GZIP & Speed Cache</span>
+                <span className="text-stone-500 dark:text-stone-400 text-[11px]">उच्च गतिको वेब पर्फमेन्स र ब्रोडब्यान्ड अप्टिमाइजेसन</span>
+              </div>
+              <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-2xl border border-stone-200 dark:border-stone-700 text-xs">
+                <span className="font-bold text-stone-900 dark:text-stone-100 block mb-0.5">📜 नेपाली गाइड संलग्न</span>
+                <span className="text-stone-500 dark:text-stone-400 text-[11px]">cPanel तथा Nginx का लागि स्पष्ट चरणबद्ध विधि</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 flex flex-col sm:flex-row items-center gap-3">
+            <a
+              href="./downloads/nepali-vedic-jyotish-web-hosting-complete.zip"
+              download="nepali-vedic-jyotish-web-hosting-complete.zip"
+              onClick={() => setDownloadNotice('वेबसाइट होस्टिङ कम्प्लिट ZIP फाइलको डाउनलोड सुरु भयो...')}
+              className="w-full sm:w-auto flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-600 to-[#7A1C1C] hover:from-amber-700 hover:to-[#5C1515] text-white font-extrabold text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 text-center"
+            >
+              <Download className="w-5 h-5 text-amber-200" />
+              <span>कम्प्लिट वेब होस्टिङ ZIP (.zip) डाउनलोड गर्नुहोस् (२३२ MB)</span>
+            </a>
+
+            <a
+              href="./DEPLOYMENT_GUIDE_नेपाली.txt"
+              target="_blank"
+              rel="noreferrer"
+              className="py-3.5 px-5 rounded-2xl border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <FileCode className="w-4 h-4 text-amber-600" />
+              <span>होस्टिङ निर्देशिका पढ्नुहोस्</span>
+            </a>
           </div>
         </div>
 

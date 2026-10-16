@@ -20,8 +20,10 @@ import {
 } from './db/subscriptionStore';
 import { 
   is24HourTrialActive, 
-  isClientPurchaseApproved 
+  isClientPurchaseApproved,
+  getStoredClientLeads 
 } from './db/clientLeadStore';
+import { checkServiceAccess } from './db/serviceLicenseStore';
 import { recordVisitorHit } from './db/visitorAnalyticsStore';
 import { getStoredClientTheme, applyThemeToDOM } from './utils/themeStore';
 import { TrialPrintRestrictionModal } from './components/common/TrialPrintRestrictionModal';
@@ -134,7 +136,8 @@ import {
   getStoredPurohits,
   savePurohits,
   getLiveCurrentMomentProfile,
-  getUserPersonalBirthProfile
+  getUserPersonalBirthProfile,
+  enrichProfileWithAstroCalculations
 } from './db/profileStore';
 
 import {
@@ -372,7 +375,25 @@ const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } 
   }
   const resolved = HASH_TO_TAB[raw] || (raw as NavTab);
   if (resolved === 'jyotishi' || raw === 'jyotish' || raw === 'aarje') {
+    const session = getActiveRBACSession();
+    const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
+    if (!isSuper && !checkServiceAccess('jyotish', session).allowed) {
+      return { tab: 'dashboard', module: 'MAIN' };
+    }
     return { tab: 'jyotishi', module: 'JYOTISH' };
+  }
+  if (resolved === 'vastu') {
+    const session = getActiveRBACSession();
+    const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
+    if (!isSuper && !checkServiceAccess('vastu', session).allowed) {
+      return { tab: 'dashboard', module: 'MAIN' };
+    }
+  }
+  if (resolved === 'user_dashboard') {
+    const session = getActiveRBACSession();
+    if (!session) {
+      return { tab: 'dashboard', module: 'MAIN' };
+    }
   }
   return { tab: resolved, module: 'MAIN' };
 };
@@ -640,28 +661,54 @@ export default function App() {
 
       const hash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
       if (!hash || hash === 'dashboard' || hash === 'home') {
-        startModuleTransition(() => {
-          setActiveModule('MAIN');
-          setActiveTab('dashboard');
-        });
+        setActiveModule('MAIN');
+        setActiveTab('dashboard');
         document.title = TAB_PAGE_TITLES.dashboard;
         return;
       }
 
       if (hash === 'jyotish' || hash === 'jyotishi' || hash === 'aarje') {
-        startModuleTransition(() => {
-          setActiveModule('JYOTISH');
-          setActiveTab('jyotishi');
-        });
+        const session = getActiveRBACSession();
+        const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
+        const jAccess = checkServiceAccess('jyotish', session);
+        if (!isSuper && !jAccess.allowed) {
+          setActiveModule('MAIN');
+          setActiveTab('dashboard');
+          document.title = TAB_PAGE_TITLES.dashboard;
+          setLockedFeatureName('ज्योतिष सेवा');
+          setIsClientPurchaseLeadModalOpen(true);
+          return;
+        }
+        setActiveModule('JYOTISH');
+        setActiveTab('jyotishi');
         document.title = TAB_PAGE_TITLES.jyotish;
         return;
       }
 
+      if (hash === 'vastu') {
+        const session = getActiveRBACSession();
+        const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
+        const vAccess = checkServiceAccess('vastu', session);
+        if (!isSuper && !vAccess.allowed) {
+          setActiveModule('MAIN');
+          setActiveTab('dashboard');
+          document.title = TAB_PAGE_TITLES.dashboard;
+          setLockedFeatureName('वास्तु सेवा');
+          setIsClientPurchaseLeadModalOpen(true);
+          return;
+        }
+      }
+
       const resolved = HASH_TO_TAB[hash] || (hash as NavTab);
-      startModuleTransition(() => {
+      if (resolved === 'user_dashboard' && !getActiveRBACSession()) {
         setActiveModule('MAIN');
-        setActiveTab(resolved);
-      });
+        setActiveTab('dashboard');
+        document.title = TAB_PAGE_TITLES.dashboard;
+        setIsRBACAuthModalOpen(true);
+        return;
+      }
+      setActiveModule('MAIN');
+      setActiveTab(resolved);
 
       if (hash === 'calendar' || hash === 'patro') {
         setPanchangaSubTab('patro');
@@ -750,8 +797,21 @@ export default function App() {
     rbacSession?.role === 'POS_STAFF' ||
     rbacSession?.role === 'NEWS_EDITOR' ||
     rbacSession?.role === 'MARRIAGE_MODERATOR';
-  const isApprovedClient = isClientPurchaseApproved();
-  const isFullyUnlocked = isSuperOrStoreAdmin || hasFullAccess || isTrialActive || isApprovedClient;
+
+  const userPhoneDigits = (rbacSession?.phone || rbacSession?.username || '').replace(/\D/g, '').slice(-10);
+  const userLeads = getStoredClientLeads();
+  const currentUserLead = userPhoneDigits
+    ? userLeads.find((l) => (l.mobile || l.whatsapp || '').replace(/\D/g, '').slice(-10) === userPhoneDigits)
+    : null;
+  const isRegisteredOnlyUser = currentUserLead?.status === 'REGISTERED_USER';
+  const isUserTrialActive = currentUserLead
+    ? (currentUserLead.status === 'TRIAL_ACTIVE' && !!currentUserLead.trialExpiresAtISO && new Date(currentUserLead.trialExpiresAtISO).getTime() > Date.now())
+    : (rbacSession ? false : (is24HourTrialActive() || is7DayTrialActive()));
+  const isUserPurchaseApproved = currentUserLead
+    ? currentUserLead.status === 'PURCHASE_APPROVED'
+    : isClientPurchaseApproved();
+
+  const isFullyUnlocked = isSuperOrStoreAdmin || (!isRegisteredOnlyUser && (hasFullAccess || isUserTrialActive || isUserPurchaseApproved));
 
   // Track page view for Analytics
   useEffect(() => {
@@ -1126,13 +1186,32 @@ export default function App() {
 
     if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolved)) {
       setLockedFeatureName(
-        resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष कार्यक्षेत्र' :
-        resolved === 'vastu' ? 'वास्तुशास्त्र' :
+        resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' :
+        resolved === 'vastu' ? 'वास्तु सेवा' :
         resolved === 'rashifal' ? 'दैनिक राशिफल' :
         resolved === 'dashboard' ? 'गृहपृष्ठ' : 'यो सेवा'
       );
       setIsClientPurchaseLeadModalOpen(true);
       return;
+    }
+
+    // Specific service licensing check for Jyotish and Vastu (both registered and visitors)
+    if (resolved === 'jyotishi' || resolved === 'aarje') {
+      const jyotishAccess = checkServiceAccess('jyotish', rbacSession);
+      if (!isSuperOrStoreAdmin && !jyotishAccess.allowed) {
+        setLockedFeatureName('ज्योतिष सेवा');
+        setIsClientPurchaseLeadModalOpen(true);
+        return;
+      }
+    }
+
+    if (resolved === 'vastu') {
+      const vastuAccess = checkServiceAccess('vastu', rbacSession);
+      if (!isSuperOrStoreAdmin && !vastuAccess.allowed) {
+        setLockedFeatureName('वास्तु सेवा');
+        setIsClientPurchaseLeadModalOpen(true);
+        return;
+      }
     }
 
     // Sub-route handling
@@ -1161,10 +1240,8 @@ export default function App() {
     document.title = pageTitle;
 
     if (resolved === 'jyotishi' || resolved === 'aarje') {
-      startModuleTransition(() => {
-        setActiveModule('JYOTISH');
-        setActiveTab('jyotishi');
-      });
+      setActiveModule('JYOTISH');
+      setActiveTab('jyotishi');
       if (window.location.hash !== '#jyotish') {
         if (replaceHistory) window.history.replaceState({ module: 'JYOTISH' }, '', '#jyotish');
         else window.history.pushState({ module: 'JYOTISH' }, '', '#jyotish');
@@ -1172,10 +1249,8 @@ export default function App() {
       return;
     }
 
-    startModuleTransition(() => {
-      setActiveModule('MAIN');
-      setActiveTab(resolved);
-    });
+    setActiveModule('MAIN');
+    setActiveTab(resolved);
 
     const fullHash = targetHash === 'dashboard' ? '#dashboard' : `#${targetHash}`;
     if (window.location.hash !== fullHash) {
@@ -1485,13 +1560,17 @@ export default function App() {
   // Dynamic recent date/time fallback if no user profile is active
   const resolvedUserProfile = useMemo(() => {
     if (activeProfile && activeProfile.id !== 'live_current_moment') {
-      return activeProfile;
+      return enrichProfileWithAstroCalculations(activeProfile);
     }
     if (rbacSession?.userId || rbacSession?.fullName) {
-      return getUserPersonalBirthProfile(rbacSession.userId, rbacSession.fullName);
+      return getUserPersonalBirthProfile(
+        rbacSession.userId,
+        rbacSession.fullName,
+        rbacSession.phone || rbacSession.username
+      );
     }
     return null;
-  }, [activeProfile, rbacSession?.userId, rbacSession?.fullName]);
+  }, [activeProfile, rbacSession?.userId, rbacSession?.fullName, rbacSession?.phone, rbacSession?.username]);
 
   const currentProfile: BirthDetails = resolvedUserProfile || getLiveCurrentMomentProfile();
 
@@ -1745,8 +1824,47 @@ export default function App() {
     );
   }
 
-  // If JYOTISH module is active, render full-screen workspace with no main dropdowns (free to explore)
+  // If JYOTISH module is active, verify access and render workspace
   if (activeModule === 'JYOTISH') {
+    const jyotishAccess = checkServiceAccess('jyotish', rbacSession);
+    if (!isSuperOrStoreAdmin && !jyotishAccess.allowed) {
+      return (
+        <div className="min-h-screen bg-[#FAF7F2] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] flex flex-col items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white dark:bg-stone-900 border-2 border-amber-500/40 rounded-2xl p-6 shadow-xl text-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-[#7A1C1C] dark:text-amber-300 mx-auto flex items-center justify-center">
+              <Lock className="w-8 h-8 text-amber-500" />
+            </div>
+            <h2 className="text-xl font-bold font-serif text-[#7A1C1C] dark:text-amber-300">
+              ज्योतिष सेवा लक गरिएको छ
+            </h2>
+            <p className="text-sm text-stone-600 dark:text-stone-300">
+              {jyotishAccess.reasonNepali || 'यो सेवा प्रयोग गर्न २४ घण्टे निःशुल्क परीक्षण सुरु गर्नुहोस् वा सफ्टवेयर खरिद गर्नुहोस्।'}
+            </p>
+            <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  exitJyotishModule();
+                  setLockedFeatureName('ज्योतिष सेवा');
+                  setIsClientPurchaseLeadModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-gradient-to-r from-[#7A1C1C] to-[#931F1F] text-amber-300 font-bold text-sm rounded-xl shadow cursor-pointer hover:opacity-95"
+              >
+                परीक्षण / खरिद गर्नुहोस् ↗
+              </button>
+              <button
+                type="button"
+                onClick={exitJyotishModule}
+                className="px-4 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-sm rounded-xl cursor-pointer hover:bg-stone-200"
+              >
+                गृहपृष्ठमा फर्कनुहोस्
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-[#FAF7F2] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] font-sans selection:bg-amber-200 selection:text-amber-950 transition-colors duration-200 flex flex-col">
         {/* Jyotish module: Suspense fallback invisible हुन्छ — blinking/flash हुँदैन */}
@@ -2199,15 +2317,48 @@ export default function App() {
           {activeTab === 'sanskar' && <SanskarDocsView profile={currentProfile} orgProfile={orgProfile} />}
 
           {activeTab === 'vastu' && (
-            <VastuView 
-              orgProfile={orgProfile} 
-              activeProfile={activeProfile} 
-              initialSubTab={vastuSubTab} 
-              onOpenPurchaseModal={() => setIsClientPurchaseLeadModalOpen(true)}
-            />
+            !isSuperOrStoreAdmin && !checkServiceAccess('vastu', rbacSession).allowed ? (
+              <div className="max-w-md mx-auto my-12 bg-white dark:bg-stone-900 border-2 border-emerald-500/40 rounded-2xl p-6 shadow-xl text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 mx-auto flex items-center justify-center">
+                  <Lock className="w-8 h-8 text-emerald-600" />
+                </div>
+                <h2 className="text-xl font-bold font-serif text-emerald-800 dark:text-emerald-300">
+                  वास्तु सेवा लक गरिएको छ
+                </h2>
+                <p className="text-sm text-stone-600 dark:text-stone-300">
+                  {checkServiceAccess('vastu', rbacSession).reasonNepali || 'यो सेवा प्रयोग गर्न २४ घण्टे निःशुल्क परीक्षण सुरु गर्नुहोस् वा सफ्टवेयर खरिद गर्नुहोस्।'}
+                </p>
+                <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLockedFeatureName('वास्तु सेवा');
+                      setIsClientPurchaseLeadModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-700 to-teal-800 text-white font-bold text-sm rounded-xl shadow cursor-pointer hover:opacity-95"
+                  >
+                    परीक्षण / खरिद गर्नुहोस् ↗
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigateTab('dashboard')}
+                    className="px-4 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-sm rounded-xl cursor-pointer hover:bg-stone-200"
+                  >
+                    गृहपृष्ठमा फर्कनुहोस्
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <VastuView 
+                orgProfile={orgProfile} 
+                activeProfile={activeProfile} 
+                initialSubTab={vastuSubTab} 
+                onOpenPurchaseModal={() => setIsClientPurchaseLeadModalOpen(true)}
+              />
+            )
           )}
 
-          {activeTab === 'user_dashboard' && (
+          {activeTab === 'user_dashboard' && rbacSession && (
             <UserDashboardView
               rbacSession={rbacSession}
               activeProfile={resolvedUserProfile || (activeProfile && activeProfile.id !== 'live_current_moment' ? activeProfile : null)}

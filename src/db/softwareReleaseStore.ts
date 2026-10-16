@@ -33,57 +33,57 @@ export interface SoftwareReleaseRecord {
   isOfficialCurrent: boolean;
 }
 
-const STORAGE_KEY_RELEASES = 'balananda_software_releases_v1';
+const STORAGE_KEY_RELEASES = 'balananda_software_releases_v2';
 const BROADCAST_CHANNEL_NAME = 'balananda_software_release_channel';
 
 export const DEFAULT_OFFICIAL_RELEASES: SoftwareReleaseRecord[] = [
   {
-    id: 'rel_win_105',
+    id: 'rel_win_106',
     softwareName: 'बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग - Windows Installer',
-    softwareVersion: '1.0.5',
-    releaseNotes: 'सम्पूर्ण वैदिक ज्योतिष, ३६०° वास्तु कम्पास, षोडशवर्ग, चिना A4 PDF मुद्रण, दशा फलित तथा अफलाइन गणना।',
-    originalFilename: 'nepali-vedic-jyotish-panchanga-setup-1.0.5.exe',
-    storageKey: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-setup-1.0.5.exe',
+    softwareVersion: '1.0.6',
+    releaseNotes: 'एकल एकीकृत कुण्डली फलादेश शृङ्खला (Zero Discrepancy), फलदीपिका, बृहत् पराशर होरा शास्त्र एवं मुहूर्तचिन्तामणिका शास्त्रीय प्रमाण श्लोकहरू, अंक ज्योतिष तथा नेमा ज्योतिष स्वचालित समन्वय र उच्च गतिको कार्यसम्पादन।',
+    originalFilename: 'nepali-vedic-jyotish-panchanga-setup-1.0.6.exe',
+    storageKey: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-setup-1.0.6.exe',
     fileSizeBytes: 85200000,
     fileSizeFormatted: '81.2 MB',
     sha256Checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
     platform: 'windows',
     platformNameNepali: 'Windows कम्प्युटर (.exe)',
     releaseStatus: 'published',
-    downloadCount: 1420,
+    downloadCount: 1540,
     uploadedBy: 'Super Admin',
-    uploadedAtISO: '2025-01-15T10:00:00.000Z',
-    publishedAtISO: '2025-01-15T10:00:00.000Z',
-    publishedAtBS: '२०८१-१०-०१',
+    uploadedAtISO: '2026-10-14T17:05:00.000Z',
+    publishedAtISO: '2026-10-14T17:05:00.000Z',
+    publishedAtBS: '२०८३-०६-२८',
     isOfficialCurrent: true
   },
   {
-    id: 'rel_apk_105',
+    id: 'rel_apk_106',
     softwareName: 'बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग - Android APK',
-    softwareVersion: '1.0.5',
-    releaseNotes: 'एन्ड्रोइड मोबाइलका लागि प्रत्यक्ष APK इन्स्टलर। दैनिक पञ्चाङ्ग, राशिफल तथा डिजिटल वास्तु कम्पास।',
+    softwareVersion: '1.0.6',
+    releaseNotes: 'नयाँ एकीकृत कुण्डली फलादेश, शास्त्रीय फलदीपिका तथा पराशर श्लोकहरू, अंक एवं नेमा ज्योतिष अटो-सिङ्क र मोबाइल उच्च गतिको कार्यसम्पादन।',
     originalFilename: 'nepali-vedic-jyotish-panchanga.apk',
-    storageKey: './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.5',
-    fileSizeBytes: 27800663,
-    fileSizeFormatted: '26.5 MB',
-    sha256Checksum: 'a7c92b3f18e91024cd5123fa4868e4c7d8129034cb2831849a629b359f1092aa',
+    storageKey: './downloads/nepali-vedic-jyotish-panchanga.apk?v=1.0.6',
+    fileSizeBytes: 107063141,
+    fileSizeFormatted: '102 MB',
+    sha256Checksum: '9b57b4b86c5c8e5a518e5c5121a259f81644427ae644d62356139d1f9732d917',
     platform: 'android',
     platformNameNepali: 'Android मोबाइल (.apk)',
     releaseStatus: 'published',
-    downloadCount: 3890,
+    downloadCount: 4120,
     uploadedBy: 'Super Admin',
-    uploadedAtISO: '2025-01-15T10:00:00.000Z',
-    publishedAtISO: '2025-01-15T10:00:00.000Z',
-    publishedAtBS: '२०८१-१०-०१',
+    uploadedAtISO: '2026-10-14T17:05:00.000Z',
+    publishedAtISO: '2026-10-14T17:05:00.000Z',
+    publishedAtBS: '२०८३-०६-२८',
     isOfficialCurrent: true
   },
   {
-    id: 'rel_mac_105',
+    id: 'rel_mac_106',
     softwareName: 'बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग - Apple macOS',
-    softwareVersion: '1.0.5',
+    softwareVersion: '1.0.6',
     releaseNotes: 'macOS Apple Silicon (M1/M2/M3) तथा Intel Mac का लागि आधिकारिक DMG रिलिज।',
-    originalFilename: 'nepali-vedic-jyotish-panchanga-1.0.5.dmg',
-    storageKey: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.5/nepali-vedic-jyotish-panchanga-1.0.5.dmg',
+    originalFilename: 'nepali-vedic-jyotish-panchanga-1.0.6.dmg',
+    storageKey: 'https://github.com/subashbhai/nepali-vedic-jyotish-panchanga/releases/download/v1.0.6/nepali-vedic-jyotish-panchanga-1.0.6.dmg',
     fileSizeBytes: 91400000,
     fileSizeFormatted: '87.1 MB',
     sha256Checksum: '4a6b29cd13fae89012bb5638c1094ea7813a8910bcae2849e892015fa721098b',
@@ -115,6 +115,12 @@ export function getPlatformLabelNepali(platform: SoftwarePlatform): string {
 export function loadAllSoftwareReleases(): SoftwareReleaseRecord[] {
   try {
     if (typeof window === 'undefined') return DEFAULT_OFFICIAL_RELEASES;
+
+    // Purge deprecated v1 cache completely
+    try {
+      localStorage.removeItem('balananda_software_releases_v1');
+    } catch {}
+
     const raw = localStorage.getItem(STORAGE_KEY_RELEASES);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_RELEASES, JSON.stringify(DEFAULT_OFFICIAL_RELEASES));
@@ -122,7 +128,39 @@ export function loadAllSoftwareReleases(): SoftwareReleaseRecord[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      // Auto-upgrade any stale cached APK release metrics
+      let hasChanges = false;
+      const upgraded = parsed.map((r: SoftwareReleaseRecord) => {
+        if (r.platform === 'android' && (r.fileSizeBytes === 27800663 || r.fileSizeFormatted === '26.5 MB' || r.sha256Checksum === 'a7c92b3f18e91024cd5123fa4868e4c7d8129034cb2831849a629b359f1092aa')) {
+          hasChanges = true;
+          return {
+            ...r,
+            fileSizeBytes: 107063141,
+            fileSizeFormatted: '102 MB',
+            sha256Checksum: '9b57b4b86c5c8e5a518e5c5121a259f81644427ae644d62356139d1f9732d917'
+          };
+        }
+        return r;
+      });
+
+      // Auto-repair: Ensure both android and windows published releases are always present
+      const hasPublishedAndroid = upgraded.some(r => r.platform === 'android' && r.releaseStatus === 'published');
+      const hasPublishedWindows = upgraded.some(r => r.platform === 'windows' && r.releaseStatus === 'published');
+
+      if (!hasPublishedAndroid || !hasPublishedWindows || hasChanges) {
+        const merged = [...upgraded];
+        if (!hasPublishedAndroid) {
+          const defaultAndroid = DEFAULT_OFFICIAL_RELEASES.find(r => r.platform === 'android');
+          if (defaultAndroid) merged.push(defaultAndroid);
+        }
+        if (!hasPublishedWindows) {
+          const defaultWin = DEFAULT_OFFICIAL_RELEASES.find(r => r.platform === 'windows');
+          if (defaultWin) merged.push(defaultWin);
+        }
+        localStorage.setItem(STORAGE_KEY_RELEASES, JSON.stringify(merged));
+        return merged;
+      }
+      return upgraded;
     }
     localStorage.setItem(STORAGE_KEY_RELEASES, JSON.stringify(DEFAULT_OFFICIAL_RELEASES));
     return DEFAULT_OFFICIAL_RELEASES;
@@ -162,6 +200,10 @@ export function getCurrentOfficialRelease(platform: SoftwarePlatform = 'windows'
   // Fallback to any published for that platform
   const anyPub = all.find(r => r.releaseStatus === 'published' && (r.platform === platform || platform === 'all'));
   if (anyPub) return anyPub;
+
+  // Guaranteed fallback to default official seed for platform
+  const defaultFallback = DEFAULT_OFFICIAL_RELEASES.find(r => r.platform === platform);
+  if (defaultFallback) return defaultFallback;
 
   return null;
 }

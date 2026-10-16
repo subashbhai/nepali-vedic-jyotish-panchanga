@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Sparkles, 
   Hash, 
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { BirthDetails } from '../types/astrology';
 import { toDevanagariNumerals } from '../utils/nepaliCalendar';
+import { convertBSToADFull } from '../utils/bsCalendarData';
 
 interface AnkaJyotishViewProps {
   activeProfile: BirthDetails | null;
@@ -218,12 +219,35 @@ function calculateNameNumber(name: string): number {
   return reduceToSingleDigit(sum);
 }
 
+function resolveProfileADDate(p: BirthDetails | null): string {
+  if (!p) return '1995-05-15';
+  if (p.dateAD && p.dateAD.trim() !== '') return p.dateAD;
+  if (p.dateBS) {
+    try {
+      const match = p.dateBS.match(/\d+/g);
+      if (match && match.length >= 3) {
+        return convertBSToADFull(parseInt(match[0], 10), parseInt(match[1], 10), parseInt(match[2], 10));
+      }
+    } catch {}
+  }
+  return '1995-05-15';
+}
+
 export const AnkaJyotishView: React.FC<AnkaJyotishViewProps> = ({
   activeProfile,
   onSelectProfile
 }) => {
-  const [customName, setCustomName] = useState(activeProfile?.name || 'राम प्रसाद शर्मा');
-  const [customDob, setCustomDob] = useState(activeProfile?.dateAD || '1995-05-15');
+  const [customName, setCustomName] = useState(() => activeProfile?.name || 'राम प्रसाद शर्मा');
+  const [customDob, setCustomDob] = useState(() => resolveProfileADDate(activeProfile));
+
+  // Auto-sync with activeProfile whenever user logs in or profile changes (Chain System)
+  useEffect(() => {
+    if (activeProfile) {
+      if (activeProfile.name) setCustomName(activeProfile.name);
+      const ad = resolveProfileADDate(activeProfile);
+      if (ad) setCustomDob(ad);
+    }
+  }, [activeProfile]);
 
   // Extract day, month, year
   const { mulank, bhagyank, namank, personalYear, loShuGrid } = useMemo(() => {
@@ -354,7 +378,7 @@ export const AnkaJyotishView: React.FC<AnkaJyotishViewProps> = ({
               onClick={() => {
                 if (activeProfile) {
                   setCustomName(activeProfile.name);
-                  setCustomDob(activeProfile.dateAD);
+                  setCustomDob(resolveProfileADDate(activeProfile));
                 }
               }}
               className="w-full py-2.5 bg-stone-100 dark:bg-stone-800 hover:bg-amber-100 text-[#7A1C1C] dark:text-amber-300 font-bold rounded-xl border border-stone-200 dark:border-stone-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"

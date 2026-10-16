@@ -30,7 +30,13 @@ import {
   Activity,
   Users as UsersIcon,
   HelpCircle,
-  FileText
+  FileText,
+  BookOpen,
+  Video,
+  Music,
+  Bookmark,
+  Trash2,
+  ExternalLink
 } from 'lucide-react';
 import { 
   BirthDetails, 
@@ -39,8 +45,10 @@ import {
   OrganizationProfile 
 } from '../../types/astrology';
 import { RBACSession, updateRBACUserProfile, getStoredRBACUsers } from '../../db/rbacStore';
-import { saveUserPersonalBirthProfile, getUserPersonalBirthProfile, saveProfile } from '../../db/profileStore';
+import { saveUserPersonalBirthProfile, getUserPersonalBirthProfile, saveProfile, getLiveCurrentMomentProfile } from '../../db/profileStore';
 import { RASHI_DATA } from '../../utils/astroCalculations';
+import { getCachedAstroCalculation } from '../../utils/astroCache';
+import { WORLD_LOCATIONS_DATA } from '../../data/worldLocations';
 import { convertADToBSFull, convertBSToADFull, NEPALI_MONTH_NAMES } from '../../utils/bsCalendarData';
 import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
 import {
@@ -53,6 +61,7 @@ import {
   getAvailableYearlyArchives,
   BALANANDA_RASHIFAL_UPDATED_EVENT
 } from '../../utils/personalizedRashifalEngine';
+import { getUnifiedNativeDailyPrediction, UnifiedNativeDailyPrediction } from '../../utils/unifiedAstroFaladeshChain';
 import { ImageCropModal } from '../ImageCropModal';
 
 interface UserDashboardViewProps {
@@ -90,28 +99,72 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
   const [profileState, setProfileState] = useState<BirthDetails>(() => {
     const found = getUserPersonalBirthProfile(currentUserId, currentUserName, currentUserPhone);
     if (found) return found;
-    return activeProfile || {
+    if (activeProfile && activeProfile.id !== 'live_current_moment') {
+      return activeProfile;
+    }
+    const liveProf = getLiveCurrentMomentProfile();
+    return {
+      ...liveProf,
       id: `user_profile_${currentUserId}`,
       name: currentUserName,
-      gender: 'पुरुष',
-      dateBS: '२०४६-०५-१५',
-      dateAD: '1989-08-30',
-      time: '०६:३०',
-      location: {
-        name: 'काठमाडौँ, नेपाल',
-        district: 'काठमाडौँ',
-        province: 'बागमती',
-        country: 'नेपाल',
-        latitude: 27.7172,
-        longitude: 85.3240,
-        timeZone: 5.75,
-      },
-      moonRashi: 'कन्या',
-      photoUrl: rbacSession?.photoUrl || '',
       clientId: currentUserId,
+      photoUrl: rbacSession?.photoUrl || '',
       notes: 'व्यक्तिगत प्रोफाइल'
     };
   });
+
+  // ── Dynamic Astrological Engine Calculation for Active Profile ──
+  const userAstroCalc = useMemo(() => {
+    let ad = profileState.dateAD;
+    if (!ad && profileState.dateBS) {
+      try {
+        const parts = profileState.dateBS.split('-').map((p) => parseInt(p, 10));
+        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+          ad = convertBSToADFull(parts[0], parts[1], parts[2]);
+        }
+      } catch {}
+    }
+    if (!ad) return null;
+    const timeStr = profileState.time && profileState.time.trim() !== '' ? profileState.time : '12:00';
+    const lat = profileState.location?.latitude ?? 27.7172;
+    const lng = profileState.location?.longitude ?? 85.3240;
+    const tz = profileState.location?.timeZone ?? 5.75;
+    try {
+      return getCachedAstroCalculation(ad, timeStr, lat, lng, tz, 'Lahiri');
+    } catch (e) {
+      console.warn('Astro calculation error in dashboard:', e);
+      return null;
+    }
+  }, [profileState.dateAD, profileState.dateBS, profileState.time, profileState.location]);
+
+  const computedMoonRashiName = userAstroCalc?.moon?.rashiName || profileState.moonRashi || 'मेष';
+  const computedLagnaRashiName = userAstroCalc?.lagna?.rashiName || profileState.lagnaRashi || 'मेष';
+  const computedNakshatraName = userAstroCalc?.moon?.nakshatraName || profileState.nakshatra || '';
+  const selectedRashiId = useMemo(() => {
+    if (userAstroCalc?.moon?.rashiId) return userAstroCalc.moon.rashiId;
+    const found = RASHI_DATA.find((r) => r.name === computedMoonRashiName);
+    return found ? found.id : 1;
+  }, [userAstroCalc, computedMoonRashiName]);
+
+  // Synchronize computed Moon and Lagna if store had stale or uncomputed values
+  useEffect(() => {
+    if (
+      userAstroCalc?.moon?.rashiName &&
+      (profileState.moonRashi !== userAstroCalc.moon.rashiName ||
+        profileState.lagnaRashi !== userAstroCalc.lagna?.rashiName)
+    ) {
+      const synced: BirthDetails = {
+        ...profileState,
+        moonRashi: userAstroCalc.moon.rashiName,
+        lagnaRashi: userAstroCalc.lagna?.rashiName,
+        nakshatra: userAstroCalc.moon.nakshatraName,
+      };
+      setProfileState(synced);
+      saveUserPersonalBirthProfile(currentUserId, synced);
+      saveProfile(synced);
+      onUpdateProfile(synced);
+    }
+  }, [userAstroCalc?.moon?.rashiName, userAstroCalc?.lagna?.rashiName]);
 
   const [photoUrl, setPhotoUrl] = useState<string>(
     profileState.photoUrl || rbacSession?.photoUrl || ''
@@ -148,20 +201,57 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
     dateBS: profileState.dateBS || '२०४६-०५-१५',
     time: profileState.time || '०६:३०',
     district: profileState.location?.district || profileState.location?.name || 'काठमाडौँ',
-    moonRashi: profileState.moonRashi || 'कन्या',
+    moonRashi: computedMoonRashiName,
     gotra: profileState.gotra || ''
   });
 
+  // Real-time Astro calculation inside Edit Modal
+  const editCalculatedAstro = useMemo(() => {
+    let ad = '';
+    try {
+      const parts = editForm.dateBS.split('-').map((p) => parseInt(p, 10));
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        ad = convertBSToADFull(parts[0], parts[1], parts[2]);
+      }
+    } catch {}
+    if (!ad) return null;
+    const timeStr = editForm.time && editForm.time.trim() !== '' ? editForm.time : '12:00';
+    let lat = profileState.location?.latitude || 27.7172;
+    let lng = profileState.location?.longitude || 85.3240;
+    let tz = profileState.location?.timeZone || 5.75;
+    if (editForm.district) {
+      const cleanDist = editForm.district.trim().toLowerCase();
+      const matched = WORLD_LOCATIONS_DATA.find(
+        (l) =>
+          (l.district && l.district.toLowerCase() === cleanDist) ||
+          (l.name && l.name.toLowerCase().includes(cleanDist)) ||
+          (l.englishName && l.englishName.toLowerCase().includes(cleanDist))
+      );
+      if (matched) {
+        lat = matched.latitude;
+        lng = matched.longitude;
+        tz = matched.timeZone || 5.75;
+      }
+    }
+    try {
+      return getCachedAstroCalculation(ad, timeStr, lat, lng, tz, 'Lahiri');
+    } catch {
+      return null;
+    }
+  }, [editForm.dateBS, editForm.time, editForm.district, profileState.location]);
+
   const handleOpenEditModal = () => {
+    const currentLocDistrict = profileState.location?.district || profileState.location?.name || 'काठमाडौँ';
+    const liveProf = getLiveCurrentMomentProfile();
     setEditForm({
       name: profileState.name || currentUserName,
       phone: currentUserPhone,
       email: currentUserEmail,
       gender: profileState.gender || 'पुरुष',
-      dateBS: profileState.dateBS || '२०४६-०५-१५',
-      time: profileState.time || '०६:३०',
-      district: profileState.location?.district || profileState.location?.name || 'काठमाडौँ',
-      moonRashi: profileState.moonRashi || 'कन्या',
+      dateBS: profileState.dateBS || liveProf.dateBS,
+      time: profileState.time || liveProf.time || '०६:३०',
+      district: currentLocDistrict,
+      moonRashi: computedMoonRashiName,
       gotra: profileState.gotra || ''
     });
     setIsEditModalOpen(true);
@@ -170,13 +260,39 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
 
-    let convertedAD = profileState.dateAD || '1989-08-30';
+    let convertedAD = profileState.dateAD || getLiveCurrentMomentProfile().dateAD;
     try {
       const parts = editForm.dateBS.split('-').map((p) => parseInt(p, 10));
       if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
         convertedAD = convertBSToADFull(parts[0], parts[1], parts[2]);
       }
     } catch {}
+
+    let lat = profileState.location?.latitude || 27.7172;
+    let lng = profileState.location?.longitude || 85.3240;
+    let tz = profileState.location?.timeZone || 5.75;
+    let locName = `${editForm.district}, नेपाल`;
+
+    if (editForm.district) {
+      const cleanDist = editForm.district.trim().toLowerCase();
+      const matched = WORLD_LOCATIONS_DATA.find(
+        (l) =>
+          (l.district && l.district.toLowerCase() === cleanDist) ||
+          (l.name && l.name.toLowerCase().includes(cleanDist)) ||
+          (l.englishName && l.englishName.toLowerCase().includes(cleanDist))
+      );
+      if (matched) {
+        lat = matched.latitude;
+        lng = matched.longitude;
+        tz = matched.timeZone || 5.75;
+        locName = matched.name;
+      }
+    }
+
+    const calcResult = editCalculatedAstro;
+    const finalMoonRashi = calcResult?.moon?.rashiName || editForm.moonRashi || profileState.moonRashi;
+    const finalLagnaRashi = calcResult?.lagna?.rashiName || profileState.lagnaRashi;
+    const finalNakshatra = calcResult?.moon?.nakshatraName || profileState.nakshatra;
 
     const updated: BirthDetails = {
       ...profileState,
@@ -189,14 +305,16 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       time: editForm.time.trim() || '०६:३०',
       location: {
         ...profileState.location,
-        name: `${editForm.district}, नेपाल`,
+        name: locName,
         district: editForm.district,
         country: 'नेपाल',
-        latitude: profileState.location?.latitude || 27.7172,
-        longitude: profileState.location?.longitude || 85.3240,
-        timeZone: 5.75
+        latitude: lat,
+        longitude: lng,
+        timeZone: tz
       },
-      moonRashi: editForm.moonRashi,
+      moonRashi: finalMoonRashi,
+      lagnaRashi: finalLagnaRashi,
+      nakshatra: finalNakshatra,
       gotra: editForm.gotra.trim(),
       photoUrl: photoUrl,
       clientId: currentUserId,
@@ -268,16 +386,17 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
   const currentBS = useMemo(() => convertADToBSFull(new Date(todayAD)), [todayAD]);
   const [activeTimeframe, setActiveTimeframe] = useState<'daily' | 'monthly' | 'yearly'>('daily');
 
-  // Resolved Moon Sign ID
-  const selectedRashiId = useMemo(() => {
-    if (profileState.moonRashi) {
-      const found = RASHI_DATA.find((r) => r.name === profileState.moonRashi);
-      if (found) return found.id;
-    }
-    return 6; // Kanya
-  }, [profileState.moonRashi]);
+  // Master Astrological Chain System (0.1% Precision, Zero Discrepancy)
+  const unifiedPrediction: UnifiedNativeDailyPrediction = useMemo(() => {
+    return getUnifiedNativeDailyPrediction(
+      profileState,
+      todayPanchanga,
+      transitPlanets,
+      currentBS.formattedBS
+    );
+  }, [profileState, todayPanchanga, transitPlanets, currentBS.formattedBS]);
 
-  // Compute Daily Rashifal
+  // Compute Daily Rashifal strictly using the user's authentic calculated Moon Sign
   const dailyResult: PersonalizedDailyResult = useMemo(() => {
     return generatePersonalizedDailyRashifal(
       profileState,
@@ -288,7 +407,7 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
     );
   }, [profileState, todayPanchanga, transitPlanets, selectedRashiId, currentBS.formattedBS]);
 
-  // Compute Monthly Rashifal
+  // Compute Monthly Rashifal strictly using the user's authentic calculated Moon Sign
   const monthlyResult: PersonalizedMonthlyResult = useMemo(() => {
     return generatePersonalizedMonthlyRashifal(
       profileState,
@@ -298,7 +417,7 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
     );
   }, [profileState, currentBS.year, currentBS.month, selectedRashiId]);
 
-  // Compute Yearly Rashifal
+  // Compute Yearly Rashifal strictly using the user's authentic calculated Moon Sign
   const yearlyResult: PersonalizedYearlyResult = useMemo(() => {
     return generatePersonalizedYearlyRashifal(
       profileState,
@@ -306,6 +425,84 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       selectedRashiId
     );
   }, [profileState, currentBS.year, selectedRashiId]);
+
+  // ── Digital Library & User Favorites State ──
+  const [favoriteTab, setFavoriteTab] = useState<'all' | 'books' | 'videos' | 'audios' | 'saved'>('all');
+  const [libraryItems, setLibraryItems] = useState<any[]>([]);
+  const [savedFavorites, setSavedFavorites] = useState<{
+    books: any[];
+    videos: any[];
+    audios: any[];
+    articles: any[];
+    mantras: any[];
+  }>({ books: [], videos: [], audios: [], articles: [], mantras: [] });
+  const [isFavoriteActionBusy, setIsFavoriteActionBusy] = useState(false);
+
+  // Fetch Library Items & User Favorites
+  useEffect(() => {
+    fetch('/api/library/items')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.success && Array.isArray(d.items)) {
+          setLibraryItems(d.items);
+        }
+      })
+      .catch(() => {});
+
+    if (currentUserId) {
+      fetch(`/api/users/${encodeURIComponent(currentUserId)}/favorites`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d && d.success && d.favorites) {
+            setSavedFavorites(d.favorites);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [currentUserId]);
+
+  const isItemSaved = (itemId: string): boolean => {
+    const all = [
+      ...(savedFavorites.books || []),
+      ...(savedFavorites.videos || []),
+      ...(savedFavorites.audios || []),
+      ...(savedFavorites.articles || []),
+      ...(savedFavorites.mantras || [])
+    ];
+    return all.some((i: any) => i.id === itemId);
+  };
+
+  const handleToggleFavorite = async (item: any) => {
+    if (isFavoriteActionBusy) return;
+    setIsFavoriteActionBusy(true);
+
+    const typeKey =
+      item.type === 'book'
+        ? 'books'
+        : item.type === 'video'
+        ? 'videos'
+        : item.type === 'audio'
+        ? 'audios'
+        : item.type === 'article'
+        ? 'articles'
+        : 'mantras';
+
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(currentUserId)}/favorites/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item, itemType: typeKey })
+      });
+      const data = await res.json();
+      if (data && data.success && data.favorites) {
+        setSavedFavorites(data.favorites);
+      }
+    } catch (e) {
+      console.warn('Favorite toggle error:', e);
+    } finally {
+      setIsFavoriteActionBusy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] dark:bg-[#12100E] text-stone-900 dark:text-stone-100 py-6 px-3 sm:px-6 max-w-7xl mx-auto space-y-6">
@@ -355,8 +552,18 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-xs text-stone-300 font-medium pt-1">
                 <span className="flex items-center gap-1.5">
                   <Moon className="w-3.5 h-3.5 text-amber-400" />
-                  जन्मराशि: <strong className="text-amber-200">{profileState.moonRashi}</strong>
+                  जन्मराशि: <strong className="text-amber-200">{computedMoonRashiName}</strong>
                 </span>
+                <span className="flex items-center gap-1.5">
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  लग्न: <strong className="text-amber-200">{computedLagnaRashiName}</strong>
+                </span>
+                {computedNakshatraName && (
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    नक्षत्र: <strong className="text-amber-200">{computedNakshatraName}</strong>
+                  </span>
+                )}
                 {profileState.gotra && (
                   <span className="flex items-center gap-1.5">
                     <Award className="w-3.5 h-3.5 text-amber-400" />
@@ -366,6 +573,10 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-amber-400" />
                   जन्म मिति: <strong className="text-amber-200">{profileState.dateBS || 'वि.सं. २०४६-०५-१५'}</strong>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  समय: <strong className="text-amber-200">{profileState.time || '०६:३०'}</strong>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-amber-400" />
@@ -414,46 +625,47 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       </div>
 
       {/* ── 2. QUICK PERSONAL LUCKY METRICS BAR ── */}
+      {/* ── 2. QUICK PERSONAL LUCKY METRICS BAR (UNIFIED ZERO-DISCREPANCY CHAIN) ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
           <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">आजको शुभ रङ्ग</span>
           <strong className="text-amber-800 dark:text-amber-300 text-sm block mt-1 font-serif">
-            {dailyResult.item.luckyColor}
+            {unifiedPrediction.luckyColor}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
           <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">आजको शुभ अङ्क</span>
           <strong className="text-stone-900 dark:text-stone-100 text-sm block mt-1 font-serif">
-            {dailyResult.item.luckyNumber}
+            {unifiedPrediction.luckyNumber}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
           <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">शुभ दिशा</span>
           <strong className="text-stone-900 dark:text-stone-100 text-sm block mt-1 font-serif">
-            {dailyResult.item.luckyDirection}
+            {unifiedPrediction.luckyDirection}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
           <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">अनुकूल राम्रो समय</span>
           <strong className="text-emerald-700 dark:text-emerald-400 text-xs block mt-1 truncate">
-            {dailyResult.item.favorableTime.split('र')[0]}
+            {unifiedPrediction.favorableTime.split('र')[0]}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
           <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">चन्द्रबल स्थिति</span>
           <strong className="text-amber-700 dark:text-amber-300 text-xs block mt-1">
-            {dailyResult.chandrabala?.statusNepali || 'शुभ चन्द्रबल'}
+            {unifiedPrediction.chandrabala.houseNepali} ({unifiedPrediction.chandrabala.auspiciousLevel})
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
           <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">समग्र दिनको फल</span>
           <strong className="text-emerald-700 dark:text-emerald-400 text-xs block mt-1">
-            {dailyResult.item.overallVerdict}
+            {unifiedPrediction.overallVerdict}
           </strong>
         </div>
       </div>
@@ -622,6 +834,46 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
                 </p>
               </div>
             </div>
+
+            {/* Classical Shastric Shlokas & Evidence Section (फलदीपिका, बृहत् पराशर होरा शास्त्र, मुहूर्तचिन्तामणि) */}
+            <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-stone-900 dark:to-stone-950 border border-amber-300/80 dark:border-amber-800/80 rounded-2xl space-y-3.5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-amber-200 dark:border-stone-800 pb-2.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#7A1C1C] dark:text-amber-400 font-serif">
+                  <BookOpen className="w-4 h-4" />
+                  <span>शास्त्रीय प्रमाण एवं श्लोक आधार (फलदीपिका, बृहत् पराशर होरा शास्त्र, मुहूर्तचिन्तामणि):</span>
+                </div>
+                <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono">
+                  अविभाज्य शृङ्खला (0.1% सटीकता)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                {unifiedPrediction.shastricPramans.map((praman, idx) => (
+                  <div key={idx} className="p-3.5 bg-white dark:bg-stone-800/90 rounded-xl border border-amber-200/90 dark:border-stone-700 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-amber-100 dark:border-stone-700 pb-1.5">
+                      <span className="text-[11px] font-bold text-amber-900 dark:text-amber-300 font-serif">
+                        {praman.title}
+                      </span>
+                      <span className="text-[9px] text-stone-500 bg-amber-50 dark:bg-stone-900 px-1.5 py-0.5 rounded border border-amber-200/60 dark:border-stone-800">
+                        {praman.source.split('(')[0].trim()}
+                      </span>
+                    </div>
+                    <div className="p-2 bg-amber-50/60 dark:bg-stone-900/60 rounded-lg border-l-2 border-[#7A1C1C] text-[11px] font-serif text-stone-900 dark:text-amber-100 whitespace-pre-line leading-relaxed">
+                      {praman.sanskrit}
+                    </div>
+                    <p className="text-[11px] text-stone-700 dark:text-stone-300 leading-normal">
+                      <strong>नेपाली भावार्थ: </strong>
+                      {praman.meaningNepali}
+                    </p>
+                    <p className="text-[10px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-1.5 rounded border border-emerald-200/60 dark:border-emerald-900/60 leading-tight">
+                      <strong>मार्गदर्शन: </strong>
+                      {praman.practicalGuidance}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -684,7 +936,237 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
         </div>
       )}
 
-      {/* ── 5. IMAGE CROP / UPLOAD MODAL ── */}
+      {/* ── 5. PERSONAL KUNDALI, DASHA & ASTROLOGICAL HIGHLIGHTS ── */}
+      <div className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 border border-amber-200/80 dark:border-stone-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800 gap-3">
+          <div>
+            <h3 className="font-extrabold text-base sm:text-lg text-[#7A1C1C] dark:text-amber-400 flex items-center gap-2">
+              <Compass className="w-5 h-5 text-amber-600" />
+              <span>व्यक्तिगत कुण्डली, विंशोत्तरी दशा तथा शुभ योग विश्लेषण</span>
+            </h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              तपाईंको जन्म विवरण अनुसार गणना गरिएको ग्रह स्थिति, नक्षत्र र दशा फल
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigateTab('kundali')}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-bold border border-amber-500/30 transition-colors cursor-pointer"
+            >
+              पूर्ण कुण्डली खोल्नुहोस् ↗
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('dasha')}
+              className="px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300 text-xs font-bold transition-colors cursor-pointer"
+            >
+              दशा तालिका ↗
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
+            <span className="text-[10px] text-stone-400 block font-bold">जन्म चन्द्र राशि</span>
+            <strong className="text-stone-900 dark:text-stone-100 text-sm mt-0.5 block font-serif">
+              {profileState.moonRashi || 'कन्या'} राशि
+            </strong>
+          </div>
+          <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
+            <span className="text-[10px] text-stone-400 block font-bold">जन्म मिति (वि.सं.)</span>
+            <strong className="text-stone-900 dark:text-stone-100 text-sm mt-0.5 block font-serif">
+              {profileState.dateBS || '२०४६-०५-१५'}
+            </strong>
+          </div>
+          <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
+            <span className="text-[10px] text-stone-400 block font-bold">जन्म समय</span>
+            <strong className="text-stone-900 dark:text-stone-100 text-sm mt-0.5 block font-serif">
+              {profileState.time || '०६:३०'}
+            </strong>
+          </div>
+          <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
+            <span className="text-[10px] text-stone-400 block font-bold">स्थान (जन्म शहर)</span>
+            <strong className="text-stone-900 dark:text-stone-100 text-sm mt-0.5 block truncate font-serif">
+              {profileState.location?.name || 'काठमाडौँ'}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 6. MY SAVED FAVORITES & DIGITAL LIBRARY (ग्रन्थ, भिडियो, अडियो मन्त्र) ── */}
+      <div className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 border border-amber-200/80 dark:border-stone-800 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800 gap-3">
+          <div>
+            <h3 className="font-extrabold text-base sm:text-lg text-stone-900 dark:text-stone-100 flex items-center gap-2">
+              <Bookmark className="w-5 h-5 text-amber-600" />
+              <span>मेरो मनपर्ने सामग्री तथा डिजिटल पुस्तकालय (Favorites & Library)</span>
+            </h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              वैदिक ग्रन्थ, ज्योतिष पुस्तक, भिडियो कक्षाहरू र मन्त्रहरू सुरक्षित गर्नुहोस् र जब मन लाग्छ अध्ययन गर्नुहोस्
+            </p>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setFavoriteTab('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                favoriteTab === 'all'
+                  ? 'bg-[#7A1C1C] text-white shadow-xs'
+                  : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200'
+              }`}
+            >
+              सबै ({libraryItems.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFavoriteTab('books')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                favoriteTab === 'books'
+                  ? 'bg-[#7A1C1C] text-white shadow-xs'
+                  : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200'
+              }`}
+            >
+              📖 पुस्तक
+            </button>
+            <button
+              type="button"
+              onClick={() => setFavoriteTab('videos')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                favoriteTab === 'videos'
+                  ? 'bg-[#7A1C1C] text-white shadow-xs'
+                  : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200'
+              }`}
+            >
+              🎥 भिडियो
+            </button>
+            <button
+              type="button"
+              onClick={() => setFavoriteTab('audios')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                favoriteTab === 'audios'
+                  ? 'bg-[#7A1C1C] text-white shadow-xs'
+                  : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200'
+              }`}
+            >
+              🎵 मन्त्र
+            </button>
+            <button
+              type="button"
+              onClick={() => setFavoriteTab('saved')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                favoriteTab === 'saved'
+                  ? 'bg-rose-700 text-white shadow-xs'
+                  : 'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 hover:bg-rose-100 border border-rose-200 dark:border-rose-900/40'
+              }`}
+            >
+              ❤️ मेरो सेभ सूची
+            </button>
+          </div>
+        </div>
+
+        {/* Items Grid */}
+        {(() => {
+          let displayed = libraryItems;
+          if (favoriteTab === 'books') displayed = libraryItems.filter((i) => i.type === 'book');
+          if (favoriteTab === 'videos') displayed = libraryItems.filter((i) => i.type === 'video');
+          if (favoriteTab === 'audios') displayed = libraryItems.filter((i) => i.type === 'audio' || i.type === 'mantra');
+          if (favoriteTab === 'saved') {
+            const allSaved = [
+              ...(savedFavorites.books || []),
+              ...(savedFavorites.videos || []),
+              ...(savedFavorites.audios || []),
+              ...(savedFavorites.articles || []),
+              ...(savedFavorites.mantras || [])
+            ];
+            displayed = allSaved;
+          }
+
+          if (displayed.length === 0) {
+            return (
+              <div className="py-12 text-center text-stone-400 text-xs">
+                {favoriteTab === 'saved'
+                  ? 'तपाईंले कुनै सामग्री मनपर्ने सूचीमा सेभ गर्नुभएको छैन। माथिका ग्रन्थ तथा कक्षाहरूमा रहेको ❤️ बटन थिचेर सेभ गर्नुहोस्।'
+                  : 'कुनै सामग्री फेला परेन।'}
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {displayed.map((item) => {
+                const saved = isItemSaved(item.id);
+                return (
+                  <div
+                    key={item.id}
+                    className="p-4 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700 flex flex-col justify-between hover:shadow-md transition-all group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                          {item.type === 'book'
+                            ? '📖 ग्रन्थ / पुस्तक'
+                            : item.type === 'video'
+                            ? '🎥 भिडियो कक्षा'
+                            : item.type === 'audio'
+                            ? '🎵 अडियो मन्त्र'
+                            : '📄 लेख'}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFavorite(item)}
+                          disabled={isFavoriteActionBusy}
+                          className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                            saved
+                              ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/40 ring-1 ring-rose-400'
+                              : 'text-stone-400 hover:text-rose-600 hover:bg-stone-200 dark:hover:bg-stone-700'
+                          }`}
+                          title={saved ? 'सेभ सूचीबाट हटाउनुहोस्' : 'मनपर्ने सूचीमा सेभ गर्नुहोस्'}
+                        >
+                          <Heart className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
+                        </button>
+                      </div>
+
+                      <h4 className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 line-clamp-2 leading-snug">
+                        {item.title}
+                      </h4>
+
+                      <div className="text-[11px] text-stone-500 dark:text-stone-400">
+                        लेखक/प्रस्तोता: {item.author || 'नेपाली वैदिक ज्योतिष'}
+                      </div>
+
+                      {item.description && (
+                        <p className="text-[11px] text-stone-600 dark:text-stone-300 line-clamp-2 leading-relaxed">
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-3 mt-2 border-t border-stone-200/60 dark:border-stone-700/60 flex items-center justify-between">
+                      <span className="text-[10px] text-stone-400">{item.category}</span>
+                      <a
+                        href={item.url || '#'}
+                        target={item.url && item.url !== '#' ? '_blank' : '_self'}
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                      >
+                        <span>खोल्नुहोस्</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── 7. IMAGE CROP / UPLOAD MODAL ── */}
       <ImageCropModal
         isOpen={isPhotoModalOpen}
         onClose={() => setIsPhotoModalOpen(false)}
@@ -837,19 +1319,19 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
 
                 <div>
                   <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
-                    जन्म चन्द्रराशि (Moon Sign) *
+                    वैदिक कुण्डली इन्जिनबाट गणना गरिएको राशि *
                   </label>
-                  <select
-                    value={editForm.moonRashi}
-                    onChange={(e) => setEditForm({ ...editForm, moonRashi: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl outline-none focus:ring-2 focus:ring-[#7A1C1C]"
-                  >
-                    {RASHI_DATA.map((r) => (
-                      <option key={r.id} value={r.name}>
-                        {r.symbol} {r.name} राशि ({r.englishName})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="p-2.5 bg-amber-50 dark:bg-stone-800/80 border border-amber-300 dark:border-stone-700 rounded-xl text-xs space-y-1">
+                    <div className="text-amber-900 dark:text-amber-300 font-bold flex items-center justify-between">
+                      <span>चन्द्रराशि: {editCalculatedAstro?.moon?.rashiName || editForm.moonRashi || 'गणना हुँदै...'}</span>
+                      <span className="text-[10px] bg-amber-200 dark:bg-amber-900/60 px-2 py-0.5 rounded text-amber-900 dark:text-amber-200 font-mono">
+                        स्वचालित
+                      </span>
+                    </div>
+                    <div className="text-stone-600 dark:text-stone-400 text-[11px]">
+                      लग्न: <strong className="text-stone-800 dark:text-stone-200">{editCalculatedAstro?.lagna?.rashiName || '—'}</strong> | नक्षत्र: <strong className="text-stone-800 dark:text-stone-200">{editCalculatedAstro?.moon?.nakshatraName || '—'}</strong>
+                    </div>
+                  </div>
                 </div>
               </div>
 

@@ -82,6 +82,14 @@ export const OrgProfileModal: React.FC<OrgProfileModalProps> = ({
     setFormData({
       ...DEFAULT_ORG_PROFILE,
       ...orgProfile,
+      intro: orgProfile?.intro || DEFAULT_ORG_PROFILE.intro,
+      missionText: orgProfile?.missionText || DEFAULT_ORG_PROFILE.missionText,
+      visionText: orgProfile?.visionText || DEFAULT_ORG_PROFILE.visionText,
+      sankalpaText: orgProfile?.sankalpaText || DEFAULT_ORG_PROFILE.sankalpaText,
+      mottoText: orgProfile?.mottoText || DEFAULT_ORG_PROFILE.mottoText,
+      shlokaText: orgProfile?.shlokaText || DEFAULT_ORG_PROFILE.shlokaText,
+      shlokaSource: orgProfile?.shlokaSource || DEFAULT_ORG_PROFILE.shlokaSource,
+      shlokaMeaning: orgProfile?.shlokaMeaning || DEFAULT_ORG_PROFILE.shlokaMeaning,
     });
   }, [orgProfile, isOpen]);
 
@@ -106,7 +114,7 @@ export const OrgProfileModal: React.FC<OrgProfileModalProps> = ({
     }
   };
 
-  // Core Service Mapping
+  // 6 Core Major Vedic Services
   const majorServices: Array<{
     id: string;
     title: string;
@@ -118,66 +126,50 @@ export const OrgProfileModal: React.FC<OrgProfileModalProps> = ({
     {
       id: 'jyotish',
       title: '🔱 ज्योतिष सेवा',
-      subtitle: 'कुण्डली विश्लेषण, फलादेश, ग्रहदशा, एवं परामर्श सेवा',
+      subtitle: 'जन्मकुण्डली, ग्रहस्थिति, दशा–अन्तर्दशा तथा गोचरको शास्त्रीय अध्ययनका आधारमा जीवनका सम्भावना, चुनौती र कर्तव्यबारे विवेकपूर्ण परामर्श प्रदान गर्ने।',
       icon: Compass,
       tabKey: 'kundali',
-      badge: 'कुण्डली / फलादेश',
+      badge: 'शास्त्रीय फलादेश',
     },
     {
       id: 'patrika',
-      title: '📜 पत्रिका तथा जन्मकुण्डली',
-      subtitle: 'चिना, जन्मकुण्डली, विवाह पत्रिका, तथा डिजिटल पत्रिका मुद्रण',
-      icon: FileText,
+      title: '📜 जन्मपत्रिका तथा कुण्डली निर्माण',
+      subtitle: 'जन्मसमय र स्थानका आधारमा जन्मपत्रिका, कुण्डली, नामकरणका लागि शुभाक्षर तथा वर्षफलसम्बन्धी शास्त्रीय विवरण व्यवस्थित रूपमा तयार गर्ने।',
+      icon: Scroll,
       tabKey: 'patrika',
       badge: 'डिजिटल पत्रिका',
     },
     {
-      id: 'karmakanda',
-      title: '🕉️ कर्मकाण्ड तथा संस्कार',
-      subtitle: 'नामकरण, व्रतबन्ध, विवाह, पूजापाठ, अनुष्ठान तथा संस्कार व्यवस्थापन',
-      icon: Scroll,
-      tabKey: 'sanskar',
-      badge: 'वैदिक संस्कार',
+      id: 'vivah',
+      title: '💑 विवाह मिलान',
+      subtitle: 'अष्टकूट गुण मिलान, मङ्गल विचार तथा सम्बन्धित ज्योतिषीय पक्षहरूको अध्ययन गरी वैवाहिक निर्णयमा सहयोग पुग्ने सन्तुलित परामर्श प्रदान गर्ने। कुनै एक दोषका आधारमा निरपेक्ष भय सिर्जना नगर्ने।',
+      icon: HeartHandshake,
+      tabKey: 'vivah',
+      badge: 'सन्तुलित परामर्श',
     },
     {
       id: 'vastu',
-      title: '🏠 वास्तु सेवा',
-      subtitle: 'गृहप्रवेश, भूमिपूजन, आवासीय तथा व्यावसायिक वास्तु परामर्श',
-      icon: Landmark,
+      title: '🏛️ वास्तुशास्त्र परामर्श',
+      subtitle: 'परम्परागत वास्तुशास्त्रका सिद्धान्त, दिशागत विचार, भवनको उपयोग तथा उपलब्ध संरचनालाई ध्यानमा राखी आवासीय र व्यावसायिक स्थानसम्बन्धी परामर्श प्रदान गर्ने।',
+      icon: Home,
       tabKey: 'vastu',
-      badge: 'वास्तुशास्त्र',
+      badge: 'दिशामार्गदर्शन',
     },
     {
       id: 'muhurta',
-      title: '📅 मुहूर्त सेवा',
-      subtitle: 'विवाह, व्रतबन्ध, गृहप्रवेश, यात्रा, एवं शुभकार्य मुहूर्त निर्णय',
+      title: '⏳ मुहूर्त तथा शुभ साइत',
+      subtitle: 'विवाह, व्रतबन्ध, गृहप्रवेश, यात्रा, व्यापार शुभारम्भ तथा अन्य संस्कारका लागि पात्रो, तिथि, नक्षत्र र सम्बन्धित शास्त्रीय आधारमा मुहूर्तसम्बन्धी परामर्श प्रदान गर्ने।',
       icon: Timer,
       tabKey: 'muhurta',
-      badge: 'शुभ मुहूर्त',
+      badge: 'शुभ साइत निर्णय',
     },
     {
-      id: 'yajaman',
-      title: '🙏 यजमान सेवा',
-      subtitle: 'यजमान दर्ता, पारिवारिक लग, सेवा बुकिङ तथा डिजिटल प्रोफाइल',
-      icon: Users,
-      tabKey: 'yajaman',
-      badge: 'यजमान व्यवस्थापन',
-    },
-    {
-      id: 'store',
-      title: '📚 वैदिक सामग्री तथा पुस्तक',
-      subtitle: 'शुद्ध पूजा सामग्री, यन्त्र, रुद्राक्ष, रत्न, तथा वैदिक पञ्चाङ्ग/पुस्तक',
-      icon: ShoppingBag,
-      tabKey: 'kharedi',
-      badge: 'वैदिक पसल',
-    },
-    {
-      id: 'spiritual',
-      title: '🛕 धार्मिक तथा आध्यात्मिक सेवा',
-      subtitle: 'आध्यात्मिक परामर्श, तीर्थयात्रा सूचना, आर्जे तथा ज्ञान भण्डार',
-      icon: BookOpen,
-      tabKey: 'aarje',
-      badge: 'आध्यात्मिक ज्ञान',
+      id: 'karmakanda',
+      title: '🔥 कर्मकाण्ड तथा वैदिक अनुष्ठान',
+      subtitle: 'पूजा, सङ्कल्प, रुद्राभिषेक, महामृत्युञ्जय जप, नवग्रह पूजा, वास्तुशान्ति तथा अन्य वैदिक संस्कारलाई सम्बन्धित विधि, मन्त्र र परम्पराको मर्यादाअनुसार सम्पन्न गर्न सहयोग गर्ने।',
+      icon: Flame,
+      tabKey: 'sanskar',
+      badge: 'मन्त्र–संस्कार',
     },
   ];
 
@@ -363,91 +355,146 @@ export const OrgProfileModal: React.FC<OrgProfileModalProps> = ({
               <div className="w-full h-1 bg-gradient-to-r from-transparent via-[#D97706]/40 to-transparent mt-6" />
             </div>
 
-            {/* VEDIC SHLOKA SECTION */}
-            <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/15 to-amber-500/10 dark:from-amber-950/40 dark:via-amber-900/30 dark:to-amber-950/40 border border-amber-500/30 rounded-2xl p-6 text-center space-y-2 shadow-sm relative overflow-hidden">
-              <div className="text-amber-800 dark:text-amber-300 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2">
-                <span>॥ मङ्गल मन्त्र ॥</span>
-              </div>
-              <div className="font-serif text-base sm:text-lg md:text-xl font-bold text-[#2D241E] dark:text-amber-100 leading-relaxed whitespace-pre-line">
-                {formData.shlokaText || 'ॐ सह नाववतु।\nसह नौ भुनक्तु।\nसह वीर्यं करवावहै।\nतेजस्विनावधीतमस्तु मा विद्विषावहै॥\nॐ शान्तिः शान्तिः शान्तिः॥'}
-              </div>
+            {/* OFFICIAL MOTTO BANNER */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/15 to-amber-500/10 border border-amber-400/40 text-center font-serif text-xs sm:text-sm font-bold text-amber-900 dark:text-amber-200 shadow-2xs">
+              “{formData.mottoText || 'ज्ञानमा शास्त्रीय आधार, आचरणमा सत्यनिष्ठा, सेवामा श्रद्धा र प्रविधिमा आधुनिकता'}”
             </div>
 
-            {/* हाम्रो परिचय (OUR INTRO) SECTION */}
+            {/* संस्था परिचय एवं पृष्ठभूमि SECTION */}
             <div className="bg-white dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-2xl p-6 sm:p-8 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-3">
-                <div className="w-8 h-8 bg-amber-500/10 text-[#D97706] rounded-xl flex items-center justify-center font-bold">
-                  ॐ
+              <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-amber-500/10 text-[#D97706] rounded-xl flex items-center justify-center font-bold">
+                    ॐ
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold font-serif text-[#1A1A1A] dark:text-amber-100">
+                    संस्था परिचय एवं पृष्ठभूमि
+                  </h3>
                 </div>
-                <h3 className="text-lg sm:text-xl font-bold font-serif text-[#1A1A1A] dark:text-amber-100">
-                  हाम्रो संस्था
-                </h3>
+                <span className="text-xs font-semibold text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2.5 py-0.5 rounded-full">
+                  वैदिक सेवा प्रतिष्ठान
+                </span>
               </div>
 
-              <div className="space-y-3 text-sm sm:text-base text-stone-700 dark:text-stone-300 leading-relaxed font-normal">
-                {formData.intro.split('\n\n').map((paragraph, idx) => (
-                  <p key={idx} className="leading-relaxed">
-                    {paragraph}
-                  </p>
-                ))}
+              <div className="space-y-3 text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed font-normal whitespace-pre-line text-justify font-sans">
+                {formData.intro || DEFAULT_ORG_PROFILE.intro}
+              </div>
+
+              {/* Registration & PAN info */}
+              <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center gap-4 text-xs text-stone-600 dark:text-stone-400">
+                <div className="bg-stone-50 dark:bg-stone-800/60 px-3 py-1 rounded-lg border border-stone-200 dark:border-stone-700">
+                  <span>दर्ता स्थिति: <b className="text-stone-900 dark:text-stone-200">{formData.registeredNo || 'दर्ता नं. '}</b></span>
+                </div>
+                <div className="bg-stone-50 dark:bg-stone-800/60 px-3 py-1 rounded-lg border border-stone-200 dark:border-stone-700">
+                  <span>स्थायी लेखा नम्बर: <b className="text-stone-900 dark:text-stone-200">{formData.panNo || 'PAN: '}</b></span>
+                </div>
               </div>
             </div>
 
-            {/* हाम्रो दृष्टिकोण (VISION) SECTION */}
-            <div className="bg-gradient-to-br from-[#FFFDF7] to-[#FAF3E6] dark:from-[#231C15] dark:to-[#1A1510] border-l-4 border-l-[#D97706] border border-[#E6E0D5] dark:border-stone-800 rounded-2xl p-6 space-y-3 shadow-sm">
-              <div className="flex items-center gap-2 text-[#D97706] dark:text-amber-400 font-bold text-base sm:text-lg font-serif">
-                <Lightbulb className="w-5 h-5 text-[#D97706]" />
-                <span>हाम्रो दृष्टिकोण (Vision)</span>
-              </div>
-              <p className="text-sm sm:text-base text-stone-800 dark:text-stone-200 font-medium leading-relaxed italic">
-                “{formData.visionText || 'वैदिक ज्ञान र परम्पराको मूल भावनालाई संरक्षण गर्दै आधुनिक प्रविधिको माध्यमबाट ज्योतिष, वास्तु तथा कर्मकाण्डीय सेवाहरूलाई व्यवस्थित, पारदर्शी, सुरक्षित र सेवाग्राहीमैत्री बनाउनु।'}"
-              </p>
-            </div>
-
-            {/* हाम्रो उद्देश्य (OBJECTIVES) SECTION */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-2">
-                <Target className="w-5 h-5 text-[#D97706]" />
-                <h3 className="text-lg sm:text-xl font-bold font-serif text-[#1A1A1A] dark:text-amber-100">
-                  हाम्रो उद्देश्य (Mission & Objectives)
+            {/* आध्यात्मिक ध्येय, दृष्टि र सङ्कल्प (THE 3 SACRED PILLARS) */}
+            <div>
+              <div className="text-center max-w-xl mx-auto mb-4">
+                <h3 className="text-base sm:text-lg font-bold font-serif text-stone-900 dark:text-amber-100 flex items-center justify-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span>आध्यात्मिक ध्येय, दृष्टि र सङ्कल्प</span>
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {objectives.map((item, idx) => {
-                  const devanagariNums = ['१', '२', '३', '४', '५', '६', '७', '८'];
-                  return (
-                    <div
-                      key={idx}
-                      className="bg-white dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl p-4 flex items-start gap-3 shadow-2xs hover:border-amber-400/50 transition-colors"
-                    >
-                      <span className="w-7 h-7 bg-amber-500/10 text-[#D97706] dark:bg-amber-500/20 dark:text-amber-300 font-bold rounded-lg flex items-center justify-center text-xs shrink-0">
-                        {devanagariNums[idx] || idx + 1}
-                      </span>
-                      <span className="text-xs sm:text-sm font-semibold text-stone-800 dark:text-stone-200 leading-snug pt-0.5">
-                        {item}
-                      </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* कार्ड १: हाम्रो ध्येय */}
+                <div className="p-5 rounded-2xl bg-white dark:bg-stone-900 border border-amber-200/80 dark:border-amber-900/40 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Target className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold font-serif text-stone-900 dark:text-amber-200">
+                        हाम्रो ध्येय
+                      </h4>
                     </div>
-                  );
-                })}
+                    <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed text-justify">
+                      {formData.missionText || DEFAULT_ORG_PROFILE.missionText}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-stone-100 dark:border-stone-800 text-[10.5px] font-semibold text-amber-700 dark:text-amber-400">
+                    शास्त्रसम्मत सेवा व्यवस्थापन
+                  </div>
+                </div>
+
+                {/* कार्ड २: हाम्रो दृष्टि */}
+                <div className="p-5 rounded-2xl bg-white dark:bg-stone-900 border border-amber-200/80 dark:border-amber-900/40 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-orange-500/15 text-orange-700 dark:text-orange-400 flex items-center justify-center shrink-0">
+                        <Lightbulb className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold font-serif text-stone-900 dark:text-amber-200">
+                        हाम्रो दृष्टि
+                      </h4>
+                    </div>
+                    <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed text-justify">
+                      {formData.visionText || DEFAULT_ORG_PROFILE.visionText}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-stone-100 dark:border-stone-800 text-[10.5px] font-semibold text-orange-700 dark:text-orange-400">
+                    पारदर्शिता र विश्वसनीयता
+                  </div>
+                </div>
+
+                {/* कार्ड ३: हाम्रो आध्यात्मिक सङ्कल्प */}
+                <div className="p-5 rounded-2xl bg-white dark:bg-stone-900 border border-rose-200/80 dark:border-rose-900/40 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-400 flex items-center justify-center shrink-0">
+                        <Flame className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold font-serif text-stone-900 dark:text-rose-200">
+                        आध्यात्मिक सङ्कल्प
+                      </h4>
+                    </div>
+                    <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed text-justify">
+                      {formData.sankalpaText || DEFAULT_ORG_PROFILE.sankalpaText}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-stone-100 dark:border-stone-800 text-[10.5px] font-semibold text-rose-700 dark:text-rose-400">
+                    लोकमङ्गल एवं निष्कपट सेवाभाव
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* हाम्रा प्रमुख सेवाहरू (CORE SERVICES CONNECTED TO EXISTING MODULES) */}
+            {/* VEDIC SHLOKA SECTION */}
+            <div className="bg-gradient-to-r from-amber-900/90 via-amber-800/95 to-amber-900/90 text-amber-50 border border-amber-700/60 rounded-2xl p-6 text-center space-y-3 shadow-sm relative overflow-hidden">
+              <div className="text-amber-200 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2">
+                <span>॥ आध्यात्मिक सुभाषित एवं शान्तिमन्त्र ॥</span>
+              </div>
+              <div className="font-serif text-sm sm:text-base md:text-lg font-bold text-amber-100 leading-relaxed whitespace-pre-line">
+                {formData.shlokaText || DEFAULT_ORG_PROFILE.shlokaText}
+              </div>
+              <div className="text-[11px] text-amber-300/90">
+                — {formData.shlokaSource || 'कृष्ण यजुर्वेदीय तैत्तिरीयोपनिषद् (ब्रह्मानन्दवल्ली)'}
+              </div>
+              <div className="text-xs text-amber-100/90 italic pt-2 border-t border-amber-700/50 max-w-2xl mx-auto">
+                <span className="font-bold text-amber-300 not-italic">नेपाली भावार्थ: </span>
+                {formData.shlokaMeaning || DEFAULT_ORG_PROFILE.shlokaMeaning}
+              </div>
+            </div>
+
+            {/* हाम्रा प्रमुख वैदिक सेवाहरू */}
             <div className="space-y-4 pt-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 dark:border-stone-800 pb-2">
                 <div className="flex items-center gap-2">
                   <Landmark className="w-5 h-5 text-[#D97706]" />
                   <h3 className="text-lg sm:text-xl font-bold font-serif text-[#1A1A1A] dark:text-amber-100">
-                    हाम्रा प्रमुख सेवाहरू (Core Digital Services)
+                    हाम्रा प्रमुख वैदिक सेवाहरू
                   </h3>
                 </div>
                 <span className="text-xs text-[#78716C] dark:text-stone-400 font-medium">
-                  सम्बन्धित कार्डमा क्लिक गरी सीधा सेवा मोड्युलमा जानुहोस्:
+                  शास्त्रीय मर्यादा र प्रविधिको समन्वय
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {majorServices.map((service) => {
                   const IconComp = service.icon;
                   return (
@@ -573,10 +620,10 @@ export const OrgProfileModal: React.FC<OrgProfileModalProps> = ({
                   दर्ता तथा स्थायी लेखा नम्बर:
                 </span>
                 <span className="text-stone-800 dark:text-stone-200 font-semibold block">
-                  {formData.registeredNo || 'दर्ता नं. १२३४/०८०'}
+                  {formData.registeredNo || 'दर्ता नं. '}
                 </span>
                 <span className="text-stone-600 dark:text-stone-400 block">
-                  {formData.panNo || 'PAN: ६०१२३४५६७'}
+                  {formData.panNo || 'PAN: '}
                 </span>
               </div>
             </div>
@@ -821,6 +868,33 @@ export const OrgProfileModal: React.FC<OrgProfileModalProps> = ({
                 />
               </div>
 
+              {/* Motto Text */}
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                  आधिकारिक मूलमन्त्र (Official Motto):
+                </label>
+                <input
+                  type="text"
+                  value={formData.mottoText || ''}
+                  onChange={(e) => setFormData({ ...formData, mottoText: e.target.value })}
+                  placeholder="ज्ञानमा शास्त्रीय आधार, आचरणमा सत्यनिष्ठा, सेवामा श्रद्धा र प्रविधिमा आधुनिकता"
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs text-[#1A1A1A] dark:text-stone-100"
+                />
+              </div>
+
+              {/* Mission Text */}
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                  हाम्रो ध्येय (Mission Statement):
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.missionText || ''}
+                  onChange={(e) => setFormData({ ...formData, missionText: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs text-[#1A1A1A] dark:text-stone-100 leading-relaxed"
+                />
+              </div>
+
               {/* Vision Text */}
               <div className="sm:col-span-2 space-y-1">
                 <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
@@ -832,6 +906,49 @@ export const OrgProfileModal: React.FC<OrgProfileModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, visionText: e.target.value })}
                   className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs text-[#1A1A1A] dark:text-stone-100 leading-relaxed"
                 />
+              </div>
+
+              {/* Sankalpa Text */}
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                  हाम्रो आध्यात्मिक सङ्कल्प (Spiritual Resolution):
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.sankalpaText || ''}
+                  onChange={(e) => setFormData({ ...formData, sankalpaText: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs text-[#1A1A1A] dark:text-stone-100 leading-relaxed"
+                />
+              </div>
+
+              {/* Shloka Text & Meaning */}
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                  संस्कृत श्लोक तथा नेपाली भावार्थ:
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.shlokaText || ''}
+                  onChange={(e) => setFormData({ ...formData, shlokaText: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-serif text-[#1A1A1A] dark:text-stone-100 leading-relaxed mb-2"
+                  placeholder="संस्कृत श्लोक..."
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={formData.shlokaSource || ''}
+                    onChange={(e) => setFormData({ ...formData, shlokaSource: e.target.value })}
+                    placeholder="श्लोक स्रोत (उदा. तैत्तिरीयोपनिषद्)"
+                    className="w-full px-3 py-1.5 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs text-[#1A1A1A] dark:text-stone-100"
+                  />
+                  <input
+                    type="text"
+                    value={formData.shlokaMeaning || ''}
+                    onChange={(e) => setFormData({ ...formData, shlokaMeaning: e.target.value })}
+                    placeholder="नेपाली भावार्थ..."
+                    className="w-full px-3 py-1.5 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-xs text-[#1A1A1A] dark:text-stone-100"
+                  />
+                </div>
               </div>
 
               {/* Report Header & Footer Notes */}

@@ -193,28 +193,10 @@ function safeHashPassword(plain: string): string {
   return hash.toString(16);
 }
 
-// Default Initial Accounts - Seeded with subash khanal
-export const INITIAL_SEED_USERS: RBACUser[] = [
-  {
-    id: 'client_subash_khanal',
-    username: '9841755199',
-    phone: '9841755199',
-    fullName: 'subash khanal',
-    passwordHash: safeHashPassword('3AACKE84'),
-    role: 'CUSTOMER',
-    roleNameNepali: 'ग्राहक (आजीवन सदस्य)',
-    status: 'active',
-    customerId: 'CUST-984175',
-    permissions: DEFAULT_ROLE_PERMISSIONS.CUSTOMER,
-    createdAtISO: '2025-01-01T10:00:00.000Z',
-    createdAtBS: '२०८१-०९-१७',
-    mobileVerified: true,
-    emailVerified: false,
-    savedAddresses: []
-  }
-];
+// Default Initial Accounts - Empty for clean production
+export const INITIAL_SEED_USERS: RBACUser[] = [];
 
-const PURGE_FLAG_KEY = 'balananda_members_purged_zero_v3';
+const PURGE_FLAG_KEY = 'balananda_members_purged_zero_v4_clean';
 
 /**
  * Reset all demo/logged-in members to zero and deactivate active yearly licenses
@@ -222,7 +204,7 @@ const PURGE_FLAG_KEY = 'balananda_members_purged_zero_v3';
 export function purgeAllMembersAndLicenses(): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_SEED_USERS));
+    localStorage.setItem(STORAGE_KEYS.USERS, '[]');
     localStorage.removeItem(STORAGE_KEYS.SESSION);
     localStorage.removeItem('balananda_rbac_active_session_v1');
     localStorage.setItem('balananda_client_leads_v2', '[]');
@@ -231,6 +213,8 @@ export function purgeAllMembersAndLicenses(): void {
     localStorage.removeItem('balananda_software_full_access_license_v2');
     localStorage.removeItem('balananda_device_trial_lock_v2');
     localStorage.removeItem('sukdev_user_subscription_account_v1');
+    localStorage.setItem('balananda_client_access_control_v2', '[]');
+    localStorage.setItem('balananda_service_licenses_v1', '[]');
     localStorage.setItem(PURGE_FLAG_KEY, 'true');
     window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: false } }));
     window.dispatchEvent(new CustomEvent('client-leads-updated', { detail: { leads: [] } }));
@@ -253,40 +237,26 @@ export function getStoredRBACUsers(): RBACUser[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
     if (!raw) {
-      const initial = INITIAL_SEED_USERS.filter(u => !isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.username));
-      saveRBACUsers(initial);
-      return initial;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    let changed = false;
-    // Filter out permanently deleted users
-    const activeOnly = parsed.filter((u: RBACUser) => {
-      if (!u) return false;
-      if (isPermanentlyDeleted(u.phone) || isPermanentlyDeleted(u.username) || isPermanentlyDeleted(u.id)) {
-        changed = true;
-        return false;
-      }
-      return true;
-    });
-
-    // Maintain password hash for master accounts only if they ALREADY exist and are NOT deleted
-    const subashIdx = activeOnly.findIndex((u: RBACUser) => {
-      const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
-      return uMob === '9841755199';
-    });
-    if (subashIdx !== -1 && !isPermanentlyDeleted('9841755199')) {
-      if (activeOnly[subashIdx].passwordHash !== safeHashPassword('3AACKE84')) {
-        activeOnly[subashIdx].passwordHash = safeHashPassword('3AACKE84');
-        changed = true;
-      }
+    if (Array.isArray(parsed)) {
+      const clean = parsed.filter(u => {
+        if (!u) return false;
+        if (
+          u.id === 'client_subash_khanal' ||
+          u.phone === '9841755199' ||
+          u.username === '9841755199' ||
+          u.fullName === 'subash khanal' ||
+          u.phone === '9812345678' ||
+          u.fullName === 'Ram Thapa'
+        ) return false;
+        if (isPermanentlyDeleted(u.phone) || isPermanentlyDeleted(u.username) || isPermanentlyDeleted(u.id)) return false;
+        return true;
+      });
+      return clean;
     }
-
-    if (changed) {
-      saveRBACUsers(activeOnly);
-    }
-    return activeOnly;
+    return [];
   } catch (e) {
     console.error('Failed to parse RBAC users:', e);
     return [];
@@ -310,11 +280,70 @@ export function deleteRBACUserPermanently(phoneOrId: string): boolean {
       return true;
     });
     saveRBACUsers(filtered);
+
+    // Call server DELETE
+    if (typeof fetch !== 'undefined') {
+      fetch(`/api/users/${encodeURIComponent(phoneOrId)}`, { method: 'DELETE' }).catch(() => {});
+    }
     return true;
   } catch (e) {
     console.error('Failed to delete RBAC user permanently:', e);
     return false;
   }
+}
+
+// Fetch all registered users from central server & synchronize
+export async function syncUsersFromServer(): Promise<RBACUser[]> {
+  try {
+    if (typeof fetch === 'undefined') return getStoredRBACUsers();
+    const res = await fetch('/api/users');
+    if (!res.ok) return getStoredRBACUsers();
+    const data = await res.json();
+    if (data && data.success && Array.isArray(data.users)) {
+      const serverUsers: RBACUser[] = data.users.map((su: any) => ({
+        id: su.id,
+        username: su.username || su.phone,
+        phone: su.phone,
+        email: su.email || undefined,
+        fullName: su.fullName,
+        passwordHash: su.passwordHash || '',
+        role: su.role || 'CUSTOMER',
+        roleNameNepali: su.roleNameNepali || 'यजमान / ग्राहक',
+        status: su.status || 'active',
+        customerId: su.customerId,
+        permissions: su.permissions || DEFAULT_ROLE_PERMISSIONS[su.role as SystemRole] || [],
+        createdAtISO: su.createdAtISO,
+        createdAtBS: su.createdAtBS || '२०८१',
+        mobileVerified: true,
+        emailVerified: Boolean(su.emailVerified),
+        birthProfileId: su.birthProfileId,
+        birthDetails: su.birthDetails,
+        photoUrl: su.photoUrl
+      }));
+
+      // Filter permanently deleted users
+      const activeServerUsers = serverUsers.filter(u => !isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id));
+      
+      const local = getStoredRBACUsers();
+      const mergedMap = new Map<string, RBACUser>();
+      for (const u of local) {
+        if (u && u.phone) mergedMap.set(u.phone.replace(/\D/g, '').slice(-10), u);
+      }
+      for (const u of activeServerUsers) {
+        if (u && u.phone) mergedMap.set(u.phone.replace(/\D/g, '').slice(-10), u);
+      }
+      const merged = Array.from(mergedMap.values());
+      saveRBACUsers(merged);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('balananda_rbac_users_updated', { detail: { users: merged } }));
+      }
+      return merged;
+    }
+  } catch (err) {
+    console.error('Failed to sync users from server:', err);
+  }
+  return getStoredRBACUsers();
 }
 
 // Helper: Save users
@@ -587,6 +616,33 @@ export function registerRBACAccount(
 
   const updatedUsers = [newUser, ...users];
   saveRBACUsers(updatedUsers);
+
+  // Trigger server registration asynchronously to ensure permanent persistence in data/users.json
+  if (typeof fetch !== 'undefined') {
+    fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: newUser.fullName,
+        phone: newUser.phone,
+        email: newUser.email,
+        password: data.password,
+        role: newUser.role,
+        address: data.address,
+        gender: data.birthDetails?.gender || 'male',
+        birthDetails: data.birthDetails,
+        birthProfileId: data.birthProfileId,
+        createdAtBS: newUser.createdAtBS
+      })
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success && res.user) {
+          syncUsersFromServer().catch(() => {});
+        }
+      })
+      .catch(e => console.warn('Server registration background sync warning:', e));
+  }
 
   // Log action
   logRBACAuditAction({

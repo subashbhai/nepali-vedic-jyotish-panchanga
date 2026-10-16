@@ -117,7 +117,7 @@ import { BirthDetails, PanchangaData, PlanetPosition } from '../types/astrology'
 import { calculatePanchanga } from '../utils/panchangaEngine';
 import { PersonalizedRashifalDashboard } from './dashboard/PersonalizedRashifalDashboard';
 import { RBACSession, getActiveRBACSession } from '../db/rbacStore';
-import { getUserPersonalBirthProfile, saveUserPersonalBirthProfile } from '../db/profileStore';
+import { getUserPersonalBirthProfile, saveUserPersonalBirthProfile, enrichProfileWithAstroCalculations } from '../db/profileStore';
 
 interface YajamanViewProps {
   onNavigateToExpert?: () => void;
@@ -235,8 +235,8 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
     const personalProf = getUserPersonalBirthProfile(currentUserId, currentUserName);
     if (personalProf) return personalProf;
 
-    // 3. Fallback
-    return {
+    // 3. Fallback with authentic calculations
+    const fallbackBase: BirthDetails = {
       id: `user_profile_${currentUserId}`,
       name: currentUserName,
       gender: 'पुरुष',
@@ -248,9 +248,9 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
         latitude: 27.7172,
         longitude: 85.3240,
         timeZone: 5.75
-      },
-      moonRashi: 'कन्या'
+      }
     };
+    return enrichProfileWithAstroCalculations(fallbackBase);
   }, [customizedProfile, activeProfile, effectiveYajaman, currentRbac]);
 
   const computedPanchanga = useMemo(() => {

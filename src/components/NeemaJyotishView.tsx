@@ -38,6 +38,7 @@ import {
 
 import { BirthDetails } from '../types/astrology';
 import { toDevanagariNumerals, convertADToBS } from '../utils/nepaliCalendar';
+import { convertBSToADFull } from '../utils/bsCalendarData';
 import { computeTibetanBirthChart, TibetanBirthChartData } from '../core/tibetan/tibetanBirthChartEngine';
 import { calculateTibetanCompatibility } from '../core/tibetan/tibetanCompatibilityEngine';
 import { CLASSICAL_TIBETAN_BOOKS, TIBETAN_CANONICAL_RULES } from '../core/rules/sources/tibetan/tibetanSourceRegistry';
@@ -85,13 +86,30 @@ export const NeemaJyotishView: React.FC<NeemaJyotishViewProps> = ({
   const [isSwapped, setIsSwapped] = useState(false);
   const [mewaParkhaSubView, setMewaParkhaSubView] = useState<'mewa' | 'parkha' | 'both'>('mewa');
 
-  // Fallback profile if none is active
-  const effectiveProfile: BirthDetails = useMemo(() => {
-    if (activeProfile && activeProfile.dateAD) {
-      return activeProfile;
+  // Normalize profile dates with BS to AD conversion for seamless chain flow
+  const normalizeProfileWithAD = (p: BirthDetails): BirthDetails => {
+    if (p.dateAD && p.dateAD.trim() !== '') return p;
+    if (p.dateBS) {
+      try {
+        const match = p.dateBS.match(/\d+/g);
+        if (match && match.length >= 3) {
+          const ad = convertBSToADFull(parseInt(match[0], 10), parseInt(match[1], 10), parseInt(match[2], 10));
+          return { ...p, dateAD: ad };
+        }
+      } catch (e) {
+        console.warn('NeemaJyotishView dateBS conversion error:', e);
+      }
     }
-    if (profiles.length > 0 && profiles[0].dateAD) {
-      return profiles[0];
+    return p;
+  };
+
+  // Resolved active profile for Tibetan astrology (Single source of truth)
+  const effectiveProfile: BirthDetails = useMemo(() => {
+    if (activeProfile && (activeProfile.dateAD || activeProfile.dateBS)) {
+      return normalizeProfileWithAD(activeProfile);
+    }
+    if (profiles.length > 0 && (profiles[0].dateAD || profiles[0].dateBS)) {
+      return normalizeProfileWithAD(profiles[0]);
     }
     // Default canonical profile
     return {

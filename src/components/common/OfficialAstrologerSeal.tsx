@@ -246,18 +246,20 @@ export const OfficialAstrologerSeal: React.FC<OfficialAstrologerSealProps> = ({
 
   return (
     <div
-      className={`flex items-center gap-2.5 border-2 border-red-800/80 p-2 rounded-xl bg-gradient-to-r from-[#FFFDF9] to-amber-50/90 shadow-xs select-none ${className}`}
+      className={`flex flex-col sm:flex-row items-center gap-2 sm:gap-2.5 border-2 border-red-800/80 p-2 rounded-xl bg-gradient-to-r from-[#FFFDF9] to-amber-50/90 shadow-xs select-none max-w-full overflow-hidden ${className}`}
     >
       {/* Prominent Circular Rubber Stamp */}
-      <CircularRubberStamp
-        orgName={orgProfile.name}
-        address={orgProfile.address}
-        regNo={orgProfile.registeredNo}
-        sizePx={sealSize}
-      />
+      <div className="shrink-0 flex justify-center">
+        <CircularRubberStamp
+          orgName={orgProfile.name}
+          address={orgProfile.address}
+          regNo={orgProfile.registeredNo}
+          sizePx={sealSize}
+        />
+      </div>
 
       {/* Astrologer Signature & Credentials */}
-      <div className="space-y-0.5 text-left border-l border-red-800/30 pl-2 min-w-[130px]">
+      <div className="space-y-0.5 text-center sm:text-left border-t sm:border-t-0 sm:border-l border-red-800/30 pt-1.5 sm:pt-0 sm:pl-2 w-full sm:min-w-[130px]">
         <div className="text-[7.5px] font-extrabold text-red-800 uppercase tracking-wider">
           ॥ अधिकृत प्रमाणीकरण ॥
         </div>
