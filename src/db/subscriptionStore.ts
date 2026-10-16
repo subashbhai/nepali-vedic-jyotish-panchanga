@@ -1156,6 +1156,35 @@ export function submitEsewaPaymentRequest(params: {
   const updatedRequests = [newRequest, ...existingRequests];
   saveEsewaRequests(updatedRequests);
 
+  // Bridge into client leads & unified sync so SuperAdmin immediately sees it in the dual tables
+  try {
+    const clientLeadRecord = {
+      id: newRequest.requestId,
+      fullName: newRequest.userName || 'ग्राहक',
+      address: 'काठमाडौँ',
+      mobile: newRequest.userPhone || '',
+      email: newRequest.userEmail || '',
+      whatsapp: newRequest.userPhone || '',
+      deviceFingerprint: 'esewa-client-fp',
+      status: 'PURCHASE_PENDING' as const,
+      planId: (newRequest.planId === 'yearly' ? 'yearly_both' : (newRequest.planId === 'lifetime' ? 'lifetime_both' : 'yearly_mobile')) as any,
+      planNameNepali: newRequest.planNameNepali,
+      planAmountNPR: newRequest.submittedAmountNPR,
+      paymentMethod: 'esewa' as const,
+      transactionId: newRequest.transactionCode,
+      submittedAtISO: newRequest.submittedAtISO,
+      submittedAtBS: newRequest.paymentDateBS
+    };
+    import('./clientLeadStore').then(({ getStoredClientLeads, saveClientLeads }) => {
+      const currentLeads = getStoredClientLeads();
+      saveClientLeads([clientLeadRecord, ...currentLeads]);
+    }).catch(() => {});
+
+    import('../services/unifiedUserSyncService').then(({ unifiedUserSyncService }) => {
+      unifiedUserSyncService.recordPurchaseRequest(clientLeadRecord as any);
+    }).catch(() => {});
+  } catch {}
+
   return {
     success: true,
     messageNepali: 'तपाईंको eSewa भुक्तानी प्रमाण सफलतापूर्वक दर्ता भएको छ। प्रशासकद्वारा प्रमाणीकरण भएपछि मात्र सदस्यता सक्रिय हुनेछ।',

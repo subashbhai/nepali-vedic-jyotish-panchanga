@@ -99,7 +99,14 @@ export async function syncClientLeadsFromServer(): Promise<ClientLead[]> {
   try {
     if (typeof window === 'undefined') return [];
     const res = await fetch('/api/client-leads');
-    if (!res.ok) return getStoredClientLeads();
+    if (!res.ok) {
+      try {
+        const { unifiedUserSyncService } = await import('../services/unifiedUserSyncService');
+        return unifiedUserSyncService.getPurchasedUsers();
+      } catch {
+        return getStoredClientLeads();
+      }
+    }
     const data = await res.json();
     if (data?.success && Array.isArray(data?.leads)) {
       const serverLeads: ClientLead[] = data.leads;
@@ -182,18 +189,32 @@ export function getTrialRemainingSeconds(): number {
 export function isClientPurchaseApproved(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_APPROVED_LICENSE);
-    if (!raw) return false;
-    const license = JSON.parse(raw);
-    if (!license || !license.isApproved) return false;
-
-    // Check expiry for yearly plans
-    if (license.expiresAtISO) {
-      const expires = new Date(license.expiresAtISO).getTime();
-      if (Date.now() > expires) return false;
+    // Check global software unlock flag
+    if (localStorage.getItem('software_full_access_unlocked_v1') === 'true') {
+      return true;
     }
 
-    return true;
+    const raw = localStorage.getItem(STORAGE_KEY_APPROVED_LICENSE);
+    if (raw) {
+      const license = JSON.parse(raw);
+      if (license && license.isApproved) {
+        // Check expiry for yearly plans
+        if (license.expiresAtISO) {
+          const expires = new Date(license.expiresAtISO).getTime();
+          if (Date.now() <= expires) return true;
+        } else {
+          return true;
+        }
+      }
+    }
+
+    // Also check if any stored lead has PURCHASE_APPROVED
+    const leads = getStoredClientLeads();
+    if (leads.some(l => l.status === 'PURCHASE_APPROVED')) {
+      return true;
+    }
+
+    return false;
   } catch {
     return false;
   }
@@ -402,6 +423,13 @@ export function submitPurchaseApplication(data: {
 
   const leads = getStoredClientLeads();
   saveClientLeads([newLead, ...leads]);
+
+  // Sync to unified cross-device sync service (GitHub Pages + Local)
+  try {
+    import('../services/unifiedUserSyncService').then(({ unifiedUserSyncService }) => {
+      unifiedUserSyncService.recordPurchaseRequest(newLead);
+    }).catch(() => {});
+  } catch {}
 
   // Sync to central server
   try {

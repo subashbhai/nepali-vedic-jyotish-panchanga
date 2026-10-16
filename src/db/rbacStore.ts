@@ -297,7 +297,14 @@ export async function syncUsersFromServer(): Promise<RBACUser[]> {
   try {
     if (typeof fetch === 'undefined') return getStoredRBACUsers();
     const res = await fetch('/api/users');
-    if (!res.ok) return getStoredRBACUsers();
+    if (!res.ok) {
+      try {
+        const { unifiedUserSyncService } = await import('../services/unifiedUserSyncService');
+        return unifiedUserSyncService.getRegisteredUsers();
+      } catch {
+        return getStoredRBACUsers();
+      }
+    }
     const data = await res.json();
     if (data && data.success && Array.isArray(data.users)) {
       const serverUsers: RBACUser[] = data.users.map((su: any) => ({
@@ -616,6 +623,13 @@ export function registerRBACAccount(
 
   const updatedUsers = [newUser, ...users];
   saveRBACUsers(updatedUsers);
+
+  // Sync to unified cross-device sync service (GitHub Pages + Local)
+  try {
+    import('../services/unifiedUserSyncService').then(({ unifiedUserSyncService }) => {
+      unifiedUserSyncService.recordUserSignup(newUser);
+    }).catch(() => {});
+  } catch {}
 
   // Trigger server registration asynchronously to ensure permanent persistence in data/users.json
   if (typeof fetch !== 'undefined') {
