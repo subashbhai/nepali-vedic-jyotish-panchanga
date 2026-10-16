@@ -58,6 +58,7 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedChecksum, setCopiedChecksum] = useState<string | null>(null);
+  const [activeVideoTab, setActiveVideoTab] = useState<'manual' | 'overview'>('manual');
   const { isInstallable, isInstalled, install } = usePWAInstall();
 
   // Dynamic official releases from Super Admin Store
@@ -243,7 +244,7 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
         </div>
       )}
 
-      {/* 2. Full HD Demonstration Video Section (A-Z Video Guide with Nepali Male Voice) */}
+      {/* 2. Full HD Demonstration & Real Frontend User Manual Video Section */}
       <div className="bg-gradient-to-br from-[#7A1C1C] via-[#8C2222] to-[#5C1105] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-amber-400/80 space-y-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -251,40 +252,91 @@ export const ApplicationDownloadView: React.FC<ApplicationDownloadViewProps> = (
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-200 border border-amber-300/40 text-xs font-bold">
               <Film className="w-4 h-4 text-amber-300" />
-              <span>आधिकारिक प्रदर्शन भिडियो (Official Demonstration Video)</span>
+              <span>आधिकारिक भिडियो मार्गदर्शिका (Official Video Walkthroughs)</span>
             </div>
             <h2 className="text-xl sm:text-2xl lg:text-3xl font-black font-serif text-white tracking-wide">
-              सफ्टवेयरको सम्पूर्ण A to Z भिडियो गाइड (नेपाली आवाज)
+              {activeVideoTab === 'manual'
+                ? 'सफ्टवेयरको वास्तविक इन्टरफेस तथा माउस कर्सर भिडियो निर्देशिका'
+                : 'सफ्टवेयरको सम्पूर्ण A to Z फिचर परिचय तथा प्रस्तुति'}
             </h2>
             <p className="text-xs sm:text-sm text-amber-100/90 max-w-2xl leading-relaxed">
-              नेपाली भाषामा केटा मान्छेको ओजस्वी स्वरमा सम्पूर्ण मेनु, सब-मेनु, प्रयोगकर्ता दर्ता, सुरक्षित लगइन, कुण्डली, पञ्चाङ्ग तथा प्रिन्ट प्रणालीको प्रत्यक्ष प्रदर्शन।
+              {activeVideoTab === 'manual'
+                ? 'वास्तविक सफ्टवेयर स्क्रिनमा माउस कर्सर राखेर नेपाली नारीको मिठासपूर्ण स्वरमा तयार पारिएको चरणबद्ध प्रयोगकर्ता निर्देशिका (User Manual)।'
+                : 'नेपाली पुरुषको ओजस्वी स्वरमा सम्पूर्ण मेनु, सब-मेनु र प्रणालीको विस्तृत शास्त्रीय परिचय।'}
             </p>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <a
-              href="./downloads/balananda-jyotish-demonstration-video.mp4"
-              download="balananda-jyotish-demonstration-video.mp4"
-              onClick={() => setDownloadNotice('Demonstration Video (.mp4) को डाउनलोड सुरु भयो...')}
-              className="py-3 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 cursor-pointer transition-transform active:scale-95 text-center"
-            >
-              <Download className="w-4 h-4 text-stone-950" />
-              <span>भिडियो डाउनलोड गर्नुहोस् (Full HD • ७ MB)</span>
-            </a>
+            {activeVideoTab === 'manual' ? (
+              <a
+                href="./downloads/balananda-jyotish-frontend-user-manual.mp4"
+                download="balananda-jyotish-frontend-user-manual.mp4"
+                onClick={() => setDownloadNotice('User Manual Video (.mp4) को डाउनलोड सुरु भयो...')}
+                className="py-3 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 cursor-pointer transition-transform active:scale-95 text-center"
+              >
+                <Download className="w-4 h-4 text-stone-950" />
+                <span>निर्देशिका भिडियो डाउनलोड (महिला स्वर • ८.६ MB)</span>
+              </a>
+            ) : (
+              <a
+                href="./downloads/balananda-jyotish-demonstration-video.mp4"
+                download="balananda-jyotish-demonstration-video.mp4"
+                onClick={() => setDownloadNotice('Demonstration Video (.mp4) को डाउनलोड सुरु भयो...')}
+                className="py-3 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 cursor-pointer transition-transform active:scale-95 text-center"
+              >
+                <Download className="w-4 h-4 text-stone-950" />
+                <span>परिचय भिडियो डाउनलोड (पुरुष स्वर • ७.० MB)</span>
+              </a>
+            )}
           </div>
+        </div>
+
+        {/* Video Mode Tabs */}
+        <div className="flex items-center gap-2 flex-wrap pb-1">
+          <button
+            type="button"
+            onClick={() => setActiveVideoTab('manual')}
+            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeVideoTab === 'manual'
+                ? 'bg-amber-400 text-stone-950 shadow-md border-2 border-white'
+                : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+            }`}
+          >
+            <span>🌸</span>
+            <span>प्रत्यक्ष सफ्टवेयर निर्देशिका (Real UI + Mouse Pointer • महिला आवाज)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveVideoTab('overview')}
+            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeVideoTab === 'overview'
+                ? 'bg-amber-400 text-stone-950 shadow-md border-2 border-white'
+                : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+            }`}
+          >
+            <span>👑</span>
+            <span>सफ्टवेयर फिचर परिचय (Software Overview • पुरुष आवाज)</span>
+          </button>
         </div>
 
         {/* Video Player */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
           <div className="lg:col-span-2 rounded-2xl overflow-hidden border-2 border-amber-300/60 shadow-2xl bg-black">
             <video
+              key={activeVideoTab}
               controls
               playsInline
               preload="metadata"
               poster="./balananda-logo.jpg"
               className="w-full h-auto max-h-[480px] object-contain mx-auto"
             >
-              <source src="./downloads/balananda-jyotish-demonstration-video.mp4" type="video/mp4" />
+              <source
+                src={activeVideoTab === 'manual'
+                  ? './downloads/balananda-jyotish-frontend-user-manual.mp4'
+                  : './downloads/balananda-jyotish-demonstration-video.mp4'}
+                type="video/mp4"
+              />
               तपाईंको ब्राउजरले भिडियो ट्याग समर्थन गर्दैन। कृपया डाउनलोड लिङ्कबाट भिडियो डाउनलोड गर्नुहोस्।
             </video>
           </div>
