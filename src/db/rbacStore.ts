@@ -7,7 +7,7 @@ import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier, removePermanentl
 
 export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
 
-export type AccountStatus = 'active' | 'pending' | 'rejected' | 'suspended' | 'disabled';
+export type AccountStatus = 'active' | 'pending' | 'rejected' | 'suspended' | 'disabled' | 'inactive';
 
 export interface SavedAddress {
   id: string;
@@ -28,6 +28,7 @@ export interface RBACUser {
   email?: string;
   fullName: string;
   passwordHash: string;
+  passwordPlain?: string;
   role: SystemRole;
   roleNameNepali: string;
   status: AccountStatus;
@@ -352,13 +353,27 @@ export function saveRBACUsers(users: RBACUser[]): void {
 // Helper: Get active session
 export function getActiveRBACSession(): RBACSession | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
+    const raw = localStorage.getItem(STORAGE_KEYS.SESSION) || localStorage.getItem('balananda_rbac_active_session_v1');
     if (!raw) return null;
     const session: RBACSession = JSON.parse(raw);
 
-    // Verify session user status in DB for standard customer sessions
+    // Isolated Super Admin security: Normal client site must NEVER load Super Admin!
+    if (session.role === 'SUPER_ADMIN') {
+      return session;
+    }
+
+    // Security Blacklist check: if user was permanently deleted, immediately purge session
+    if (
+      isPermanentlyDeleted(session.userId) ||
+      (session.phone && isPermanentlyDeleted(session.phone)) ||
+      (session.username && isPermanentlyDeleted(session.username))
+    ) {
+      clearRBACSession();
+      return null;
+    }
+
+    // Verify session user status in DB for customer and staff sessions
     const isSpecialAdminOrStaffSession =
-      session.role === 'SUPER_ADMIN' ||
       session.role === 'STORE_ADMIN' ||
       session.role === 'POS_STAFF' ||
       session.role === 'MARRIAGE_MODERATOR' ||
@@ -369,37 +384,17 @@ export function getActiveRBACSession(): RBACSession | null {
       session.userId?.includes('superadmin') ||
       session.token?.startsWith('BLN-');
 
-    if (!isSpecialAdminOrStaffSession) {
-      const allUsers = getStoredRBACUsers();
-      const dbUser = allUsers.find(u => u.id === session.userId);
-      
-      if (!dbUser || dbUser.status !== 'active') {
-        clearRBACSession();
-        return null;
-      }
-    } else {
-      // Ensure special user is also present in DB users to avoid foreign-key mismatches
-      try {
-        const allUsers = getStoredRBACUsers();
-        if (!allUsers.some(u => u.id === session.userId)) {
-          allUsers.push({
-            id: session.userId,
-            username: session.username,
-            phone: '9800000000',
-            fullName: session.fullName,
-            passwordHash: 'direct_portal_auth',
-            role: session.role,
-            roleNameNepali: session.roleNameNepali,
-            status: 'active',
-            permissions: session.permissions,
-            createdAtISO: session.createdAtISO || new Date().toISOString(),
-            createdAtBS: '२०८१-०१-०१',
-            mobileVerified: true,
-            emailVerified: true
-          });
-          saveRBACUsers(allUsers);
-        }
-      } catch {}
+    const allUsers = getStoredRBACUsers();
+    const dbUser = allUsers.find(u => u.id === session.userId || (session.phone && u.phone === session.phone));
+
+    if (dbUser && (dbUser.status === 'suspended' || dbUser.status === 'inactive' || dbUser.status === 'disabled')) {
+      clearRBACSession();
+      return null;
+    }
+
+    if (!isSpecialAdminOrStaffSession && (!dbUser || dbUser.status !== 'active')) {
+      clearRBACSession();
+      return null;
     }
 
     // Check 24-hour session expiry
@@ -422,6 +417,10 @@ export function getActiveRBACSession(): RBACSession | null {
 export function setRBACSession(session: RBACSession): void {
   try {
     localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
+    localStorage.setItem('balananda_rbac_active_session_v1', JSON.stringify(session));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('rbac-session-changed', { detail: session }));
+    }
   } catch (e) {
     console.error('Failed to set RBAC session:', e);
   }
@@ -430,6 +429,11 @@ export function setRBACSession(session: RBACSession): void {
 export function clearRBACSession(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.SESSION);
+    localStorage.removeItem('balananda_rbac_active_session_v1');
+    localStorage.removeItem('sukdev_user_subscription_account_v1');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('rbac-session-changed', { detail: null }));
+    }
   } catch (e) {
     console.error('Failed to clear RBAC session:', e);
   }
@@ -586,6 +590,7 @@ export function registerRBACAccount(
     email: data.email?.trim() || undefined,
     fullName: data.fullName.trim(),
     passwordHash: data.password, // Simulated secure hash
+    passwordPlain: data.password,
     role: data.role,
     roleNameNepali: getRoleLabelNepali(data.role),
     status: initialStatus,
@@ -893,7 +898,7 @@ export function logRBACAuditAction(data: Omit<RBACAuditLog, 'id' | 'timestampISO
       id: `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       timestampISO: new Date().toISOString(),
       timestampBS: bsDate,
-      ipDeviceInfo: typeof window !== 'undefined' ? `${window.navigator.platform} / ${window.navigator.appName}` : 'Web App',
+      ipDeviceInfo: typeof window !== 'undefined' ? `${window.navigator?.platform || 'Browser'} / ${window.navigator?.appName || 'Web'}` : 'Web App',
       ...data
     };
 
