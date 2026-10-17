@@ -20,8 +20,12 @@ import {
   YearlyRashifalItem,
   getDailyRashifalForRashi,
   getMonthlyRashifalForRashi,
-  getYearlyRashifalForRashi
+  getYearlyRashifalForRashi,
+  getAvailableYearlyArchives,
+  BALANANDA_RASHIFAL_UPDATED_EVENT
 } from '../db/rashifalStore';
+
+export { getAvailableYearlyArchives, BALANANDA_RASHIFAL_UPDATED_EVENT };
 import { toDevanagariNumerals } from './nepaliCalendar';
 import { convertBSToADFull } from './bsCalendarData';
 import { CANONICAL_RASHI_MAP } from './unifiedAstroFaladeshChain';

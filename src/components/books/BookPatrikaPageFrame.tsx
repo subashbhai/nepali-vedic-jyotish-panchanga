@@ -13,6 +13,7 @@ interface BookPatrikaPageFrameProps {
   nepaliTikaContent?: string;
   notesNepali?: string;
   isFirstPage?: boolean;
+  isCoverPage?: boolean;
   isLastPage?: boolean;
   children?: React.ReactNode;
   fontSize?: number;

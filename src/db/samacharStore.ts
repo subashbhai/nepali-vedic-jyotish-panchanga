@@ -316,7 +316,7 @@ export function getStoredArticles(
   todayBS?: string,
   todayAD?: string,
   todayTithiName?: string,
-  todayPaksha?: 'शुक्लपक्ष' | 'कृष्णपक्ष'
+  todayPaksha?: 'शुक्ल' | 'कृष्ण' | 'शुक्लपक्ष' | 'कृष्णपक्ष'
 ): SamacharArticle[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SAMACHAR);

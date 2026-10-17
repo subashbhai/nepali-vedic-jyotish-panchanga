@@ -29,6 +29,8 @@ export interface ClientAccessRecord {
   id: string;
   mobile: string; // Clean digits only
   fullName: string;
+  customerId?: string;
+  address?: string;
   loginId?: string; // e.g. subash9866 or mobile number
   passwordPlain: string; // Visible to Super Admin to give to client
   passwordHash: string;
@@ -426,23 +428,13 @@ export function loadAllClientPolicies(): ClientAccessRecord[] {
         const mob = (r.mobile || '').replace(/\D/g, '').slice(-10);
         const name = (r.fullName || '').toLowerCase().trim();
         const id = (r.id || '').toLowerCase().trim();
-        // Purge all legacy demo dummy users
+        // Purge only legacy demo dummy client IDs
         if (
-          id === 'client_subash_khanal' ||
           id === 'client_demo_ram' || 
           id === 'client_demo_sita' || 
           id === 'client_demo_hari' || 
           id === 'client_demo_gita' ||
-          mob === '9841755199' ||
-          mob === '9812345678' ||
-          mob === '9845678901' ||
-          mob === '9823456789' ||
-          mob === '9701234567' ||
-          name === 'subash khanal' ||
-          name === 'ram thapa' ||
-          name === 'sita karki' ||
-          name === 'hari sharma' ||
-          name === 'gita adhikari'
+          id === 'client_dummy_demo'
         ) {
           needsPersist = true;
           return false;

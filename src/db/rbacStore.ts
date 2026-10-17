@@ -3,7 +3,7 @@ import { verifyPassword } from '../utils/cryptoUtils';
 import { BirthDetails } from '../types/astrology';
 import { verifyClientMobileLogin, getClientPolicyByMobile, hashPassword } from './menuControlStore';
 import { authenticateUnifiedUser } from './unifiedSecurityBridge';
-import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from './securityBlacklist';
+import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier, removePermanentlyDeletedIdentifier } from './securityBlacklist';
 
 export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
 
@@ -223,14 +223,7 @@ export function purgeAllMembersAndLicenses(): void {
   }
 }
 
-// Auto-run once in browser environment
-if (typeof window !== 'undefined') {
-  try {
-    if (localStorage.getItem(PURGE_FLAG_KEY) !== 'true') {
-      purgeAllMembersAndLicenses();
-    }
-  } catch {}
-}
+// Export purgeAllMembersAndLicenses for manual admin resets only
 
 // Helper: Get stored users
 export function getStoredRBACUsers(): RBACUser[] {
@@ -243,14 +236,8 @@ export function getStoredRBACUsers(): RBACUser[] {
     if (Array.isArray(parsed)) {
       const clean = parsed.filter(u => {
         if (!u) return false;
-        if (
-          u.id === 'client_subash_khanal' ||
-          u.phone === '9841755199' ||
-          u.username === '9841755199' ||
-          u.fullName === 'subash khanal' ||
-          u.phone === '9812345678' ||
-          u.fullName === 'Ram Thapa'
-        ) return false;
+        // Purge dummy demo records if any
+        if (u.id === 'client_dummy_demo' || u.id?.startsWith('dummy_demo_')) return false;
         if (isPermanentlyDeleted(u.phone) || isPermanentlyDeleted(u.username) || isPermanentlyDeleted(u.id)) return false;
         return true;
       });
@@ -564,9 +551,14 @@ export function registerRBACAccount(
     birthDetails?: BirthDetails;
   }
 ): { success: boolean; message: string; user?: RBACUser } {
-  const users = getStoredRBACUsers();
   const cleanPhone = data.phone.trim();
   const cleanUsername = cleanPhone;
+
+  // Unblock if previously blacklisted so fresh registration always succeeds
+  removePermanentlyDeletedIdentifier(cleanPhone);
+  removePermanentlyDeletedIdentifier(cleanUsername);
+
+  const users = getStoredRBACUsers();
 
   if (users.some(u => u.phone === cleanPhone || u.username === cleanUsername)) {
     return {
@@ -787,6 +779,7 @@ export function editRBACUserDetails(
     email?: string;
     role?: SystemRole;
     storeAssigned?: string;
+    status?: AccountStatus;
   },
   adminUsername: string
 ): { success: boolean; message: string } {
@@ -801,6 +794,7 @@ export function editRBACUserDetails(
   if (data.phone) target.phone = data.phone.trim();
   if (data.email) target.email = data.email.trim();
   if (data.storeAssigned) target.storeAssigned = data.storeAssigned.trim();
+  if (data.status) target.status = data.status;
 
   if (data.role && data.role !== target.role) {
     if (target.role === 'SUPER_ADMIN') {
@@ -814,7 +808,8 @@ export function editRBACUserDetails(
       POS_STAFF: 'POS Staff',
       CUSTOMER: 'यजमान / ग्राहक',
       MARRIAGE_USER: 'विवाह सेवाग्राही (Marriage Member)',
-      MARRIAGE_MODERATOR: 'विवाह सुपरभाइजर (Marriage Moderator)'
+      MARRIAGE_MODERATOR: 'विवाह सुपरभाइजर (Marriage Moderator)',
+      NEWS_EDITOR: 'समाचार सम्पादक (News Editor)'
     };
     target.roleNameNepali = roleNepaliNames[data.role] || data.role;
   }

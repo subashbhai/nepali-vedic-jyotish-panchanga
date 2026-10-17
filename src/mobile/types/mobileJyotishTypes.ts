@@ -39,6 +39,10 @@ export interface MobileBirthProfile extends BirthDetails {
   dateOfBirth?: string;
   timeOfBirth?: string;
   placeOfBirth?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: number;
+  ayanamsa?: string;
 }
 
 export interface MobileConsultationBooking {

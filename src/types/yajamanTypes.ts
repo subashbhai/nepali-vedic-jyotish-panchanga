@@ -6,6 +6,7 @@ export type BookingStatus =
   | 'CONFIRMED'
   | 'IN_PROGRESS'
   | 'COMPLETED'
+  | 'CANCELLED'
   | 'CANCELLED_BY_YAJAMAN'
   | 'CANCELLED_BY_PROVIDER'
   | 'EXPIRED';
@@ -112,6 +113,7 @@ export interface Booking {
   yajamanId: string;
   yajamanName: string;
   yajamanPhone: string;
+  phone?: string;
   yajamanEmail?: string;
   yajamanLocation: LocationCoordinates;
   providerId: string;
@@ -120,8 +122,12 @@ export interface Booking {
   providerTitle: string;
   providerPhoto?: string;
   categoryName: string;
+  categoryCode?: string;
   serviceType: string;
+  serviceNameNepali?: string;
   appointmentDateBS: string;
+  preferredDateBS?: string;
+  dateBS?: string;
   appointmentTime: string;
   matchedRadiusKm: number;
   calculatedDistanceKm: number;
@@ -130,6 +136,7 @@ export interface Booking {
   completionTimestamp?: number;
   cancellationReason?: string;
   notes?: string;
+  totalAmount?: number;
 }
 
 export interface BookingStatusHistory {

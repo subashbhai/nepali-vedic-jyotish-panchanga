@@ -1,8 +1,8 @@
 export type LockableServiceKey = 'jyotish' | 'vastu';
 
-export type ServiceLicenseStatus = 'unlocked' | 'locked' | 'expired';
+export type ServiceLicenseStatus = 'unlocked' | 'locked' | 'expired' | 'pending_approval';
 
-export type ServiceLicenseDuration = '1_year' | '2_years' | '5_years' | 'lifetime' | 'custom';
+export type ServiceLicenseDuration = 'trial' | '1_month' | '3_months' | '6_months' | '1_year' | '2_years' | '5_years' | 'lifetime' | 'custom';
 
 export interface UserServiceLicense {
   id: string; // `${userId}_${serviceKey}`
@@ -23,6 +23,13 @@ export interface UserServiceLicense {
   unlockedAtISO?: string;
   notes?: string;
   updatedAtISO: string;
+  softwareName?: string;
+  planNameNepali?: string;
+  amountNPR?: number;
+  paymentStatus?: 'verified' | 'pending' | 'cash_verified' | 'waived';
+  paymentMethod?: 'esewa' | 'khalti' | 'bank' | 'cash';
+  transactionId?: string;
+  lastAccessDateISO?: string;
 }
 
 export type PurchaseRequestStatus = 'pending' | 'approved' | 'rejected';

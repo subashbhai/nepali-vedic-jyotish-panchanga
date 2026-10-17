@@ -7,10 +7,11 @@ export interface LocationData {
   name: string;
   district?: string;
   province?: string;
-  country: string;
+  country?: string;
   latitude: number;
   longitude: number;
   timeZone: number; // in hours, e.g. 5.75 for Nepal UTC+5:45
+  timezone?: number; // alias for compatibility
   isDST?: boolean;
   localBody?: string; // स्थानीय तह
   ward?: string; // वडा
@@ -106,6 +107,12 @@ export interface BirthDetails {
 
   // Family Members (परिवार विवरण)
   familyMembers?: FamilyMemberItem[];
+
+  // Enriched Vedic Astro Properties
+  moonRashi?: string; // चन्द्र राशि (e.g. मेष, वृष...)
+  lagnaRashi?: string; // लग्न राशि
+  nakshatra?: string; // जन्म नक्षत्र
+  nakshatraPada?: number; // नक्षत्र चरण (१-४)
 }
 
 export type PatrikaSubCategory = 
@@ -283,7 +290,8 @@ export interface PanchangaData {
   choghadiya: Array<{ time: string; name: string; type: 'शुभ' | 'अशुभ' | 'सामान्य' }>;
   samvatsara: string; // e.g. "कालयुक्त"
   ayana: 'उत्तरायण' | 'दक्षिणायन';
-  ritu: 'वसन्त' | 'ग्रीष्म' | 'वर्षा' | 'शरद' | 'हेमन्त' | 'शिशिर';
+  ritu: 'वसन्त' | 'ग्रीष्म' | 'वर्षा' | 'शरद' | 'शरद्' | 'हेमन्त' | 'शिशिर';
+  paksha?: 'शुक्ल' | 'कृष्ण' | 'शुक्लपक्ष' | 'कृष्णपक्ष';
   sunRashi: RashiName;
   moonRashi: RashiName;
   namakshara?: string; // e.g. "चु", "चे", "मा"
@@ -393,6 +401,7 @@ export interface GocharTransitResult {
     phaseName?: string;
     descriptionNepali: string;
     remediesNepali: string[];
+    isActive?: boolean;
   };
 }
 

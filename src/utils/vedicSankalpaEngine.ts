@@ -1296,6 +1296,7 @@ export interface DailySankalpaOptions {
 export interface DailySankalpaData {
   sanskritText: string;
   nepaliMeaning: string;
+  nepaliExplanation?: string;
   geoInfo: SacredLocationInfo;
   panchangaSummary: string;
   grahaStatusSummary: string;
@@ -1397,6 +1398,7 @@ export function generateDailyVedicSankalpa(
   return {
     sanskritText,
     nepaliMeaning,
+    nepaliExplanation: nepaliMeaning,
     geoInfo: geo,
     panchangaSummary,
     grahaStatusSummary

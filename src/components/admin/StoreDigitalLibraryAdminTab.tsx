@@ -1120,7 +1120,7 @@ export const StoreDigitalLibraryAdminTab: React.FC<StoreDigitalLibraryAdminTabPr
                     <button
                       type="button"
                       disabled={isProcessingText}
-                      onClick={handleAutoProcessAndTranslate}
+                      onClick={() => handleAutoProcessAndTranslate()}
                       className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-black shadow-md cursor-pointer disabled:opacity-50"
                     >
                       <Sparkles className="w-4 h-4 text-amber-200 animate-spin" />

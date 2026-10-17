@@ -37,12 +37,14 @@ import {
   Trash2,
   Send,
   Plus,
-  Sliders
+  Sliders,
+  Upload
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { MenuControlPanel } from '../MenuControlPanel';
 import { unifiedUserSyncService } from '../../../services/unifiedUserSyncService';
 import { ClientLead } from '../../../db/clientLeadStore';
+import { calculateRemainingDays, isLicenseExpired } from '../../../utils/licenseExpiryEngine';
 
 export interface SuperAdminUser {
   id: string;
@@ -121,6 +123,10 @@ export interface UserStats {
   trialExpiredUsers: number;
   approvedSubscribers: number;
   pendingPurchases: number;
+  awaitingVerification: number;
+  expiringIn30Days: number;
+  expiredSubscribers: number;
+  rejectedPurchases: number;
 }
 
 function getSuperAdminAuthHeaders(): Record<string, string> {
@@ -181,7 +187,11 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     inTrialUsers: 0,
     trialExpiredUsers: 0,
     approvedSubscribers: 0,
-    pendingPurchases: 0
+    pendingPurchases: 0,
+    awaitingVerification: 0,
+    expiringIn30Days: 0,
+    expiredSubscribers: 0,
+    rejectedPurchases: 0
   });
 
   const [isLoading, setIsLoading] = useState(() => !cachedSuperAdminUsersData);
@@ -236,6 +246,58 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [approvalAdminName, setApprovalAdminName] = useState('SuperAdmin');
+  const [isCashVerified, setIsCashVerified] = useState(false);
+  const [approvalAdminNotes, setApprovalAdminNotes] = useState('');
+  const [verifiedAmountInput, setVerifiedAmountInput] = useState<number>(2100);
+
+  const openPaymentApprovalModal = (lead: ClientLead) => {
+    setPaymentApprovalModalLead(lead);
+    setIsCashVerified(Boolean(lead.cashVerified));
+    setApprovalAdminNotes(lead.adminNotes || '');
+    setVerifiedAmountInput(lead.verifiedAmount || lead.planAmountNPR || 2100);
+    setShowRejectBox(false);
+    setRejectionReasonInput('');
+  };
+
+  // Permanent Delete Modal States & Handlers
+  const [userToDelete, setUserToDelete] = useState<SuperAdminUser | null>(null);
+  const [leadToDelete, setLeadToDelete] = useState<ClientLead | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+    const target = userToDelete;
+    try {
+      unifiedUserSyncService.deleteUserPermanently(target.id, target.phone);
+      setUserToDelete(null);
+      showToast(`प्रयोगकर्ता ${target.fullName || target.phone} प्रणालीबाट स्थायी रूपमा हटाइयो।`);
+      await fetchUsers(true);
+    } catch (e) {
+      console.error('Delete failed:', e);
+      showToast('मेटाउन समस्या भयो।');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmDeleteLead = async () => {
+    if (!leadToDelete) return;
+    setIsDeleting(true);
+    const target = leadToDelete;
+    try {
+      unifiedUserSyncService.deleteUserPermanently(target.id, target.mobile);
+      setLeadToDelete(null);
+      showToast(`खरिद रेकर्ड (${target.fullName} - ${target.mobile}) स्थायी रूपमा हटाइयो।`);
+      await fetchUsers(true);
+    } catch (e) {
+      console.error('Delete failed:', e);
+      showToast('मेटाउन समस्या भयो।');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -341,7 +403,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             gender: ru.birthDetails?.gender || 'पुरुष',
             role: ru.role,
             roleNameNepali: ru.roleNameNepali || 'यजमान / ग्राहक',
-            status: ru.status || 'active',
+            status: (ru.status === 'disabled' || (ru.status as string) === 'suspended') ? 'suspended' : (ru.status as string) === 'inactive' ? 'inactive' : 'active',
             mobileVerified: ru.mobileVerified,
             emailVerified: ru.emailVerified,
             createdAtISO: ru.createdAtISO,
@@ -389,15 +451,38 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
       if (filterType === 'active') finalUsers = finalUsers.filter(u => u.status === 'active');
       else if (filterType === 'suspended') finalUsers = finalUsers.filter(u => u.status === 'suspended');
+      else if (filterType === 'in_trial') finalUsers = finalUsers.filter(u => u.trial?.isTrialActive);
       else if (filterType === 'purchase_requested') {
         finalUsers = finalUsers.filter(u => {
           const chk = unifiedUserSyncService.checkUserPurchaseAlert(u.phone || u.id);
           return chk.isPending;
         });
+      } else if (filterType === 'purchase_pending_verification') {
+        finalUsers = finalUsers.filter(u => {
+          const chk = unifiedUserSyncService.checkUserPurchaseAlert(u.phone || u.id);
+          return chk.isPending || (chk.lead && chk.lead.paymentVerificationStatus !== 'VERIFIED');
+        });
       } else if (filterType === 'approved_subscription') {
         finalUsers = finalUsers.filter(u => {
           const chk = unifiedUserSyncService.checkUserPurchaseAlert(u.phone || u.id);
-          return chk.isApproved;
+          return chk.isApproved || u.jyotishAccess?.unlocked;
+        });
+      } else if (filterType === 'expiring_30_days') {
+        const nowTs = Date.now();
+        finalUsers = finalUsers.filter(u => {
+          const exp = u.jyotishAccess?.expiresAtTimestamp;
+          return exp && !isLicenseExpired(exp, nowTs) && calculateRemainingDays(exp, nowTs) <= 30 && calculateRemainingDays(exp, nowTs) > 0;
+        });
+      } else if (filterType === 'expired') {
+        const nowTs = Date.now();
+        finalUsers = finalUsers.filter(u => {
+          const exp = u.jyotishAccess?.expiresAtTimestamp;
+          return exp ? isLicenseExpired(exp, nowTs) : (u.trial?.hasUsedTrial && !u.trial?.isTrialActive && !u.jyotishAccess?.unlocked);
+        });
+      } else if (filterType === 'purchase_rejected') {
+        finalUsers = finalUsers.filter(u => {
+          const chk = unifiedUserSyncService.checkUserPurchaseAlert(u.phone || u.id);
+          return chk.isRejected;
         });
       }
 
@@ -406,15 +491,39 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
       setTotalPages(Math.max(1, Math.ceil(finalUsers.length / pageSize)));
 
       const todayStr = new Date().toISOString().split('T')[0];
-      const liveStats: UserStats = serverStats || {
+      const allUsersList = Array.from(userMap.values());
+      const nowTs = Date.now();
+      const liveStats: UserStats = serverStats ? {
+        ...serverStats,
+        awaitingVerification: purList.filter(p => p.status === 'PURCHASE_PENDING' || p.paymentVerificationStatus !== 'VERIFIED').length,
+        expiringIn30Days: allUsersList.filter(u => {
+          const exp = u.jyotishAccess?.expiresAtTimestamp;
+          return exp ? (!isLicenseExpired(exp, nowTs) && calculateRemainingDays(exp, nowTs) <= 30 && calculateRemainingDays(exp, nowTs) > 0) : false;
+        }).length,
+        expiredSubscribers: allUsersList.filter(u => {
+          const exp = u.jyotishAccess?.expiresAtTimestamp;
+          return exp ? isLicenseExpired(exp, nowTs) : false;
+        }).length,
+        rejectedPurchases: purList.filter(p => p.status === 'PURCHASE_REJECTED').length
+      } : {
         totalUsers: userMap.size,
-        todaySignups: Array.from(userMap.values()).filter(u => (u.createdAtISO || '').startsWith(todayStr)).length,
-        activeUsers: Array.from(userMap.values()).filter(u => u.status === 'active').length,
-        suspendedUsers: Array.from(userMap.values()).filter(u => u.status === 'suspended').length,
-        inTrialUsers: 0,
-        trialExpiredUsers: 0,
+        todaySignups: allUsersList.filter(u => (u.createdAtISO || '').startsWith(todayStr)).length,
+        activeUsers: allUsersList.filter(u => u.status === 'active').length,
+        suspendedUsers: allUsersList.filter(u => u.status === 'suspended').length,
+        inTrialUsers: allUsersList.filter(u => u.trial?.isTrialActive).length,
+        trialExpiredUsers: allUsersList.filter(u => u.trial?.hasUsedTrial && !u.trial?.isTrialActive).length,
         approvedSubscribers: purList.filter(p => p.status === 'PURCHASE_APPROVED').length,
-        pendingPurchases: purList.filter(p => p.status === 'PURCHASE_PENDING').length
+        pendingPurchases: purList.filter(p => p.status === 'PURCHASE_PENDING').length,
+        awaitingVerification: purList.filter(p => p.status === 'PURCHASE_PENDING' || p.paymentVerificationStatus !== 'VERIFIED').length,
+        expiringIn30Days: allUsersList.filter(u => {
+          const exp = u.jyotishAccess?.expiresAtTimestamp;
+          return exp ? (!isLicenseExpired(exp, nowTs) && calculateRemainingDays(exp, nowTs) <= 30 && calculateRemainingDays(exp, nowTs) > 0) : false;
+        }).length,
+        expiredSubscribers: allUsersList.filter(u => {
+          const exp = u.jyotishAccess?.expiresAtTimestamp;
+          return exp ? isLicenseExpired(exp, nowTs) : false;
+        }).length,
+        rejectedPurchases: purList.filter(p => p.status === 'PURCHASE_REJECTED').length
       };
 
       setStats(liveStats);
@@ -734,6 +843,44 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     showToast('प्रयोगकर्ता विवरण CSV फाइल डाउनलोड भयो!');
   };
 
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportJSON = () => {
+    unifiedUserSyncService.exportDataToJsonFile();
+    showToast('सबै प्रयोगकर्ता तथा खरिद डेटा JSON ब्याकअप फाइलमा डाउनलोड भयो!');
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        const res = unifiedUserSyncService.importDataFromJson(content);
+        showToast(res.messageNepali);
+        if (res.success) {
+          await fetchUsers(true);
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleCloudSync = async () => {
+    setIsLoading(true);
+    try {
+      await unifiedUserSyncService.syncAllData();
+      await fetchUsers(true);
+      showToast('क्लाउड तथा गिटहबबाट नयाँ डेटा सफलतापूर्वक सिङ्क भयो!');
+    } catch {
+      showToast('सिङ्क गर्न सकिएन।');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Toast Alert */}
@@ -766,6 +913,16 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <button
+              onClick={handleCloudSync}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-950/70 hover:bg-blue-900 text-blue-300 rounded-xl text-xs font-bold border border-blue-800 cursor-pointer transition-all shadow-sm"
+              title="GitHub / Cloud बाट नयाँ डेटा सिङ्क गर्नुहोस्"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-400' : ''}`} />
+              <span>क्लाउड सिङ्क</span>
+            </button>
+
+            <button
               onClick={() => fetchUsers(false)}
               disabled={isLoading}
               className="flex items-center gap-1.5 px-3 py-2 bg-stone-800 hover:bg-stone-700 text-amber-300 rounded-xl text-xs font-bold border border-stone-700 cursor-pointer transition-all shadow-sm"
@@ -784,6 +941,32 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
               <span>CSV निर्यात</span>
             </button>
 
+            <button
+              onClick={handleExportJSON}
+              className="flex items-center gap-1.5 px-3 py-2 bg-purple-950/70 hover:bg-purple-900 text-purple-300 rounded-xl text-xs font-bold border border-purple-800 cursor-pointer transition-all shadow-sm"
+              title="सबै प्रयोगकर्ता तथा खरिद डेटा JSON ब्याकअप फाइलमा डाउनलोड गर्नुहोस्"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>JSON ब्याकअप</span>
+            </button>
+
+            <button
+              onClick={() => jsonFileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-bold border border-stone-700 cursor-pointer transition-all shadow-sm"
+              title="JSON ब्याकअप फाइलबाट डेटा आयात गर्नुहोस्"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>JSON आयात</span>
+            </button>
+
+            <input
+              ref={jsonFileInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImportJSON}
+            />
+
             <div className="hidden sm:flex items-center gap-1.5 bg-stone-950/70 border border-stone-800 px-3 py-2 rounded-xl text-[11px] text-stone-400">
               <Clock className="w-3.5 h-3.5 text-stone-500" />
               <span>अन्तिम अद्यावधिक: {lastRefreshedAt.toLocaleTimeString('ne-NP')}</span>
@@ -791,42 +974,114 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           </div>
         </div>
 
-        {/* ── KPI Stat Cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 pt-2 border-t border-stone-800/80">
-          <div className="bg-stone-950/70 border border-stone-800/80 p-3 rounded-2xl">
-            <p className="text-[10px] text-stone-400 font-medium">कुल प्रयोगकर्ता</p>
+        {/* ── 8 INTERACTIVE KPI STAT FILTER BUTTONS ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 pt-2 border-t border-stone-800/80">
+          <button
+            type="button"
+            onClick={() => { setFilterType('all'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'all'
+                ? 'bg-amber-950/70 border-amber-500 shadow-lg shadow-amber-950/40 ring-1 ring-amber-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-stone-700'
+            }`}
+          >
+            <p className="text-[10px] text-stone-400 font-medium">१. कुल प्रयोगकर्ता</p>
             <p className="text-lg font-black text-white">{toDevanagariNumerals(stats.totalUsers)}</p>
-          </div>
+          </button>
 
-          <div className="bg-stone-950/70 border border-stone-800/80 p-3 rounded-2xl">
-            <p className="text-[10px] text-emerald-400 font-medium">आजका नयाँ दर्ता</p>
-            <p className="text-lg font-black text-emerald-400">{toDevanagariNumerals(stats.todaySignups)}</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setFilterType('purchase_requested'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'purchase_requested'
+                ? 'bg-emerald-950/80 border-emerald-500 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-emerald-800/60'
+            }`}
+          >
+            <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>२. नयाँ खरिद अनुरोध</span>
+            </p>
+            <p className="text-lg font-black text-emerald-400">{toDevanagariNumerals(stats.pendingPurchases)}</p>
+          </button>
 
-          <div className="bg-stone-950/70 border border-stone-800/80 p-3 rounded-2xl">
-            <p className="text-[10px] text-stone-300 font-medium">सक्रिय खाताहरू</p>
-            <p className="text-lg font-black text-stone-200">{toDevanagariNumerals(stats.activeUsers)}</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setFilterType('purchase_pending_verification'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'purchase_pending_verification'
+                ? 'bg-purple-950/80 border-purple-500 shadow-lg shadow-purple-950/40 ring-1 ring-purple-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-purple-800/60'
+            }`}
+          >
+            <p className="text-[10px] text-purple-300 font-medium">३. भुक्तानी रुजु बाँकी</p>
+            <p className="text-lg font-black text-purple-300">{toDevanagariNumerals(stats.awaitingVerification)}</p>
+          </button>
 
-          <div className="bg-stone-950/70 border border-stone-800/80 p-3 rounded-2xl">
-            <p className="text-[10px] text-rose-400 font-medium">निलम्बित खाता</p>
-            <p className="text-lg font-black text-rose-400">{toDevanagariNumerals(stats.suspendedUsers)}</p>
-          </div>
-
-          <div className="bg-stone-950/70 border border-stone-800/80 p-3 rounded-2xl">
-            <p className="text-[10px] text-amber-400 font-medium">२४-घण्टे ट्रायलमा</p>
-            <p className="text-lg font-black text-amber-400">{toDevanagariNumerals(stats.inTrialUsers)}</p>
-          </div>
-
-          <div className="bg-stone-950/70 border border-stone-800/80 p-3 rounded-2xl">
-            <p className="text-[10px] text-purple-400 font-medium">खरिद पेन्डिङ</p>
-            <p className="text-lg font-black text-purple-400">{toDevanagariNumerals(stats.pendingPurchases)}</p>
-          </div>
-
-          <div className="bg-stone-950/70 border border-stone-800/80 p-3 rounded-2xl">
-            <p className="text-[10px] text-cyan-400 font-medium">स्वीकृत ग्राहक</p>
+          <button
+            type="button"
+            onClick={() => { setFilterType('approved_subscription'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'approved_subscription'
+                ? 'bg-cyan-950/80 border-cyan-500 shadow-lg shadow-cyan-950/40 ring-1 ring-cyan-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-cyan-800/60'
+            }`}
+          >
+            <p className="text-[10px] text-cyan-400 font-medium">४. सक्रिय सदस्यता</p>
             <p className="text-lg font-black text-cyan-400">{toDevanagariNumerals(stats.approvedSubscribers)}</p>
-          </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setFilterType('in_trial'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'in_trial'
+                ? 'bg-amber-950/80 border-amber-500 shadow-lg shadow-amber-950/40 ring-1 ring-amber-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-amber-800/60'
+            }`}
+          >
+            <p className="text-[10px] text-amber-400 font-medium">५. परीक्षण (Trial)</p>
+            <p className="text-lg font-black text-amber-400">{toDevanagariNumerals(stats.inTrialUsers)}</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setFilterType('expiring_30_days'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'expiring_30_days'
+                ? 'bg-yellow-950/80 border-yellow-500 shadow-lg shadow-yellow-950/40 ring-1 ring-yellow-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-yellow-800/60'
+            }`}
+          >
+            <p className="text-[10px] text-yellow-400 font-medium">६. ३० दिनभित्र म्याद</p>
+            <p className="text-lg font-black text-yellow-400">{toDevanagariNumerals(stats.expiringIn30Days)}</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setFilterType('expired'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'expired'
+                ? 'bg-rose-950/80 border-rose-500 shadow-lg shadow-rose-950/40 ring-1 ring-rose-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-rose-800/60'
+            }`}
+          >
+            <p className="text-[10px] text-rose-400 font-medium">७. म्याद समाप्त</p>
+            <p className="text-lg font-black text-rose-400">{toDevanagariNumerals(stats.expiredSubscribers)}</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setFilterType('purchase_rejected'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'purchase_rejected'
+                ? 'bg-stone-850 border-rose-600 shadow-lg shadow-stone-950/40 ring-1 ring-rose-500/60'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-stone-700'
+            }`}
+          >
+            <p className="text-[10px] text-stone-400 font-medium">८. अस्वीकृत</p>
+            <p className="text-lg font-black text-rose-400">{toDevanagariNumerals(stats.rejectedPurchases)}</p>
+          </button>
         </div>
       </div>
 
@@ -918,9 +1173,12 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 <option value="active" className="bg-stone-900">सक्रिय खाताहरू ({stats.activeUsers})</option>
                 <option value="suspended" className="bg-stone-900">निलम्बित खाताहरू ({stats.suspendedUsers})</option>
                 <option value="in_trial" className="bg-stone-900">२४-घण्टे ट्रायलमा ({stats.inTrialUsers})</option>
-                <option value="trial_expired" className="bg-stone-900">ट्रायल सकिएका ({stats.trialExpiredUsers})</option>
-                <option value="purchase_requested" className="bg-stone-900">खरिद अनुरोध गरेका ({stats.pendingPurchases})</option>
-                <option value="approved_subscription" className="bg-stone-900">स्वीकृत सदस्यता ({stats.approvedSubscribers})</option>
+                <option value="purchase_requested" className="bg-stone-900">नयाँ खरिद अनुरोध ({stats.pendingPurchases})</option>
+                <option value="purchase_pending_verification" className="bg-stone-900">भुक्तानी रुजु बाँकी ({stats.awaitingVerification})</option>
+                <option value="approved_subscription" className="bg-stone-900">सक्रिय सदस्यता ({stats.approvedSubscribers})</option>
+                <option value="expiring_30_days" className="bg-stone-900">३० दिनभित्र म्याद सकिने ({stats.expiringIn30Days})</option>
+                <option value="expired" className="bg-stone-900">म्याद समाप्त खाता ({stats.expiredSubscribers})</option>
+                <option value="purchase_rejected" className="bg-stone-900">अस्वीकृत भुक्तानी ({stats.rejectedPurchases})</option>
               </select>
             </div>
 
@@ -1094,7 +1352,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                         </div>
                       </td>
 
-                      {/* 8. खरिद स्थिति र रेड अलर्ट (Purchase Status & RED ALERT) */}
+                      {/* 8. खरिद स्थिति तथा हरियो रुजु ब्याच (Purchase Status & Green Notification Badge) */}
                       <td className="py-3 px-3">
                         {(() => {
                           const pCheck = unifiedUserSyncService.checkUserPurchaseAlert(user.phone || user.id);
@@ -1104,13 +1362,23 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setPaymentApprovalModalLead(pCheck.lead!);
+                                  openPaymentApprovalModal(pCheck.lead!);
                                 }}
-                                className="px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/60 hover:bg-rose-500/30 transition-all flex items-center gap-1.5 animate-pulse cursor-pointer shadow-lg shadow-rose-950/50"
-                                title="खरिद अनुरोध हेर्नुहोस् र स्वीकृत गर्नुहोस्"
+                                className="px-3 py-1.5 rounded-2xl text-[11px] font-bold bg-emerald-950/90 text-emerald-300 border-2 border-emerald-500 hover:bg-emerald-900 transition-all flex items-start gap-2 shadow-lg shadow-emerald-950/80 cursor-pointer text-left ring-2 ring-emerald-500/30"
+                                title="नयाँ खरिद अनुरोध हेर्नुहोस् र भुक्तानी रुजु गरी स्वीकृत गर्नुहोस्"
                               >
-                                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0" />
-                                <span>🔴 खरिद अनुरोध (रू. {toDevanagariNumerals(pCheck.lead.planAmountNPR || 0)})</span>
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0 mt-1" />
+                                <div className="space-y-0.5 min-w-0">
+                                  <div className="flex items-center gap-1 font-black text-emerald-200">
+                                    <span>🟢 नयाँ खरिद अनुरोध / भुक्तानी रुजु आवश्यक</span>
+                                  </div>
+                                  <div className="text-[10px] text-emerald-300 font-mono">
+                                    {pCheck.lead.planNameNepali || '१ वर्षको सदस्यता'} • {pCheck.lead.paymentMethod?.toUpperCase()} • रू. {toDevanagariNumerals(pCheck.lead.planAmountNPR || 0)}
+                                  </div>
+                                  <div className="text-[9px] text-emerald-400/80">
+                                    मिति: {pCheck.lead.submittedAtBS || '२०८१'}
+                                  </div>
+                                </div>
                               </button>
                             );
                           }
@@ -1120,13 +1388,29 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (pCheck.lead) setPaymentApprovalModalLead(pCheck.lead);
+                                  if (pCheck.lead) openPaymentApprovalModal(pCheck.lead);
                                 }}
                                 className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 hover:bg-emerald-500/20 transition-all cursor-pointer"
                                 title="स्वीकृत भुक्तानी तथा लाइसेन्स विवरण हेर्नुहोस्"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                                 <span>🟢 खरिद स्वीकृत ({pCheck.lead?.planNameNepali || 'सक्रिय'})</span>
+                              </button>
+                            );
+                          }
+                          if (pCheck.isRejected) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (pCheck.lead) openPaymentApprovalModal(pCheck.lead);
+                                }}
+                                className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/60 text-rose-400 border border-rose-800/60 flex items-center gap-1 hover:bg-rose-900/60 transition-all cursor-pointer"
+                                title="अस्वीकृत विवरण हेर्नुहोस्"
+                              >
+                                <XCircle className="w-3 h-3 text-rose-400 shrink-0" />
+                                <span>🔴 अस्वीकृत भुक्तानी</span>
                               </button>
                             );
                           }
@@ -1216,6 +1500,17 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                             title="सदस्यता तथा सेवा लाइसेन्स (Subscriptions & Trials)"
                           >
                             <Crown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUserToDelete(user);
+                            }}
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
+                            title="प्रयोगकर्ता स्थायी रूपमा हटाउनुहोस् (Permanent Delete)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
@@ -1567,7 +1862,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
                               <button
                                 type="button"
-                                onClick={() => setPaymentApprovalModalLead(lead)}
+                                onClick={() => openPaymentApprovalModal(lead)}
                                 className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold border border-stone-700 cursor-pointer transition-colors flex items-center gap-1"
                                 title="सम्पूर्ण विवरण तथा भौचर हेर्नुहोस्"
                               >
@@ -1579,9 +1874,13 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const res = unifiedUserSyncService.approvePurchase(lead.id, approvalAdminName);
-                                    showToast(res.messageNepali);
-                                    fetchUsers(true);
+                                    if (lead.paymentMethod === 'cash' && !lead.cashVerified) {
+                                      openPaymentApprovalModal(lead);
+                                    } else {
+                                      const res = unifiedUserSyncService.approvePurchase(lead.id, approvalAdminName);
+                                      showToast(res.messageNepali);
+                                      fetchUsers(true);
+                                    }
                                   }}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm transition-all cursor-pointer flex items-center gap-1"
                                   title="तत्काल खरिद स्वीकृत गरी सेवा खुल्ला गर्नुहोस्"
@@ -1590,6 +1889,19 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                                   <span>स्वीकृत</span>
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLeadToDelete(lead);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-xs font-bold border border-rose-800/80 cursor-pointer transition-colors flex items-center gap-1"
+                                title="यो खरिद तथा प्रयोगकर्ता रेकर्ड स्थायी रूपमा हटाउनुहोस्"
+                              >
+                                <Trash2 className="w-3 h-3 text-rose-400" />
+                                <span>हटाउनुहोस्</span>
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1847,6 +2159,21 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 <span>Admin Note थप्नुहोस्</span>
               </button>
             </div>
+
+            {/* Section F: स्थायी रूपमा हटाउने (Permanent Deletion) */}
+            <div className="py-1 border-t border-stone-800/80">
+              <button
+                onClick={() => {
+                  const target = contextMenu.user;
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  if (target) setUserToDelete(target);
+                }}
+                className="w-full text-left px-3.5 py-1.5 hover:bg-rose-950/60 flex items-center gap-2.5 text-rose-400 font-bold transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>स्थायी रूपमा हटाउनुहोस् (Delete)</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1993,7 +2320,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                     setStatusModalUser({ user: mobileActionUser, targetStatus: 'suspended' });
                     setMobileActionUser(null);
                   }}
-                  className="w-full p-3 bg-rose-950/50 border border-rose-800/80 rounded-xl text-left flex items-center gap-3 text-rose-300 font-bold"
+                  className="w-full p-3 bg-stone-950 border border-stone-800 hover:border-rose-800 rounded-xl text-left flex items-center gap-3 text-rose-300 font-bold"
                 >
                   <XCircle className="w-4 h-4 text-rose-400" />
                   <span>खाता निलम्बन (Suspend Account)</span>
@@ -2004,12 +2331,24 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                     setStatusModalUser({ user: mobileActionUser, targetStatus: 'active' });
                     setMobileActionUser(null);
                   }}
-                  className="w-full p-3 bg-emerald-950/50 border border-emerald-800/80 rounded-xl text-left flex items-center gap-3 text-emerald-300 font-bold"
+                  className="w-full p-3 bg-stone-950 border border-stone-800 hover:border-emerald-800 rounded-xl text-left flex items-center gap-3 text-emerald-300 font-bold"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   <span>खाता पुनः सक्रिय (Reactivate Account)</span>
                 </button>
               )}
+
+              <button
+                onClick={() => {
+                  const target = mobileActionUser;
+                  setMobileActionUser(null);
+                  if (target) setUserToDelete(target);
+                }}
+                className="w-full p-3 bg-rose-950/70 border border-rose-800/90 hover:bg-rose-900/80 rounded-xl text-left flex items-center gap-3 text-rose-300 font-bold cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 text-rose-400" />
+                <span>प्रयोगकर्ता स्थायी रूपमा हटाउनुहोस् (Permanent Delete)</span>
+              </button>
             </div>
           </div>
         </div>
@@ -2084,6 +2423,18 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 >
                   <Crown className="w-3.5 h-3.5" />
                   <span>सदस्यता तथा लाइसेन्स</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = detailsModalUser;
+                    setDetailsModalUser(null);
+                    setUserToDelete(target);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>स्थायी रूपमा हटाउनुहोस्</span>
                 </button>
               </div>
             </div>
@@ -2794,7 +3145,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                     <span>🔴 भुक्तानी प्रमाणीकरण बाँकी (Verification Pending)</span>
                   </div>
                   <p className="text-[11px] text-rose-300/90 leading-relaxed">
-                    कृपया आफ्नो eSewa, Khalti वा बैंक खातामा उल्लिखित कारोबार ID (Txn: {paymentApprovalModalLead.transactionId}) र रकम रु. {toDevanagariNumerals(paymentApprovalModalLead.planAmountNPR || 0)} जम्मा भएको रुजु गर्नुहोस्। रकम प्राप्त भएको खण्डमा तलको हरियो बटन थिचेर तुरुन्त स्वीकृत गर्नुहोस्।
+                    कृपया आफ्नो eSewa, Khalti, बैंक वा नगद खातामा उल्लिखित कारोबार ID (Txn: {paymentApprovalModalLead.transactionId || 'नगद'}) र रकम रु. {toDevanagariNumerals(paymentApprovalModalLead.planAmountNPR || 0)} जम्मा भएको रुजु गर्नुहोस्। रकम प्राप्त भएको खण्डमा तलको हरियो बटन थिचेर तुरुन्त स्वीकृत गर्नुहोस्।
                   </p>
                 </div>
               ) : paymentApprovalModalLead.status === 'PURCHASE_APPROVED' ? (
@@ -2820,6 +3171,71 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
               )}
             </div>
 
+            {/* Verification Inputs Box */}
+            <div className="bg-stone-950/80 border border-stone-800 rounded-2xl p-4 space-y-3 text-xs">
+              <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>३. प्रशासक रुजु तथा प्रमाणीकरण विवरण</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-stone-400 font-bold block">रुजु गरिएको रकम (रु.):</label>
+                  <input
+                    type="number"
+                    value={verifiedAmountInput}
+                    onChange={(e) => setVerifiedAmountInput(Number(e.target.value))}
+                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-stone-100 font-mono text-xs outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-stone-400 font-bold block">रुजु गर्ने प्रशासकको नाम:</label>
+                  <input
+                    type="text"
+                    value={approvalAdminName}
+                    onChange={(e) => setApprovalAdminName(e.target.value)}
+                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-stone-100 text-xs outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-stone-400 font-bold block">प्रशासक नोट / कैफियत (वैकल्पिक):</label>
+                  <input
+                    type="text"
+                    value={approvalAdminNotes}
+                    onChange={(e) => setApprovalAdminNotes(e.target.value)}
+                    placeholder="उदा. eSewa वालेटमा रकम प्राप्त भयो र रुजु गरियो..."
+                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-stone-100 text-xs outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* CASH PAYMENT RECEIVED AND VERIFIED MANDATORY CHECKBOX */}
+            {paymentApprovalModalLead.paymentMethod === 'cash' && (
+              <div className="bg-amber-950/50 border-2 border-amber-500/80 rounded-2xl p-4 space-y-2 text-xs animate-pulse">
+                <div className="flex items-center gap-2 text-amber-300 font-extrabold text-sm">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>नगद भुक्तानी रुजु आवश्यकता (Cash Verification Mandatory)</span>
+                </div>
+                <p className="text-stone-300 text-[11px] leading-relaxed">
+                  यस ग्राहकले नगद (Cash) भुक्तानी विकल्प रोज्नुभएको छ। ग्राहकबाट तोकिएको रकम <strong>रु. {toDevanagariNumerals(paymentApprovalModalLead.planAmountNPR || 0)}</strong> भौतिक रूपमा प्राप्त भएपछि मात्र तलको बाकसमा टिक लगाउनुहोस्। टिक नलगाई खरिद स्वीकृत गर्न मिल्दैन।
+                </p>
+                <label className="flex items-center gap-3 pt-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isCashVerified}
+                    onChange={(e) => setIsCashVerified(e.target.checked)}
+                    className="w-5 h-5 rounded border-amber-600 bg-stone-900 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span className="font-extrabold text-amber-300 text-xs sm:text-sm">
+                    [✓] नगद भुक्तानी प्राप्त भयो र रुजु गरियो (Cash payment received and verified)
+                  </span>
+                </label>
+              </div>
+            )}
+
             {/* Rejection Reason Form (if clicked Reject) */}
             {showRejectBox && (
               <div className="bg-rose-950/30 border border-rose-900 rounded-2xl p-3 space-y-2 text-xs animate-in fade-in duration-100">
@@ -2835,21 +3251,21 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                   <button
                     type="button"
                     onClick={() => setShowRejectBox(false)}
-                    className="px-3 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-xs"
+                    className="px-3 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-xs cursor-pointer"
                   >
                     रद्द
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      const res = unifiedUserSyncService.rejectPurchase(paymentApprovalModalLead.id, rejectionReasonInput || 'अमान्य भुक्तानी प्रमाण');
+                      const res = unifiedUserSyncService.rejectPurchase(paymentApprovalModalLead.id, rejectionReasonInput || 'अमान्य भुक्तानी प्रमाण', approvalAdminName);
                       showToast(res.messageNepali);
                       setPaymentApprovalModalLead(null);
                       setShowRejectBox(false);
                       setRejectionReasonInput('');
                       fetchUsers(true);
                     }}
-                    className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs"
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs cursor-pointer"
                   >
                     अस्वीकृति पुष्टि गर्नुहोस्
                   </button>
@@ -2870,7 +3286,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 बन्द गर्नुहोस्
               </button>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                 {paymentApprovalModalLead.status !== 'PURCHASE_REJECTED' && !showRejectBox && (
                   <button
                     type="button"
@@ -2881,36 +3297,203 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                   </button>
                 )}
 
-                {paymentApprovalModalLead.status !== 'PURCHASE_APPROVED' ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const res = unifiedUserSyncService.approvePurchase(paymentApprovalModalLead.id, approvalAdminName);
-                      showToast(res.messageNepali);
-                      setPaymentApprovalModalLead(null);
-                      fetchUsers(true);
-                    }}
-                    className="flex-1 sm:flex-initial px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black rounded-xl text-xs shadow-lg shadow-emerald-950/60 cursor-pointer transition-all flex items-center justify-center gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>स्वीकृत गरी सेवा खुल्ला गर्नुहोस् (Approve & Unlock)</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const res = unifiedUserSyncService.approvePurchase(paymentApprovalModalLead.id, approvalAdminName);
-                      showToast(res.messageNepali);
-                      setPaymentApprovalModalLead(null);
-                      fetchUsers(true);
-                    }}
-                    className="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-700/60 hover:bg-emerald-600 text-white font-bold rounded-xl text-xs cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>लाइसेन्स पुनः नवीकरण / सक्रिय गर्नुहोस्</span>
-                  </button>
-                )}
+                {(() => {
+                  const isCash = paymentApprovalModalLead.paymentMethod === 'cash';
+                  const canApprove = !isCash || isCashVerified || paymentApprovalModalLead.cashVerified;
+
+                  return (
+                    <button
+                      type="button"
+                      disabled={!canApprove}
+                      onClick={() => {
+                        const res = unifiedUserSyncService.approvePurchase(paymentApprovalModalLead.id, approvalAdminName, {
+                          cashVerified: isCashVerified,
+                          verifiedAmount: verifiedAmountInput,
+                          adminNotes: approvalAdminNotes
+                        });
+                        showToast(res.messageNepali);
+                        setPaymentApprovalModalLead(null);
+                        fetchUsers(true);
+                      }}
+                      className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black shadow-lg flex items-center justify-center gap-2 transition-all ${
+                        canApprove
+                          ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-emerald-950/60 cursor-pointer active:scale-95'
+                          : 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed opacity-60'
+                      }`}
+                      title={!canApprove ? 'नगद भुक्तानी रुजु बाकसमा टिक लगाउनुहोस्' : 'स्वीकृत गरी सेवा खुल्ला गर्नुहोस्'}
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>
+                        {paymentApprovalModalLead.status === 'PURCHASE_APPROVED'
+                          ? 'लाइसेन्स पुनः नवीकरण / सक्रिय गर्नुहोस्'
+                          : 'स्वीकृत गरी सेवा खुल्ला गर्नुहोस् (Approve & Unlock)'}
+                      </span>
+                    </button>
+                  );
+                })()}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ── PERMANENT USER DELETION CONFIRMATION MODAL ── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-stone-900 border-2 border-rose-500/80 rounded-3xl p-6 space-y-5 shadow-2xl shadow-rose-950/50">
+            {/* Header */}
+            <div className="flex items-center gap-3.5 border-b border-rose-500/30 pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-black text-rose-200">
+                  स्थायी रूपमा हटाउने पुष्टि (Permanent Delete)
+                </h3>
+                <p className="text-xs text-rose-400 font-medium">
+                  यो कार्य फिर्ता (Undo) गर्न सकिँदैन!
+                </p>
+              </div>
+            </div>
+
+            {/* User Target Card */}
+            <div className="bg-stone-950 border border-rose-900/60 p-4 rounded-2xl space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-stone-800/80">
+                <span className="text-stone-400">नाम:</span>
+                <span className="font-extrabold text-stone-100 text-sm">{userToDelete.fullName || 'विवरण उपलब्ध छैन'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-800/80">
+                <span className="text-stone-400">मोबाइल / फोन:</span>
+                <span className="font-mono font-bold text-amber-400 text-sm">{userToDelete.phone}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-800/80">
+                <span className="text-stone-400">ग्राहक / User ID:</span>
+                <span className="font-mono text-stone-300">{userToDelete.customerId || userToDelete.id}</span>
+              </div>
+              {userToDelete.email && (
+                <div className="flex justify-between items-center py-1 border-b border-stone-800/80">
+                  <span className="text-stone-400">इमेल:</span>
+                  <span className="font-mono text-stone-300">{userToDelete.email}</span>
+                </div>
+              )}
+              {userToDelete.address && (
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-stone-400">ठेगाना:</span>
+                  <span className="text-stone-300">{userToDelete.address}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Warning Message */}
+            <div className="p-3.5 bg-rose-950/50 border border-rose-800/80 rounded-2xl text-xs text-rose-200 space-y-1.5 leading-relaxed">
+              <div className="font-bold flex items-center gap-1.5 text-rose-300">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>सावधानी: सम्पूर्ण डेटा स्थायी रूपमा मेटिनेछ</span>
+              </div>
+              <p className="text-[11px] text-stone-300">
+                यस प्रयोगकर्ताको खाता, लगइन अधिकार, मेनु पहुँच स्विचबोर्ड नीति, सेवा सदस्यता तथा लाइसेन्स (ज्योतिष/वास्तु) र भुक्तानी अभिलेखहरू सबै प्रणालीबाट तत्काल हटाइनेछन्।
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-800">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+              >
+                रद्द गर्नुहोस् (Cancel)
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteUser}
+                className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black rounded-xl text-xs shadow-lg shadow-rose-950/80 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeleting ? 'हटाउँदैछ...' : 'स्थायी रूपमा हटाउनुहोस् (Delete)'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ── PERMANENT PURCHASE LEAD DELETION CONFIRMATION MODAL ── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {leadToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-stone-900 border-2 border-rose-500/80 rounded-3xl p-6 space-y-5 shadow-2xl shadow-rose-950/50">
+            {/* Header */}
+            <div className="flex items-center gap-3.5 border-b border-rose-500/30 pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-black text-rose-200">
+                  खरिद आवेदन स्थायी रूपमा हटाउने पुष्टि
+                </h3>
+                <p className="text-xs text-rose-400 font-medium">
+                  यो कार्य फिर्ता (Undo) गर्न सकिँदैन!
+                </p>
+              </div>
+            </div>
+
+            {/* Lead Target Card */}
+            <div className="bg-stone-950 border border-rose-900/60 p-4 rounded-2xl space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-stone-800/80">
+                <span className="text-stone-400">खरिदकर्ताको नाम:</span>
+                <span className="font-extrabold text-stone-100 text-sm">{leadToDelete.fullName}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-800/80">
+                <span className="text-stone-400">मोबाइल / फोन:</span>
+                <span className="font-mono font-bold text-amber-400 text-sm">{leadToDelete.mobile}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-800/80">
+                <span className="text-stone-400">प्लान:</span>
+                <span className="text-stone-200 font-bold">{leadToDelete.planNameNepali} (रु. {leadToDelete.planAmountNPR})</span>
+              </div>
+              {leadToDelete.transactionId && (
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-stone-400">कारोबार कोड (Txn):</span>
+                  <span className="font-mono text-stone-300">{leadToDelete.transactionId}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Warning Message */}
+            <div className="p-3.5 bg-rose-950/50 border border-rose-800/80 rounded-2xl text-xs text-rose-200 space-y-1.5 leading-relaxed">
+              <div className="font-bold flex items-center gap-1.5 text-rose-300">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>सावधानी: खरिद आवेदन तथा लाइसेन्स स्थायी रूपमा मेटिनेछ</span>
+              </div>
+              <p className="text-[11px] text-stone-300">
+                यस खरिद रेकर्ड, भुक्तानी प्रमाण र सम्बन्धित सेवा सदस्यता डेटाबेसबाट सधैंका लागि मेटिनेछ।
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-800">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setLeadToDelete(null)}
+                className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+              >
+                रद्द गर्नुहोस् (Cancel)
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteLead}
+                className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black rounded-xl text-xs shadow-lg shadow-rose-950/80 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeleting ? 'हटाउँदैछ...' : 'स्थायी रूपमा हटाउनुहोस् (Delete)'}</span>
+              </button>
             </div>
           </div>
         </div>

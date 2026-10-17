@@ -634,7 +634,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                       <img 
                         src={getAssetUrl(todayTithiArticle.coverImageUrl)} 
                         alt={todayTithiArticle.title}
-                        onError={(e) => { handleImageFallback(e, [deityInfo.portraitUrl || '/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
+                        onError={(e) => { handleImageFallback(e, [deityInfo.imageUrl || deityInfo.portraitUrl || '/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent flex flex-col justify-end p-3">
@@ -703,7 +703,7 @@ export const SamacharView: React.FC<SamacharViewProps> = memo(({
                               <img 
                                 src={getAssetUrl(art.coverImageUrl)} 
                                 alt={art.title} 
-                                onError={(e) => { handleImageFallback(e, [festArt?.illustrationUrl || '/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
+                                onError={(e) => { handleImageFallback(e, [festArt?.imageUrl || festArt?.illustrationUrl || '/assets/festivals/dashain_ghatasthapana.jpg', '/logo.png']); }}
                                 className="w-full h-full object-cover" 
                               />
                               <div className="absolute bottom-1 left-1 right-1 bg-black/80 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-1 py-0.5 rounded-md text-center border border-amber-500/40">

@@ -28,7 +28,8 @@ import {
   RefreshCw,
   Laptop,
   CreditCard,
-  Crown
+  Crown,
+  Trash2
 } from 'lucide-react';
 import {
   CATEGORIZED_FEATURES,
@@ -44,8 +45,10 @@ import {
   getDefaultPermissionsMap,
   sanitizeBSDateString,
   syncPoliciesFromServer,
-  savePolicyToServer
+  savePolicyToServer,
+  deleteClientPolicyPermanently
 } from '../../db/menuControlStore';
+import { unifiedUserSyncService } from '../../services/unifiedUserSyncService';
 import { AdminServiceLicenseSection } from './sections/AdminServiceLicenseSection';
 
 interface MenuControlPanelProps {
@@ -561,6 +564,26 @@ export const MenuControlPanel: React.FC<MenuControlPanelProps> = ({
                       <span>डिभाइस रिसेट</span>
                     </button>
                   )}
+
+                  {/* Permanent Delete Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`के तपाईं निश्चित रूपमा ${selectedPolicy.fullName} (${selectedPolicy.mobile}) को खाता, लाइसेन्स र स्विचबोर्ड नीति स्थायी रूपमा हटाउन चाहनुहुन्छ?`)) {
+                        unifiedUserSyncService.deleteUserPermanently(selectedPolicy.id, selectedPolicy.mobile);
+                        deleteClientPolicyPermanently(selectedPolicy.mobile);
+                        setSelectedMobile(null);
+                        refreshPolicies();
+                        setSaveSuccessMsg(`प्रयोगकर्ता ${selectedPolicy.fullName} स्थायी रूपमा हटाइयो।`);
+                        setTimeout(() => setSaveSuccessMsg(null), 3500);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    title="खाता तथा स्विचबोर्ड नीति स्थायी रूपमा हटाउनुहोस्"
+                  >
+                    <Trash2 className="w-3 h-3 text-rose-400" />
+                    <span>हटाउनुहोस्</span>
+                  </button>
                 </div>
               </div>
 

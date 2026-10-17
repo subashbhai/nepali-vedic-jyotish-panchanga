@@ -34,6 +34,19 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Immediately activate when skipWaiting is requested
+self.addEventListener('message', (event) => {
+  if (
+    event.data &&
+    (event.data.type === 'SKIP_WAITING' ||
+      event.data.action === 'skipWaiting' ||
+      event.data === 'SKIP_WAITING' ||
+      event.data === 'skipWaiting')
+  ) {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 

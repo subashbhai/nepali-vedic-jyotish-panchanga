@@ -1,5 +1,24 @@
 [
   {
+    "id": "LEAD-1792144657900",
+    "fullName": "binod",
+    "address": "चरीकोट, दोलखा",
+    "mobile": "9852624135",
+    "email": "anteemakash@gmail.com",
+    "whatsapp": "9852624135",
+    "deviceFingerprint": "user-registered",
+    "status": "TRIAL_ACTIVE",
+    "planId": "standard",
+    "planNameNepali": "दर्ता भएको ग्राहक (Registered User)",
+    "planAmountNPR": 0,
+    "paymentMethod": "none",
+    "submittedAtISO": "2026-10-16T09:57:37.897Z",
+    "submittedAtBS": "२०८३ असोज ३०",
+    "clientNotes": "अनलाइन फारमबाट नयाँ खाता दर्ता गरिएको",
+    "trialStartedAtISO": "2026-10-16T09:57:51.769Z",
+    "trialExpiresAtISO": "2026-10-17T09:57:51.769Z"
+  },
+  {
     "id": "LEAD-1791978563720",
     "fullName": "dipnarayan",
     "address": "डंअक",

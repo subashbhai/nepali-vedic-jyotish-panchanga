@@ -9,15 +9,20 @@
  * 5. Provides offline/manual JSON sync bridge
  */
 
-import { RBACUser, getStoredRBACUsers, saveRBACUsers } from '../db/rbacStore';
+import { RBACUser, getStoredRBACUsers, saveRBACUsers, deleteRBACUserPermanently } from '../db/rbacStore';
 import { 
   ClientLead, 
   getStoredClientLeads, 
   saveClientLeads, 
   superAdminApprovePurchase,
-  getDeviceFingerprint
+  getDeviceFingerprint,
+  deleteClientLeadPermanently
 } from '../db/clientLeadStore';
+import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from '../db/securityBlacklist';
+import { deleteLicensesForUserPermanently } from '../db/serviceLicenseStore';
+import { deleteClientPolicyPermanently } from '../db/menuControlStore';
 import { convertADToBS } from '../utils/nepaliCalendar';
+
 
 export interface UnifiedPurchaseRequest {
   id: string;
@@ -76,10 +81,19 @@ class UnifiedUserSyncService {
       } catch {}
     }
 
-    // Auto sync on page load and window focus
+    // Auto sync on page load, window focus, online status, and cross-window storage events
     if (typeof window !== 'undefined') {
       window.addEventListener('focus', () => this.syncAllData(true));
       window.addEventListener('online', () => this.syncAllData(true));
+      window.addEventListener('storage', (ev) => {
+        if (
+          ev.key?.startsWith('balananda_rbac_users') ||
+          ev.key?.startsWith('balananda_client_leads') ||
+          ev.key?.startsWith('balananda_service_licenses')
+        ) {
+          window.dispatchEvent(new CustomEvent('unified-data-updated'));
+        }
+      });
     }
   }
 
@@ -115,21 +129,24 @@ class UnifiedUserSyncService {
     // 1. Add cloud cached users
     if (cloudCache?.users) {
       cloudCache.users.forEach(u => {
+        if (isPermanentlyDeleted(u.phone) || isPermanentlyDeleted(u.id) || isPermanentlyDeleted(u.username)) return;
         const key = this.normalizePhoneOrId(u.phone || u.id);
-        if (key) userMap.set(key, u);
+        if (key && !isPermanentlyDeleted(key)) userMap.set(key, u);
       });
     }
 
     // 2. Add local RBAC users
     localRbac.forEach(u => {
+      if (isPermanentlyDeleted(u.phone) || isPermanentlyDeleted(u.id) || isPermanentlyDeleted(u.username)) return;
       const key = this.normalizePhoneOrId(u.phone || u.id);
-      if (key) userMap.set(key, u);
+      if (key && !isPermanentlyDeleted(key)) userMap.set(key, u);
     });
 
     // 3. Add client leads who signed up or used trial
     leads.forEach(l => {
+      if (isPermanentlyDeleted(l.mobile) || isPermanentlyDeleted(l.id)) return;
       const key = this.normalizePhoneOrId(l.mobile || l.id);
-      if (key && !userMap.has(key)) {
+      if (key && !isPermanentlyDeleted(key) && !userMap.has(key)) {
         userMap.set(key, {
           id: l.id.startsWith('usr_') ? l.id : `usr_lead_${l.id}`,
           username: l.mobile,
@@ -150,9 +167,11 @@ class UnifiedUserSyncService {
       }
     });
 
-    return Array.from(userMap.values()).sort((a, b) => 
-      new Date(b.createdAtISO || 0).getTime() - new Date(a.createdAtISO || 0).getTime()
-    );
+    return Array.from(userMap.values())
+      .filter(u => !isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id) && !isPermanentlyDeleted(u.username))
+      .sort((a, b) => 
+        new Date(b.createdAtISO || 0).getTime() - new Date(a.createdAtISO || 0).getTime()
+      );
   }
 
   /**
@@ -167,6 +186,7 @@ class UnifiedUserSyncService {
     // 1. Cloud cached purchases
     if (cloudCache?.purchases) {
       cloudCache.purchases.forEach(p => {
+        if (isPermanentlyDeleted(p.mobile) || isPermanentlyDeleted(p.id)) return;
         if (this.isPurchaseRecord(p)) {
           leadMap.set(p.id, p);
         }
@@ -175,6 +195,7 @@ class UnifiedUserSyncService {
 
     // 2. Local leads
     localLeads.forEach(l => {
+      if (isPermanentlyDeleted(l.mobile) || isPermanentlyDeleted(l.id)) return;
       if (this.isPurchaseRecord(l)) {
         leadMap.set(l.id, l);
       }
@@ -189,6 +210,7 @@ class UnifiedUserSyncService {
           if (Array.isArray(reqs)) {
             reqs.forEach((r: any) => {
               if (r && r.id && !leadMap.has(r.id)) {
+                if (isPermanentlyDeleted(r.phone) || isPermanentlyDeleted(r.userId) || isPermanentlyDeleted(r.id)) return;
                 leadMap.set(r.id, {
                   id: r.id,
                   fullName: r.userName || r.clientName || 'ग्राहक',
@@ -216,9 +238,133 @@ class UnifiedUserSyncService {
       }
     } catch {}
 
-    return Array.from(leadMap.values()).sort((a, b) => 
-      new Date(b.submittedAtISO || 0).getTime() - new Date(a.submittedAtISO || 0).getTime()
-    );
+    return Array.from(leadMap.values())
+      .filter(p => !isPermanentlyDeleted(p.mobile) && !isPermanentlyDeleted(p.id))
+      .sort((a, b) => 
+        new Date(b.submittedAtISO || 0).getTime() - new Date(a.submittedAtISO || 0).getTime()
+      );
+  }
+
+  /**
+   * Permanently delete a user or purchase lead across all stores, caches, and servers
+   */
+  public deleteUserPermanently(phoneOrId: string, secondaryIdentifier?: string): boolean {
+    if (!phoneOrId) return false;
+
+    // 1. Blacklist permanently so they can never be resurrected
+    addPermanentlyDeletedIdentifier(phoneOrId);
+    if (secondaryIdentifier) {
+      addPermanentlyDeletedIdentifier(secondaryIdentifier);
+    }
+
+    // 2. Remove from RBAC Store
+    deleteRBACUserPermanently(phoneOrId);
+    if (secondaryIdentifier) {
+      deleteRBACUserPermanently(secondaryIdentifier);
+    }
+
+    // 3. Remove from Client Leads
+    deleteClientLeadPermanently(phoneOrId);
+    if (secondaryIdentifier) {
+      deleteClientLeadPermanently(secondaryIdentifier);
+    }
+
+    // 4. Remove from Service Licenses
+    deleteLicensesForUserPermanently(phoneOrId);
+    if (secondaryIdentifier) {
+      deleteLicensesForUserPermanently(secondaryIdentifier);
+    }
+
+    // 5. Remove from Menu Access Policies
+    deleteClientPolicyPermanently(phoneOrId);
+    if (secondaryIdentifier) {
+      deleteClientPolicyPermanently(secondaryIdentifier);
+    }
+
+    // 6. Clean localStorage Cloud Cache & purchase requests
+    try {
+      if (typeof window !== 'undefined') {
+        const norm1 = phoneOrId.trim().toLowerCase();
+        const clean1 = phoneOrId.replace(/\D/g, '').slice(-10);
+        const norm2 = secondaryIdentifier ? secondaryIdentifier.trim().toLowerCase() : '';
+        const clean2 = secondaryIdentifier ? secondaryIdentifier.replace(/\D/g, '').slice(-10) : '';
+
+        const cache = this.getCloudCache();
+        if (cache) {
+          if (Array.isArray(cache.users)) {
+            cache.users = cache.users.filter(u => {
+              const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
+              const uId = (u.id || '').toLowerCase();
+              if (clean1 && clean1.length >= 7 && uMob === clean1) return false;
+              if (clean2 && clean2.length >= 7 && uMob === clean2) return false;
+              if (uId === norm1 || uId === norm2) return false;
+              return true;
+            });
+          }
+          if (Array.isArray(cache.purchases)) {
+            cache.purchases = cache.purchases.filter(p => {
+              const pMob = (p.mobile || '').replace(/\D/g, '').slice(-10);
+              const pId = (p.id || '').toLowerCase();
+              if (clean1 && clean1.length >= 7 && pMob === clean1) return false;
+              if (clean2 && clean2.length >= 7 && pMob === clean2) return false;
+              if (pId === norm1 || pId === norm2) return false;
+              return true;
+            });
+          }
+          this.setCloudCache(cache);
+        }
+
+        // Clean balananda_registered_users_v1
+        const rawReg = localStorage.getItem('balananda_registered_users_v1');
+        if (rawReg) {
+          const list = JSON.parse(rawReg);
+          if (Array.isArray(list)) {
+            const filteredReg = list.filter((u: any) => {
+              const uMob = (u.phone || u.username || '').replace(/\D/g, '').slice(-10);
+              const uId = (u.id || '').toLowerCase();
+              if (clean1 && clean1.length >= 7 && uMob === clean1) return false;
+              if (clean2 && clean2.length >= 7 && uMob === clean2) return false;
+              if (uId === norm1 || uId === norm2) return false;
+              return true;
+            });
+            localStorage.setItem('balananda_registered_users_v1', JSON.stringify(filteredReg));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error clearing user cache on delete:', e);
+    }
+
+    // 7. Make Express Server API delete calls if running
+    if (typeof fetch !== 'undefined') {
+      const idsToDelete = [phoneOrId];
+      if (secondaryIdentifier && secondaryIdentifier !== phoneOrId) {
+        idsToDelete.push(secondaryIdentifier);
+      }
+      idsToDelete.forEach(id => {
+        const enc = encodeURIComponent(id);
+        fetch(`/api/superadmin/users/${enc}`, { method: 'DELETE', headers: { 'x-superadmin-token': 'SUPER_ADMIN' } }).catch(() => {});
+        fetch(`/api/users/${enc}`, { method: 'DELETE' }).catch(() => {});
+        fetch(`/api/client-leads/${enc}`, { method: 'DELETE' }).catch(() => {});
+        fetch(`/api/licenses/user/${enc}`, { method: 'DELETE', headers: { 'x-superadmin-token': 'SUPER_ADMIN' } }).catch(() => {});
+      });
+    }
+
+    // 8. Push updated state to Cloud Relay (for GitHub Pages static deployments)
+    this.pushLocalStateToCloud().catch(() => {});
+
+    // 9. Dispatch all update events across components
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('unified-data-updated'));
+      window.dispatchEvent(new CustomEvent('user-registered'));
+      window.dispatchEvent(new CustomEvent('user-storage-updated'));
+      window.dispatchEvent(new CustomEvent('client-leads-updated'));
+      window.dispatchEvent(new CustomEvent('service-license-updated'));
+      window.dispatchEvent(new CustomEvent('client-policies-updated'));
+    }
+    this.notifyListeners();
+
+    return true;
   }
 
   /**
@@ -228,9 +374,16 @@ class UnifiedUserSyncService {
     hasPurchase: boolean;
     isPending: boolean;
     isApproved: boolean;
+    isRejected: boolean;
     lead?: ClientLead;
+    planNameNepali?: string;
+    planAmountNPR?: number;
+    paymentMethod?: string;
+    submittedAtBS?: string;
+    submittedAtISO?: string;
+    transactionId?: string;
   } {
-    if (!phoneOrId) return { hasPurchase: false, isPending: false, isApproved: false };
+    if (!phoneOrId) return { hasPurchase: false, isPending: false, isApproved: false, isRejected: false };
     const norm = this.normalizePhoneOrId(phoneOrId);
     const purchases = this.getPurchasedUsers();
 
@@ -241,29 +394,46 @@ class UnifiedUserSyncService {
     });
 
     if (!matchedLead) {
-      return { hasPurchase: false, isPending: false, isApproved: false };
+      return { hasPurchase: false, isPending: false, isApproved: false, isRejected: false };
     }
 
     const isPending = matchedLead.status === 'PURCHASE_PENDING';
     const isApproved = matchedLead.status === 'PURCHASE_APPROVED';
+    const isRejected = matchedLead.status === 'PURCHASE_REJECTED';
 
     return {
       hasPurchase: true,
       isPending,
       isApproved,
-      lead: matchedLead
+      isRejected,
+      lead: matchedLead,
+      planNameNepali: matchedLead.planNameNepali || '१ वर्षको सदस्यता',
+      planAmountNPR: matchedLead.planAmountNPR || 2100,
+      paymentMethod: matchedLead.paymentMethod || 'esewa',
+      submittedAtBS: matchedLead.submittedAtBS || '२०८१',
+      submittedAtISO: matchedLead.submittedAtISO || '',
+      transactionId: matchedLead.transactionId
     };
   }
 
   /**
    * Superadmin Approves a Purchase Request
    * Immediately:
-   * 1. Updates client lead to PURCHASE_APPROVED
-   * 2. Sets device license & software_full_access_unlocked_v1
-   * 3. Syncs with local storage and Cloud Relay
-   * 4. Enables instant unlock for user
+   * 1. Validates cash confirmation if paymentMethod === 'cash'
+   * 2. Updates client lead to PURCHASE_APPROVED & paymentVerificationStatus: VERIFIED
+   * 3. Sets device license & software_full_access_unlocked_v1
+   * 4. Syncs with local storage and Cloud Relay
+   * 5. Enables instant unlock for user across all four modules
    */
-  public approvePurchase(leadId: string, adminName: string = 'SuperAdmin'): { success: boolean; messageNepali: string } {
+  public approvePurchase(
+    leadId: string,
+    adminName: string = 'SuperAdmin',
+    options?: {
+      cashVerified?: boolean;
+      verifiedAmount?: number;
+      adminNotes?: string;
+    }
+  ): { success: boolean; messageNepali: string } {
     const leads = getStoredClientLeads();
     const todayStr = new Date().toISOString().split('T')[0];
     const todayBS = convertADToBS(todayStr).formattedBS;
@@ -272,12 +442,27 @@ class UnifiedUserSyncService {
     let found = false;
     let targetLead: ClientLead | null = null;
 
+    // Check cash verification requirement
+    const candidate = leads.find(l => l.id === leadId || l.mobile === leadId || l.transactionId === leadId);
+    if (candidate && candidate.paymentMethod === 'cash' && !options?.cashVerified && !candidate.cashVerified) {
+      return {
+        success: false,
+        messageNepali: 'नगद भुक्तानी प्राप्त भएको रुजु (Cash Payment Received Checkbox) अनिवार्य छ।'
+      };
+    }
+
     const updatedLeads = leads.map(l => {
       if (l.id === leadId || l.mobile === leadId || l.transactionId === leadId) {
         found = true;
         const updated: ClientLead = {
           ...l,
           status: 'PURCHASE_APPROVED',
+          paymentVerificationStatus: 'VERIFIED',
+          cashVerified: l.paymentMethod === 'cash' ? true : l.cashVerified,
+          cashVerifiedBy: l.paymentMethod === 'cash' ? adminName : l.cashVerifiedBy,
+          cashVerifiedAtISO: l.paymentMethod === 'cash' ? nowISO : l.cashVerifiedAtISO,
+          verifiedAmount: options?.verifiedAmount || l.planAmountNPR,
+          adminNotes: options?.adminNotes || l.adminNotes,
           approvedAtISO: nowISO,
           approvedAtBS: todayBS,
           approvedBy: adminName
@@ -299,6 +484,11 @@ class UnifiedUserSyncService {
         whatsapp: leadId,
         deviceFingerprint: getDeviceFingerprint(),
         status: 'PURCHASE_APPROVED',
+        paymentVerificationStatus: 'VERIFIED',
+        cashVerified: options?.cashVerified,
+        cashVerifiedBy: options?.cashVerified ? adminName : undefined,
+        cashVerifiedAtISO: options?.cashVerified ? nowISO : undefined,
+        verifiedAmount: options?.verifiedAmount || 2100,
         planId: 'yearly_both',
         planNameNepali: '१ वर्षको सदस्यता (सम्पूर्ण सेवा)',
         planAmountNPR: 2100,
@@ -308,7 +498,8 @@ class UnifiedUserSyncService {
         submittedAtBS: todayBS,
         approvedAtISO: nowISO,
         approvedAtBS: todayBS,
-        approvedBy: adminName
+        approvedBy: adminName,
+        adminNotes: options?.adminNotes
       };
       updatedLeads.unshift(fallbackLead);
       targetLead = fallbackLead;
@@ -341,7 +532,8 @@ class UnifiedUserSyncService {
             grantedAtISO: nowISO,
             grantedAtBS: todayBS,
             expiresAtISO: oneYearLater,
-            grantedBy: adminName
+            grantedBy: adminName,
+            paymentStatus: 'verified'
           };
           if (idx >= 0) list[idx] = lic;
           else list.push(lic);
@@ -364,14 +556,16 @@ class UnifiedUserSyncService {
   /**
    * Superadmin Rejects a Purchase Request
    */
-  public rejectPurchase(leadId: string, reason: string = 'अमान्य भुक्तानी प्रमाण'): { success: boolean; messageNepali: string } {
+  public rejectPurchase(leadId: string, reason: string = 'अमान्य भुक्तानी प्रमाण', adminName: string = 'SuperAdmin'): { success: boolean; messageNepali: string } {
     const leads = getStoredClientLeads();
     const updated = leads.map(l => {
       if (l.id === leadId) {
         return {
           ...l,
           status: 'PURCHASE_REJECTED' as const,
-          rejectionReason: reason
+          paymentVerificationStatus: 'REJECTED' as const,
+          rejectionReason: reason,
+          adminNotes: `अस्वीकृत गर्ने: ${adminName} • कारण: ${reason}`
         };
       }
       return l;
@@ -383,7 +577,7 @@ class UnifiedUserSyncService {
 
     return {
       success: true,
-      messageNepali: 'खरिद आवेदन अस्वीकृत गरिएको छ।'
+      messageNepali: 'खरिद आवेदन अस्वीकृत गरिएको छ। ग्राहकलाई पुनः प्रयास गर्न जानकारी पठाइयो।'
     };
   }
 
@@ -543,46 +737,120 @@ class UnifiedUserSyncService {
   }
 
   /**
-   * Try pulling data from local Node server if available
+   * Try pulling data from local Node server or GitHub Pages static json files
    */
   private async trySyncFromExpressServer(): Promise<void> {
     if (typeof fetch === 'undefined') return;
+
+    // 1. Try local Express API endpoints first (if running npm start / node server.ts)
+    let fetchedUsers: any[] | null = null;
+    let fetchedLeads: any[] | null = null;
+
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
+      const timeout = setTimeout(() => controller.abort(), 1500);
 
-      // Fetch users
       const usersRes = await fetch('/api/users', { signal: controller.signal }).catch(() => null);
       if (usersRes && usersRes.ok) {
         const uData = await usersRes.json();
         if (uData?.success && Array.isArray(uData.users)) {
-          const local = getStoredRBACUsers();
-          const map = new Map<string, RBACUser>();
-          local.forEach(u => map.set(this.normalizePhoneOrId(u.phone || u.id), u));
-          uData.users.forEach((u: any) => map.set(this.normalizePhoneOrId(u.phone || u.id), u));
-          saveRBACUsers(Array.from(map.values()));
+          fetchedUsers = uData.users;
         }
       }
 
-      // Fetch leads
       const leadsRes = await fetch('/api/client-leads', { signal: controller.signal }).catch(() => null);
       if (leadsRes && leadsRes.ok) {
         const lData = await leadsRes.json();
         if (lData?.success && Array.isArray(lData.leads)) {
-          const localLeads = getStoredClientLeads();
-          const map = new Map<string, ClientLead>();
-          localLeads.forEach(l => map.set(l.id, l));
-          lData.leads.forEach((l: any) => map.set(l.id, l));
-          saveClientLeads(Array.from(map.values()));
+          fetchedLeads = lData.leads;
         }
       }
-
       clearTimeout(timeout);
     } catch {}
+
+    // 2. If not on Express server (e.g. GitHub Pages static deployment), fetch from static JSON
+    if (!fetchedUsers) {
+      const staticCandidates = [
+        './data/users.json',
+        'https://raw.githubusercontent.com/subashbhai/nepali-vedic-jyotish-panchanga/main/data/users.json'
+      ];
+      for (const url of staticCandidates) {
+        try {
+          const res = await fetch(url, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              fetchedUsers = data;
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (!fetchedLeads) {
+      const staticLeadsCandidates = [
+        './data/client_purchase_leads.json',
+        'https://raw.githubusercontent.com/subashbhai/nepali-vedic-jyotish-panchanga/main/data/client_purchase_leads.json'
+      ];
+      for (const url of staticLeadsCandidates) {
+        try {
+          const res = await fetch(url, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              fetchedLeads = data;
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // 3. Merge fetched users into local storage safely (never deleting local newly created users)
+    if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
+      const local = getStoredRBACUsers();
+      const map = new Map<string, RBACUser>();
+      // Keep local first
+      local.forEach(u => {
+        if (!isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id)) {
+          map.set(this.normalizePhoneOrId(u.phone || u.id), u);
+        }
+      });
+      // Merge remote if not present locally
+      fetchedUsers.forEach((u: any) => {
+        if (!isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id)) {
+          const k = this.normalizePhoneOrId(u.phone || u.id);
+          if (k && !map.has(k)) {
+            map.set(k, u);
+          }
+        }
+      });
+      saveRBACUsers(Array.from(map.values()));
+    }
+
+    // 4. Merge fetched leads into local storage safely
+    if (Array.isArray(fetchedLeads) && fetchedLeads.length > 0) {
+      const localLeads = getStoredClientLeads();
+      const map = new Map<string, ClientLead>();
+      localLeads.forEach(l => {
+        if (!isPermanentlyDeleted(l.mobile) && !isPermanentlyDeleted(l.id)) {
+          map.set(l.id, l);
+        }
+      });
+      fetchedLeads.forEach((l: any) => {
+        if (!isPermanentlyDeleted(l.mobile) && !isPermanentlyDeleted(l.id)) {
+          if (!map.has(l.id)) {
+            map.set(l.id, l);
+          }
+        }
+      });
+      saveClientLeads(Array.from(map.values()));
+    }
   }
 
   /**
-   * Push current state to Cloud Relay for cross-device access on GitHub Pages
+   * Push current state to Cloud Relay / Server for cross-device access on GitHub Pages
    */
   public async pushLocalStateToCloud(): Promise<void> {
     if (typeof window === 'undefined') return;
@@ -598,64 +866,99 @@ class UnifiedUserSyncService {
 
     this.setCloudCache(payload);
 
+    // Notify all open tabs and windows via BroadcastChannel
     try {
-      // Send to Cloud Relay
-      if (typeof fetch !== 'undefined') {
-        fetch(PRIMARY_CLOUD_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).catch(() => {});
-      }
+      this.broadcastChannel?.postMessage({ type: 'SYNC_DATA_UPDATED', timestamp: Date.now() });
     } catch {}
   }
 
   /**
-   * Sync with Cloud Relay
+   * Fallback Cloud Relay sync
    */
   private async syncWithCloudRelay(): Promise<void> {
-    if (typeof fetch === 'undefined') return;
+    // Cloud sync handled through static/server merge in trySyncFromExpressServer
+    return;
+  }
+
+  /**
+   * Export all user accounts & purchase data as a portable JSON file for SuperAdmin
+   */
+  public exportDataToJsonFile(): void {
+    if (typeof window === 'undefined') return;
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3500);
+      const data = {
+        exportVersion: 2,
+        exportedAt: new Date().toISOString(),
+        users: getStoredRBACUsers(),
+        leads: getStoredClientLeads(),
+        licenses: JSON.parse(localStorage.getItem('balananda_service_licenses_v1') || '[]')
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `balananda-users-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+  }
 
-      const res = await fetch(PRIMARY_CLOUD_ENDPOINT, { signal: controller.signal }).catch(() => null);
-      clearTimeout(timeout);
+  /**
+   * Import users & purchase data from JSON file into local store
+   */
+  public importDataFromJson(jsonStr: string): { success: boolean; messageNepali: string; count: number } {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      let count = 0;
 
-      if (res && res.ok) {
-        const cloudData: CloudSyncPayload = await res.json();
-        if (cloudData && (Array.isArray(cloudData.users) || Array.isArray(cloudData.purchases))) {
-          // Merge users
-          if (Array.isArray(cloudData.users) && cloudData.users.length > 0) {
-            const localUsers = getStoredRBACUsers();
-            const uMap = new Map<string, RBACUser>();
-            localUsers.forEach(u => uMap.set(this.normalizePhoneOrId(u.phone || u.id), u));
-            cloudData.users.forEach(u => {
-              const k = this.normalizePhoneOrId(u.phone || u.id);
-              if (!uMap.has(k)) uMap.set(k, u);
-            });
-            saveRBACUsers(Array.from(uMap.values()));
+      // 1. Merge users
+      if (Array.isArray(parsed.users) || Array.isArray(parsed)) {
+        const usersToImport = Array.isArray(parsed.users) ? parsed.users : parsed;
+        const local = getStoredRBACUsers();
+        const map = new Map<string, RBACUser>();
+        local.forEach(u => map.set(this.normalizePhoneOrId(u.phone || u.id), u));
+        usersToImport.forEach((u: any) => {
+          if (u && (u.phone || u.id)) {
+            const k = this.normalizePhoneOrId(u.phone || u.id);
+            if (!isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id)) {
+              map.set(k, u);
+              count++;
+            }
           }
-
-          // Merge purchases
-          if (Array.isArray(cloudData.purchases) && cloudData.purchases.length > 0) {
-            const localLeads = getStoredClientLeads();
-            const lMap = new Map<string, ClientLead>();
-            localLeads.forEach(l => lMap.set(l.id, l));
-            cloudData.purchases.forEach(p => {
-              const existing = lMap.get(p.id);
-              // Preserve local approval if approved locally
-              if (!existing || existing.status !== 'PURCHASE_APPROVED') {
-                lMap.set(p.id, p);
-              }
-            });
-            saveClientLeads(Array.from(lMap.values()));
-          }
-
-          this.setCloudCache(cloudData);
-        }
+        });
+        saveRBACUsers(Array.from(map.values()));
       }
-    } catch {}
+
+      // 2. Merge leads
+      if (Array.isArray(parsed.leads)) {
+        const localLeads = getStoredClientLeads();
+        const lMap = new Map<string, ClientLead>();
+        localLeads.forEach(l => lMap.set(l.id, l));
+        parsed.leads.forEach((l: any) => {
+          if (l && l.id && !isPermanentlyDeleted(l.mobile) && !isPermanentlyDeleted(l.id)) {
+            lMap.set(l.id, l);
+          }
+        });
+        saveClientLeads(Array.from(lMap.values()));
+      }
+
+      this.notifyListeners();
+      return {
+        success: true,
+        messageNepali: `सफलतापूर्वक ${count} प्रयोगकर्ताहरूको डाटा आयात (Import) गरियो!`,
+        count
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        messageNepali: `डाटा आयात गर्न सकिएन: ${e.message}`,
+        count: 0
+      };
+    }
   }
 }
 

@@ -889,13 +889,13 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed text-justify">
-            {monthlyResult.item.generalOverview}
+            {monthlyResult.item.overallSummary || (monthlyResult.item as any).generalOverview}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
             <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200 dark:border-stone-700">
               <span className="text-[10px] text-stone-500 font-bold block">व्यापार तथा नोकरी</span>
-              <p className="text-xs text-stone-800 dark:text-stone-200 mt-1">{monthlyResult.item.careerFinance}</p>
+              <p className="text-xs text-stone-800 dark:text-stone-200 mt-1">{monthlyResult.item.career || monthlyResult.item.finance || (monthlyResult.item as any).careerFinance}</p>
             </div>
             <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200 dark:border-stone-700">
               <span className="text-[10px] text-stone-500 font-bold block">स्वास्थ्य तथा दिनचर्या</span>
@@ -903,7 +903,7 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
             </div>
             <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200 dark:border-stone-700">
               <span className="text-[10px] text-stone-500 font-bold block">मासिक वैदिक उपाय</span>
-              <p className="text-xs text-amber-900 dark:text-amber-300 font-medium mt-1">{monthlyResult.item.monthlyRemedy}</p>
+              <p className="text-xs text-amber-900 dark:text-amber-300 font-medium mt-1">{monthlyResult.item.spiritualSadhana || (monthlyResult.item as any).monthlyRemedy}</p>
             </div>
           </div>
         </div>
@@ -920,17 +920,17 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed text-justify">
-            {yearlyResult.item.yearlyTheme}
+            {yearlyResult.item.yearlyOverview || (yearlyResult.item as any).yearlyTheme}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div className="p-4 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700 space-y-1">
               <span className="text-xs font-bold text-amber-900 dark:text-amber-300">वार्षिक करियर तथा आर्थिक अवसर</span>
-              <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed">{yearlyResult.item.careerFinance}</p>
+              <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed">{yearlyResult.item.career || yearlyResult.item.finance || (yearlyResult.item as any).careerFinance}</p>
             </div>
             <div className="p-4 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700 space-y-1">
               <span className="text-xs font-bold text-amber-900 dark:text-amber-300">वार्षिक वैदिक शान्ति तथा ग्रह उपाय</span>
-              <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed">{yearlyResult.item.yearlyRemedy}</p>
+              <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed">{yearlyResult.item.spiritualRemedies || (yearlyResult.item as any).spiritualGuidance || (yearlyResult.item as any).yearlyRemedy}</p>
             </div>
           </div>
         </div>

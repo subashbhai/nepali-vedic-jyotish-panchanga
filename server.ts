@@ -874,17 +874,71 @@ async function startServer() {
   });
 
   // Helper to synchronize approval across client_purchase_leads, service_licenses, and users
-  const applyLeadApproval = (target: any, approvedBy?: string, approvedAtBS?: string, targetService?: "jyotish" | "vastu" | "both") => {
+  const applyLeadApproval = (
+    target: any,
+    approvedBy?: string,
+    approvedAtBS?: string,
+    targetService?: "jyotish" | "vastu" | "both",
+    options?: {
+      cashVerified?: boolean;
+      verifiedAmount?: number;
+      adminNotes?: string;
+      planDuration?: string;
+    }
+  ) => {
     target.status = "PURCHASE_APPROVED";
+    target.paymentVerificationStatus = "VERIFIED";
     target.approvedBy = approvedBy || "SuperAdmin";
     target.approvedAtISO = new Date().toISOString();
     target.approvedAtBS = approvedAtBS || "२०८१";
 
+    if (target.paymentMethod === "cash") {
+      target.cashVerified = true;
+      target.cashVerifiedBy = approvedBy || "SuperAdmin";
+      target.cashVerifiedAtISO = new Date().toISOString();
+    }
+    if (options?.verifiedAmount) {
+      target.verifiedAmount = Number(options.verifiedAmount);
+    }
+    if (options?.adminNotes) {
+      target.adminNotes = String(options.adminNotes);
+    }
+
     const cleanPhone = String(target.mobile || target.whatsapp || "").replace(/\D/g, "").slice(-10);
-    const planDur = String(target.planId || "").startsWith("lifetime") ? "lifetime" : "1_year";
+    const planDur = options?.planDuration || (String(target.planId || "").startsWith("lifetime") ? "lifetime" : "1_year");
     const now = new Date();
-    const expiresAtTimestamp = planDur === "lifetime" ? undefined : now.getTime() + 365 * 24 * 60 * 60 * 1000;
-    const expiresAtBS = planDur === "lifetime" ? "आजीवन (Lifetime)" : "२०८२";
+
+    let expiresAtTimestamp: number | undefined = undefined;
+    let expiresAtBS = "२०८२";
+    if (planDur === "trial") {
+      expiresAtTimestamp = now.getTime() + 24 * 60 * 60 * 1000;
+      expiresAtBS = "२४ घण्टा परीक्षण";
+    } else if (planDur === "1_month") {
+      expiresAtTimestamp = now.getTime() + 30 * 24 * 60 * 60 * 1000;
+      expiresAtBS = "१ महिना";
+    } else if (planDur === "3_months") {
+      expiresAtTimestamp = now.getTime() + 90 * 24 * 60 * 60 * 1000;
+      expiresAtBS = "३ महिना";
+    } else if (planDur === "6_months") {
+      expiresAtTimestamp = now.getTime() + 180 * 24 * 60 * 60 * 1000;
+      expiresAtBS = "६ महिना";
+    } else if (planDur === "2_years") {
+      expiresAtTimestamp = now.getTime() + 730 * 24 * 60 * 60 * 1000;
+      expiresAtBS = "२०८३";
+    } else if (planDur === "5_years") {
+      expiresAtTimestamp = now.getTime() + 1825 * 24 * 60 * 60 * 1000;
+      expiresAtBS = "२०८६";
+    } else if (planDur === "lifetime") {
+      expiresAtTimestamp = undefined;
+      expiresAtBS = "आजीवन (Lifetime)";
+    } else {
+      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
+      expiresAtBS = "२०८२";
+    }
+
+    target.expiresAtTimestamp = expiresAtTimestamp;
+    target.expiresAtISO = expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : undefined;
+    target.expiresAtBS = expiresAtBS;
 
     const planId = String(target.planId || "").toLowerCase();
     const servicesToUnlock: Array<"jyotish" | "vastu"> =
@@ -910,6 +964,12 @@ async function startServer() {
         phone: target.mobile,
         email: target.email || "",
         serviceKey: sKey,
+        softwareName: "नेपाली वैदिक ज्योतिष तथा वास्तु सफ्टवेयर",
+        planNameNepali: target.planNameNepali || "१ वर्षको सदस्यता",
+        amountNPR: target.verifiedAmount || target.planAmountNPR || 2100,
+        paymentStatus: "VERIFIED",
+        paymentMethod: target.paymentMethod || "esewa",
+        transactionId: target.transactionId || "",
         status: "unlocked",
         duration: planDur,
         startsAtISO: now.toISOString(),
@@ -919,12 +979,12 @@ async function startServer() {
         expiresAtBS,
         unlockedBy: approvedBy || "SuperAdmin",
         unlockedAtISO: now.toISOString(),
-        notes: `खरिद आवेदन ${target.id} मार्फत स्वीकृत भई स्वतः अनलक`,
+        notes: options?.adminNotes || `खरिद आवेदन ${target.id} मार्फत स्वीकृत भई स्वतः अनलक`,
         updatedAtISO: now.toISOString()
       };
 
       if (existingLicIdx > -1) {
-        licenses[existingLicIdx] = newLic;
+        licenses[existingLicIdx] = { ...licenses[existingLicIdx], ...newLic };
       } else {
         licenses.unshift(newLic);
       }
@@ -1024,14 +1084,27 @@ async function startServer() {
   app.post("/api/client-leads/:id/approve", (req, res) => {
     try {
       const { id } = req.params;
-      const { approvedBy, approvedAtBS, serviceKey } = req.body;
+      const { approvedBy, approvedAtBS, serviceKey, cashVerified, verifiedAmount, adminNotes, planDuration } = req.body;
       const leads = getClientLeads();
       const target = leads.find((l: any) => l.id === id);
       if (!target) {
         return res.status(404).json({ success: false, error: "आवेदन फेला परेन।" });
       }
 
-      applyLeadApproval(target, approvedBy, approvedAtBS, serviceKey);
+      // Mandatory Cash Payment Verification Rule
+      if (target.paymentMethod === 'cash' && !cashVerified && !target.cashVerified) {
+        return res.status(400).json({
+          success: false,
+          error: "नगद भुक्तानी प्राप्त भएको रुजु (Cash Payment Received Checkbox) अनिवार्य छ।"
+        });
+      }
+
+      applyLeadApproval(target, approvedBy, approvedAtBS, serviceKey, {
+        cashVerified,
+        verifiedAmount,
+        adminNotes,
+        planDuration
+      });
       saveClientLeads(leads);
 
       return res.json({
@@ -1047,7 +1120,7 @@ async function startServer() {
   // POST /api/client-leads/approve-by-tx (Super Admin: Approve by Transaction ID)
   app.post("/api/client-leads/approve-by-tx", (req, res) => {
     try {
-      const { transactionId, approvedBy, serviceKey } = req.body;
+      const { transactionId, approvedBy, serviceKey, cashVerified, verifiedAmount, adminNotes, planDuration } = req.body;
       if (!transactionId) {
         return res.status(400).json({ success: false, error: "कारोबार नम्बर अनिवार्य छ।" });
       }
@@ -1058,7 +1131,19 @@ async function startServer() {
         return res.status(404).json({ success: false, error: `कारोबार नम्बर '${cleanTx}' भएको कुनै पनि आवेदन फेला परेन।` });
       }
 
-      applyLeadApproval(target, approvedBy, "२०८१", serviceKey);
+      if (target.paymentMethod === 'cash' && !cashVerified && !target.cashVerified) {
+        return res.status(400).json({
+          success: false,
+          error: "नगद भुक्तानी प्राप्त भएको रुजु (Cash Payment Received Checkbox) अनिवार्य छ।"
+        });
+      }
+
+      applyLeadApproval(target, approvedBy, "२०८१", serviceKey, {
+        cashVerified,
+        verifiedAmount,
+        adminNotes,
+        planDuration
+      });
       saveClientLeads(leads);
 
       return res.json({
@@ -1423,23 +1508,71 @@ async function startServer() {
     }
   });
 
-  // 5. DELETE /api/users/:id (Super Admin: Permanently Delete User)
-  app.delete("/api/users/:id", (req, res) => {
+  // 5. DELETE /api/users/:id & /api/superadmin/users/:id (Super Admin: Permanently Delete User)
+  const handlePermanentUserDelete = (id: string, req: any, res: any) => {
     try {
-      const { id } = req.params;
+      const cleanDigits = String(id).replace(/\D/g, "").slice(-10);
       let users = getUsers();
-      const target = users.find(u => u.id === id || u.phone === id);
-      users = users.filter(u => u.id !== id && u.phone !== id);
+      const target = users.find(u => u.id === id || u.phone === id || (cleanDigits && cleanDigits.length >= 7 && String(u.phone || "").replace(/\D/g, "").slice(-10) === cleanDigits));
+      users = users.filter(u => {
+        const uMob = String(u.phone || "").replace(/\D/g, "").slice(-10);
+        if (cleanDigits && cleanDigits.length >= 7 && uMob === cleanDigits) return false;
+        if (u.id === id || u.phone === id) return false;
+        return true;
+      });
       saveUsers(users);
 
-      if (target) {
-        // Also clean up client leads
-        let leads = getClientLeads();
-        leads = leads.filter(l => l.mobile !== target.phone);
-        saveClientLeads(leads);
+      // Clean up client leads
+      let leads = getClientLeads();
+      leads = leads.filter(l => {
+        const lMob = String(l.mobile || "").replace(/\D/g, "").slice(-10);
+        if (cleanDigits && cleanDigits.length >= 7 && lMob === cleanDigits) return false;
+        if (l.id === id || (target && l.mobile === target.phone)) return false;
+        return true;
+      });
+      saveClientLeads(leads);
+
+      // Clean up service licenses
+      let licenses = getServiceLicenses();
+      licenses = licenses.filter(l => {
+        const lMob = String(l.phone || "").replace(/\D/g, "").slice(-10);
+        if (cleanDigits && cleanDigits.length >= 7 && lMob === cleanDigits) return false;
+        if (l.userId === id || (target && l.userId === target.id)) return false;
+        return true;
+      });
+      saveServiceLicenses(licenses);
+
+      // Clean up trial registry
+      const registry = getTrialRegistry();
+      const regKey = cleanDigits || String(target?.phone || "").replace(/\D/g, "").slice(-10);
+      if (regKey && registry[regKey]) {
+        delete registry[regKey];
+        saveTrialRegistry(registry);
       }
 
-      return res.json({ success: true, message: "प्रयोगकर्ता खाता स्थायी रूपमा मेटाइयो।" });
+      return res.json({ success: true, message: "प्रयोगकर्ता खाता, लाइसेन्स र सम्पूर्ण डेटा स्थायी रूपमा मेटाइयो।" });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  };
+
+  app.delete("/api/users/:id", (req, res) => handlePermanentUserDelete(req.params.id, req, res));
+  app.delete("/api/superadmin/users/:id", (req, res) => handlePermanentUserDelete(req.params.id, req, res));
+
+  // DELETE /api/licenses/user/:id
+  app.delete("/api/licenses/user/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const cleanDigits = String(id).replace(/\D/g, "").slice(-10);
+      let licenses = getServiceLicenses();
+      licenses = licenses.filter(l => {
+        const lMob = String(l.phone || "").replace(/\D/g, "").slice(-10);
+        if (cleanDigits && cleanDigits.length >= 7 && lMob === cleanDigits) return false;
+        if (l.userId === id) return false;
+        return true;
+      });
+      saveServiceLicenses(licenses);
+      return res.json({ success: true, message: "लाइसेन्स मेटाइयो।" });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -1813,7 +1946,7 @@ async function startServer() {
           isTrialActive: true,
           trialStartedAtISO: new Date(now).toISOString(),
           trialExpiresAtISO: new Date(expiresAtTimestamp).toISOString(),
-          trialExpiresAtTimestamp,
+          trialExpiresAtTimestamp: expiresAtTimestamp,
           trialPeriodHours: 24
         };
         registry[cleanPhone] = {

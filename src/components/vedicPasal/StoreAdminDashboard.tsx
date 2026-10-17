@@ -269,6 +269,7 @@ export const StoreAdminDashboard: React.FC<StoreAdminDashboardProps> = ({
     const tempProd: Product = {
       id: `temp_${item.id}`,
       sku: 'GAL-' + item.category.substring(0, 3).toUpperCase(),
+      barcode: 'BAR-' + item.id,
       nameNepali: item.nameNepali,
       nameEnglish: item.nameEnglish,
       category: item.category,

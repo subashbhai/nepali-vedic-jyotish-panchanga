@@ -239,12 +239,13 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
     const fallbackBase: BirthDetails = {
       id: `user_profile_${currentUserId}`,
       name: currentUserName,
-      gender: 'पुरुष',
+      gender: 'male',
       dateBS: '२०४६-०५-१५',
       dateAD: '1989-08-30',
       time: '06:30',
       location: {
         name: effectiveYajaman?.district ? `${effectiveYajaman.district}, नेपाल` : 'काठमाडौँ, नेपाल',
+        country: 'नेपाल',
         latitude: 27.7172,
         longitude: 85.3240,
         timeZone: 5.75
@@ -256,7 +257,9 @@ export const YajamanView: React.FC<YajamanViewProps> = ({
   const computedPanchanga = useMemo(() => {
     if (todayPanchanga) return todayPanchanga;
     const now = new Date();
-    return calculatePanchanga(now, 27.7172, 85.3240, 5.75);
+    const dateAD = now.toISOString().split('T')[0];
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return calculatePanchanga(dateAD, timeStr, 27.7172, 85.3240, 5.75);
   }, [todayPanchanga]);
 
   // Navigation Tabs for Yajaman: defaults to community 'feed'

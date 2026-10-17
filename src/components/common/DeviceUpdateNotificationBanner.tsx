@@ -19,16 +19,21 @@ export const DeviceUpdateNotificationBanner: React.FC = () => {
   if (!updateInfo) return null;
 
   const handleUpdateClick = async () => {
+    if (isUpdating) return;
     setIsUpdating(true);
     try {
       await deviceUpdateManager.applyUpdateNow();
     } catch (e) {
       console.error('Update failed:', e);
-      setIsUpdating(false);
+      // Hard fallback reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     }
   };
 
   const handleDismiss = () => {
+    if (isUpdating) return;
     if (updateInfo) {
       deviceUpdateManager.dismissUpdate(updateInfo.version);
     }
@@ -62,10 +67,14 @@ export const DeviceUpdateNotificationBanner: React.FC = () => {
               </span>
             </div>
             <h4 className="text-xs sm:text-sm font-bold text-amber-100 font-serif leading-tight truncate mt-0.5">
-              {updateInfo.releaseNotes || 'नयाँ सुविधाहरू र कार्यसम्पादन सुधार तयार छ!'}
+              {isUpdating
+                ? 'नयाँ संस्करण लागू हुँदैछ, क्यास सफा गरिँदैछ...'
+                : (updateInfo.releaseNotes || 'नयाँ सुविधाहरू र कार्यसम्पादन सुधार तयार छ!')}
             </h4>
             <p className="text-[10px] text-stone-300 truncate hidden sm:block">
-              आफ्नो यन्त्रमा नवीनतम परिवर्तन तुरुन्त लागू गर्न अपडेट गर्नुहोस्।
+              {isUpdating
+                ? 'कृपया केही क्षण पर्खनुहोस्, एप पुनः सुरु हुँदैछ।'
+                : 'आफ्नो यन्त्रमा नवीनतम परिवर्तन तुरुन्त लागू गर्न अपडेट गर्नुहोस्।'}
             </p>
           </div>
         </div>
@@ -76,17 +85,18 @@ export const DeviceUpdateNotificationBanner: React.FC = () => {
             type="button"
             onClick={handleUpdateClick}
             disabled={isUpdating}
-            className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-95 text-stone-950 font-bold text-xs sm:text-sm shadow-md flex items-center gap-1.5 cursor-pointer transition-transform disabled:opacity-50"
+            className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-95 text-stone-950 font-bold text-xs sm:text-sm shadow-md flex items-center gap-1.5 cursor-pointer transition-transform disabled:opacity-80 disabled:cursor-wait"
             title="तुरुन्त नयाँ संस्करण लागू गर्नुहोस्"
           >
             <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isUpdating ? 'animate-spin' : ''}`} />
-            <span>{isUpdating ? 'अपडेट हुँदै...' : 'अहिले अपडेट'}</span>
+            <span>{isUpdating ? 'लागू हुँदैछ...' : 'अहिले अपडेट'}</span>
           </button>
 
           <button
             type="button"
             onClick={handleDismiss}
-            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-stone-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+            disabled={isUpdating}
+            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-stone-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="पछि गर्नुहोस्"
             aria-label="बन्द गर्नुहोस्"
           >

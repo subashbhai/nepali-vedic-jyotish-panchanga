@@ -510,6 +510,7 @@ export function calculatePanchanga(
     samvatsara,
     ayana,
     ritu,
+    paksha: auth.udayaTithi.paksha,
     sunRashi: sunRashiName,
     moonRashi: moonRashiName,
     namakshara: NAKSHATRA_NAMAKSHARA_MAP[nakshatraData.id]?.[padaNumber - 1] || 'अ',

@@ -468,7 +468,10 @@ export const BirthInputModal: React.FC<BirthInputModalProps> = ({
   // Submit Handler
   const handleSaveProfile = (e?: React.FormEvent, forceNew: boolean = false) => {
     if (e) e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      alert('कृपया जातकको पुरा नाम प्रविष्ट गर्नुहोस्');
+      return;
+    }
 
     const numYear = parseInt(fromDevanagariNumerals(year) || '2064', 10);
     const numMonth = parseInt(fromDevanagariNumerals(month) || '1', 10);
