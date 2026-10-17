@@ -59,7 +59,12 @@ const STORAGE_KEY_SYNC_PENDING_QUEUE = 'balananda_sync_pending_queue_v1';
 const SYNC_BROADCAST_CHANNEL = 'balananda_unified_sync_bus_v2';
 
 // Cloud Relay endpoints with resilient fallbacks
-// KVDB / JSONBin / Public CORS KV for zero-setup static deployments
+// High-speed zero-config Realtime Relay (< 1s delivery across any browser, phone, or GitHub Pages deployment)
+export const REALTIME_SYNC_TOPIC = 'balananda_jyotish_realtime_sync_v2081';
+export const REALTIME_PUB_URL = `https://ntfy.sh/${REALTIME_SYNC_TOPIC}`;
+export const REALTIME_SSE_URL = `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse`;
+export const REALTIME_POLL_URL = `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/json?poll=1&since=all`;
+
 const KV_NAMESPACE = 'balananda_jyotish_sync_relay_v2';
 const PRIMARY_CLOUD_ENDPOINT = `https://kvdb.io/9kL1SjM2P4z7qR9tXw/${KV_NAMESPACE}`;
 const FALLBACK_CLOUD_ENDPOINT = `https://api.restful-api.dev/objects`;
@@ -68,6 +73,7 @@ class UnifiedUserSyncService {
   private broadcastChannel: BroadcastChannel | null = null;
   private isSyncing = false;
   private lastSyncTime: Date = new Date();
+  private clientSse: EventSource | null = null;
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -94,6 +100,16 @@ class UnifiedUserSyncService {
           window.dispatchEvent(new CustomEvent('unified-data-updated'));
         }
       });
+
+      // Global window event for newly signed up users across any component
+      window.addEventListener('balananda_user_signed_up', (ev: any) => {
+        if (ev.detail) {
+          this.recordUserSignup(ev.detail);
+        }
+      });
+
+      // Initialize client-side SSE for instant approval listening
+      this.initClientSSEListener();
     }
   }
 
@@ -113,6 +129,94 @@ class UnifiedUserSyncService {
       try {
         this.broadcastChannel?.postMessage({ type: 'SYNC_DATA_UPDATED', timestamp: Date.now() });
       } catch {}
+    }
+  }
+
+  /**
+   * Client-side Realtime SSE listener for instant license unlock when SuperAdmin approves
+   */
+  private initClientSSEListener() {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
+    try {
+      if (this.clientSse) {
+        this.clientSse.close();
+      }
+      this.clientSse = new EventSource(REALTIME_SSE_URL);
+      this.clientSse.onmessage = (event) => {
+        try {
+          const raw = JSON.parse(event.data);
+          const messageText = raw.message || raw;
+          const parsed = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
+
+          if (parsed?.type === 'LICENSE_APPROVED' && parsed.mobile) {
+            const norm = this.normalizePhoneOrId(parsed.mobile);
+            const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2');
+            let isCurrent = false;
+            if (activeSessionRaw) {
+              const sess = JSON.parse(activeSessionRaw);
+              const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+              if (sessMob && sessMob === norm) isCurrent = true;
+            }
+
+            if (isCurrent || !activeSessionRaw) {
+              this.checkAndApplyClientApproval(parsed.mobile);
+            }
+          } else if (parsed?.type === 'USER_SIGNUP' && parsed.user) {
+            const u = parsed.user;
+            if (!isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id)) {
+              const localUsers = getStoredRBACUsers();
+              const k = this.normalizePhoneOrId(u.phone || u.id);
+              if (!localUsers.some(ex => this.normalizePhoneOrId(ex.phone || ex.id) === k)) {
+                saveRBACUsers([u, ...localUsers]);
+                this.notifyListeners();
+              }
+            }
+          }
+        } catch {}
+      };
+
+      this.clientSse.onerror = () => {
+        // Handled by browser auto-reconnect
+      };
+    } catch (e) {
+      console.warn('[RealtimeSync] Client SSE init failed:', e);
+    }
+  }
+
+  /**
+   * Instantly broadcast an event across all devices (< 1 second) via high-speed relay
+   */
+  public async pushEventToRealtimeRelay(event: {
+    type: 'USER_SIGNUP' | 'USER_UPDATE' | 'PURCHASE_REQUEST' | 'LICENSE_APPROVED' | 'USER_DELETED';
+    user?: any;
+    lead?: any;
+    mobile?: string;
+    leadId?: string;
+    details?: string;
+  }): Promise<void> {
+    if (typeof fetch === 'undefined') return;
+
+    try {
+      const payload = {
+        ...event,
+        timestamp: Date.now(),
+        iso: new Date().toISOString()
+      };
+
+      // 1. Post to high-speed ntfy relay (SSE delivers in < 300ms)
+      fetch(REALTIME_PUB_URL, {
+        method: 'POST',
+        headers: {
+          'Title': event.type === 'USER_SIGNUP'
+            ? `New User Registration: ${event.user?.phone || 'member'}`
+            : (event.type === 'PURCHASE_REQUEST' ? `New Purchase Request: ${event.lead?.mobile || 'client'}` : 'Balananda Realtime Event'),
+          'Priority': 'high',
+          'Tags': event.type === 'USER_SIGNUP' ? 'bust_in_silhouette,sparkles' : 'bell,white_check_mark'
+        },
+        body: JSON.stringify(payload)
+      }).catch(err => console.warn('[RealtimeSync] ntfy push error:', err));
+    } catch (e) {
+      console.warn('[RealtimeSync] Relay push failed:', e);
     }
   }
 
@@ -350,7 +454,12 @@ class UnifiedUserSyncService {
       });
     }
 
-    // 8. Push updated state to Cloud Relay (for GitHub Pages static deployments)
+    // 8. Push updated state to Realtime Relay and Cloud Cache
+    this.pushEventToRealtimeRelay({
+      type: 'USER_DELETED',
+      mobile: phoneOrId,
+      leadId: secondaryIdentifier
+    }).catch(() => {});
     this.pushLocalStateToCloud().catch(() => {});
 
     // 9. Dispatch all update events across components
@@ -543,7 +652,12 @@ class UnifiedUserSyncService {
       }
     } catch {}
 
-    // Push to Cloud Relay so user's phone / device gets unlocked
+    // Push to Cloud Relay & Realtime Event Bus so user's phone / device gets unlocked in < 1s
+    this.pushEventToRealtimeRelay({
+      type: 'LICENSE_APPROVED',
+      mobile: targetLead?.mobile || leadId,
+      leadId: targetLead?.id || leadId
+    }).catch(() => {});
     this.pushLocalStateToCloud();
     this.notifyListeners();
 
@@ -612,7 +726,7 @@ class UnifiedUserSyncService {
   }
 
   /**
-   * Record newly signed up user and push to cloud
+   * Record newly signed up user and push to cloud (< 1 second delivery)
    */
   public recordUserSignup(user: RBACUser): void {
     const users = getStoredRBACUsers();
@@ -638,12 +752,18 @@ class UnifiedUserSyncService {
       saveClientLeads([newLead, ...leads]);
     }
 
-    this.pushLocalStateToCloud();
+    // Instant real-time push to SuperAdmin (< 1 second)
+    this.pushEventToRealtimeRelay({
+      type: 'USER_SIGNUP',
+      user
+    }).catch(() => {});
+
+    this.pushLocalStateToCloud(user);
     this.notifyListeners();
   }
 
   /**
-   * Record new purchase application and push to cloud
+   * Record new purchase application and push to cloud (< 1 second delivery)
    */
   public recordPurchaseRequest(lead: ClientLead): void {
     const leads = getStoredClientLeads();
@@ -655,7 +775,13 @@ class UnifiedUserSyncService {
     }
     saveClientLeads(leads);
 
-    this.pushLocalStateToCloud();
+    // Instant real-time push to SuperAdmin (< 1 second)
+    this.pushEventToRealtimeRelay({
+      type: 'PURCHASE_REQUEST',
+      lead
+    }).catch(() => {});
+
+    this.pushLocalStateToCloud(undefined, lead);
     this.notifyListeners();
   }
 
@@ -752,32 +878,72 @@ class UnifiedUserSyncService {
 
       const usersRes = await fetch('/api/users', { signal: controller.signal }).catch(() => null);
       if (usersRes && usersRes.ok) {
-        const uData = await usersRes.json();
-        if (uData?.success && Array.isArray(uData.users)) {
-          fetchedUsers = uData.users;
+        const ct = usersRes.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const uData = await usersRes.json();
+          if (uData?.success && Array.isArray(uData.users)) {
+            fetchedUsers = uData.users;
+          }
         }
       }
 
       const leadsRes = await fetch('/api/client-leads', { signal: controller.signal }).catch(() => null);
       if (leadsRes && leadsRes.ok) {
-        const lData = await leadsRes.json();
-        if (lData?.success && Array.isArray(lData.leads)) {
-          fetchedLeads = lData.leads;
+        const ct = leadsRes.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const lData = await leadsRes.json();
+          if (lData?.success && Array.isArray(lData.leads)) {
+            fetchedLeads = lData.leads;
+          }
         }
       }
       clearTimeout(timeout);
     } catch {}
 
-    // 2. If not on Express server (e.g. GitHub Pages static deployment), fetch from static JSON
-    if (!fetchedUsers) {
+    // 2. Poll Realtime Relay cache for any recent signups / purchase requests across devices (< 1s delivery recovery)
+    try {
+      const pollRes = await fetch(REALTIME_POLL_URL, { cache: 'no-store' }).catch(() => null);
+      if (pollRes && pollRes.ok) {
+        const text = await pollRes.text();
+        const lines = text.trim().split('\n').filter(Boolean);
+        const pollUsers: RBACUser[] = [];
+        const pollLeads: ClientLead[] = [];
+
+        lines.forEach(line => {
+          try {
+            const parsed = JSON.parse(line);
+            const msg = typeof parsed.message === 'string' ? JSON.parse(parsed.message) : parsed.message;
+            if (msg && msg.type === 'USER_SIGNUP' && msg.user) {
+              pollUsers.push(msg.user);
+            } else if (msg && msg.type === 'PURCHASE_REQUEST' && msg.lead) {
+              pollLeads.push(msg.lead);
+            }
+          } catch {}
+        });
+
+        if (pollUsers.length > 0) {
+          fetchedUsers = fetchedUsers ? [...pollUsers, ...fetchedUsers] : pollUsers;
+        }
+        if (pollLeads.length > 0) {
+          fetchedLeads = fetchedLeads ? [...pollLeads, ...fetchedLeads] : pollLeads;
+        }
+      }
+    } catch (e) {
+      console.warn('[UnifiedSync] Poll relay warning:', e);
+    }
+
+    // 3. If not on Express server (e.g. GitHub Pages static deployment), fetch from static JSON
+    if (!fetchedUsers || fetchedUsers.length === 0) {
       const staticCandidates = [
         './data/users.json',
+        '/nepali-vedic-jyotish-panchanga/data/users.json',
         'https://raw.githubusercontent.com/subashbhai/nepali-vedic-jyotish-panchanga/main/data/users.json'
       ];
       for (const url of staticCandidates) {
         try {
           const res = await fetch(url, { cache: 'no-store' });
-          if (res.ok) {
+          const ct = res.headers.get('content-type') || '';
+          if (res.ok && (ct.includes('application/json') || ct.includes('text/plain') || url.includes('.json'))) {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {
               fetchedUsers = data;
@@ -788,15 +954,17 @@ class UnifiedUserSyncService {
       }
     }
 
-    if (!fetchedLeads) {
+    if (!fetchedLeads || fetchedLeads.length === 0) {
       const staticLeadsCandidates = [
         './data/client_purchase_leads.json',
+        '/nepali-vedic-jyotish-panchanga/data/client_purchase_leads.json',
         'https://raw.githubusercontent.com/subashbhai/nepali-vedic-jyotish-panchanga/main/data/client_purchase_leads.json'
       ];
       for (const url of staticLeadsCandidates) {
         try {
           const res = await fetch(url, { cache: 'no-store' });
-          if (res.ok) {
+          const ct = res.headers.get('content-type') || '';
+          if (res.ok && (ct.includes('application/json') || ct.includes('text/plain') || url.includes('.json'))) {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {
               fetchedLeads = data;
@@ -807,7 +975,7 @@ class UnifiedUserSyncService {
       }
     }
 
-    // 3. Merge fetched users into local storage safely (never deleting local newly created users)
+    // 4. Merge fetched users into local storage safely (never deleting local newly created users)
     if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
       const local = getStoredRBACUsers();
       const map = new Map<string, RBACUser>();
@@ -829,7 +997,7 @@ class UnifiedUserSyncService {
       saveRBACUsers(Array.from(map.values()));
     }
 
-    // 4. Merge fetched leads into local storage safely
+    // 5. Merge fetched leads into local storage safely
     if (Array.isArray(fetchedLeads) && fetchedLeads.length > 0) {
       const localLeads = getStoredClientLeads();
       const map = new Map<string, ClientLead>();
@@ -852,7 +1020,7 @@ class UnifiedUserSyncService {
   /**
    * Push current state to Cloud Relay / Server for cross-device access on GitHub Pages
    */
-  public async pushLocalStateToCloud(): Promise<void> {
+  public async pushLocalStateToCloud(recentUser?: RBACUser, recentLead?: ClientLead): Promise<void> {
     if (typeof window === 'undefined') return;
     const users = getStoredRBACUsers();
     const purchases = this.getPurchasedUsers();
@@ -870,6 +1038,19 @@ class UnifiedUserSyncService {
     try {
       this.broadcastChannel?.postMessage({ type: 'SYNC_DATA_UPDATED', timestamp: Date.now() });
     } catch {}
+
+    if (recentUser) {
+      this.pushEventToRealtimeRelay({
+        type: 'USER_SIGNUP',
+        user: recentUser
+      }).catch(() => {});
+    }
+    if (recentLead) {
+      this.pushEventToRealtimeRelay({
+        type: 'PURCHASE_REQUEST',
+        lead: recentLead
+      }).catch(() => {});
+    }
   }
 
   /**

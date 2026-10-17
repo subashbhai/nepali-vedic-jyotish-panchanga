@@ -617,6 +617,12 @@ export function registerRBACAccount(
   saveRBACUsers(updatedUsers);
 
   // Sync to unified cross-device sync service (GitHub Pages + Local)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('balananda_user_signed_up', { detail: newUser }));
+    window.dispatchEvent(new CustomEvent('user-registered', { detail: newUser }));
+    window.dispatchEvent(new CustomEvent('user-storage-updated'));
+  }
+
   try {
     import('../services/unifiedUserSyncService').then(({ unifiedUserSyncService }) => {
       unifiedUserSyncService.recordUserSignup(newUser);
@@ -624,7 +630,7 @@ export function registerRBACAccount(
   } catch {}
 
   // Trigger server registration asynchronously to ensure permanent persistence in data/users.json
-  if (typeof fetch !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof window.location !== 'undefined' && typeof fetch !== 'undefined') {
     fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1021,6 +1027,8 @@ export function updateRBACUserProfile(
   }
 
   window.dispatchEvent(new CustomEvent('balananda_user_profile_updated', { detail: updatedUser }));
+  window.dispatchEvent(new CustomEvent('balananda_user_signed_up', { detail: updatedUser }));
+  window.dispatchEvent(new CustomEvent('user-storage-updated'));
 
   return {
     success: true,

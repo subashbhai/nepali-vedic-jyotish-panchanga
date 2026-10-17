@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { VivahProfile, ProfileGender, MaritalStatus, EmploymentType, VisibilitySetting } from '../../types/vivahTypes';
 import { RBACSession, registerRBACAccount, getRoleLabelNepali } from '../../db/rbacStore';
+import { unifiedUserSyncService } from '../../services/unifiedUserSyncService';
 import { 
   NEPAL_77_DISTRICTS, 
   getCurrentUserGPS, 
@@ -263,6 +264,9 @@ export const VivahRegistrationForm: React.FC<VivahRegistrationFormProps> = ({
       if (res.user) {
         finalUserId = res.user.id;
         finalFullName = res.user.fullName;
+        try {
+          unifiedUserSyncService.recordUserSignup(res.user);
+        } catch {}
       }
     }
 
