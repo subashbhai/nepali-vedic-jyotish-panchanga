@@ -20,7 +20,7 @@ import {
 } from '../db/clientLeadStore';
 import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from '../db/securityBlacklist';
 import { deleteLicensesForUserPermanently } from '../db/serviceLicenseStore';
-import { deleteClientPolicyPermanently } from '../db/menuControlStore';
+import { deleteClientPolicyPermanently, registerOrUpdateClientPolicy } from '../db/menuControlStore';
 import { convertADToBS } from '../utils/nepaliCalendar';
 
 
@@ -150,7 +150,7 @@ class UnifiedUserSyncService {
 
           if (parsed?.type === 'LICENSE_APPROVED' && parsed.mobile) {
             const norm = this.normalizePhoneOrId(parsed.mobile);
-            const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2');
+            const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
             let isCurrent = false;
             if (activeSessionRaw) {
               const sess = JSON.parse(activeSessionRaw);
@@ -158,8 +158,36 @@ class UnifiedUserSyncService {
               if (sessMob && sessMob === norm) isCurrent = true;
             }
 
+            // Check if this device has leads matching the approved mobile or leadId
+            const storedLeads = getStoredClientLeads();
+            const matchedLead = storedLeads.find(l => this.normalizePhoneOrId(l.mobile) === norm || l.id === parsed.leadId);
+            if (matchedLead) isCurrent = true;
+
+            // Check device trial record
+            try {
+              const trialRecordRaw = localStorage.getItem('balananda_device_trial_lock_v2');
+              if (trialRecordRaw) {
+                const tr = JSON.parse(trialRecordRaw);
+                if (this.normalizePhoneOrId(tr.leadMobile) === norm) isCurrent = true;
+              }
+            } catch {}
+
             if (isCurrent || !activeSessionRaw) {
               this.checkAndApplyClientApproval(parsed.mobile);
+            }
+          } else if (parsed?.type === 'PURCHASE_REQUEST' && parsed.lead) {
+            // Instant real-time delivery to SuperAdmin (< 1 sec)
+            const lead = parsed.lead;
+            if (!isPermanentlyDeleted(lead.mobile) && !isPermanentlyDeleted(lead.id)) {
+              const localLeads = getStoredClientLeads();
+              const idx = localLeads.findIndex(l => l.id === lead.id || (l.transactionId && l.transactionId === lead.transactionId));
+              if (idx >= 0) {
+                localLeads[idx] = lead;
+              } else {
+                localLeads.unshift(lead);
+              }
+              saveClientLeads(localLeads);
+              this.notifyListeners();
             }
           } else if (parsed?.type === 'USER_SIGNUP' && parsed.user) {
             const u = parsed.user;
@@ -616,6 +644,56 @@ class UnifiedUserSyncService {
 
     saveClientLeads(updatedLeads);
 
+    const approvedPhone = targetLead?.mobile || leadId;
+    const approvedName = targetLead?.fullName || 'प्रमाणित ग्राहक';
+    const approvedAddress = targetLead?.address || 'नेपाल';
+
+    // 1. Ensure user exists in Registered Users table (RBAC store)
+    try {
+      const rbacUsers = getStoredRBACUsers();
+      const phoneNorm = this.normalizePhoneOrId(approvedPhone);
+      const existingRbac = rbacUsers.find(u => this.normalizePhoneOrId(u.phone || u.id) === phoneNorm);
+      if (!existingRbac && targetLead) {
+        const newRbacUser: RBACUser = {
+          id: `usr_${Date.now()}`,
+          customerId: `ग्राहक-${approvedPhone.slice(-4)}`,
+          username: approvedPhone,
+          fullName: approvedName,
+          phone: approvedPhone,
+          email: targetLead.email || `${approvedPhone}@balananda.com`,
+          role: 'CUSTOMER',
+          roleNameNepali: 'सफ्टवेयर ग्राहक (Client)',
+          status: 'active',
+          mobileVerified: true,
+          emailVerified: false,
+          createdAtISO: nowISO,
+          createdAtBS: todayBS,
+          savedAddresses: [{
+            id: `addr_${Date.now()}`,
+            label: 'ठेगाना',
+            streetAddress: approvedAddress,
+            city: 'काठमाडौँ',
+            isDefault: true
+          }],
+          permissions: ['view_kundali', 'view_panchanga', 'view_vastu', 'customer_access']
+        };
+        saveRBACUsers([newRbacUser, ...rbacUsers]);
+      }
+    } catch (e) {
+      console.warn('[approvePurchase] RBAC auto-register warning:', e);
+    }
+
+    // 2. Initialize / update Menu Switchboard policy (Step 3: Menu Control)
+    try {
+      registerOrUpdateClientPolicy({
+        mobile: approvedPhone,
+        fullName: approvedName,
+        period: '1_year'
+      });
+    } catch (e) {
+      console.warn('[approvePurchase] Menu policy initialization warning:', e);
+    }
+
     // Call standard clientLeadStore approval to handle licenses and events
     try {
       superAdminApprovePurchase(targetLead?.id || leadId, adminName);
@@ -626,7 +704,7 @@ class UnifiedUserSyncService {
       if (typeof window !== 'undefined') {
         const raw = localStorage.getItem('balananda_service_licenses_v1');
         const list = raw ? JSON.parse(raw) : [];
-        const phone = targetLead?.mobile || leadId;
+        const phone = approvedPhone;
         const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
 
         ['jyotish', 'vastu'].forEach(serviceKey => {
@@ -818,6 +896,12 @@ class UnifiedUserSyncService {
       };
       localStorage.setItem('balananda_approved_client_license_v2', JSON.stringify(licenseRecord));
       localStorage.setItem('software_full_access_unlocked_v1', 'true');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: true } }));
+        window.dispatchEvent(new CustomEvent('service-license-updated'));
+        window.dispatchEvent(new CustomEvent('client-leads-updated'));
+        window.dispatchEvent(new CustomEvent('trial-status-updated'));
+      }
       this.notifyListeners();
       return true;
     }

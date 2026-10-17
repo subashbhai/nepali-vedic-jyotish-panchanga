@@ -1152,6 +1152,112 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
         </div>
       </div>
 
+      {/* ── SERIAL SOFTWARE APPROVAL WORKFLOW BANNER (1. PAYMENT APPROVAL -> 2. USER LISTING -> 3. MENU CONTROL) ── */}
+      <div className="bg-gradient-to-r from-stone-900 via-stone-900/95 to-amber-950/40 border-2 border-amber-500/60 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-stone-800/80 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
+              <Users className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold tracking-widest text-amber-400 uppercase bg-amber-950/80 border border-amber-700/60 px-2 py-0.5 rounded-md">
+                  क्रमबद्ध स्वीकृति कार्यप्रणाली (Serial Approval Workflow)
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  प्रत्यक्ष सिङ्क सक्रिय (&lt; १ सेकेन्ड)
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white font-serif mt-1">
+                सफ्टवेयर खरिद रुजु तथा त्रि-स्तरीय सक्रियता शृङ्खला (3-Step Software Activation Chain)
+              </h3>
+            </div>
+          </div>
+          <p className="text-xs text-stone-400 max-w-md">
+            ग्राहकले सफ्टवेयर खरिद गर्दा तलको तीन-स्तरीय क्रमबद्ध प्रक्रिया अनुसार भुक्तानी रुजु, प्रयोगकर्ता लिसिटिङ र मेनु नियन्त्रण सञ्चालन गर्नुहोस्।
+          </p>
+        </div>
+
+        {/* 3 Interactive Stepper Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Step 1: Payment Approval (Clickable) */}
+          <button
+            type="button"
+            onClick={() => onOpenPaymentsForUser?.('')}
+            className="bg-stone-950/70 hover:bg-stone-900 border border-stone-800 hover:border-amber-500/60 rounded-2xl p-3.5 text-left transition-all cursor-pointer group shadow-sm flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-stone-800 text-stone-300 group-hover:bg-amber-500 group-hover:text-stone-950 font-black flex items-center justify-center text-xs transition-colors">
+                    १
+                  </div>
+                  <h4 className="font-bold text-xs sm:text-sm text-stone-200 group-hover:text-amber-300 transition-colors">
+                    १. भुक्तानी रुजु (Payment Approval)
+                  </h4>
+                </div>
+                <span className="text-[10px] text-stone-500 group-hover:text-amber-400 font-mono">चरण १ →</span>
+              </div>
+              <p className="text-[11px] text-stone-400 leading-relaxed">
+                eSewa / Khalti / बैंकबाट आएको आवेदनमा <strong>Name, Address, Mobile, WhatsApp, Tx ID</strong> रुजु गरी १-क्लिकमा Approve वा Reject गर्नुहोस्।
+              </p>
+            </div>
+            <div className="mt-2 text-[10px] text-amber-400/90 font-bold group-hover:underline">
+              भुक्तानी रुजु केन्द्र खोल्नुहोस् ↗
+            </div>
+          </button>
+
+          {/* Step 2: Active Current Step */}
+          <div className="bg-gradient-to-br from-amber-950/80 to-stone-900 border-2 border-amber-500 rounded-2xl p-3.5 shadow-lg relative overflow-hidden ring-1 ring-amber-500/40">
+            <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-500 text-stone-950 font-black text-[10px] uppercase tracking-wider">
+              चरण २ (वर्तमान)
+            </div>
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <div className="w-7 h-7 rounded-full bg-amber-500 text-stone-950 font-black flex items-center justify-center text-xs">
+                २
+              </div>
+              <h4 className="font-bold text-xs sm:text-sm text-amber-200">
+                २. प्रयोगकर्ता लिसिटिङ (Listing)
+              </h4>
+            </div>
+            <p className="text-[11px] text-stone-300 leading-relaxed">
+              <strong>१. दर्ता भएका ({toDevanagariNumerals(users.length)})</strong> र <strong>२. खरिद गरेका ({toDevanagariNumerals(purchasedUsers.length)})</strong> ग्राहकहरूको पूर्ण सूची यहाँ हेर्नुहोस्।
+            </p>
+            <div className="mt-2 text-[10px] text-amber-400 font-bold flex items-center gap-1">
+              <span>● दर्ता: {toDevanagariNumerals(users.length)} | खरिद: {toDevanagariNumerals(purchasedUsers.length)}</span>
+            </div>
+          </div>
+
+          {/* Step 3: Menu Switchboard (Clickable) */}
+          <button
+            type="button"
+            onClick={() => onOpenSwitchboardForUser?.('')}
+            className="bg-stone-950/70 hover:bg-stone-900 border border-stone-800 hover:border-amber-500/60 rounded-2xl p-3.5 text-left transition-all cursor-pointer group shadow-sm flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-stone-800 text-stone-300 group-hover:bg-amber-500 group-hover:text-stone-950 font-black flex items-center justify-center text-xs transition-colors">
+                    ३
+                  </div>
+                  <h4 className="font-bold text-xs sm:text-sm text-stone-200 group-hover:text-amber-300 transition-colors">
+                    ३. मेनु तथा सेवा नियन्त्रण (Menu Control)
+                  </h4>
+                </div>
+                <span className="text-[10px] text-stone-500 group-hover:text-amber-400 font-mono">चरण ३ →</span>
+              </div>
+              <p className="text-[11px] text-stone-400 leading-relaxed">
+                ग्राहकका लागि कुण्डली, फलादेश, पञ्चाङ्ग, वास्तु आदि मेनुहरूलाई <strong>खुल्ला (Open), बन्द (Close) वा लक (Lock)</strong> अनुकूलन गर्नुहोस्।
+              </p>
+            </div>
+            <div className="mt-2 text-[10px] text-amber-400/90 font-bold group-hover:underline">
+              मेनु स्विचबोर्ड कन्ट्रोल खोल्नुहोस् ↗
+            </div>
+          </button>
+        </div>
+      </div>
+
       {/* ── DUAL TABLE SWITCHER: 1. SIGNUP USERS vs 2. PURCHASED USERS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-stone-900 border border-stone-800 p-1.5 rounded-2xl shadow-lg">
         <button
@@ -1956,6 +2062,16 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                                   <span>स्वीकृत</span>
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => onOpenSwitchboardForUser?.(lead.mobile)}
+                                className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-bold border border-amber-500/30 cursor-pointer transition-colors flex items-center gap-1"
+                                title="चरण ३: यस ग्राहकका लागि मेनु स्विचबोर्ड नियन्त्रण खोल्नुहोस्"
+                              >
+                                <Sliders className="w-3 h-3 text-amber-400" />
+                                <span>मेनु</span>
+                              </button>
 
                               <button
                                 type="button"
