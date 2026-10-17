@@ -717,6 +717,70 @@ class UnifiedUserSyncService {
   }
 
   /**
+   * 1-Touch Complete System & Data Reset:
+   * Wipes all old test users, test purchase leads, licenses, trials, and blacklist
+   * so fresh testing and production launch has clean 0ms responsive state.
+   */
+  public async resetEntireSystemData(): Promise<boolean> {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('balananda_permanently_deleted_identifiers_v2');
+        localStorage.removeItem('balananda_registered_users_v1');
+        localStorage.removeItem('nepali_astro_rbac_users_v2');
+        localStorage.removeItem('balananda_client_access_control_v2');
+        localStorage.removeItem('balananda_client_purchase_leads_v2');
+        localStorage.removeItem(STORAGE_KEY_CLOUD_CACHE);
+        localStorage.removeItem('sukdev_esewa_payment_requests_v1');
+        localStorage.removeItem('balananda_my_purchase_requests_v1');
+        localStorage.removeItem('balananda_device_trial_lock_v2');
+        localStorage.removeItem('balananda_approved_client_license_v2');
+        localStorage.removeItem('software_full_access_unlocked_v1');
+        localStorage.removeItem('balananda_software_full_access_license_v2');
+        localStorage.removeItem('balananda_service_licenses_v1');
+
+        saveRBACUsers([]);
+        saveClientLeads([]);
+        saveAllClientPolicies([]);
+      } catch (e) {
+        console.warn('Local reset error:', e);
+      }
+    }
+
+    if (typeof fetch !== 'undefined') {
+      try {
+        await fetch('/api/superadmin/system-reset', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-superadmin-token': 'SUPER_ADMIN'
+          }
+        });
+      } catch {}
+    }
+
+    this.pushEventToRealtimeRelay({
+      type: 'USER_DELETED',
+      mobile: 'ALL_DATA_RESET'
+    }).catch(() => {});
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYSTEM_RESET', timestamp: Date.now() });
+    } catch {}
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('unified-data-updated'));
+      window.dispatchEvent(new CustomEvent('user-registered'));
+      window.dispatchEvent(new CustomEvent('user-storage-updated'));
+      window.dispatchEvent(new CustomEvent('client-leads-updated'));
+      window.dispatchEvent(new CustomEvent('service-license-updated'));
+      window.dispatchEvent(new CustomEvent('client-policies-updated'));
+      window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: false } }));
+    }
+    this.notifyListeners();
+    return true;
+  }
+
+  /**
    * Instantly update a user's status (active, suspended, inactive)
    * When locked or deactivated, in milliseconds all sessions across all tabs and devices are terminated!
    */

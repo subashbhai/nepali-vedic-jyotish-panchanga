@@ -66,6 +66,10 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
   const [esewaPaidAmount, setEsewaPaidAmount] = useState<number>(0);
   const [esewaPaymentDateBS, setEsewaPaymentDateBS] = useState('');
   const [esewaProofNote, setEsewaProofNote] = useState('');
+  const [esewaUserName, setEsewaUserName] = useState('');
+  const [esewaUserAddress, setEsewaUserAddress] = useState('');
+  const [esewaUserPhone, setEsewaUserPhone] = useState('');
+  const [esewaUserWhatsapp, setEsewaUserWhatsapp] = useState('');
   const [copiedNumber, setCopiedNumber] = useState(false);
 
   // Active Receipt Modal
@@ -97,6 +101,29 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
     const currentPlat = userAccount.activePlatformMode || 'web';
     const calc = calculatePlatformPrice(plan.basePriceNPR, currentPlat, pricingConfig);
 
+    let initialName = userAccount.fullName !== 'श्रद्धेय प्रयोगकर्ता' ? userAccount.fullName : '';
+    let initialPhone = userAccount.phone !== '९८००००००००' ? userAccount.phone : '';
+    let initialAddress = 'काठमाडौँ';
+    try {
+      const sessRaw = localStorage.getItem('balananda_rbac_session_v2');
+      if (sessRaw) {
+        const s = JSON.parse(sessRaw);
+        if (s?.fullName) initialName = s.fullName;
+        if (s?.phone) initialPhone = s.phone;
+      }
+      const profRaw = localStorage.getItem('balananda_personal_birth_profile');
+      if (profRaw) {
+        const p = JSON.parse(profRaw);
+        if (p?.name && !initialName) initialName = p.name;
+        if (p?.location?.name) initialAddress = p.location.name;
+      }
+    } catch {}
+
+    setEsewaUserName(initialName);
+    setEsewaUserPhone(initialPhone);
+    setEsewaUserWhatsapp(initialPhone);
+    setEsewaUserAddress(initialAddress);
+
     setSelectedPlanForPurchase(plan);
     setEsewaPaidAmount(calc.amountNPR);
     setEsewaTxnCode('');
@@ -119,6 +146,14 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
   const handleEsewaProofSubmit = () => {
     if (!selectedPlanForPurchase) return;
 
+    if (!esewaUserName.trim()) {
+      setPaymentErrorMessage('कृपया आफ्नो पूरा नाम (Full Name) भर्नुहोस्।');
+      return;
+    }
+    if (!esewaUserPhone.trim()) {
+      setPaymentErrorMessage('कृपया आफ्नो मोबाइल नम्बर (Mobile No) भर्नुहोस्।');
+      return;
+    }
     if (!esewaTxnCode || esewaTxnCode.trim().length === 0) {
       setPaymentErrorMessage('कृपया eSewa कारोबार क्रमाङ्क (Transaction Code) अनिवार्य राख्नुहोस्।');
       return;
@@ -136,6 +171,10 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
         submittedAmountNPR: esewaPaidAmount,
         paymentDateBS: esewaPaymentDateBS,
         proofNoteOrImage: esewaProofNote,
+        userName: esewaUserName.trim(),
+        userAddress: esewaUserAddress.trim() || 'काठमाडौँ',
+        userPhone: esewaUserPhone.trim(),
+        userWhatsapp: esewaUserWhatsapp.trim() || esewaUserPhone.trim()
       });
 
       if (res.success) {
@@ -738,6 +777,63 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
                       <span>भुक्तानी प्रमाण विवरण (Payment Proof Form):</span>
                     </h4>
+
+                    {/* 5-Field eSewa Application Details */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 font-serif mb-1">
+                          पूरा नाम (Full Name) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={esewaUserName}
+                          onChange={(e) => setEsewaUserName(e.target.value)}
+                          placeholder="तपाईंको पूरा नाम"
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-serif focus:ring-2 focus:ring-[#D97706] outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 font-serif mb-1">
+                          ठेगाना (Address) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={esewaUserAddress}
+                          onChange={(e) => setEsewaUserAddress(e.target.value)}
+                          placeholder="उदा: काठमाडौँ, पोखरा, वा जिल्ला"
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-serif focus:ring-2 focus:ring-[#D97706] outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 font-serif mb-1">
+                          मोबाइल नम्बर (Mobile No) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={esewaUserPhone}
+                          onChange={(e) => setEsewaUserPhone(e.target.value)}
+                          placeholder="उदा: 98XXXXXXXX"
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono focus:ring-2 focus:ring-[#D97706] outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 font-serif mb-1">
+                          व्हाट्सएप नम्बर (WhatsApp No)
+                        </label>
+                        <input
+                          type="tel"
+                          value={esewaUserWhatsapp}
+                          onChange={(e) => setEsewaUserWhatsapp(e.target.value)}
+                          placeholder="उदा: 98XXXXXXXX"
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono focus:ring-2 focus:ring-[#D97706] outline-none"
+                        />
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>

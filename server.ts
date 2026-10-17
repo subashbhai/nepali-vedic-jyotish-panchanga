@@ -1028,8 +1028,8 @@ async function startServer() {
     }
   });
 
-  // POST /api/client-leads/submit (Submit new or updated purchase lead or trial)
-  app.post("/api/client-leads/submit", (req, res) => {
+  // POST /api/client-leads & /api/client-leads/submit (Submit new or updated purchase lead or trial)
+  app.post(["/api/client-leads", "/api/client-leads/submit"], (req, res) => {
     try {
       const leadData = req.body;
       if (!leadData || !leadData.fullName || !leadData.mobile) {
@@ -1969,6 +1969,31 @@ async function startServer() {
         success: true,
         message: action === "reset" ? "परीक्षण (Trial) पुनः सुरु गर्न मिल्ने गरी रिसेट गरियो।" : "२४ घण्टे परीक्षण सक्रिय गरियो।",
         user: sanitized
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.7 POST /api/superadmin/system-reset (1-Touch Factory Data Reset for Launch Testing)
+  app.post("/api/superadmin/system-reset", requireSuperAdminAuth, (req, res) => {
+    try {
+      saveUsers([]);
+      saveClientLeads([]);
+      saveServiceLicenses([]);
+      saveTrialRegistry({});
+      try {
+        if (fs.existsSync(PURCHASE_REQUESTS_FILE)) {
+          fs.writeFileSync(PURCHASE_REQUESTS_FILE, JSON.stringify([], null, 2), "utf-8");
+        }
+        if (fs.existsSync(LICENSE_AUDIT_FILE)) {
+          fs.writeFileSync(LICENSE_AUDIT_FILE, JSON.stringify([], null, 2), "utf-8");
+        }
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: "प्रणालीको सम्पूर्ण डेटा सफलतापूर्वक रिसेट गरियो। अब नयाँ दर्ता र खरिद परीक्षण गर्नुहोस्।"
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });

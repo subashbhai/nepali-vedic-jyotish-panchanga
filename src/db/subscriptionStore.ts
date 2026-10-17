@@ -1103,10 +1103,33 @@ export function submitEsewaPaymentRequest(params: {
   submittedAmountNPR: number;
   paymentDateBS: string;
   proofNoteOrImage: string;
+  userName?: string;
+  userAddress?: string;
+  userPhone?: string;
+  userWhatsapp?: string;
 }): { success: boolean; messageNepali: string; request?: EsewaPaymentRequest } {
   const account = getStoredUserSubscription();
   const plans = getStoredPlansConfig();
   const pricingConfig = getStoredPricingConfig();
+
+  // Also check RBAC session for real user name and phone if not provided
+  let sessionName = '';
+  let sessionPhone = '';
+  try {
+    if (typeof window !== 'undefined') {
+      const sessRaw = localStorage.getItem('balananda_rbac_session_v2');
+      if (sessRaw) {
+        const s = JSON.parse(sessRaw);
+        if (s?.fullName) sessionName = s.fullName;
+        if (s?.phone) sessionPhone = s.phone;
+      }
+    }
+  } catch {}
+
+  const finalName = params.userName?.trim() || sessionName || (account.fullName !== 'श्रद्धेय प्रयोगकर्ता' ? account.fullName : '') || 'ग्राहक';
+  const finalPhone = params.userPhone?.trim() || sessionPhone || (account.phone !== '९८००००००००' ? account.phone : '') || '';
+  const finalWhatsapp = params.userWhatsapp?.trim() || finalPhone;
+  const finalAddress = params.userAddress?.trim() || 'काठमाडौँ';
 
   const plan = plans.find((p) => p.id === params.planId);
   if (!plan) {
@@ -1130,10 +1153,10 @@ export function submitEsewaPaymentRequest(params: {
 
   const newRequest: EsewaPaymentRequest = {
     requestId,
-    userId: account.userId,
-    userName: account.fullName,
-    userEmail: account.email,
-    userPhone: account.phone,
+    userId: account.userId || `usr_${Date.now()}`,
+    userName: finalName,
+    userEmail: account.email || '',
+    userPhone: finalPhone,
     planId: params.planId,
     planNameNepali: plan.nameNepali,
     platformMode: params.platformMode,
@@ -1160,11 +1183,11 @@ export function submitEsewaPaymentRequest(params: {
   try {
     const clientLeadRecord = {
       id: newRequest.requestId,
-      fullName: newRequest.userName || 'ग्राहक',
-      address: 'काठमाडौँ',
-      mobile: newRequest.userPhone || '',
+      fullName: finalName,
+      address: finalAddress,
+      mobile: finalPhone,
       email: newRequest.userEmail || '',
-      whatsapp: newRequest.userPhone || '',
+      whatsapp: finalWhatsapp,
       deviceFingerprint: 'esewa-client-fp',
       status: 'PURCHASE_PENDING' as const,
       planId: (newRequest.planId === 'yearly' ? 'yearly_both' : (newRequest.planId === 'lifetime' ? 'lifetime_both' : 'yearly_mobile')) as any,
@@ -1175,6 +1198,7 @@ export function submitEsewaPaymentRequest(params: {
       submittedAtISO: newRequest.submittedAtISO,
       submittedAtBS: newRequest.paymentDateBS
     };
+
     import('./clientLeadStore').then(({ getStoredClientLeads, saveClientLeads }) => {
       const currentLeads = getStoredClientLeads();
       saveClientLeads([clientLeadRecord, ...currentLeads]);
@@ -1183,6 +1207,15 @@ export function submitEsewaPaymentRequest(params: {
     import('../services/unifiedUserSyncService').then(({ unifiedUserSyncService }) => {
       unifiedUserSyncService.recordPurchaseRequest(clientLeadRecord as any);
     }).catch(() => {});
+
+    // Express Server API call if running
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/client-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clientLeadRecord)
+      }).catch(() => {});
+    }
   } catch {}
 
   return {

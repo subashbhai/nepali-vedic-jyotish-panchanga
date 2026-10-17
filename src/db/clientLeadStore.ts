@@ -333,11 +333,13 @@ export function start24HourTrial(leadData: {
 
   // Sync to central server
   try {
-    fetch('/api/client-leads/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newLead)
-    }).catch((e) => console.warn('[clientLeadStore] Server sync failed for trial:', e));
+    if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
+      fetch('/api/client-leads/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLead)
+      }).catch((e) => console.warn('[clientLeadStore] Server sync failed for trial:', e));
+    }
   } catch {}
 
   window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: true } }));
@@ -453,11 +455,13 @@ export function submitPurchaseApplication(data: {
 
   // Sync to central server
   try {
-    fetch('/api/client-leads/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newLead)
-    }).catch((e) => console.warn('[clientLeadStore] Server sync failed for purchase lead:', e));
+    if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
+      fetch('/api/client-leads/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLead)
+      }).catch((e) => console.warn('[clientLeadStore] Server sync failed for purchase lead:', e));
+    }
   } catch {}
 
   return {
@@ -511,11 +515,13 @@ export function superAdminApprovePurchase(leadId: string, adminName: string = 'S
 
   // Sync to central server
   try {
-    fetch(`/api/client-leads/${lead.id}/approve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ approvedBy: adminName, approvedAtBS: todayBS })
-    }).catch((e) => console.warn('[clientLeadStore] Server sync failed for approve:', e));
+    if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
+      fetch(`/api/client-leads/${lead.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approvedBy: adminName, approvedAtBS: todayBS })
+      }).catch((e) => console.warn('[clientLeadStore] Server sync failed for approve:', e));
+    }
   } catch {}
 
   window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: true } }));

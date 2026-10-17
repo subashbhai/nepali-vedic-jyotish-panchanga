@@ -635,7 +635,7 @@ export function registerRBACAccount(
   } catch {}
 
   // Trigger server registration asynchronously to ensure permanent persistence in data/users.json
-  if (typeof window !== 'undefined' && typeof window.location !== 'undefined' && typeof fetch !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof window.document !== 'undefined' && typeof fetch !== 'undefined') {
     fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
