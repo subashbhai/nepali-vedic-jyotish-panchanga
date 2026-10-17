@@ -623,7 +623,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     return () => clearInterval(interval);
   }, [autoRefresh, fetchUsers]);
 
-  // Listen to window storage / registration events
+  // Listen to window storage / registration events and cross-tab BroadcastChannel
   useEffect(() => {
     const handleSync = () => fetchUsers(true);
     window.addEventListener('user-registered', handleSync);
@@ -632,12 +632,31 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     window.addEventListener('client-leads-updated', handleSync);
     window.addEventListener('service-license-updated', handleSync);
 
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('balananda_unified_sync_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'SYNC_DATA_UPDATED' || event.data?.type === 'SYSTEM_RESET') {
+            cachedSuperAdminUsersData = null;
+            fetchUsers(true);
+            if (event.data?.type === 'SYSTEM_RESET') {
+              showToast('🔄 सम्पूर्ण डेटा रिसेट भएको सूचना प्राप्त भयो - सूची अद्यावधिक गरियो।');
+            }
+          }
+        };
+      } catch (e) {
+        console.warn('BroadcastChannel error:', e);
+      }
+    }
+
     return () => {
       window.removeEventListener('user-registered', handleSync);
       window.removeEventListener('user-storage-updated', handleSync);
       window.removeEventListener('unified-data-updated', handleSync);
       window.removeEventListener('client-leads-updated', handleSync);
       window.removeEventListener('service-license-updated', handleSync);
+      if (bc) bc.close();
     };
   }, [fetchUsers]);
 
@@ -966,6 +985,24 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     }
   };
 
+  const handleFullSystemReset = async () => {
+    if (!window.confirm('के तपाईं हालसम्मको सम्पूर्ण पुरानो डेटा रिसेट गरी सफ्टवेयरलाई सुरुवाती अवस्थामा फर्काउन चाहनुहुन्छ?\n\nयो कार्यपछि पुराना प्रयोगकर्ता, खरिद अनुरोध र ब्ल्याकलिस्ट खाली हुनेछ र नयाँ दर्ता तथा खरिद तुरुन्त १-क्लिकमा परीक्षण गर्न सकिनेछ।')) return;
+    setIsLoading(true);
+    try {
+      await unifiedUserSyncService.resetEntireSystemData();
+      cachedSuperAdminUsersData = null;
+      setUsers([]);
+      setPurchasedUsers([]);
+      await fetchUsers(false);
+      showToast('🎉 सम्पूर्ण पुरानो डेटा सफलतापूर्वक रिसेट भयो! अब नयाँ दर्ता र खरिद परीक्षण गर्नुहोस्।');
+    } catch (e) {
+      console.error('System reset error:', e);
+      showToast('डेटा रिसेट गर्न समस्या भयो।');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Toast Alert */}
@@ -997,6 +1034,16 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              onClick={handleFullSystemReset}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-950/80 hover:bg-rose-900 text-rose-200 rounded-xl text-xs font-bold border border-rose-700/80 cursor-pointer transition-all shadow-sm hover:ring-1 hover:ring-rose-500"
+              title="सम्पूर्ण पुरानो डेटा रिसेट गरी सफ्टवेयरलाई सुरुवाती अवस्थामा फर्काउनुहोस् (१-क्लिक)"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>१-क्लिक डेटा रिसेट</span>
+            </button>
+
             <button
               onClick={handleCloudSync}
               disabled={isLoading}
