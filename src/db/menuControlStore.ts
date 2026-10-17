@@ -42,7 +42,7 @@ export interface ClientAccessRecord {
   activeDeviceId?: string; // Single device lock
   activeDeviceName?: string;
   lastLoginISO?: string;
-  status: 'active' | 'suspended';
+  status: 'active' | 'suspended' | 'inactive';
   // Map of feature ID -> AccessState ('open' | 'close' | 'lock')
   permissions: Record<string, AccessState>;
 }
@@ -563,7 +563,7 @@ export async function savePolicyToServer(
   userIdOrMobile: string,
   permissions: Record<string, AccessState>,
   period?: SubscriptionPeriod,
-  status?: 'active' | 'suspended'
+  status?: 'active' | 'suspended' | 'inactive'
 ): Promise<boolean> {
   try {
     const res = await fetch(`/api/superadmin/menu-policies/${encodeURIComponent(userIdOrMobile)}`, {

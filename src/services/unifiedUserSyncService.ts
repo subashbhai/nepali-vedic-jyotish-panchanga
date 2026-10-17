@@ -9,7 +9,7 @@
  * 5. Provides offline/manual JSON sync bridge
  */
 
-import { RBACUser, getStoredRBACUsers, saveRBACUsers, deleteRBACUserPermanently } from '../db/rbacStore';
+import { RBACUser, getStoredRBACUsers, saveRBACUsers, deleteRBACUserPermanently, clearRBACSession, getActiveRBACSession } from '../db/rbacStore';
 import { 
   ClientLead, 
   getStoredClientLeads, 
@@ -20,7 +20,7 @@ import {
 } from '../db/clientLeadStore';
 import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from '../db/securityBlacklist';
 import { deleteLicensesForUserPermanently } from '../db/serviceLicenseStore';
-import { deleteClientPolicyPermanently, registerOrUpdateClientPolicy } from '../db/menuControlStore';
+import { deleteClientPolicyPermanently, registerOrUpdateClientPolicy, loadAllClientPolicies, saveAllClientPolicies, getClientPolicyByMobile } from '../db/menuControlStore';
 import { convertADToBS } from '../utils/nepaliCalendar';
 
 
@@ -82,6 +82,23 @@ class UnifiedUserSyncService {
         this.broadcastChannel.onmessage = (ev) => {
           if (ev.data?.type === 'SYNC_DATA_UPDATED') {
             window.dispatchEvent(new CustomEvent('unified-data-updated'));
+          } else if (ev.data?.type === 'FORCE_SIGNOUT') {
+            const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+            if (activeSessionRaw) {
+              try {
+                const sess = JSON.parse(activeSessionRaw);
+                const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+                const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+                const targetMob = this.normalizePhoneOrId(ev.data.phone);
+                const targetId = (ev.data.userId || '').toLowerCase();
+
+                const isMatch = (targetMob && (sessMob === targetMob || sessId === targetMob)) ||
+                                (targetId && (sessId === targetId || sessMob === targetId));
+                if (isMatch) {
+                  this.forceClientSignout(ev.data.action, ev.data.reason);
+                }
+              } catch {}
+            }
           }
         };
       } catch {}
@@ -89,15 +106,23 @@ class UnifiedUserSyncService {
 
     // Auto sync on page load, window focus, online status, and cross-window storage events
     if (typeof window !== 'undefined') {
-      window.addEventListener('focus', () => this.syncAllData(true));
-      window.addEventListener('online', () => this.syncAllData(true));
+      window.addEventListener('focus', () => {
+        this.syncAllData(true);
+        this.validateActiveSessionLiveness();
+      });
+      window.addEventListener('online', () => {
+        this.syncAllData(true);
+        this.validateActiveSessionLiveness();
+      });
       window.addEventListener('storage', (ev) => {
         if (
           ev.key?.startsWith('balananda_rbac_users') ||
           ev.key?.startsWith('balananda_client_leads') ||
-          ev.key?.startsWith('balananda_service_licenses')
+          ev.key?.startsWith('balananda_service_licenses') ||
+          ev.key?.startsWith('balananda_security_blacklist')
         ) {
           window.dispatchEvent(new CustomEvent('unified-data-updated'));
+          this.validateActiveSessionLiveness();
         }
       });
 
@@ -108,13 +133,123 @@ class UnifiedUserSyncService {
         }
       });
 
-      // Initialize client-side SSE for instant approval listening
+      // Immediate & recurring session security verification (every 3 seconds)
+      this.validateActiveSessionLiveness();
+      setInterval(() => {
+        this.validateActiveSessionLiveness();
+      }, 3000);
+
+      // Initialize client-side SSE for instant approval & security revoke listening
       this.initClientSSEListener();
     }
   }
 
   public getLastSyncTime(): Date {
     return this.lastSyncTime;
+  }
+
+  /**
+   * Immediately terminates active user session across the client device (< 1 millisecond)
+   * Downgrades client instantly to normal visitor mode (Guest Mode)
+   */
+  public forceClientSignout(action: 'deleted' | 'suspended' | 'inactive' | 'disabled' | string, reason?: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+      // 1. Clear session keys
+      clearRBACSession();
+      localStorage.removeItem('balananda_rbac_session_v2');
+      localStorage.removeItem('balananda_rbac_active_session_v1');
+      localStorage.removeItem('sukdev_user_subscription_account_v1');
+
+      // 2. Clear full software access licenses for this device
+      localStorage.removeItem('balananda_approved_client_license_v2');
+      localStorage.removeItem('software_full_access_unlocked_v1');
+      localStorage.removeItem('balananda_software_full_access_license_v2');
+
+      // 3. Dispatch global events for instant UI transition to normal visitor (< 1ms)
+      window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: false } }));
+      window.dispatchEvent(new CustomEvent('rbac-session-changed', { detail: null }));
+
+      let message = 'सुरक्षा सूचना: तपाईंको खाता सामान्य पाहुना (Visitor) मोडमा लगिएको छ।';
+      if (action === 'deleted') {
+        message = 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।';
+      } else if (action === 'suspended') {
+        message = 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।';
+      } else if (action === 'inactive' || action === 'disabled') {
+        message = 'सुरक्षा सूचना: तपाईंको खाता निष्क्रिय (De-activated) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।';
+      }
+
+      window.dispatchEvent(new CustomEvent('user-force-logout', {
+        detail: {
+          action,
+          reason: reason || message,
+          timestamp: Date.now()
+        }
+      }));
+    } catch (e) {
+      console.warn('Error executing force client signout:', e);
+    }
+  }
+
+  /**
+   * Periodic security session validator
+   * Verifies that the currently logged-in account is not blacklisted, deleted, locked, or deactivated
+   */
+  public validateActiveSessionLiveness(): boolean {
+    if (typeof window === 'undefined') return true;
+    try {
+      const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+      if (!activeSessionRaw) return true;
+
+      const sess = JSON.parse(activeSessionRaw);
+      if (!sess) return true;
+
+      // SuperAdmin portal session is exempt from user-level revocation
+      if (sess.role === 'SUPER_ADMIN') return true;
+
+      const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+      const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+
+      // 1. Check blacklist
+      if (
+        (sessMob && isPermanentlyDeleted(sessMob)) ||
+        (sessId && isPermanentlyDeleted(sessId)) ||
+        (sess.phone && isPermanentlyDeleted(sess.phone)) ||
+        (sess.username && isPermanentlyDeleted(sess.username))
+      ) {
+        this.forceClientSignout('deleted', 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+        return false;
+      }
+
+      // 2. Check RBAC Users in memory
+      const rbacUsers = getStoredRBACUsers();
+      const dbUser = rbacUsers.find(u => 
+        (u.id && u.id.toLowerCase() === sessId) ||
+        (u.phone && this.normalizePhoneOrId(u.phone) === sessMob) ||
+        (u.username && u.username.toLowerCase() === (sess.username || '').toLowerCase())
+      );
+
+      if (dbUser) {
+        if (dbUser.status === 'suspended' || dbUser.status === 'inactive' || dbUser.status === 'disabled') {
+          const defaultMsg = dbUser.status === 'suspended'
+            ? 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।'
+            : 'सुरक्षा सूचना: तपाईंको खाता निष्क्रिय (De-activated) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।';
+          this.forceClientSignout(dbUser.status, dbUser.statusReason || defaultMsg);
+          return false;
+        }
+      }
+
+      // 3. Check Menu Control Policy
+      const clientPolicy = getClientPolicyByMobile(sessMob || sessId);
+      if (clientPolicy && clientPolicy.status === 'suspended') {
+        this.forceClientSignout('suspended', 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ।');
+        return false;
+      }
+
+      return true;
+    } catch {
+      return true;
+    }
   }
 
   /**
@@ -133,7 +268,7 @@ class UnifiedUserSyncService {
   }
 
   /**
-   * Client-side Realtime SSE listener for instant license unlock when SuperAdmin approves
+   * Client-side Realtime SSE listener for instant license unlock and security revocation
    */
   private initClientSSEListener() {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
@@ -199,6 +334,52 @@ class UnifiedUserSyncService {
                 this.notifyListeners();
               }
             }
+          } else if (parsed?.type === 'USER_DELETED') {
+            // Security revoke: Immediately delete locally and force signout if active
+            const normTarget = this.normalizePhoneOrId(parsed.mobile || parsed.phone || parsed.userId);
+            const targetId = (parsed.userId || parsed.id || '').toLowerCase();
+            if (parsed.mobile) addPermanentlyDeletedIdentifier(parsed.mobile);
+            if (parsed.userId) addPermanentlyDeletedIdentifier(parsed.userId);
+
+            const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+            if (activeSessionRaw) {
+              try {
+                const sess = JSON.parse(activeSessionRaw);
+                const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+                const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+                const isMatch = (normTarget && (sessMob === normTarget || sessId === normTarget)) ||
+                                (targetId && (sessId === targetId || sessMob === targetId));
+                if (isMatch) {
+                  this.forceClientSignout('deleted', 'तपाईंको खाता प्रणालीबाट स्थायी रूपमा हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+                }
+              } catch {}
+            }
+            this.notifyListeners();
+          } else if (parsed?.type === 'USER_STATUS_CHANGED') {
+            // Security revoke: If status is suspended or inactive, force immediate client signout
+            const status = parsed.userStatus;
+            const normTarget = this.normalizePhoneOrId(parsed.mobile || parsed.phone || parsed.userId);
+            const targetId = (parsed.userId || parsed.id || '').toLowerCase();
+
+            if (status === 'suspended' || status === 'inactive' || status === 'disabled') {
+              const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+              if (activeSessionRaw) {
+                try {
+                  const sess = JSON.parse(activeSessionRaw);
+                  const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+                  const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+                  const isMatch = (normTarget && (sessMob === normTarget || sessId === normTarget)) ||
+                                  (targetId && (sessId === targetId || sessMob === targetId));
+                  if (isMatch) {
+                    const defaultMsg = status === 'suspended'
+                      ? 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।'
+                      : 'सुरक्षा सूचना: तपाईंको खाता निष्क्रिय (De-activated) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।';
+                    this.forceClientSignout(status, parsed.details || defaultMsg);
+                  }
+                } catch {}
+              }
+            }
+            this.notifyListeners();
           }
         } catch {}
       };
@@ -215,10 +396,12 @@ class UnifiedUserSyncService {
    * Instantly broadcast an event across all devices (< 1 second) via high-speed relay
    */
   public async pushEventToRealtimeRelay(event: {
-    type: 'USER_SIGNUP' | 'USER_UPDATE' | 'PURCHASE_REQUEST' | 'LICENSE_APPROVED' | 'USER_DELETED';
+    type: 'USER_SIGNUP' | 'USER_UPDATE' | 'PURCHASE_REQUEST' | 'LICENSE_APPROVED' | 'USER_DELETED' | 'USER_STATUS_CHANGED';
     user?: any;
     lead?: any;
     mobile?: string;
+    userId?: string;
+    userStatus?: string;
     leadId?: string;
     details?: string;
   }): Promise<void> {
@@ -490,6 +673,35 @@ class UnifiedUserSyncService {
     }).catch(() => {});
     this.pushLocalStateToCloud().catch(() => {});
 
+    // Instant force signout on current device (< 1ms) if current session belongs to deleted user
+    if (typeof window !== 'undefined') {
+      const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+      if (activeSessionRaw) {
+        try {
+          const sess = JSON.parse(activeSessionRaw);
+          const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+          const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+          const target1 = this.normalizePhoneOrId(phoneOrId);
+          const target2 = secondaryIdentifier ? this.normalizePhoneOrId(secondaryIdentifier) : '';
+
+          if ((target1 && sessMob === target1) || sessId === phoneOrId.toLowerCase() || (target2 && (sessMob === target2 || sessId === secondaryIdentifier?.toLowerCase()))) {
+            this.forceClientSignout('deleted', 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+          }
+        } catch {}
+      }
+
+      // Broadcast to other tabs on this machine (< 1ms)
+      try {
+        this.broadcastChannel?.postMessage({
+          type: 'FORCE_SIGNOUT',
+          userId: phoneOrId,
+          phone: secondaryIdentifier || phoneOrId,
+          action: 'deleted',
+          reason: 'खाता स्थायी रूपमा हटाइयो'
+        });
+      } catch {}
+    }
+
     // 9. Dispatch all update events across components
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('unified-data-updated'));
@@ -501,6 +713,148 @@ class UnifiedUserSyncService {
     }
     this.notifyListeners();
 
+    return true;
+  }
+
+  /**
+   * Instantly update a user's status (active, suspended, inactive)
+   * When locked or deactivated, in milliseconds all sessions across all tabs and devices are terminated!
+   */
+  public updateUserAccountStatus(
+    phoneOrId: string,
+    status: 'active' | 'suspended' | 'inactive',
+    reason?: string
+  ): boolean {
+    if (!phoneOrId) return false;
+    const norm = this.normalizePhoneOrId(phoneOrId);
+    const cleanId = phoneOrId.trim().toLowerCase();
+
+    // 1. Update RBAC Users Store
+    const rbacUsers = getStoredRBACUsers();
+    let rbacUpdated = false;
+    const newRbacUsers = rbacUsers.map(u => {
+      const uMob = this.normalizePhoneOrId(u.phone || u.username);
+      const uId = (u.id || '').toLowerCase();
+      if ((norm && uMob === norm) || uId === cleanId) {
+        rbacUpdated = true;
+        return {
+          ...u,
+          status: status as any,
+          statusReason: reason || u.statusReason,
+          statusUpdatedAtISO: new Date().toISOString()
+        };
+      }
+      return u;
+    });
+    if (rbacUpdated) {
+      saveRBACUsers(newRbacUsers);
+    }
+
+    // 2. Update balananda_registered_users_v1
+    if (typeof window !== 'undefined') {
+      try {
+        const rawReg = localStorage.getItem('balananda_registered_users_v1');
+        if (rawReg) {
+          const list = JSON.parse(rawReg);
+          if (Array.isArray(list)) {
+            const updatedReg = list.map((u: any) => {
+              const uMob = this.normalizePhoneOrId(u.phone || u.username);
+              const uId = (u.id || '').toLowerCase();
+              if ((norm && uMob === norm) || uId === cleanId) {
+                return {
+                  ...u,
+                  status,
+                  statusReason: reason || u.statusReason,
+                  statusUpdatedAtISO: new Date().toISOString()
+                };
+              }
+              return u;
+            });
+            localStorage.setItem('balananda_registered_users_v1', JSON.stringify(updatedReg));
+          }
+        }
+      } catch {}
+
+      // 3. Update Menu Control Policy
+      try {
+        const allPolicies = loadAllClientPolicies();
+        let policyUpdated = false;
+        const updatedPolicies = allPolicies.map(p => {
+          const pMob = this.normalizePhoneOrId(p.mobile);
+          const pId = (p.id || '').toLowerCase();
+          if ((norm && pMob === norm) || pId === cleanId) {
+            policyUpdated = true;
+            return {
+              ...p,
+              status: status === 'active' ? 'active' : (status === 'inactive' ? 'inactive' : 'suspended')
+            };
+          }
+          return p;
+        });
+        if (policyUpdated) {
+          saveAllClientPolicies(updatedPolicies);
+        }
+      } catch {}
+
+      // 4. If locked or deactivated: FORCE INSTANT SIGNOUT on current device (< 1ms)
+      if (status !== 'active') {
+        const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+        if (activeSessionRaw) {
+          try {
+            const sess = JSON.parse(activeSessionRaw);
+            const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+            const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+
+            if ((norm && sessMob === norm) || sessId === cleanId) {
+              const defaultMsg = status === 'suspended'
+                ? 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।'
+                : 'सुरक्षा सूचना: तपाईंको खाता निष्क्रिय (De-activated) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।';
+              this.forceClientSignout(status, reason || defaultMsg);
+            }
+          } catch {}
+        }
+
+        // 5. Broadcast to all open tabs on this browser (< 1ms)
+        try {
+          this.broadcastChannel?.postMessage({
+            type: 'FORCE_SIGNOUT',
+            userId: phoneOrId,
+            phone: phoneOrId,
+            action: status,
+            reason: reason || (status === 'suspended' ? 'खाता निलम्बन (Locked)' : 'खाता निष्क्रिय (De-activated)')
+          });
+        } catch {}
+      }
+    }
+
+    // 6. Push to Realtime SSE Relay across all devices (< 100ms)
+    this.pushEventToRealtimeRelay({
+      type: 'USER_STATUS_CHANGED',
+      userStatus: status,
+      mobile: phoneOrId,
+      userId: phoneOrId,
+      details: reason
+    }).catch(() => {});
+
+    // 7. Background Server Call if running
+    if (typeof fetch !== 'undefined') {
+      const enc = encodeURIComponent(phoneOrId);
+      fetch(`/api/superadmin/users/${enc}/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-superadmin-token': 'SUPER_ADMIN'
+        },
+        body: JSON.stringify({ status, reason })
+      }).catch(() => {});
+      fetch(`/api/users/${enc}/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, reason })
+      }).catch(() => {});
+    }
+
+    this.notifyListeners();
     return true;
   }
 

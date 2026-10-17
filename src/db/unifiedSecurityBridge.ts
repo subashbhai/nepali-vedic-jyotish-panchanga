@@ -354,15 +354,22 @@ export function syncAllSecurityStores(): {
       syncedCount++;
     } else {
       // Sync credentials & status
-      if (client.passwordPlain && hashPassword(client.passwordPlain) !== existingRbac.passwordHash) {
+      // Only sync client's password to RBAC if client.passwordPlain is a real custom password (not fallback 'Vedic@2026')
+      const clientHasCustomPass = client.passwordPlain && client.passwordPlain !== 'Vedic@2026';
+      if (clientHasCustomPass && hashPassword(client.passwordPlain) !== existingRbac.passwordHash && client.passwordPlain !== existingRbac.passwordHash) {
         existingRbac.passwordHash = hashPassword(client.passwordPlain);
+        existingRbac.passwordPlain = client.passwordPlain;
         rbacChanged = true;
+      } else if (existingRbac.passwordPlain && (!client.passwordPlain || client.passwordPlain === 'Vedic@2026')) {
+        client.passwordPlain = existingRbac.passwordPlain;
+        client.passwordHash = existingRbac.passwordHash;
+        clientChanged = true;
       }
       if (existingRbac.fullName !== client.fullName) {
         existingRbac.fullName = client.fullName;
         rbacChanged = true;
       }
-      const expectedStatus = client.status === 'suspended' ? 'suspended' : 'active';
+      const expectedStatus = client.status === 'suspended' ? 'suspended' : (client.status === 'inactive' ? 'inactive' : 'active');
       if (existingRbac.status !== expectedStatus) {
         existingRbac.status = expectedStatus;
         rbacChanged = true;
@@ -379,25 +386,38 @@ export function syncAllSecurityStores(): {
     if (rbacUser.role === 'CUSTOMER' && rbacUser.phone) {
       const cleanPhone = normalizeIdentifier(rbacUser.phone).last10Digits || rbacUser.phone;
       const existingClient = clients.find(c => matchesClientRecord(c, cleanPhone));
+      const userPlain = rbacUser.passwordPlain || rbacUser.passwordHash || 'Vedic@2026';
+      const expectedStatus = rbacUser.status === 'suspended' ? 'suspended' : (rbacUser.status === 'inactive' ? 'inactive' : 'active');
+
       if (!existingClient) {
         const newClient: ClientAccessRecord = {
           id: rbacUser.id,
           mobile: cleanPhone,
           fullName: rbacUser.fullName,
           loginId: rbacUser.username || cleanPhone,
-          passwordPlain: 'Vedic@2026', // Fallback default
+          passwordPlain: userPlain,
           passwordHash: rbacUser.passwordHash,
           createdAtISO: rbacUser.createdAtISO,
           createdAtBS: rbacUser.createdAtBS,
           period: '1_year',
           expiresAtTimestamp: Date.now() + 365 * 24 * 60 * 60 * 1000,
           expiresAtBS: '२०८२-१२-३०',
-          status: rbacUser.status === 'suspended' ? 'suspended' : 'active',
+          status: expectedStatus,
           permissions: getDefaultPermissionsMap()
         };
         clients.push(newClient);
         clientChanged = true;
         syncedCount++;
+      } else {
+        if (existingClient.status !== expectedStatus) {
+          existingClient.status = expectedStatus;
+          clientChanged = true;
+        }
+        if (rbacUser.passwordPlain && (!existingClient.passwordPlain || existingClient.passwordPlain === 'Vedic@2026')) {
+          existingClient.passwordPlain = rbacUser.passwordPlain;
+          existingClient.passwordHash = rbacUser.passwordHash;
+          clientChanged = true;
+        }
       }
     }
   }
@@ -444,6 +464,14 @@ export function authenticateUnifiedUser(
   // Always perform a fast cross-sync before authentication to guarantee real-time data
   syncAllSecurityStores();
 
+  // Security Blacklist check: if permanently deleted, reject immediately
+  if (isPermanentlyDeleted(identifier) || isPermanentlyDeleted(cleanId) || (norm.last10Digits && isPermanentlyDeleted(norm.last10Digits))) {
+    return {
+      success: false,
+      message: 'सुरक्षा प्रतिबन्ध: यो खाता प्रणालीबाट स्थायी रूपमा हटाइएको छ। प्रवेश निषेध गरिएको छ।'
+    };
+  }
+
   // ── STEP 1: Search in Client Access Policies (Menu Control) ──
   let clientPolicy = findClientAccessRecord(cleanId);
   if (!clientPolicy && norm.last10Digits) {
@@ -455,10 +483,12 @@ export function authenticateUnifiedUser(
 
   if (clientPolicy) {
     // Check status
-    if (clientPolicy.status === 'suspended') {
+    if (clientPolicy.status === 'suspended' || clientPolicy.status === 'inactive' || clientPolicy.status === 'disabled') {
       return {
         success: false,
-        message: 'तपाईंको खाता हाल निलम्बित (Suspended) गरिएको छ। कृपया सुपरएडमिनसँग सम्पर्क गर्नुहोस्।'
+        message: clientPolicy.status === 'suspended'
+          ? 'सुरक्षा प्रतिबन्ध: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। कृपया मुख्य प्रशासकलाई सम्पर्क गर्नुहोस्।'
+          : 'सुरक्षा प्रतिबन्ध: तपाईंको खाता निष्क्रिय (De-activated) गरिएको छ। कृपया मुख्य प्रशासकलाई सम्पर्क गर्नुहोस्।'
       };
     }
 
@@ -488,7 +518,12 @@ export function authenticateUnifiedUser(
     }
 
     // Auto-repair password & hash if needed
-    if (clientPolicy.passwordPlain !== trimmedPassword && ((cleanStoredPlain && trimmedPassword.toUpperCase() === cleanStoredPlain.toUpperCase()) || isSpecialSubashMatch)) {
+    if (clientPolicy.passwordPlain !== trimmedPassword && (
+      (cleanStoredPlain && trimmedPassword.toUpperCase() === cleanStoredPlain.toUpperCase()) || 
+      isSpecialSubashMatch ||
+      trimmedPassword === clientPolicy.passwordHash ||
+      enteredHash === clientPolicy.passwordHash
+    )) {
       clientPolicy.passwordPlain = trimmedPassword;
       clientPolicy.passwordHash = enteredHash;
     } else if (clientPolicy.passwordPlain && clientPolicy.passwordHash !== enteredHash && trimmedPassword === clientPolicy.passwordPlain) {
@@ -645,10 +680,12 @@ export function authenticateUnifiedUser(
     };
   }
 
-  if (foundUser.status === 'suspended') {
+  if (foundUser.status === 'suspended' || foundUser.status === 'inactive' || foundUser.status === 'disabled') {
     return {
       success: false,
-      message: 'तपाईंको खाता हाल निलम्बित (Suspended) गरिएको छ।'
+      message: foundUser.status === 'suspended'
+        ? 'सुरक्षा प्रतिबन्ध: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। कृपया मुख्य प्रशासकलाई सम्पर्क गर्नुहोस्।'
+        : 'सुरक्षा प्रतिबन्ध: तपाईंको खाता निष्क्रिय (De-activated) गरिएको छ। कृपया मुख्य प्रशासकलाई सम्पर्क गर्नुहोस्।'
     };
   }
 

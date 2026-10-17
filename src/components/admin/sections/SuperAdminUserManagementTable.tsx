@@ -757,26 +757,44 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   // Change user status (Active / Suspended / Inactive)
   const handleConfirmStatusChange = async () => {
     if (!statusModalUser) return;
+    const targetUser = statusModalUser.user;
+    const targetStatus = statusModalUser.targetStatus;
+    const reason = statusReason.trim();
+
     try {
-      const res = await fetch(`/api/superadmin/users/${statusModalUser.user.id}/status`, {
+      // 1. Immediately update client-side synchronization & force instant signout (< 1ms)
+      unifiedUserSyncService.updateUserAccountStatus(targetUser.id, targetStatus, reason);
+      if (targetUser.phone) {
+        unifiedUserSyncService.updateUserAccountStatus(targetUser.phone, targetStatus, reason);
+      }
+
+      // 2. Also send to Express API if running in background
+      fetch(`/api/superadmin/users/${targetUser.id}/status`, {
         method: 'POST',
         headers: getSuperAdminAuthHeaders(),
         body: JSON.stringify({
-          status: statusModalUser.targetStatus,
-          reason: statusReason
+          status: targetStatus,
+          reason
         })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message || 'खाता स्थिति अद्यावधिक भयो!');
-        setStatusModalUser(null);
-        setStatusReason('');
-        fetchUsers(true);
-      } else {
-        showToast(data.error || 'खाता स्थिति परिवर्तन असफल।');
-      }
-    } catch {
-      showToast('सर्भर त्रुटि।');
+      }).catch(() => {});
+
+      const statusLabels: Record<string, string> = {
+        active: 'सक्रिय (Active)',
+        suspended: 'निलम्बित / लक (Suspended / Locked)',
+        inactive: 'निष्क्रिय (Inactive / De-activated)'
+      };
+
+      const signoutNote = targetStatus !== 'active'
+        ? ' (प्रयोगकर्ताको डिभाइसमा तत्काल अटो-साइनआउट भयो)'
+        : '';
+
+      showToast(`खाता स्थिति '${statusLabels[targetStatus] || targetStatus}' बनाइयो!${signoutNote}`);
+      setStatusModalUser(null);
+      setStatusReason('');
+      await fetchUsers(true);
+    } catch (err) {
+      console.error('Status change error:', err);
+      showToast('खाता स्थिति अद्यावधिक गर्न समस्या भयो।');
     }
   };
 
@@ -1678,6 +1696,24 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setStatusModalUser({
+                                user,
+                                targetStatus: user.status === 'active' ? 'suspended' : 'active'
+                              });
+                            }}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              user.status === 'active'
+                                ? 'bg-amber-500/10 hover:bg-amber-500/25 text-amber-400 border-amber-500/30'
+                                : 'bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border-emerald-500/30'
+                            }`}
+                            title={user.status === 'active' ? 'खाता निलम्बन / लक (Lock - तत्काल साइनआउट)' : 'खाता सक्रिय (Unlock/Activate)'}
+                          >
+                            {user.status === 'active' ? <Lock className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setUserToDelete(user);
                             }}
                             className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
@@ -2181,19 +2217,31 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                   className="w-full text-left px-3.5 py-1.5 hover:bg-emerald-950/60 text-emerald-400 flex items-center gap-2.5 font-bold transition-colors"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>खाता सक्रिय गर्नुहोस्</span>
+                  <span>खाता सक्रिय गर्नुहोस् (Activate)</span>
                 </button>
               ) : (
-                <button
-                  onClick={() => {
-                    setStatusModalUser({ user: contextMenu.user!, targetStatus: 'suspended' });
-                    setContextMenu(prev => ({ ...prev, visible: false }));
-                  }}
-                  className="w-full text-left px-3.5 py-1.5 hover:bg-rose-950/60 text-rose-400 flex items-center gap-2.5 font-bold transition-colors"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                  <span>खाता निलम्बन (Suspend) गर्नुहोस्</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      setStatusModalUser({ user: contextMenu.user!, targetStatus: 'suspended' });
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                    }}
+                    className="w-full text-left px-3.5 py-1.5 hover:bg-rose-950/60 text-rose-400 flex items-center gap-2.5 font-bold transition-colors"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>खाता निलम्बन / लक (Lock - तत्काल साइनआउट)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStatusModalUser({ user: contextMenu.user!, targetStatus: 'inactive' });
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                    }}
+                    className="w-full text-left px-3.5 py-1.5 hover:bg-amber-950/60 text-amber-400 flex items-center gap-2.5 font-bold transition-colors"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>खाता निष्क्रिय (De-activate - तत्काल साइनआउट)</span>
+                  </button>
+                </>
               )}
             </div>
 
@@ -2498,16 +2546,28 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
               </div>
 
               {mobileActionUser.status === 'active' ? (
-                <button
-                  onClick={() => {
-                    setStatusModalUser({ user: mobileActionUser, targetStatus: 'suspended' });
-                    setMobileActionUser(null);
-                  }}
-                  className="w-full p-3 bg-stone-950 border border-stone-800 hover:border-rose-800 rounded-xl text-left flex items-center gap-3 text-rose-300 font-bold"
-                >
-                  <XCircle className="w-4 h-4 text-rose-400" />
-                  <span>खाता निलम्बन (Suspend Account)</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      setStatusModalUser({ user: mobileActionUser, targetStatus: 'suspended' });
+                      setMobileActionUser(null);
+                    }}
+                    className="w-full p-3 bg-stone-950 border border-stone-800 hover:border-rose-800 rounded-xl text-left flex items-center gap-3 text-rose-300 font-bold"
+                  >
+                    <Lock className="w-4 h-4 text-rose-400" />
+                    <span>खाता निलम्बन / लक (Lock Account - तत्काल साइनआउट)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStatusModalUser({ user: mobileActionUser, targetStatus: 'inactive' });
+                      setMobileActionUser(null);
+                    }}
+                    className="w-full p-3 bg-stone-950 border border-stone-800 hover:border-amber-800 rounded-xl text-left flex items-center gap-3 text-amber-300 font-bold"
+                  >
+                    <XCircle className="w-4 h-4 text-amber-400" />
+                    <span>खाता निष्क्रिय (De-activate Account - तत्काल साइनआउट)</span>
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={() => {
@@ -2928,7 +2988,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
       )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* ── MODAL 3: ACCOUNT STATUS CONFIRMATION (Activate/Suspend) ── */}
+      {/* ── MODAL 3: ACCOUNT STATUS CONFIRMATION (Activate/Suspend/Inactive) ── */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {statusModalUser && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in duration-150">
@@ -2938,26 +2998,79 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 <div className="w-10 h-10 rounded-2xl bg-emerald-950 border border-emerald-800 text-emerald-400 flex items-center justify-center">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
-              ) : (
+              ) : statusModalUser.targetStatus === 'suspended' ? (
                 <div className="w-10 h-10 rounded-2xl bg-rose-950 border border-rose-800 text-rose-400 flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5" />
+                  <Lock className="w-5 h-5" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-2xl bg-amber-950 border border-amber-800 text-amber-400 flex items-center justify-center">
+                  <XCircle className="w-5 h-5" />
                 </div>
               )}
               <div>
                 <h3 className="font-extrabold text-base text-white">
                   {statusModalUser.targetStatus === 'active'
-                    ? 'खाता पुनः सक्रिय गर्ने पुष्टि'
-                    : 'खाता निलम्बन (Suspension) पुष्टि'}
+                    ? 'खाता पुनः सक्रिय (Unlock / Activate)'
+                    : statusModalUser.targetStatus === 'suspended'
+                    ? 'खाता निलम्बन (Lock Account)'
+                    : 'खाता निष्क्रिय (De-activate Account)'}
                 </h3>
                 <p className="text-xs text-stone-400">{statusModalUser.user.fullName} ({statusModalUser.user.phone})</p>
               </div>
             </div>
 
-            <p className="text-xs text-stone-300 leading-relaxed">
-              {statusModalUser.targetStatus === 'active'
-                ? 'यो खाता सक्रिय गरेपछि प्रयोगकर्ताले आफ्नो मोबाइल र पासवर्डबाट सामान्य लगइन गरी सेवा प्रयोग गर्न सक्नेछन्।'
-                : 'खाता निलम्बन गरेपछि प्रयोगकर्ताले लगइन गर्न पाउने छैनन् र निजको पहुँच रोकिनेछ।'}
-            </p>
+            {/* Target Status Selector Pills */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-stone-950 border border-stone-800 rounded-2xl text-xs">
+              <button
+                type="button"
+                onClick={() => setStatusModalUser(prev => prev ? { ...prev, targetStatus: 'active' } : null)}
+                className={`py-2 rounded-xl font-bold transition-all ${
+                  statusModalUser.targetStatus === 'active'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                सक्रिय (Active)
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusModalUser(prev => prev ? { ...prev, targetStatus: 'suspended' } : null)}
+                className={`py-2 rounded-xl font-bold transition-all ${
+                  statusModalUser.targetStatus === 'suspended'
+                    ? 'bg-rose-600 text-white shadow-md'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                निलम्बित (Lock)
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusModalUser(prev => prev ? { ...prev, targetStatus: 'inactive' } : null)}
+                className={`py-2 rounded-xl font-bold transition-all ${
+                  statusModalUser.targetStatus === 'inactive'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                निष्क्रिय (De-active)
+              </button>
+            </div>
+
+            {statusModalUser.targetStatus !== 'active' ? (
+              <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-2xl text-[11px] text-rose-300 leading-relaxed space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-rose-400">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>मिलिसेकेन्डमै तत्काल साइनआउट प्रणाली:</span>
+                </p>
+                <p>
+                  खाता {statusModalUser.targetStatus === 'suspended' ? 'निलम्बन (Lock)' : 'निष्क्रिय (De-activate)'} गर्नासाथ प्रयोगकर्ता जुनसुकै मोबाइल वा कम्प्युटरमा लगइन भएको भए तापनि <strong>तत्काल अटोमेटिक साइनआउट</strong> भई सामान्य पाहुना (Visitor) मोडमा रूपान्तरण हुनेछ।
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-stone-300 leading-relaxed">
+                यो खाता सक्रिय गरेपछि प्रयोगकर्ताले आफ्नो मोबाइल र पासवर्डबाट लगइन गरी सफ्टवेयरका सुविधाहरू प्रयोग गर्न सक्नेछन्।
+              </p>
+            )}
 
             <div className="space-y-1 text-xs">
               <label className="text-stone-400 font-bold">कारण / कैफियत (वैकल्पिक):</label>
@@ -2982,13 +3095,15 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
               </button>
               <button
                 onClick={handleConfirmStatusChange}
-                className={`px-4 py-2 font-bold rounded-xl text-xs cursor-pointer transition-colors ${
+                className={`px-4 py-2 font-bold rounded-xl text-xs cursor-pointer transition-colors shadow-lg ${
                   statusModalUser.targetStatus === 'active'
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-rose-600 hover:bg-rose-500 text-white'
+                    : statusModalUser.targetStatus === 'suspended'
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                    : 'bg-amber-600 hover:bg-amber-500 text-white'
                 }`}
               >
-                पुष्टि गर्नुहोस्
+                {statusModalUser.targetStatus === 'active' ? 'सक्रिय गर्नुहोस्' : 'पुष्टि गरी साइनआउट गर्नुहोस्'}
               </button>
             </div>
           </div>

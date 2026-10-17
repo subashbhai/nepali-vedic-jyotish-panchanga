@@ -788,6 +788,13 @@ export default function App() {
   const [lockedFeatureName, setLockedFeatureName] = useState<string>('यो मेनु');
   const [isApkPromptModalOpen, setIsApkPromptModalOpen] = useState<boolean>(false);
 
+  // Real-time Force Security Signout Alert (Visitor Downgrade)
+  const [securitySignoutAlert, setSecuritySignoutAlert] = useState<{
+    isOpen: boolean;
+    action: string;
+    reason: string;
+  } | null>(null);
+
   // 24-Hour & 7-Day Trial State
   const [isTrialActive, setIsTrialActive] = useState<boolean>(() => is24HourTrialActive() || is7DayTrialActive());
   const [trialStatusInfo, setTrialStatusInfo] = useState(() => evaluateSubscriptionStatus());
@@ -864,12 +871,46 @@ export default function App() {
       setIsClientPurchaseLeadModalOpen(true);
     };
 
+    const handleForceSignoutEvent = (e: any) => {
+      const detail = e?.detail || {};
+      clearRBACSession();
+      setRbacSession(null);
+      setIsSuperAdminOpen(false);
+      setIsJyotishUnlocked(false);
+      setIsVastuUnlocked(false);
+
+      // Reset any private user dashboard tab back to visitor dashboard
+      setActiveTab(prev => {
+        if (prev === 'user_dashboard' || prev === 'my_account') {
+          return 'dashboard';
+        }
+        return prev;
+      });
+
+      setSecuritySignoutAlert({
+        isOpen: true,
+        action: detail.action || 'suspended',
+        reason: detail.reason || 'सुरक्षा सूचना: तपाईंको खाता निष्क्रिय/निलम्बित गरिएको छ।'
+      });
+    };
+
+    const handleSessionChangedEvent = (e: any) => {
+      if (e?.detail) {
+        setRbacSession(e.detail);
+      } else {
+        const sess = getActiveRBACSession();
+        setRbacSession(sess);
+      }
+    };
+
     window.addEventListener('software-full-access-updated', handleFullAccessUpdate);
     window.addEventListener('storage', handleFullAccessUpdate);
     window.addEventListener('software-trial-updated', handleTrialUpdate);
     window.addEventListener('trial-status-updated', handleTrialUpdate);
     window.addEventListener('trial-print-blocked', handlePrintBlocked);
     window.addEventListener('open-subscription-purchase-modal', handleOpenPurchase);
+    window.addEventListener('user-force-logout', handleForceSignoutEvent);
+    window.addEventListener('rbac-session-changed', handleSessionChangedEvent);
 
     return () => {
       window.removeEventListener('software-full-access-updated', handleFullAccessUpdate);
@@ -878,6 +919,8 @@ export default function App() {
       window.removeEventListener('trial-status-updated', handleTrialUpdate);
       window.removeEventListener('trial-print-blocked', handlePrintBlocked);
       window.removeEventListener('open-subscription-purchase-modal', handleOpenPurchase);
+      window.removeEventListener('user-force-logout', handleForceSignoutEvent);
+      window.removeEventListener('rbac-session-changed', handleSessionChangedEvent);
     };
   }, []);
 
@@ -2785,6 +2828,43 @@ export default function App() {
           isOpen={isApkPromptModalOpen}
           onClose={() => setIsApkPromptModalOpen(false)}
         />
+
+        {/* Real-time Security Signout & Visitor Downgrade Modal */}
+        {securitySignoutAlert?.isOpen && (
+          <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-md bg-stone-900 border-2 border-rose-600/80 rounded-3xl p-6 sm:p-7 shadow-2xl text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-rose-950/80 border border-rose-500/50 text-rose-400 flex items-center justify-center mx-auto shadow-lg shadow-rose-950/50">
+                <Lock className="w-8 h-8" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-black tracking-widest text-rose-400 uppercase bg-rose-950/60 border border-rose-800 px-2.5 py-0.5 rounded-full">
+                  सुरक्षा प्रणाली • तत्काल साइनआउट
+                </span>
+                <h3 className="text-xl font-black text-white pt-2">
+                  {securitySignoutAlert.action === 'deleted' 
+                    ? 'खाता प्रणालीबाट हटाइयो' 
+                    : securitySignoutAlert.action === 'suspended'
+                    ? 'खाता निलम्बन (Lock) गरिएको छ'
+                    : 'खाता निष्क्रिय (De-activated) गरिएको छ'}
+                </h3>
+              </div>
+              <div className="p-3.5 bg-stone-950 border border-stone-800 rounded-2xl text-xs text-stone-300 leading-relaxed text-left">
+                <p className="font-bold text-amber-300 mb-1">📢 प्रशासक सूचना:</p>
+                <p>{securitySignoutAlert.reason}</p>
+              </div>
+              <p className="text-xs text-stone-400">
+                तपाईंको सक्रिय लगइन तुरुन्त समाप्त गरिएको छ। तपाईं अब सामान्य <strong>पाहुना (Visitor)</strong> मोडमा हुनुहुन्छ र निःशुल्क ज्योतिष तथा पञ्चाङ्ग सुविधाहरू अवलोकन गर्न सक्नुहुन्छ।
+              </p>
+              <button
+                type="button"
+                onClick={() => setSecuritySignoutAlert(null)}
+                className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-black rounded-xl text-sm transition-all cursor-pointer shadow-lg"
+              >
+                बुझेँ, पाहुना (Visitor) को रूपमा जारी राख्नुहोस्
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Global Romanized English to Nepali Unicode Transliteration Manager */}
         <GlobalNepaliInputManager />
