@@ -89,7 +89,16 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         if ((activeSession as any).email && !email) setEmail((activeSession as any).email);
       }
     }
-  }, [isOpen, activeSession]);
+
+    const handleFullAccessUnlocked = () => {
+      onUnlockSuccess();
+      onClose();
+    };
+    window.addEventListener('software-full-access-updated', handleFullAccessUnlocked);
+    return () => {
+      window.removeEventListener('software-full-access-updated', handleFullAccessUnlocked);
+    };
+  }, [isOpen, activeSession, onUnlockSuccess, onClose]);
 
   if (!isOpen) return null;
 
