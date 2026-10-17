@@ -33,6 +33,7 @@ export const AdminRbacSection: React.FC = () => {
     CUSTOMER: ['VIEW', 'CREATE'],
     MARRIAGE_USER: ['VIEW', 'CREATE', 'EDIT'],
     MARRIAGE_MODERATOR: ['VIEW', 'EDIT', 'APPROVE', 'REJECT', 'VERIFY', 'MANAGE'],
+    NEWS_EDITOR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
   });
 
   const [selectedRole, setSelectedRole] = useState<SystemRole>('STORE_ADMIN');

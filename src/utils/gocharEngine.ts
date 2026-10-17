@@ -118,6 +118,7 @@ export function calculateGocharAndSadeSati(
       phaseName,
       descriptionNepali,
       remediesNepali,
+      isActive: sadeSatiStatus !== 'कुनै प्रभाव छैन',
     },
   };
 }

@@ -89,7 +89,7 @@ export const PrashnaListView: React.FC<PrashnaListViewProps> = ({
   const refreshHoraryChart = useCallback(() => {
     const lat = activeProfile?.location?.latitude || 27.7172;
     const lon = activeProfile?.location?.longitude || 85.3240;
-    const tz = activeProfile?.location?.timezone || 5.75;
+    const tz = activeProfile?.location?.timeZone ?? activeProfile?.location?.timezone ?? 5.75;
     const res = calculateHoraryChart(undefined, undefined, lat, lon, tz);
     setHoraryChart(res);
   }, [activeProfile]);

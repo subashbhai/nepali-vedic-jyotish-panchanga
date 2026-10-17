@@ -729,8 +729,8 @@ export const StoreMediaAdminTab: React.FC = () => {
                   type="text"
                   value={photoTitle}
                   onChange={(e) => handlePhotoTitleChange(e.target.value)}
-                  onKeyDown={handlePhoneticInputKeyDown}
-                  onBlur={handlePhoneticBlur}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, photoTitle, handlePhotoTitleChange)}
+                  onBlur={() => handlePhoneticBlur(photoTitle, handlePhotoTitleChange)}
                   placeholder="उदा: भगवान् श्री गणेश, शिवजी, सर्वतोभद्र मण्डल, महालक्ष्मी..."
                   className="w-full px-4 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
@@ -788,8 +788,8 @@ export const StoreMediaAdminTab: React.FC = () => {
                   rows={4}
                   value={photoDescription}
                   onChange={(e) => setPhotoDescription(e.target.value)}
-                  onKeyDown={handlePhoneticInputKeyDown}
-                  onBlur={handlePhoneticBlur}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, photoDescription, setPhotoDescription)}
+                  onBlur={() => handlePhoneticBlur(photoDescription, setPhotoDescription)}
                   placeholder="फोटो चयन गर्नासाथ शास्त्रीय धार्मिक विवरण यहाँ स्वतः भरिनेछ..."
                   className="w-full p-3 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500 font-sans"
                 />
@@ -885,11 +885,11 @@ export const StoreMediaAdminTab: React.FC = () => {
                   type="text"
                   value={videoTitle}
                   onChange={(e) => {
-                    setVideoTitle(e.target.value);
-                    if (!videoDescription) setVideoDescription(generateVedicDescription(e.target.value, 'video', videoSpeaker));
-                  }}
-                  onKeyDown={handlePhoneticInputKeyDown}
-                  onBlur={handlePhoneticBlur}
+                     setVideoTitle(e.target.value);
+                     if (!videoDescription) setVideoDescription(generateVedicDescription(e.target.value, 'video', videoSpeaker));
+                   }}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, videoTitle, setVideoTitle)}
+                  onBlur={() => handlePhoneticBlur(videoTitle, setVideoTitle)}
                   placeholder="उदा: पूज्य प्रेमानन्द जी महाराज - नाम जपको महिमा..."
                   className="w-full px-4 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   required
@@ -905,8 +905,8 @@ export const StoreMediaAdminTab: React.FC = () => {
                     type="text"
                     value={videoSpeaker}
                     onChange={(e) => setVideoSpeaker(e.target.value)}
-                    onKeyDown={handlePhoneticInputKeyDown}
-                    onBlur={handlePhoneticBlur}
+                    onKeyDown={(e) => handlePhoneticInputKeyDown(e, videoSpeaker, setVideoSpeaker)}
+                    onBlur={() => handlePhoneticBlur(videoSpeaker, setVideoSpeaker)}
                     placeholder="उदा: पं. दिनबन्धु पोखरेल, प्रेमानन्द जी महाराज..."
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs"
                   />
@@ -1293,8 +1293,8 @@ export const StoreMediaAdminTab: React.FC = () => {
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  onKeyDown={handlePhoneticInputKeyDown}
-                  onBlur={handlePhoneticBlur}
+                  onKeyDown={(e) => handlePhoneticInputKeyDown(e, editTitle, setEditTitle)}
+                  onBlur={() => handlePhoneticBlur(editTitle, setEditTitle)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800"
                   required
                 />

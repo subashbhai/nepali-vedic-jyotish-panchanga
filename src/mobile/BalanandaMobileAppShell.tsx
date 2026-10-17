@@ -152,7 +152,7 @@ export const BalanandaMobileAppShell: React.FC<{
     const mProf: MobileBirthProfile = {
       id: prof.id,
       name: prof.name,
-      relation: 'आफ्नो',
+      relation: 'self',
       relationLabelNepali: 'आफ्नो (Self)',
       gender: (prof.gender === 'female' ? 'female' : 'male') as any,
       dateBS: prof.dateBS || '',

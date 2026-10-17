@@ -10,7 +10,11 @@ export type BookCategoryKey =
   | 'panchanga'     // 🪐 पञ्चाङ्ग
   | 'vastu'         // 🏠 वास्तु
   | 'ayurveda_yoga' // 🌿 आयुर्वेद / योग
-  | 'nepal_vishesh';// 🇳🇵 नेपाल विशेष
+  | 'nepal_vishesh' // 🇳🇵 नेपाल विशेष
+  | 'tantra'        // 📿 तन्त्र
+  | 'sanskar'       // 👶 संस्कार
+  | 'jyotish'       // 🔯 ज्योतिष (alias)
+  | 'vrat';         // 🌸 व्रत तथा पर्व कथा
 
 export interface BookChapter {
   id: string;

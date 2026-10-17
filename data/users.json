@@ -1,5 +1,90 @@
 [
   {
+    "id": "usr_1792144657897_i208d",
+    "customerId": "सदस्य-२०८१-०००3",
+    "username": "9852624135",
+    "phone": "9852624135",
+    "email": "anteemakash@gmail.com",
+    "fullName": "binod",
+    "passwordHash": "91b4d142823f7d20c5f08df69122de43f35f057a988d9619f6d3138485c9a203",
+    "plainPasswordNotice": "hashed",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": false,
+    "address": "चरीकोट, दोलखा",
+    "gender": "male",
+    "birthProfileId": "profile_member_1792144657396",
+    "birthDetails": {
+      "id": "profile_member_1792144657396",
+      "customerId": "सदस्य-००5",
+      "name": "binod",
+      "gender": "male",
+      "dateAD": "1992-07-24",
+      "dateBS": "वि.सं. 2049 04 महिना 09 गते",
+      "time": "04:30",
+      "timeSeconds": "00",
+      "location": {
+        "name": "चरीकोट, दोलखा",
+        "englishName": "Dolkha District",
+        "district": "दोलखा",
+        "province": "बागमती प्रदेश",
+        "country": "नेपाल",
+        "latitude": 27.6667,
+        "longitude": 86.05,
+        "timeZone": 5.75,
+        "flag": "🇳🇵"
+      },
+      "phone": "9852624135",
+      "email": "anteemakash@gmail.com",
+      "category": "Member",
+      "notes": "अनलाइन दर्ता सदस्य कुण्डली",
+      "createdAt": "2026-10-16T09:57:37.396Z",
+      "moonRashi": "मेष",
+      "lagnaRashi": "मिथुन",
+      "nakshatra": "भरणी",
+      "clientId": "client_self"
+    },
+    "photoUrl": "",
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "trial": {
+      "hasUsedTrial": true,
+      "isTrialActive": true,
+      "trialStartedAtISO": "2026-10-16T09:57:51.769Z",
+      "trialExpiresAtISO": "2026-10-17T09:57:51.769Z",
+      "trialExpiresAtTimestamp": 1792231071769,
+      "trialPeriodHours": 24
+    },
+    "jyotishAccess": {
+      "unlocked": true,
+      "period": "24_hours",
+      "expiresAtTimestamp": 1792231071769,
+      "expiresAtBS": "२४ घण्टा परीक्षण"
+    },
+    "vastuAccess": {
+      "unlocked": true,
+      "period": "24_hours",
+      "expiresAtTimestamp": 1792231071769,
+      "expiresAtBS": "२४ घण्टा परीक्षण"
+    },
+    "favorites": {
+      "books": [],
+      "videos": [],
+      "audios": [],
+      "articles": [],
+      "mantras": []
+    },
+    "createdAtISO": "2026-10-16T09:57:37.897Z",
+    "createdAtBS": "२०८३ असोज ३०",
+    "lastLoginISO": "2026-10-16T09:57:37.897Z"
+  },
+  {
     "id": "usr_1791954458693_wukrl",
     "customerId": "सदस्य-२०८१-०००2",
     "username": "9898989898",

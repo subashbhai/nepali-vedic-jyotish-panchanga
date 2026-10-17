@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useTransition } from 'react';
+import { Lock } from 'lucide-react';
 import { Header } from './components/Header';
 import { Navigation, NavTab, TabTransition, NORMAL_USER_ALLOWED_TABS, PUBLIC_UNAUTH_NAV_IDS } from './components/Navigation';
 import { DashboardView } from './components/DashboardView';
@@ -36,6 +37,8 @@ import { AppUpdateNotificationModal, AppUpdateFloatingBanner } from './component
 import { isMobileApp, isDesktopApp } from './utils/appVersionManager';
 import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptModal';
 import { GlobalNepaliInputManager } from './components/common/GlobalNepaliInputManager';
+import { LicenseExpiryWarningBanner } from './components/common/LicenseExpiryWarningBanner';
+import { isLicenseExpired } from './utils/licenseExpiryEngine';
 
 const BalanandaMobileAppShell = lazy(() => import('./mobile/BalanandaMobileAppShell').then((m) => ({ default: m.BalanandaMobileAppShell })));
 const BalanandaWindowsAppShell = lazy(() => import('./windows/BalanandaWindowsAppShell').then((m) => ({ default: m.BalanandaWindowsAppShell })));
@@ -427,6 +430,7 @@ const getInitialRBACSession = (): RBACSession | null => {
     // Notice: Super Admin Portal is now completely isolated at /superadmin with secure authentication.
     // Ordinary users or visitor URLs will NEVER be automatically elevated to super admin.
 
+    const portal = searchParams.get('portal')?.toLowerCase() || hashQueryParams.get('portal')?.toLowerCase() || '';
 
     const isStoreAdmin =
       portal === 'store_admin' ||
@@ -569,8 +573,7 @@ export default function App() {
   // Listen to platform-mode events or URL changes (Mobile & Windows Desktop)
   useEffect(() => {
     const handlePlatformModeChange = () => {
-      setIsMobileMode(isMobileApp());
-      setIsWindowsDesktopMode(isDesktopApp());
+      // Force re-render on platform mode change
     };
     window.addEventListener('popstate', handlePlatformModeChange);
     window.addEventListener('mobile-mode-changed', handlePlatformModeChange);
@@ -808,7 +811,11 @@ export default function App() {
     ? (currentUserLead.status === 'TRIAL_ACTIVE' && !!currentUserLead.trialExpiresAtISO && new Date(currentUserLead.trialExpiresAtISO).getTime() > Date.now())
     : (rbacSession ? false : (is24HourTrialActive() || is7DayTrialActive()));
   const isUserPurchaseApproved = currentUserLead
-    ? currentUserLead.status === 'PURCHASE_APPROVED'
+    ? (currentUserLead.status === 'PURCHASE_APPROVED' && (
+        currentUserLead.expiresAtTimestamp
+          ? !isLicenseExpired(currentUserLead.expiresAtTimestamp)
+          : (currentUserLead.expiresAtISO ? !isLicenseExpired(new Date(currentUserLead.expiresAtISO).getTime()) : true)
+      ))
     : isClientPurchaseApproved();
 
   const isFullyUnlocked = isSuperOrStoreAdmin || (!isRegisteredOnlyUser && (hasFullAccess || isUserTrialActive || isUserPurchaseApproved));
@@ -1076,7 +1083,7 @@ export default function App() {
         Boolean(document.getElementById('balananda-isolated-print-mount')) ||
         document.body.classList.contains('is-printing-report') ||
         activeTab === 'kharedi' ||
-        activeTab === 'pasal' ||
+        (activeTab as string) === 'pasal' ||
         activeTab === 'store_admin' ||
         activeTab === 'pos';
 
@@ -1134,7 +1141,7 @@ export default function App() {
         Boolean(document.getElementById('printable-receipt')) ||
         Boolean(document.getElementById('balananda-isolated-print-mount')) ||
         activeTab === 'kharedi' ||
-        activeTab === 'pasal' ||
+        (activeTab as string) === 'pasal' ||
         activeTab === 'store_admin' ||
         activeTab === 'pos';
 
@@ -1340,10 +1347,21 @@ export default function App() {
     } catch {}
   }, []);
 
-  // Initialize and refresh profiles when RBAC session changes
+  // Initialize and refresh profiles when RBAC session changes or profiles updated
   useEffect(() => {
     const isSuper = rbacSession?.role === 'SUPER_ADMIN';
     refreshScopedProfiles(rbacSession?.userId, isSuper);
+
+    const handleProfileUpdate = () => {
+      refreshScopedProfiles(rbacSession?.userId, isSuper);
+    };
+
+    window.addEventListener('user-profile-updated', handleProfileUpdate);
+    window.addEventListener('astro_sync_updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('user-profile-updated', handleProfileUpdate);
+      window.removeEventListener('astro_sync_updated', handleProfileUpdate);
+    };
   }, [rbacSession?.userId, rbacSession?.role, refreshScopedProfiles]);
 
   // Check for active admin magic link or shared profile query parameters on mount
@@ -1451,10 +1469,12 @@ export default function App() {
     const isSuper = rbacSession?.role === 'SUPER_ADMIN';
     refreshScopedProfiles(rbacSession?.userId, isSuper);
     handleSelectProfile(saved);
+    setIsBirthModalOpen(false);
+    setEditingProfile(null);
   };
 
   const handleOpenNewKundaliModal = () => {
-    if (activeProfile) {
+    if (activeProfile && activeProfile.id && activeProfile.id !== 'live_current_moment') {
       saveProfile(activeProfile);
     }
     setEditingProfile(null);
@@ -1867,6 +1887,14 @@ export default function App() {
 
     return (
       <div className="min-h-screen bg-[#FAF7F2] dark:bg-[#1C1917] text-[#2D241E] dark:text-[#F5F5F4] font-sans selection:bg-amber-200 selection:text-amber-950 transition-colors duration-200 flex flex-col">
+        {/* 30-Day Automated License Expiry Warning Banner in Jyotish Module */}
+        <LicenseExpiryWarningBanner
+          session={rbacSession}
+          onOpenRenewal={() => {
+            setLockedFeatureName('सदस्यता नवीकरण');
+            setIsClientPurchaseLeadModalOpen(true);
+          }}
+        />
         {/* Jyotish module: Suspense fallback invisible हुन्छ — blinking/flash हुँदैन */}
         <Suspense fallback={<div className="flex-1 min-h-screen" />}>
           <JyotishMainView
@@ -1984,6 +2012,15 @@ export default function App() {
 
         {/* Global Site-wide Announcement Banner (Managed by Super Admin) */}
         <GlobalSiteNoticeBanner onNavigateTab={(tab) => navigateTab(tab as any)} />
+
+        {/* 30-Day Automated License Expiry Warning Banner with Milestones */}
+        <LicenseExpiryWarningBanner
+          session={rbacSession}
+          onOpenRenewal={() => {
+            setLockedFeatureName('सदस्यता नवीकरण');
+            setIsClientPurchaseLeadModalOpen(true);
+          }}
+        />
 
       {/* Main Container */}
       <main className="max-w-[1700px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6 flex-1 w-full flex flex-col min-h-0">
@@ -2403,7 +2440,7 @@ export default function App() {
 
           {activeTab === 'app_download' && (
             <ApplicationDownloadView
-              onOpenModal={() => setIsDownloadModalOpen(true)}
+              onOpenModal={() => setIsApkPromptModalOpen(true)}
               onNavigateHome={() => navigateTab('dashboard')}
             />
           )}

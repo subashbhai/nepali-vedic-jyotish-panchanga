@@ -44,3 +44,21 @@ export function isPermanentlyDeleted(identifier?: string | null): boolean {
   if (cleanDigits && cleanDigits.length >= 7 && list.includes(cleanDigits)) return true;
   return false;
 }
+
+export function removePermanentlyDeletedIdentifier(identifier: string): void {
+  if (typeof window === 'undefined' || !identifier) return;
+  try {
+    const norm = String(identifier).trim().toLowerCase();
+    const cleanDigits = norm.replace(/\D/g, '').slice(-10);
+    const list = getPermanentlyDeletedIdentifiers();
+    const filtered = list.filter(item => {
+      if (item === norm) return false;
+      if (cleanDigits && cleanDigits.length >= 7 && item === cleanDigits) return false;
+      return true;
+    });
+    localStorage.setItem(DELETED_IDENTIFIERS_KEY, JSON.stringify(filtered));
+  } catch (e) {
+    console.error('Failed to remove identifier from blacklist:', e);
+  }
+}
+

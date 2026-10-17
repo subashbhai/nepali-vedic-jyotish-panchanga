@@ -391,7 +391,9 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                 district: cleanDistrict,
                 province: cleanProvince,
                 latitude: lat,
-                longitude: lon
+                longitude: lon,
+                country: 'नेपाल',
+                timeZone: 5.75
               };
               saveUserDetectedLocation(detectedLoc);
               setActiveGeoLocation(detectedLoc);
@@ -447,7 +449,9 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                   district: cleanDistrict,
                   province: cleanProvince,
                   latitude: lat,
-                  longitude: lon
+                  longitude: lon,
+                  country: 'नेपाल',
+                  timeZone: 5.75
                 };
                 saveUserDetectedLocation(detectedLoc);
                 setActiveGeoLocation(detectedLoc);

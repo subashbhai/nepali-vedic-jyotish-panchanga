@@ -12,7 +12,9 @@ import {
   isNewerVersion,
   triggerDesktopRestartAndInstall,
   triggerDesktopDownloadUpdate,
-  getApkDirectDownloadUrl
+  getApkDirectDownloadUrl,
+  getClientDevicePlatform,
+  triggerDirectBrowserDownload
 } from './appVersionManager';
 
 export interface DeviceUpdateInfo {
@@ -74,6 +76,12 @@ class DeviceUpdateManager {
    */
   private initServiceWorkerListener() {
     if (!('serviceWorker' in navigator)) return;
+
+    // If an update was applied within the last 15 seconds, avoid immediate duplicate notification on reload
+    const lastApplied = parseInt(sessionStorage.getItem('balananda_last_update_applied_at') || '0', 10);
+    if (Date.now() - lastApplied < 15000) {
+      return;
+    }
 
     navigator.serviceWorker.ready.then((reg) => {
       // Check for waiting worker
@@ -194,14 +202,24 @@ class DeviceUpdateManager {
    * Internal trigger when an update is confirmed
    */
   private notifyUpdateAvailable(info: DeviceUpdateInfo) {
-    this.updateInfo = info;
     const dismissedVersion = localStorage.getItem(UPDATE_DISMISSED_KEY);
     const isDismissed = dismissedVersion === info.version;
 
-    // Send Real Device Push/OS Notification (if permission granted and not dismissed)
-    if (!isDismissed) {
-      this.sendDeviceNotification(info);
+    // If dismissed for this version, DO NOT show banner or push notification
+    if (isDismissed) {
+      return;
     }
+
+    // If update was applied recently, avoid re-showing
+    const lastApplied = parseInt(sessionStorage.getItem('balananda_last_update_applied_at') || '0', 10);
+    if (Date.now() - lastApplied < 15000) {
+      return;
+    }
+
+    this.updateInfo = info;
+
+    // Send Real Device Push/OS Notification (if permission granted and not dismissed)
+    this.sendDeviceNotification(info);
 
     // Notify all UI listeners (Update Banner / Modal)
     this.listeners.forEach((listener) => listener(info));
@@ -250,6 +268,8 @@ class DeviceUpdateManager {
   public async applyUpdateNow(): Promise<void> {
     if (typeof window === 'undefined') return;
 
+    const targetVersion = this.updateInfo?.version || CURRENT_APP_VERSION;
+
     // 1. Desktop Windows App Mode
     if (isDesktopApp()) {
       const electronAPI = (window as any).electronAPI;
@@ -271,34 +291,89 @@ class DeviceUpdateManager {
       // Ensure it is strictly an APK
       if (!apkUrl.toLowerCase().endsWith('.exe')) {
         triggerDirectBrowserDownload(apkUrl, 'nepali-vedic-jyotish-panchanga.apk');
+        this.dismissUpdate(targetVersion);
         return;
       }
     }
 
-    // 3. Web Browser Mode (PWA cache refresh)
+    // 3. Web Browser Mode (PWA cache refresh & atomic reload)
+    // Mark as applied and dismiss banner immediately for instant visual feedback
+    this.dismissUpdate(targetVersion);
     try {
-      // Clear HTTP / CacheStorage caches
-      if ('caches' in window) {
-        const cacheKeys = await caches.keys();
-        await Promise.all(cacheKeys.map((key) => caches.delete(key)));
-      }
+      sessionStorage.setItem('balananda_last_update_applied_at', Date.now().toString());
+    } catch {}
 
-      // Skip waiting service worker
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const reg of registrations) {
-          if (reg.waiting) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
-          await reg.update();
-        }
+    let hasReloaded = false;
+    const triggerReload = () => {
+      if (hasReloaded) return;
+      hasReloaded = true;
+      try {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('_v', Date.now().toString());
+        window.location.replace(currentUrl.toString());
+      } catch {
+        window.location.reload();
       }
-    } catch (e) {
-      console.warn('[DeviceUpdateManager] Cache clear error:', e);
+    };
+
+    // A. Listen to controllerchange once: when new SW takes over, reload immediately
+    if ('serviceWorker' in navigator) {
+      try {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          console.log('[DeviceUpdateManager] Service worker controller changed, executing fresh reload.');
+          triggerReload();
+        }, { once: true });
+      } catch {}
     }
 
-    // Reload to fresh new version
-    window.location.reload();
+    // B. Clear HTTP / CacheStorage caches
+    if ('caches' in window) {
+      try {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+      } catch (e) {
+        console.warn('[DeviceUpdateManager] Cache clear error:', e);
+      }
+    }
+
+    // C. Signal all service workers (waiting, installing, controller) to skip waiting
+    if ('serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        const workersToSignal: ServiceWorker[] = [];
+
+        if (this.swWaitingWorker) {
+          workersToSignal.push(this.swWaitingWorker);
+        }
+
+        for (const reg of registrations) {
+          if (reg.waiting) workersToSignal.push(reg.waiting);
+          if (reg.installing) workersToSignal.push(reg.installing);
+        }
+
+        const payloads = [
+          { type: 'SKIP_WAITING' },
+          { action: 'skipWaiting' },
+          'SKIP_WAITING',
+          'skipWaiting'
+        ];
+
+        for (const worker of workersToSignal) {
+          for (const payload of payloads) {
+            try {
+              worker.postMessage(payload);
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.warn('[DeviceUpdateManager] Service worker skip waiting signaling error:', e);
+      }
+    }
+
+    // D. Guaranteed fallback timeout: if controllerchange doesn't fire within 650ms, reload anyway
+    setTimeout(() => {
+      triggerReload();
+    }, 650);
   }
 
   /**

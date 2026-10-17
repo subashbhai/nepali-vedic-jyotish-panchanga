@@ -45,7 +45,7 @@ export function enrichProfileWithAstroCalculations(profile: BirthDetails): Birth
   const timeStr = profile.time && profile.time.trim() !== '' ? profile.time : '12:00';
   const lat = profile.location?.latitude ?? 27.7172;
   const lng = profile.location?.longitude ?? 85.3240;
-  const tz = profile.location?.timeZone ?? 5.75;
+  const tz = profile.location?.timeZone ?? profile.location?.timezone ?? 5.75;
 
   if (adDate) {
     try {
@@ -57,6 +57,7 @@ export function enrichProfileWithAstroCalculations(profile: BirthDetails): Birth
           moonRashi: calc.moon.rashiName,
           lagnaRashi: calc.lagna?.rashiName,
           nakshatra: calc.moon.nakshatraName,
+          nakshatraPada: calc.moon.pada,
         };
       }
     } catch (e) {
@@ -246,7 +247,7 @@ export function getStoredProfiles(): BirthDetails[] {
         localStorage.removeItem('balananda_user_birth_profile_client_self');
       } catch {}
     }
-    // Strip out legacy demo profiles and visitor dummy profiles
+    // Strip out legacy demo profiles and visitor dummy placeholders
     const cleaned = Array.isArray(parsed)
       ? parsed.filter(
           (p) =>
@@ -254,8 +255,7 @@ export function getStoredProfiles(): BirthDetails[] {
             !p.id?.startsWith('sample_') &&
             p.id !== 'user_profile_user_self' &&
             p.id !== 'user_profile_client_self' &&
-            p.name !== 'राम शर्मा' &&
-            p.name !== 'सीता देवी'
+            p.id !== 'live_current_moment'
         )
       : [];
     if (cleaned.length !== parsed.length) {
@@ -272,18 +272,19 @@ export function getStoredProfiles(): BirthDetails[] {
 /**
  * Multi-Tenant Data Isolation: Filter profiles by Client / User
  * - SuperAdmin sees ALL authentic user profiles
- * - Logged-in Client strictly sees profiles they created/saved on their account/device
- * - Visitors without login have NO demo profiles (dynamic live current moment is computed instead)
+ * - Logged-in Client sees profiles they created/saved on their account/device (including local device profiles)
+ * - Visitors / Guests without login see all profiles created and saved locally on this device
  */
 export function getProfilesForUser(userId?: string | null, isSuperAdmin: boolean = false): BirthDetails[] {
   const all = getStoredProfiles();
   if (isSuperAdmin) return all;
   if (!userId) {
-    // Visitor: No demo profiles - calculations will be based on real-time current date/time
-    return [];
+    // Visitor / Offline / Local Guest mode:
+    // Return all authentic profiles created locally on this device/browser
+    return all.filter((p) => !p.clientId || p.clientId === 'client_self' || p.clientId === 'visitor');
   }
-  // Client / Member: strictly see their own profiles saved under their account
-  const userProfiles = all.filter((p) => p.clientId && p.clientId === userId);
+  // Client / Member: strictly see their own profiles saved under their account, plus local device profiles
+  const userProfiles = all.filter((p) => !p.clientId || p.clientId === 'client_self' || p.clientId === userId);
   return userProfiles;
 }
 
@@ -295,6 +296,7 @@ export function saveProfiles(profiles: BirthDetails[]) {
     localStorage.setItem('nepali_astro_last_sync_timestamp', now);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('astro_sync_updated', { detail: { timestamp: now } }));
+      window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: { profiles } }));
     }
   } catch (e) {
     console.error('Failed to save profiles to LocalStorage', e);

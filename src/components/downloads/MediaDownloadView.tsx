@@ -407,8 +407,8 @@ export const MediaDownloadView: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handlePhoneticInputKeyDown}
-              onBlur={handlePhoneticBlur}
+              onKeyDown={(e) => handlePhoneticInputKeyDown(e, searchQuery, setSearchQuery)}
+              onBlur={() => handlePhoneticBlur(searchQuery, setSearchQuery)}
               placeholder="मन्त्र, स्तोत्र, भिडियो, प्रेमानन्द, रामलीला, कृष्ण, यन्त्र वा वालपेपर खोज्नुहोस्..."
               className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs sm:text-sm text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />

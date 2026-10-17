@@ -1206,8 +1206,9 @@ export function syncAndPruneShastriyaNews(
   todayBS?: string,
   todayAD?: string,
   todayTithiName: string = 'प्रतिपदा',
-  todayPaksha: 'शुक्ल' | 'कृष्ण' = 'शुक्ल'
+  todayPaksha: 'शुक्ल' | 'कृष्ण' | 'शुक्लपक्ष' | 'कृष्णपक्ष' = 'शुक्ल'
 ): SamacharArticle[] {
+  const normPaksha: 'शुक्ल' | 'कृष्ण' = todayPaksha?.includes('कृष्ण') ? 'कृष्ण' : 'शुक्ल';
   // 1. Resolve Active Today AD & BS Dates accurately
   const activeTodayAD = todayAD || new Date().toISOString().split('T')[0];
   let activeTodayBS = todayBS;
@@ -1250,7 +1251,7 @@ export function syncAndPruneShastriyaNews(
   // 3. Ensure TODAY's running Tithi article exists and has the accurate deity image and rich content
   const todayTithiArticleId = `daily_tithi_article_${activeTodayBS.replace(/[^0-9]/g, '_')}`;
   const tithiIdx = updatedArticles.findIndex((a) => a.id === todayTithiArticleId);
-  const freshTithiArticle = generateTodayTithiShastriyaArticle(todayTithiName, todayPaksha, activeTodayBS, activeTodayAD);
+  const freshTithiArticle = generateTodayTithiShastriyaArticle(todayTithiName, normPaksha, activeTodayBS, activeTodayAD);
 
   if (tithiIdx >= 0) {
     // Refresh today's article to guarantee fresh title and local deity image!

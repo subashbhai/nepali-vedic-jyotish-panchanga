@@ -20,7 +20,8 @@ import {
   Sliders,
   Check,
   X,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react';
 import {
   LockableServiceKey,
@@ -38,7 +39,13 @@ import {
 } from '../../../db/serviceLicenseStore';
 import { getStoredRBACUsers, RBACUser } from '../../../db/rbacStore';
 import { loadAllClientPolicies, ClientAccessRecord } from '../../../db/menuControlStore';
-import { convertADToBS } from '../../../utils/nepaliCalendar';
+import { unifiedUserSyncService } from '../../../services/unifiedUserSyncService';
+import { convertADToBS, toDevanagariNumerals } from '../../../utils/nepaliCalendar';
+import {
+  calculateRemainingDays,
+  isLicenseExpired,
+  calculatePlanDurationTimestamps
+} from '../../../utils/licenseExpiryEngine';
 
 interface AdminServiceLicenseSectionProps {
   initialUserPhone?: string;
@@ -152,8 +159,8 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
     const isDemo = (phone: string, name: string) => {
       const p = (phone || '').replace(/\D/g, '').slice(-10);
       const n = (name || '').toLowerCase().trim();
-      if (['9841755199', '9812345678', '9845678901', '9823456789', '9701234567'].includes(p)) return true;
-      if (['subash khanal', 'ram thapa', 'sita karki', 'hari sharma', 'gita adhikari'].includes(n)) return true;
+      if (['9800000000', '9899999999'].includes(p)) return true;
+      if (['dummy demo user'].includes(n)) return true;
       return false;
     };
 
@@ -287,26 +294,7 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
   const handleConfirmUnlock = async () => {
     if (!unlockTarget) return;
 
-    let expiresAtTimestamp: number | undefined;
-    let expiresAtBS: string | undefined;
-
-    let todayBS = '२०८१';
-    try {
-      const res = convertADToBS(new Date().toISOString().split('T')[0]);
-      todayBS = typeof res === 'string' ? res : (res as any).formattedBS || '२०८१';
-    } catch {}
-
-    if (selectedDuration === 'lifetime') {
-      expiresAtBS = 'आजीवन (Lifetime)';
-    } else {
-      const years = selectedDuration === '5_years' ? 5 : selectedDuration === '2_years' ? 2 : 1;
-      expiresAtTimestamp = Date.now() + years * 365 * 24 * 60 * 60 * 1000;
-      try {
-        const expDate = new Date(expiresAtTimestamp).toISOString().split('T')[0];
-        const res = convertADToBS(expDate);
-        expiresAtBS = typeof res === 'string' ? res : (res as any).formattedBS;
-      } catch {}
-    }
+    const ts = calculatePlanDurationTimestamps(selectedDuration);
 
     const res = await mutateServiceLicense({
       action: 'unlock',
@@ -317,9 +305,10 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
       email: unlockTarget.email,
       serviceKey: unlockTarget.serviceKey,
       duration: selectedDuration,
-      startsAtBS: todayBS,
-      expiresAtBS,
-      expiresAtTimestamp,
+      startsAtBS: ts.startsAtBS,
+      expiresAtISO: ts.expiresAtISO,
+      expiresAtBS: ts.expiresAtBS,
+      expiresAtTimestamp: ts.expiresAtTimestamp,
       notes: unlockNotes || 'Superadmin द्वारा अनलक गरियो'
     });
 
@@ -408,7 +397,7 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
           )}
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => { void loadData(); }}
             disabled={isLoading}
             className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold rounded-xl border border-stone-700 flex items-center gap-1.5 cursor-pointer shrink-0"
           >
@@ -507,145 +496,215 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
           <div className="overflow-x-auto rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs bg-white dark:bg-stone-900">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-stone-100 dark:bg-stone-850 border-b border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 font-serif">
-                  <th className="p-3">प्रयोगकर्ता विवरण</th>
-                  <th className="p-3">
-                    <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-bold">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>१. ज्योतिष सेवा लाइसेन्स</span>
-                    </span>
-                  </th>
-                  <th className="p-3">
-                    <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-bold">
-                      <Compass className="w-3.5 h-3.5" />
-                      <span>२. वास्तु सेवा लाइसेन्स</span>
-                    </span>
-                  </th>
-                  <th className="p-3 text-right">कार्य</th>
+                <tr className="bg-stone-100 dark:bg-stone-850 border-b border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 font-serif whitespace-nowrap">
+                  <th className="p-3">१. User ID / ग्राहक</th>
+                  <th className="p-3">२. सम्पर्क (Phone/Email)</th>
+                  <th className="p-3">३. सफ्टवेयर नाम</th>
+                  <th className="p-3">४. योजना / अवधि</th>
+                  <th className="p-3">५. रकम</th>
+                  <th className="p-3">६. भुक्तानी स्थिति</th>
+                  <th className="p-3">७. स्वीकृति मिति</th>
+                  <th className="p-3">८. सुरु मिति</th>
+                  <th className="p-3">९. समाप्ति मिति</th>
+                  <th className="p-3">१०. बाँकी दिन</th>
+                  <th className="p-3">११. स्थिति</th>
+                  <th className="p-3 text-right">१२. कार्यहरू</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
+              <tbody className="divide-y divide-stone-200 dark:divide-stone-800 text-stone-800 dark:text-stone-200">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-stone-500 text-xs">
-                      कुनै प्रयोगकर्ता फेला परेन।
+                    <td colSpan={12} className="p-6 text-center text-stone-500 text-xs">
+                      कुनै प्रयोगकर्ता वा लाइसेन्स रेकर्ड फेला परेन।
                     </td>
                   </tr>
                 ) : (
                   filteredUsers.map((u) => {
                     const jLic = getLicenseForUser(u.phone || u.userId, 'jyotish');
                     const vLic = getLicenseForUser(u.phone || u.userId, 'vastu');
+                    const primaryLic = jLic || vLic;
 
                     const isJUnlocked = jLic?.status === 'unlocked' && (!jLic.expiresAtTimestamp || Date.now() <= jLic.expiresAtTimestamp);
                     const isVUnlocked = vLic?.status === 'unlocked' && (!vLic.expiresAtTimestamp || Date.now() <= vLic.expiresAtTimestamp);
+                    const isAnyUnlocked = isJUnlocked || isVUnlocked;
+
+                    // Remaining days & expiry calculation
+                    const isLifetime = primaryLic?.duration === 'lifetime';
+                    const expTimestamp = primaryLic?.expiresAtTimestamp || (jLic?.expiresAtTimestamp || vLic?.expiresAtTimestamp);
+                    const remainingDays = expTimestamp ? calculateRemainingDays(expTimestamp) : null;
+                    const isExpired = expTimestamp ? isLicenseExpired(expTimestamp) : false;
+                    const isExpiringIn30Days = remainingDays !== null && !isExpired && remainingDays <= 30;
+
+                    // Plan name formatting
+                    const planDurationLabel = isLifetime
+                      ? 'आजीवन (Lifetime)'
+                      : primaryLic?.duration === '5_years'
+                      ? '५ वर्षको सदस्यता'
+                      : primaryLic?.duration === '2_years'
+                      ? '२ वर्षको सदस्यता'
+                      : primaryLic?.duration === '6_months'
+                      ? '६ महिना'
+                      : primaryLic?.duration === '3_months'
+                      ? '३ महिना'
+                      : primaryLic?.duration === '1_month'
+                      ? '१ महिना'
+                      : '१ वर्षको सदस्यता';
+
+                    const planAmount = primaryLic?.amountNPR || 2100;
+                    const paymentMethod = primaryLic?.paymentMethod || 'eSewa';
+                    const startsAtBS = primaryLic?.startsAtBS || '२०८१';
+                    const expiresAtBS = isLifetime ? 'आजीवन' : (primaryLic?.expiresAtBS || '२०८२');
+                    const expiresAtAD = primaryLic?.expiresAtISO ? primaryLic.expiresAtISO.split('T')[0] : (isLifetime ? 'Lifetime' : '-');
 
                     return (
-                      <tr key={u.userId} className="hover:bg-stone-50 dark:hover:bg-stone-850/50 transition-colors">
-                        {/* User Details */}
+                      <tr key={u.userId} className="hover:bg-stone-50 dark:hover:bg-stone-850/50 transition-colors whitespace-nowrap">
+                        {/* 1. User ID & Customer Name */}
                         <td className="p-3 align-middle">
-                          <div className="font-bold text-stone-900 dark:text-stone-100">
-                            {u.fullName}
+                          <div className="font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>{u.fullName}</span>
                           </div>
-                          <div className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-1 mt-0.5">
+                          <div className="text-[10px] text-stone-500 font-mono mt-0.5">
+                            ID: {u.userId ? u.userId.slice(-8) : 'GUEST'} • {u.role}
+                          </div>
+                        </td>
+
+                        {/* 2. Contact (Phone / Email) */}
+                        <td className="p-3 align-middle text-[11px]">
+                          <div className="flex items-center gap-1 font-mono text-stone-700 dark:text-stone-300">
                             <Phone className="w-3 h-3 text-stone-400" />
                             <span>{u.phone}</span>
-                            <span className="text-stone-300 dark:text-stone-700">•</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
-                              {u.role}
+                          </div>
+                          {u.email && (
+                            <div className="text-[10px] text-stone-400 truncate max-w-[140px]" title={u.email}>
+                              {u.email}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 3. Software Name */}
+                        <td className="p-3 align-middle text-xs">
+                          <span className="font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                            <Crown className="w-3.5 h-3.5 shrink-0" />
+                            <span>नेपाली वैदिक ज्योतिष तथा वास्तु</span>
+                          </span>
+                        </td>
+
+                        {/* 4. Plan & Duration */}
+                        <td className="p-3 align-middle">
+                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                            {planDurationLabel}
+                          </span>
+                        </td>
+
+                        {/* 5. Amount */}
+                        <td className="p-3 align-middle font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          रु. {toDevanagariNumerals(planAmount)}
+                        </td>
+
+                        {/* 6. Payment Status */}
+                        <td className="p-3 align-middle">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-max">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                            <span>रुजु भएको ({paymentMethod.toUpperCase()})</span>
+                          </span>
+                        </td>
+
+                        {/* 7. Approval Date */}
+                        <td className="p-3 align-middle font-mono text-[11px] text-stone-600 dark:text-stone-400">
+                          {startsAtBS}
+                        </td>
+
+                        {/* 8. Start Date */}
+                        <td className="p-3 align-middle font-mono text-[11px] text-stone-600 dark:text-stone-400">
+                          {startsAtBS}
+                        </td>
+
+                        {/* 9. Expiry Date */}
+                        <td className="p-3 align-middle font-mono text-[11px]">
+                          <span className={isExpired ? 'text-rose-500 font-bold' : 'text-stone-700 dark:text-stone-300'}>
+                            {expiresAtBS}
+                          </span>
+                          {expiresAtAD !== '-' && (
+                            <div className="text-[10px] text-stone-400">{expiresAtAD}</div>
+                          )}
+                        </td>
+
+                        {/* 10. Remaining Days */}
+                        <td className="p-3 align-middle">
+                          {isLifetime ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                              आजीवन
                             </span>
-                          </div>
+                          ) : isExpired ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40">
+                              म्याद समाप्त
+                            </span>
+                          ) : isExpiringIn30Days ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 animate-pulse">
+                              ⚠️ {toDevanagariNumerals(remainingDays || 0)} दिन बाँकी
+                            </span>
+                          ) : remainingDays !== null ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-300 dark:border-stone-700">
+                              {toDevanagariNumerals(remainingDays)} दिन बाँकी
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-stone-400">-</span>
+                          )}
                         </td>
 
-                        {/* Jyotish Sewa Column */}
+                        {/* 11. Status */}
                         <td className="p-3 align-middle">
-                          <div className="flex items-center gap-2">
-                            {isJUnlocked ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                <Unlock className="w-3 h-3 text-emerald-600" />
-                                <span>सक्रिय (Unlocked)</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                                <Lock className="w-3 h-3 text-amber-600" />
-                                <span>लक (Locked)</span>
-                              </span>
-                            )}
-                            {jLic?.expiresAtBS && isJUnlocked && (
-                              <span className="text-[10px] text-stone-500">
-                                म्याद: {jLic.expiresAtBS}
-                              </span>
-                            )}
-                          </div>
+                          {isExpired ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              <span>म्याद समाप्त</span>
+                            </span>
+                          ) : isExpiringIn30Days ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                              <AlertCircle className="w-3 h-3 text-amber-600" />
+                              <span>३० दिने चेतावनी</span>
+                            </span>
+                          ) : isAnyUnlocked ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                              <Unlock className="w-3 h-3 text-emerald-600" />
+                              <span>सक्रिय लाइसेन्स</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400 border border-stone-300 dark:border-stone-700">
+                              <Lock className="w-3 h-3 text-stone-500" />
+                              <span>लक गरिएको</span>
+                            </span>
+                          )}
                         </td>
 
-                        {/* Vastu Sewa Column */}
-                        <td className="p-3 align-middle">
-                          <div className="flex items-center gap-2">
-                            {isVUnlocked ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                <Unlock className="w-3 h-3 text-emerald-600" />
-                                <span>सक्रिय (Unlocked)</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                                <Lock className="w-3 h-3 text-amber-600" />
-                                <span>लक (Locked)</span>
-                              </span>
-                            )}
-                            {vLic?.expiresAtBS && isVUnlocked && (
-                              <span className="text-[10px] text-stone-500">
-                                म्याद: {vLic.expiresAtBS}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Action Buttons */}
+                        {/* 12. Actions */}
                         <td className="p-3 align-middle text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* Jyotish Toggle Button */}
-                            {isJUnlocked ? (
+                            {/* Renew / Unlock Button */}
+                            <button
+                              type="button"
+                              onClick={() => setUnlockTarget({ ...u, serviceKey: 'jyotish' })}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer flex items-center gap-1"
+                              title="लाइसेन्स अनलक वा नवीकरण गर्नुहोस्"
+                            >
+                              <Unlock className="w-3 h-3" />
+                              <span>{isExpired ? 'नवीकरण' : isAnyUnlocked ? 'थप अवधि' : 'अनलक'}</span>
+                            </button>
+
+                            {/* Lock Button */}
+                            {isAnyUnlocked && (
                               <button
                                 type="button"
                                 onClick={() => handleLockService(u, 'jyotish')}
                                 className="px-2 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-300 rounded-lg text-[11px] font-bold border border-amber-300 dark:border-amber-800 cursor-pointer"
-                                title="ज्योतिष सेवा लक गर्नुहोस्"
+                                title="लाइसेन्स लक गर्नुहोस्"
                               >
-                                🔒 ज्योतिष लक
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setUnlockTarget({ ...u, serviceKey: 'jyotish' })}
-                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer"
-                                title="ज्योतिष सेवा अनलक गर्नुहोस्"
-                              >
-                                🔓 ज्योतिष अनलक
+                                🔒 लक
                               </button>
                             )}
 
-                            {/* Vastu Toggle Button */}
-                            {isVUnlocked ? (
-                              <button
-                                type="button"
-                                onClick={() => handleLockService(u, 'vastu')}
-                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded-lg text-[11px] font-bold border border-blue-300 dark:border-blue-800 cursor-pointer"
-                                title="वास्तु सेवा लक गर्नुहोस्"
-                              >
-                                🔒 वास्तु लक
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setUnlockTarget({ ...u, serviceKey: 'vastu' })}
-                                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer"
-                                title="वास्तु सेवा अनलक गर्नुहोस्"
-                              >
-                                🔓 वास्तु अनलक
-                              </button>
-                            )}
-
-                            {/* Interlink Quick Action Buttons */}
+                            {/* Interlink Quick Actions */}
                             <button
                               type="button"
                               onClick={() => onNavigateToSwitchboard?.(u.phone)}
@@ -654,21 +713,38 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
                             >
                               <Sliders className="w-3.5 h-3.5" />
                             </button>
+                            {onNavigateToPayments && (
+                              <button
+                                type="button"
+                                onClick={() => onNavigateToPayments(u.phone)}
+                                className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors cursor-pointer"
+                                title="भुक्तानी तथा खरिद रुजुमा हेर्नुहोस्"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => onNavigateToUsers?.(u.phone)}
                               className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-colors cursor-pointer"
-                              title="प्रयोगकर्ता तालिकामा हेर्नुहोस्"
+                              title="प्रयोगकर्ता व्यवस्थापन तालिकामा हेर्नुहोस्"
                             >
                               <Users className="w-3.5 h-3.5 text-amber-400" />
                             </button>
                             <button
                               type="button"
-                              onClick={() => onNavigateToPayments?.(u.phone)}
-                              className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 transition-colors cursor-pointer"
-                              title="भुक्तानी रुजु (eSewa) मा हेर्नुहोस्"
+                              onClick={() => {
+                                if (confirm(`के तपाईं निश्चित रूपमा ${u.fullName} (${u.phone}) को लाइसेन्स तथा प्रयोगकर्ता डेटा स्थायी रूपमा मेटाउन चाहनुहुन्छ?`)) {
+                                  unifiedUserSyncService.deleteUserPermanently(u.userId, u.phone);
+                                  setActionSuccessMsg(`प्रयोगकर्ता ${u.fullName} स्थायी रूपमा हटाइयो।`);
+                                  setTimeout(() => setActionSuccessMsg(null), 3500);
+                                  loadData();
+                                }
+                              }}
+                              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
+                              title="प्रयोगकर्ता तथा लाइसेन्स स्थायी रूपमा हटाउनुहोस्"
                             >
-                              <CreditCard className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -861,8 +937,12 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
               <select
                 value={selectedDuration}
                 onChange={(e) => setSelectedDuration(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-xl text-xs bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 rounded-xl text-xs bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 focus:ring-2 focus:ring-amber-500 font-sans"
               >
+                <option value="trial">२४ घण्टा परीक्षण (24 Hours Trial)</option>
+                <option value="1_month">१ महिना (1 Month Access)</option>
+                <option value="3_months">३ महिना (3 Months Access)</option>
+                <option value="6_months">६ महिना (6 Months Access)</option>
                 <option value="1_year">१ वर्ष (1 Year Access)</option>
                 <option value="2_years">२ वर्ष (2 Years Access)</option>
                 <option value="5_years">५ वर्ष (5 Years Access)</option>

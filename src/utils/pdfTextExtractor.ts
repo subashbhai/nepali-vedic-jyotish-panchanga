@@ -49,7 +49,6 @@ export async function extractTextFromPdfFile(
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(arrayBuffer),
       useSystemFonts: true,
-      isEvalSupported: false,
     });
 
     const pdf = await loadingTask.promise;
@@ -158,8 +157,9 @@ export async function renderPdfPagesToImages(
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      await page.render({
+      await (page.render as any)({
         canvasContext: ctx,
+        canvas,
         viewport,
       }).promise;
 

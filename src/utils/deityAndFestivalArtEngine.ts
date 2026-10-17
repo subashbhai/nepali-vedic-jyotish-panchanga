@@ -11,6 +11,7 @@ export interface DeityPortraitInfo {
   symbol: string;
   colorScheme: string;
   imageUrl: string;
+  portraitUrl?: string;
   description: string;
 }
 
@@ -20,6 +21,7 @@ export interface NepaliFestivalArtInfo {
   celebrationTypeNepali: string;
   traditionalElements: string[];
   imageUrl: string;
+  illustrationUrl?: string;
   accentColor: string;
   description: string;
 }

@@ -107,7 +107,7 @@ export function calculateNatalChart(
 ): { lagnaInfo: LagnaInfo; planets: PlanetPosition[]; timestampText: string } {
   const lat = profile.location?.latitude || 27.7172;
   const lon = profile.location?.longitude || 85.3240;
-  const tz = profile.location?.timezone || 5.75;
+  const tz = profile.location?.timeZone ?? profile.location?.timezone ?? 5.75;
   const timeStr = profile.timeSeconds ? `${profile.time}:${profile.timeSeconds}` : profile.time;
 
   const jd = getJulianDay(profile.dateAD, timeStr, tz);

@@ -335,6 +335,7 @@ export async function syncUserLicensesFromServer(userIdOrPhone: string): Promise
           id: lic?.id || targetId,
           userId: lic?.userId || cleanDigits,
           username: lic?.username || cleanDigits,
+          fullName: lic?.fullName || cleanDigits,
           phone: cleanDigits,
           serviceKey: sKey,
           status: 'unlocked',
@@ -345,7 +346,8 @@ export async function syncUserLicensesFromServer(userIdOrPhone: string): Promise
           expiresAtISO: lic?.expiresAtISO,
           expiresAtBS: lic?.expiresAtBS,
           unlockedBy: lic?.unlockedBy || 'Server',
-          unlockedAtISO: lic?.unlockedAtISO || new Date().toISOString()
+          unlockedAtISO: lic?.unlockedAtISO || new Date().toISOString(),
+          updatedAtISO: lic?.updatedAtISO || new Date().toISOString(),
         };
         if (idx > -1) {
           updated[idx] = item;
@@ -613,3 +615,60 @@ export async function fetchLicenseAuditLogs(): Promise<ServiceLicenseAuditLog[]>
   } catch {}
   return [];
 }
+
+/**
+ * Permanently delete licenses for a user by phone or ID
+ */
+export function deleteLicensesForUserPermanently(phoneOrId: string): boolean {
+  try {
+    if (typeof window === 'undefined' || !phoneOrId) return false;
+    const cleanDigits = phoneOrId.replace(/\D/g, '').slice(-10);
+    const norm = phoneOrId.trim().toLowerCase();
+
+    // 1. Clean localStorage licenses
+    const current = getLocalLicenses();
+    const filtered = current.filter(l => {
+      const lMob = (l.phone || '').replace(/\D/g, '').slice(-10);
+      const lUser = (l.userId || '').toLowerCase();
+      const lId = (l.id || '').toLowerCase();
+      if (cleanDigits && cleanDigits.length >= 7 && lMob === cleanDigits) return false;
+      if (lUser === norm || lId.startsWith(norm)) return false;
+      return true;
+    });
+    saveLocalLicenses(filtered);
+
+    // 2. Clean purchase requests
+    try {
+      const rawReq = localStorage.getItem(LOCAL_STORAGE_PURCHASE_REQ_KEY);
+      if (rawReq) {
+        const reqs = JSON.parse(rawReq);
+        if (Array.isArray(reqs)) {
+          const filteredReqs = reqs.filter((r: any) => {
+            const rMob = (r.mobile || r.phone || '').replace(/\D/g, '').slice(-10);
+            const rUser = (r.userId || '').toLowerCase();
+            const rId = (r.id || '').toLowerCase();
+            if (cleanDigits && cleanDigits.length >= 7 && rMob === cleanDigits) return false;
+            if (rUser === norm || rId === norm) return false;
+            return true;
+          });
+          localStorage.setItem(LOCAL_STORAGE_PURCHASE_REQ_KEY, JSON.stringify(filteredReqs));
+        }
+      }
+    } catch {}
+
+    // 3. Inform server if available
+    if (typeof fetch !== 'undefined') {
+      fetch(`/api/licenses/user/${encodeURIComponent(phoneOrId)}`, {
+        method: 'DELETE',
+        headers: getSuperAdminAuthHeaders()
+      }).catch(() => {});
+    }
+
+    broadcastLicenseChange();
+    return true;
+  } catch (e) {
+    console.error('Failed to delete user licenses permanently:', e);
+    return false;
+  }
+}
+

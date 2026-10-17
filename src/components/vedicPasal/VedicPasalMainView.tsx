@@ -56,7 +56,7 @@ import { OrganizationProfile } from '../../types/astrology';
 
 interface VedicPasalMainViewProps {
   onNavigateHome?: () => void;
-  initialTab?: 'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin';
+  initialTab?: 'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin' | 'books_download';
   isStandalone?: boolean;
   orgProfile?: OrganizationProfile;
 }
@@ -70,8 +70,8 @@ export const VedicPasalMainView: React.FC<VedicPasalMainViewProps> = ({ onNaviga
   const [wishlist, setWishlist] = useState<string[]>([]);
 
   // Main Active Sub-Tab
-  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin'>(() => {
-    if (initialTab && initialTab !== ('books_download' as any)) return initialTab;
+  const [activeTab, setActiveTab] = useState<'home' | 'books' | 'cart' | 'wishlist' | 'my_orders' | 'pos' | 'admin' | 'books_download'>(() => {
+    if (initialTab) return initialTab;
     if (typeof window !== 'undefined') {
       const h = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
       if (h === 'store_admin' || h === 'pasal_admin' || h === 'library_admin' || h === 'digital_library_admin') return 'admin';

@@ -25,6 +25,8 @@ export interface PrintablePageProps {
   showHeaderOnFirstPageOnly?: boolean;
   /** Explicitly toggle header */
   showHeader?: boolean;
+  /** Visual variant styling */
+  variant?: 'standard' | 'patrika' | 'compact' | string;
   /** Explicitly toggle footer */
   showFooter?: boolean;
   /** Extra CSS Class for the page container */

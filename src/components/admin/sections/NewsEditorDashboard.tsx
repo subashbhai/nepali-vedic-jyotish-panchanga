@@ -227,7 +227,7 @@ export const NewsEditorDashboard: React.FC<NewsEditorDashboardProps> = ({
 
     try {
       setIsCompressingImage(true);
-      const base64 = await compressAndResizeImage(file, 1200, 700, 0.82);
+      const base64 = await compressAndResizeImage(file, 1200, 0.82);
       setFormImageUrl(base64);
       showToast('समाचारको मुख्य तस्बिर सफलतापूर्वक लोड भयो।');
     } catch (err) {

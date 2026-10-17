@@ -1,4 +1,5 @@
 import { convertADToBS } from '../utils/nepaliCalendar';
+import { isLicenseExpired } from '../utils/licenseExpiryEngine';
 
 export type ClientLeadStatus = 
   | 'REGISTERED_USER'
@@ -10,6 +11,7 @@ export type ClientLeadStatus =
 
 export interface ClientLead {
   id: string;
+  userId?: string;
   fullName: string;
   address: string;
   mobile: string;
@@ -17,11 +19,18 @@ export interface ClientLead {
   whatsapp: string;
   deviceFingerprint: string;
   status: ClientLeadStatus;
-  planId?: 'yearly_mobile' | 'yearly_desktop' | 'yearly_both' | 'lifetime_mobile' | 'lifetime_desktop' | 'lifetime_both';
+  planId?: string;
   planNameNepali?: string;
+  planDuration?: string;
   planAmountNPR?: number;
-  paymentMethod?: 'esewa' | 'khalti' | 'bank';
+  paymentMethod?: 'esewa' | 'khalti' | 'bank' | 'cash';
   transactionId?: string;
+  paymentReference?: string;
+  paymentVerificationStatus?: 'UNVERIFIED' | 'VERIFIED' | 'MANUAL_VERIFIED' | 'REJECTED';
+  cashVerified?: boolean;
+  cashVerifiedBy?: string;
+  cashVerifiedAtISO?: string;
+  verifiedAmount?: number;
   submittedAtISO: string;
   submittedAtBS: string;
   trialStartedAtISO?: string;
@@ -29,7 +38,11 @@ export interface ClientLead {
   approvedAtISO?: string;
   approvedAtBS?: string;
   approvedBy?: string;
+  expiresAtISO?: string;
+  expiresAtBS?: string;
+  expiresAtTimestamp?: number;
   rejectionReason?: string;
+  adminNotes?: string;
   clientNotes?: string;
 }
 
@@ -189,28 +202,35 @@ export function getTrialRemainingSeconds(): number {
 export function isClientPurchaseApproved(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    // Check global software unlock flag
-    if (localStorage.getItem('software_full_access_unlocked_v1') === 'true') {
-      return true;
-    }
-
     const raw = localStorage.getItem(STORAGE_KEY_APPROVED_LICENSE);
     if (raw) {
       const license = JSON.parse(raw);
       if (license && license.isApproved) {
-        // Check expiry for yearly plans
-        if (license.expiresAtISO) {
-          const expires = new Date(license.expiresAtISO).getTime();
-          if (Date.now() <= expires) return true;
-        } else {
-          return true;
+        if (license.expiresAtTimestamp && isLicenseExpired(license.expiresAtTimestamp)) {
+          return false;
         }
+        if (license.expiresAtISO && isLicenseExpired(new Date(license.expiresAtISO).getTime())) {
+          return false;
+        }
+        return true;
       }
     }
 
-    // Also check if any stored lead has PURCHASE_APPROVED
+    // Check stored leads for PURCHASE_APPROVED
     const leads = getStoredClientLeads();
-    if (leads.some(l => l.status === 'PURCHASE_APPROVED')) {
+    const approvedLead = leads.find(l => l.status === 'PURCHASE_APPROVED');
+    if (approvedLead) {
+      if (approvedLead.expiresAtTimestamp && isLicenseExpired(approvedLead.expiresAtTimestamp)) {
+        return false;
+      }
+      if (approvedLead.expiresAtISO && isLicenseExpired(new Date(approvedLead.expiresAtISO).getTime())) {
+        return false;
+      }
+      return true;
+    }
+
+    // Fallback: Check global software unlock flag
+    if (localStorage.getItem('software_full_access_unlocked_v1') === 'true') {
       return true;
     }
 
