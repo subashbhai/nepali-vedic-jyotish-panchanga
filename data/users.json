@@ -1,5 +1,49 @@
 [
   {
+    "id": "usr_subash_bhandari_9764400533",
+    "customerId": "ग्राहक-०५३३",
+    "username": "9764400533",
+    "phone": "9764400533",
+    "email": "subashbhai@gmail.com",
+    "fullName": "सुवास भण्डारी",
+    "passwordHash": "client_registered",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": true,
+    "address": "भद्रपुर / विर्तामोड, झापा",
+    "gender": "male",
+    "birthDetails": {
+      "id": "profile_subash_9764400533",
+      "customerId": "ग्राहक-०५३३",
+      "name": "सुवास भण्डारी",
+      "gender": "male",
+      "dateAD": "1983-05-31",
+      "dateBS": "वि.सं. २०४० ०२ महिना १७ गते",
+      "time": "२३:३०",
+      "location": {
+        "name": "भद्रपुर / विर्तामोड, झापा",
+        "district": "झापा"
+      },
+      "phone": "9764400533",
+      "email": "subashbhai@gmail.com",
+      "moonRashi": "मकर",
+      "lagnaRashi": "मकर",
+      "nakshatra": "श्रवण"
+    },
+    "jyotishAccess": {
+      "unlocked": true,
+      "period": "1_year"
+    },
+    "vastuAccess": {
+      "unlocked": true,
+      "period": "1_year"
+    },
+    "createdAtISO": "2026-10-17T10:31:07.744Z",
+    "createdAtBS": "२०८३ असोज ३१"
+  },
+  {
     "id": "usr_1792144657897_i208d",
     "customerId": "सदस्य-२०८१-०००3",
     "username": "9852624135",

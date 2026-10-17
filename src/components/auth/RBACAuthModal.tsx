@@ -13,6 +13,7 @@ import {
 } from '../../db/rbacStore';
 import { registerOrUpdateClientPolicy } from '../../db/menuControlStore';
 import { start7DayTrial } from '../../db/subscriptionStore';
+import { unifiedUserSyncService } from '../../services/unifiedUserSyncService';
 import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import {
   User,
@@ -411,6 +412,15 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     }
     saveUserPersonalBirthProfile(signupPhone.trim(), savedProfile);
     saveUserPersonalBirthProfile(savedProfile.id, savedProfile);
+
+    // Instantly notify unified sync service (< 1s delivery to Super Admin)
+    if (regRes.user) {
+      try {
+        unifiedUserSyncService.recordUserSignup(regRes.user);
+      } catch (e) {
+        console.warn('Signup sync error:', e);
+      }
+    }
 
     // Automatically register client into Super Admin Menu Access Control System
     try {

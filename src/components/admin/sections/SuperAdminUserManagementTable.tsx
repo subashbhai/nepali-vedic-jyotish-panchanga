@@ -42,8 +42,10 @@ import {
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { MenuControlPanel } from '../MenuControlPanel';
-import { unifiedUserSyncService } from '../../../services/unifiedUserSyncService';
-import { ClientLead } from '../../../db/clientLeadStore';
+import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unifiedUserSyncService';
+import { ClientLead, getStoredClientLeads, saveClientLeads } from '../../../db/clientLeadStore';
+import { getStoredRBACUsers, saveRBACUsers } from '../../../db/rbacStore';
+import { isPermanentlyDeleted } from '../../../db/securityBlacklist';
 import { calculateRemainingDays, isLicenseExpired } from '../../../utils/licenseExpiryEngine';
 
 export interface SuperAdminUser {
@@ -346,7 +348,8 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           headers: getSuperAdminAuthHeaders()
         });
 
-        if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
           const data = await res.json();
           if (data.success && Array.isArray(data.users)) {
             serverUsers = data.users;
@@ -549,12 +552,74 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     fetchUsers(Boolean(cachedSuperAdminUsersData && !debouncedSearch && filterType === 'all' && currentPage === 1));
   }, [fetchUsers]);
 
-  // Real-time polling every 12 seconds
+  // ── 1-SECOND HIGH-SPEED REALTIME SYNCHRONIZATION VIA SSE (ntfy.sh) ──
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
+
+    let sse: EventSource | null = null;
+    let isMounted = true;
+
+    try {
+      sse = new EventSource(REALTIME_SSE_URL);
+
+      sse.onmessage = (event) => {
+        if (!isMounted) return;
+        try {
+          const raw = JSON.parse(event.data);
+          const messageText = raw.message || raw;
+          const parsed = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
+
+          if (parsed && parsed.type === 'USER_SIGNUP' && parsed.user) {
+            const newUser = parsed.user;
+            if (isPermanentlyDeleted(newUser.phone) || isPermanentlyDeleted(newUser.id)) return;
+
+            // Save immediately into local store to persist
+            const localUsers = getStoredRBACUsers();
+            const normNew = (newUser.phone || newUser.id || '').replace(/\D/g, '').slice(-10);
+            const exists = localUsers.some(u => {
+              const uMob = (u.phone || u.id || '').replace(/\D/g, '').slice(-10);
+              return uMob && normNew && uMob === normNew;
+            });
+            if (!exists) {
+              saveRBACUsers([newUser, ...localUsers]);
+            }
+
+            fetchUsers(true);
+            showToast(`🔔 नयाँ प्रयोगकर्ता दर्ता भयो: ${newUser.fullName || newUser.phone} (१ सेकेन्डमै सिङ्क गरियो)`);
+          } else if (parsed && parsed.type === 'PURCHASE_REQUEST' && parsed.lead) {
+            const newLead = parsed.lead;
+            const localLeads = getStoredClientLeads();
+            const exists = localLeads.some(l => l.id === newLead.id);
+            if (!exists) {
+              saveClientLeads([newLead, ...localLeads]);
+            }
+            fetchUsers(true);
+            showToast(`💰 नयाँ सदस्यता खरिद अनुरोध: ${newLead.fullName} (${newLead.mobile})`);
+          } else if (parsed && parsed.type === 'USER_DELETED') {
+            fetchUsers(true);
+          }
+        } catch {}
+      };
+
+      sse.onerror = () => {
+        // EventSource will auto-reconnect
+      };
+    } catch (e) {
+      console.warn('[RealtimeSync] SuperAdmin SSE setup failed:', e);
+    }
+
+    return () => {
+      isMounted = false;
+      if (sse) sse.close();
+    };
+  }, [fetchUsers]);
+
+  // Real-time polling fallback every 8 seconds
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       fetchUsers(true);
-    }, 12000);
+    }, 8000);
     return () => clearInterval(interval);
   }, [autoRefresh, fetchUsers]);
 
@@ -563,12 +628,14 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     const handleSync = () => fetchUsers(true);
     window.addEventListener('user-registered', handleSync);
     window.addEventListener('user-storage-updated', handleSync);
+    window.addEventListener('unified-data-updated', handleSync);
     window.addEventListener('client-leads-updated', handleSync);
     window.addEventListener('service-license-updated', handleSync);
 
     return () => {
       window.removeEventListener('user-registered', handleSync);
       window.removeEventListener('user-storage-updated', handleSync);
+      window.removeEventListener('unified-data-updated', handleSync);
       window.removeEventListener('client-leads-updated', handleSync);
       window.removeEventListener('service-license-updated', handleSync);
     };
