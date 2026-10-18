@@ -530,7 +530,6 @@ class UnifiedUserSyncService {
       window.dispatchEvent(new CustomEvent('unified-data-updated'));
       window.dispatchEvent(new CustomEvent('user-storage-updated'));
       window.dispatchEvent(new CustomEvent('client-leads-updated'));
-      window.dispatchEvent(new CustomEvent('software-full-access-updated'));
       try {
         this.broadcastChannel?.postMessage({ type: 'SYNC_DATA_UPDATED', timestamp: Date.now() });
       } catch {}

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
   ShieldCheck,
@@ -17,10 +16,11 @@ import {
   Smartphone,
   Monitor,
   Zap,
-  Crown
+  Crown,
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import {
-  start24HourTrial,
   start24HourTrialAsync,
   submitPurchaseApplication,
   is24HourTrialActive,
@@ -28,7 +28,6 @@ import {
   getTrialRemainingSeconds,
   isClientPurchaseApproved
 } from '../../db/clientLeadStore';
-import { SOFTWARE_SUPPORT_CONTACT, PAYMENT_RECIPIENT_FULL_ID } from '../../db/subscriptionStore';
 import { getActiveRBACSession } from '../../db/rbacStore';
 
 interface ClientPurchaseLeadModalProps {
@@ -46,7 +45,6 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   onUnlockSuccess,
   targetFeatureName = 'ज्योतिष / वास्तुशास्त्र',
   initialMode = 'trial_or_purchase',
-  onNavigateToAdmin,
 }) => {
   // Form fields
   const [fullName, setFullName] = useState('');
@@ -59,6 +57,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   const [showPurchasePlans, setShowPurchasePlans] = useState(initialMode === 'purchase_only');
   const [selectedPlanCategory, setSelectedPlanCategory] = useState<'yearly' | 'lifetime'>('yearly');
   const [selectedPlatform, setSelectedPlatform] = useState<'both' | 'desktop' | 'mobile'>('both');
+  const [isPlanConfirmed, setIsPlanConfirmed] = useState(false);
   const [selectedGateway, setSelectedGateway] = useState<'esewa' | 'khalti' | 'bank'>('esewa');
   const [transactionCode, setTransactionCode] = useState('');
   const [copiedEsewa, setCopiedEsewa] = useState(false);
@@ -79,6 +78,8 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     if (isOpen) {
       setErrorMsg(null);
       setSuccessMsg(null);
+      setShowPurchasePlans(initialMode === 'purchase_only');
+      setIsPlanConfirmed(false);
       if (activeSession) {
         if (activeSession.fullName && !fullName) setFullName(activeSession.fullName);
         if ((activeSession.phone || activeSession.username) && !mobile) {
@@ -90,15 +91,18 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
       }
     }
 
-    const handleFullAccessUnlocked = () => {
-      onUnlockSuccess();
-      onClose();
+    // Strictly handle license unlocks only when approved
+    const handleFullAccessUnlocked = (e: any) => {
+      if (e?.detail?.hasFullAccess === true && isClientPurchaseApproved()) {
+        onUnlockSuccess();
+        onClose();
+      }
     };
     window.addEventListener('software-full-access-updated', handleFullAccessUnlocked);
     return () => {
       window.removeEventListener('software-full-access-updated', handleFullAccessUnlocked);
     };
-  }, [isOpen, activeSession, onUnlockSuccess, onClose]);
+  }, [isOpen, activeSession, onUnlockSuccess, onClose, initialMode]);
 
   if (!isOpen) return null;
 
@@ -111,13 +115,51 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     whatsapp.trim().length >= 10;
 
   // Compute pricing
-  const planPricing: Record<string, { label: string; price: number; formatted: string }> = {
-    'yearly_mobile': { label: '१ वर्ष मोबाइल', price: 2000, formatted: 'रु. २,०००' },
-    'yearly_desktop': { label: '१ वर्ष कम्प्युटर', price: 3500, formatted: 'रु. ३,५००' },
-    'yearly_both': { label: '१ वर्ष मोबाइल + कम्प्युटर', price: 5000, formatted: 'रु. ५,०००' },
-    'lifetime_mobile': { label: 'आजीवन मोबाइल', price: 5000, formatted: 'रु. ५,०००' },
-    'lifetime_desktop': { label: 'आजीवन कम्प्युटर', price: 7500, formatted: 'रु. ७,५००' },
-    'lifetime_both': { label: 'आजीवन मोबाइल + कम्प्युटर', price: 10000, formatted: 'रु. १०,०००' },
+  const planPricing: Record<string, { label: string; price: number; formatted: string; desc: string; icon: any; popular?: boolean }> = {
+    'yearly_mobile': {
+      label: '१ वर्ष मोबाइल मात्र',
+      price: 2000,
+      formatted: 'रु. २,०००',
+      desc: 'एन्ड्रोइड तथा iOS मोबाइल एपमा कुण्डली, फलादेश तथा पञ्चाङ्ग सेवा',
+      icon: Smartphone
+    },
+    'yearly_desktop': {
+      label: '१ वर्ष कम्प्युटर मात्र',
+      price: 3500,
+      formatted: 'रु. ३,५००',
+      desc: 'विन्डोज ल्यापटप / डेस्कटपमा ठूलो स्क्रिन, विस्तृत प्रिन्टिङ तथा फलादेश',
+      icon: Monitor
+    },
+    'yearly_both': {
+      label: '१ वर्ष मोबाइल + कम्प्युटर',
+      price: 5000,
+      formatted: 'रु. ५,०००',
+      desc: 'मोबाइल र कम्प्युटर दुवैमा पूर्ण पहुँच, कुनै पनि डिभाइसबाट सिंक हुने',
+      icon: Zap,
+      popular: true
+    },
+    'lifetime_mobile': {
+      label: 'आजीवन मोबाइल मात्र',
+      price: 5000,
+      formatted: 'रु. ५,०००',
+      desc: 'एकपटक भुक्तानी गरी मोबाइलमा सधैँभरिका लागि पूर्ण पहुँच',
+      icon: Smartphone
+    },
+    'lifetime_desktop': {
+      label: 'आजीवन कम्प्युटर मात्र',
+      price: 7500,
+      formatted: 'रु. ७,५००',
+      desc: 'एकपटक भुक्तानी गरी कम्प्युटरमा सधैँभरिका लागि पूर्ण पहुँच',
+      icon: Monitor
+    },
+    'lifetime_both': {
+      label: 'आजीवन मोबाइल + कम्प्युटर',
+      price: 10000,
+      formatted: 'रु. १०,०००',
+      desc: 'मोबाइल र कम्प्युटर दुवैमा आजीवन पूर्ण पहुँच, भविष्यका सम्पूर्ण नयाँ फिचर निःशुल्क',
+      icon: Zap,
+      popular: true
+    },
   };
 
   const currentPlanKey = `${selectedPlanCategory}_${selectedPlatform}` as keyof typeof planPricing;
@@ -170,36 +212,28 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     }
   };
 
-  // Handler: Proceed to purchase plans with instant lead registration
+  // Handler: Open purchase plans selection view (Strictly NO premature submission)
   const handleProceedToPurchasePlans = () => {
     setErrorMsg(null);
-    if (!isFormValid) {
-      setErrorMsg('कृपया नाम, ठेगाना, मोबाइल नं., इमेल र ह्वाट्सएप नम्बर सबै ५ वटै विवरण अनिवार्य रूपमा भर्नुहोस्।');
-      return;
-    }
     setShowPurchasePlans(true);
-    try {
-      submitPurchaseApplication({
-        fullName: fullName.trim(),
-        address: address.trim(),
-        mobile: mobile.trim(),
-        email: email.trim(),
-        whatsapp: whatsapp.trim(),
-        planId: currentPlanKey as any,
-        planNameNepali: currentPlan.label,
-        planAmountNPR: currentPlan.price,
-        paymentMethod: selectedGateway,
-        transactionId: 'भुक्तानी प्रक्रियामा (In Progress)',
-      });
-    } catch (e) {
-      console.warn('[ClientPurchaseModal] Instant lead registration error:', e);
-    }
+    setIsPlanConfirmed(false);
   };
 
-  // Handler: Submit Purchase Application
+  // Handler: Explicit OK confirmation for chosen plan
+  const handleConfirmPlan = () => {
+    setIsPlanConfirmed(true);
+    setErrorMsg(null);
+  };
+
+  // Handler: Submit Purchase Application (Only after user confirmed plan and submits)
   const handleSubmitPurchase = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (!isPlanConfirmed) {
+      setErrorMsg('कृपया पहिले उपयुक्त योजना छनोट गरी "यो योजना छनोट गर्नुहोस् (OK)" बटन थिच्नुहोस्।');
+      return;
+    }
 
     if (!isFormValid) {
       setErrorMsg('कृपया नाम, ठेगाना, मोबाइल नं., इमेल र ह्वाट्सएप नम्बर सबै अनिवार्य रूपमा भर्नुहोस्।');
@@ -225,7 +259,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
       setIsSubmitting(false);
 
       if (res.success) {
-        setSuccessMsg(res.messageNepali);
+        setSuccessMsg(`तपाईंको '${currentPlan.label}' (${currentPlan.formatted}) खरिद आवेदन दर्ता भयो! सुपरएडमिनले रकम रुजु गरी स्वीकृत गरेपछि तपाईंको सफ्टवेयर सक्रिय हुनेछ।`);
       } else {
         setErrorMsg(res.messageNepali);
       }
@@ -244,11 +278,11 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-base sm:text-lg font-serif">
-                  सफ्टवेयर खरिद तथा परीक्षण फारम
+                  {showPurchasePlans ? 'सफ्टवेयर खरिद योजना छनोट' : 'सफ्टवेयर खरिद तथा परीक्षण फारम'}
                 </h3>
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/50 text-emerald-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  One Year / Lifetime
+                  १ वर्ष / आजीवन योजना
                 </span>
               </div>
               <p className="text-xs text-amber-200/90 mt-0.5">
@@ -265,7 +299,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
           </button>
         </div>
 
-        <div className="p-5 sm:p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto">
           {/* Active Registered User Badge / Guest Login Notice */}
           {activeSession ? (
             <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200">
@@ -314,7 +348,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
               <div>
                 <strong className="block font-bold">यस डिभाइसमा २४ घण्टे निःशुल्क परीक्षण समाप्त भएको छ।</strong>
                 <span>
-                  सफ्टवेयरका सम्पूर्ण विकल्पहरू सुचारु गर्न कृपया तलको खरिद फारम भरी सुपरएडमिनबाट स्वीकृत गराउनुहोस्।
+                  सफ्टवेयरका सम्पूर्ण विकल्पहरू सुचारु गर्न कृपया तलको खरिद योजना छनोट गरी सुपरएडमिनबाट स्वीकृत गराउनुहोस्।
                 </span>
               </div>
             </div>
@@ -479,7 +513,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
                       </div>
                     </button>
 
-                    {/* खरिद गर्ने बटन */}
+                    {/* खरिद गर्ने बटन (अब योजनाहरू खोल्छ, आफैँ बन्द हुँदैन) */}
                     <button
                       type="button"
                       onClick={handleProceedToPurchasePlans}
@@ -492,156 +526,253 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
                             सफ्टवेयर खरिद (१ वर्ष / आजीवन)
                           </span>
                           <span className="text-[10px] bg-amber-500 text-stone-950 font-black px-2 py-0.5 rounded-full">
-                            One Year •
+                            योजनाहरू हेर्नुहोस् •
                           </span>
                         </div>
                         <p className="text-[11px] text-stone-600 dark:text-stone-300 mt-2 leading-relaxed">
-                          सुपरएडमिनबाट आधिकारिक लाइसेन्स स्वीकृत गराई सम्पूर्ण प्रिमियम सुविधाहरू अनलक गर्नुहोस्।
+                          १ वर्ष वा आजीवन योजना छनोट गरी सुपरएडमिनबाट आधिकारिक लाइसेन्स स्वीकृत गराउनुहोस्।
                         </p>
                       </div>
                       <div className="mt-4 pt-2 border-t border-amber-200/60 dark:border-stone-700 flex items-center justify-between text-xs font-bold text-amber-800 dark:text-amber-300">
-                        <span>योजना छनोट तथा भुक्तानी</span>
-                        <span>→</span>
+                        <span>उपलब्ध योजनाहरू छनोट गर्नुहोस्</span>
+                        <ChevronRight className="w-4 h-4" />
                       </div>
                     </button>
                   </div>
                 </div>
               ) : (
-                /* खरिद विवरण तथा eSewa भुक्तानी मोड */
-                <form onSubmit={handleSubmitPurchase} className="space-y-4 pt-1">
+                /* योजना छनोट तथा भुक्तानी खण्ड */
+                <div className="space-y-4 pt-1">
                   <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-700 pb-2">
                     <h4 className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
                       <span className="w-5 h-5 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center text-xs font-black">२</span>
-                      <span>खरिद योजना र भुक्तानी विवरण</span>
+                      <span>खरिद योजना छनोट गर्नुहोस्</span>
                     </h4>
                     <button
                       type="button"
                       onClick={() => setShowPurchasePlans(false)}
-                      className="text-xs text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                      className="text-xs text-amber-700 dark:text-amber-400 hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      ← पछाडि फर्कनुहोस्
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>अन्य विकल्पमा फर्कनुहोस्</span>
                     </button>
                   </div>
 
-                  {/* Plan Category: 1 Year vs Lifetime */}
-                  <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPlanCategory('yearly')}
-                      className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        selectedPlanCategory === 'yearly'
-                          ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
-                          : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
-                      }`}
-                    >
-                      <span>• One Year (१ वर्षको योजना)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPlanCategory('lifetime')}
-                      className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        selectedPlanCategory === 'lifetime'
-                          ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
-                          : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
-                      }`}
-                    >
-                      <span>आजीवन (Life Time योजना)</span>
-                    </button>
-                  </div>
-
-                  {/* Platform Choice */}
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    {(['both', 'desktop', 'mobile'] as const).map((plat) => {
-                      const key = `${selectedPlanCategory}_${plat}` as keyof typeof planPricing;
-                      const item = planPricing[key];
-                      const isSelected = selectedPlatform === plat;
-                      return (
-                        <button
-                          key={plat}
-                          type="button"
-                          onClick={() => setSelectedPlatform(plat)}
-                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                            isSelected
-                              ? 'border-amber-500 bg-amber-50/80 dark:bg-stone-800 text-amber-950 dark:text-amber-200 shadow-2xs'
-                              : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300'
-                          }`}
-                        >
-                          <div className="font-bold">{plat === 'both' ? 'मोबाइल + कम्प्युटर' : plat === 'desktop' ? 'कम्प्युटर मात्र' : 'मोबाइल मात्र'}</div>
-                          <div className="text-amber-700 dark:text-amber-400 font-extrabold mt-1">{item.formatted}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Payment Receiver Box */}
-                  <div className="p-3.5 bg-stone-100 dark:bg-stone-800/80 rounded-2xl border border-stone-300 dark:border-stone-700 text-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-stone-700 dark:text-stone-300">
-                        आधिकारिक भुक्तानी माध्यम : eSewa / Khalti
-                      </span>
-                      <span className="text-emerald-700 dark:text-emerald-400 font-black text-sm">
-                        तिर्नुपर्ने रकम: {currentPlan.formatted}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between bg-white dark:bg-stone-900 p-2.5 rounded-xl border border-stone-200 dark:border-stone-700">
-                      <div>
-                        <div className="font-bold text-emerald-700 dark:text-emerald-400 text-xs">
-                          eSewa / Khalti ID: ९७६४४००५३३
-                        </div>
-                        <div className="text-[11px] text-stone-500">
-                          खातावाला: Subash Bhandari (Pnd. Sukadew Saran)
-                        </div>
-                      </div>
+                  {/* Plan Duration Category Switcher */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-400 font-bold text-xs mb-1.5">
+                      अवधि छनोट गर्नुहोस् :
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 text-xs font-bold">
                       <button
                         type="button"
-                        onClick={handleCopyEsewa}
-                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        onClick={() => {
+                          setSelectedPlanCategory('yearly');
+                          setIsPlanConfirmed(false);
+                        }}
+                        className={`py-2.5 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          selectedPlanCategory === 'yearly'
+                            ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-sm font-black'
+                            : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-750'
+                        }`}
                       >
-                        {copiedEsewa ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedEsewa ? 'कपी भयो' : 'नम्बर कपी'}</span>
+                        <Clock className="w-4 h-4" />
+                        <span>१ वर्षको योजना (One Year)</span>
                       </button>
-                    </div>
 
-                    {/* Transaction Code Input */}
-                    <div>
-                      <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
-                        eSewa / Khalti कारोबार नम्बर (Transaction / Ref ID) *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="उदा: 7C14A293 वा Ref Code"
-                        value={transactionCode}
-                        onChange={(e) => setTransactionCode(e.target.value)}
-                        className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPlanCategory('lifetime');
+                          setIsPlanConfirmed(false);
+                        }}
+                        className={`py-2.5 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          selectedPlanCategory === 'lifetime'
+                            ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-sm font-black'
+                            : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-750'
+                        }`}
+                      >
+                        <Crown className="w-4 h-4 text-amber-300" />
+                        <span>आजीवन योजना (Lifetime)</span>
+                      </button>
                     </div>
                   </div>
 
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={!isFormValid || isSubmitting}
-                    className={`w-full py-3 rounded-2xl font-bold text-sm text-white transition-all shadow-md flex items-center justify-center gap-2 ${
-                      isFormValid && !isSubmitting
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 cursor-pointer active:scale-98'
-                        : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>
-                      {isSubmitting
-                        ? 'आवेदन दर्ता गरिँदैछ...'
-                        : transactionCode.trim()
-                        ? 'खरिद आवेदन पेश गर्नुहोस् (सुपरएडमिन स्वीकृति)'
-                        : 'खरिद आवेदन पेश गर्नुहोस् (रकम पछि रुजु गर्ने)'}
-                    </span>
-                  </button>
-                  <p className="text-[11px] text-center text-stone-500 dark:text-stone-400">
-                    * आवेदन पेश भएपछि सुपरएडमिनले रकम रुजु गरी तपाईंको सफ्टवेयर सक्रिय (Approve) गरिदिनेछन्।
-                  </p>
-                </form>
+                  {/* 3 Available Plan Cards */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-400 font-bold text-xs mb-1.5">
+                      डिभाइस तथा सुविधा छनोट गर्नुहोस् (कुनै एक रोज्नुहोस्) :
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {(['both', 'desktop', 'mobile'] as const).map((plat) => {
+                        const key = `${selectedPlanCategory}_${plat}` as keyof typeof planPricing;
+                        const item = planPricing[key];
+                        const isSelected = selectedPlatform === plat;
+                        const Icon = item.icon;
+
+                        return (
+                          <div
+                            key={plat}
+                            onClick={() => {
+                              setSelectedPlatform(plat);
+                              setIsPlanConfirmed(false);
+                            }}
+                            className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                              isSelected
+                                ? 'border-amber-500 bg-amber-50/90 dark:bg-amber-950/30 text-amber-950 dark:text-amber-100 shadow-md ring-2 ring-amber-400/40'
+                                : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-amber-500 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'}`}>
+                                    <Icon className="w-4 h-4" />
+                                  </div>
+                                  <span className="font-bold text-xs">
+                                    {plat === 'both' ? 'मोबाइल + कम्प्युटर' : plat === 'desktop' ? 'कम्प्युटर मात्र' : 'मोबाइल मात्र'}
+                                  </span>
+                                </div>
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-amber-600 bg-amber-600 text-white' : 'border-stone-300 dark:border-stone-600'}`}>
+                                  {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                              </div>
+
+                              {item.popular && (
+                                <span className="inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500 text-stone-950 mb-1.5 shadow-2xs">
+                                  ⭐ सर्वोत्कृष्ट (Best Value)
+                                </span>
+                              )}
+
+                              <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug">
+                                {item.desc}
+                              </p>
+                            </div>
+
+                            <div className="mt-3 pt-2 border-t border-stone-200 dark:border-stone-700/60 flex items-baseline justify-between">
+                              <span className="text-[10px] text-stone-500">शुल्क:</span>
+                              <span className="text-amber-700 dark:text-amber-400 font-black text-sm">
+                                {item.formatted}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Explicit OK / Confirm Plan Button */}
+                  <div className="pt-1">
+                    {!isPlanConfirmed ? (
+                      <button
+                        type="button"
+                        onClick={handleConfirmPlan}
+                        className="w-full py-3 px-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                      >
+                        <Check className="w-5 h-5 stroke-[2.5]" />
+                        <span>यो योजना छनोट गर्नुहोस् (OK) : {currentPlan.label} ({currentPlan.formatted})</span>
+                      </button>
+                    ) : (
+                      <div className="p-3.5 bg-emerald-500/15 border-2 border-emerald-500/60 rounded-2xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200 shadow-sm animate-in fade-in">
+                        <div className="flex items-center gap-2.5">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-extrabold text-sm block text-emerald-800 dark:text-emerald-300">
+                              ✓ योजना छनोट भयो: {currentPlan.label}
+                            </span>
+                            <span className="text-[11px] text-stone-600 dark:text-stone-300">
+                              तिर्नुपर्ने रकम: <strong className="text-emerald-700 dark:text-emerald-400 font-bold">{currentPlan.formatted}</strong>
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsPlanConfirmed(false)}
+                          className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-900 dark:text-emerald-200 text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
+                        >
+                          योजना बदल्नुहोस् ✎
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* भुक्तानी विवरण तथा फारम पेश खण्ड (Only visible once plan is OK/confirmed) */}
+                  {isPlanConfirmed ? (
+                    <form onSubmit={handleSubmitPurchase} className="space-y-3.5 pt-2 animate-in fade-in">
+                      {/* Payment Receiver Box */}
+                      <div className="p-3.5 bg-stone-100 dark:bg-stone-800/80 rounded-2xl border border-stone-300 dark:border-stone-700 text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-stone-700 dark:text-stone-300">
+                            आधिकारिक भुक्तानी माध्यम : eSewa / Khalti
+                          </span>
+                          <span className="text-emerald-700 dark:text-emerald-400 font-black text-sm">
+                            तिर्नुपर्ने रकम: {currentPlan.formatted}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-white dark:bg-stone-900 p-2.5 rounded-xl border border-stone-200 dark:border-stone-700">
+                          <div>
+                            <div className="font-bold text-emerald-700 dark:text-emerald-400 text-xs">
+                              eSewa / Khalti ID: ९७६४४००५३३
+                            </div>
+                            <div className="text-[11px] text-stone-500">
+                              खातावाला: Subash Bhandari (Pnd. Sukadew Saran)
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCopyEsewa}
+                            className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            {copiedEsewa ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedEsewa ? 'कपी भयो' : 'नम्बर कपी'}</span>
+                          </button>
+                        </div>
+
+                        {/* Transaction Code Input */}
+                        <div>
+                          <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                            eSewa / Khalti कारोबार नम्बर (Transaction / Ref ID) *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="उदा: 7C14A293 वा Ref Code"
+                            value={transactionCode}
+                            onChange={(e) => setTransactionCode(e.target.value)}
+                            className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Submit Button */}
+                      <button
+                        type="submit"
+                        disabled={!isFormValid || isSubmitting}
+                        className={`w-full py-3 rounded-2xl font-bold text-sm text-white transition-all shadow-md flex items-center justify-center gap-2 ${
+                          isFormValid && !isSubmitting
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 cursor-pointer active:scale-98'
+                            : 'bg-stone-400 dark:bg-stone-700 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>
+                          {isSubmitting
+                            ? 'आवेदन दर्ता गरिँदैछ...'
+                            : transactionCode.trim()
+                            ? `खरिद आवेदन पेश गर्नुहोस् (${currentPlan.label})`
+                            : `खरिद आवेदन पेश गर्नुहोस् (रकम पछि रुजु गर्ने)`}
+                        </span>
+                      </button>
+                      <p className="text-[11px] text-center text-stone-500 dark:text-stone-400">
+                        * आवेदन पेश भएपछि सुपरएडमिनले तपाईंले रोज्नुभएको योजना (<strong>{currentPlan.label}</strong>) अनुसार रकम रुजु गरी सफ्टवेयर सक्रिय (Approve) गरिदिनेछन्।
+                      </p>
+                    </form>
+                  ) : (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800 rounded-xl text-center text-xs text-amber-800 dark:text-amber-300">
+                      💡 माथिका योजनाहरू हेरी तपाईंलाई उपयुक्त हुने योजना छनोट गर्नुहोस् र <strong>'यो योजना छनोट गर्नुहोस् (OK)'</strong> बटन थिच्नुहोस्। त्यसपछि भुक्तानी फारम खुल्नेछ।
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
