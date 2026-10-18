@@ -39,6 +39,7 @@ import { ApkDownloadPromptModal } from './components/common/ApkDownloadPromptMod
 import { GlobalNepaliInputManager } from './components/common/GlobalNepaliInputManager';
 import { LicenseExpiryWarningBanner } from './components/common/LicenseExpiryWarningBanner';
 import { isLicenseExpired } from './utils/licenseExpiryEngine';
+import { unifiedUserSyncService } from './services/unifiedUserSyncService';
 
 const BalanandaMobileAppShell = lazy(() => import('./mobile/BalanandaMobileAppShell').then((m) => ({ default: m.BalanandaMobileAppShell })));
 const BalanandaWindowsAppShell = lazy(() => import('./windows/BalanandaWindowsAppShell').then((m) => ({ default: m.BalanandaWindowsAppShell })));
@@ -833,6 +834,32 @@ export default function App() {
   useEffect(() => {
     recordVisitorHit(activeTab);
   }, [activeTab]);
+
+  // ── REAL-TIME USER PRESENCE ENGINE (ONLINE HEARTBEAT EMITTER) ──
+  useEffect(() => {
+    if (!rbacSession) return;
+
+    // Send heartbeat immediately on login / session active
+    unifiedUserSyncService.sendUserHeartbeat(rbacSession);
+
+    // Recurring heartbeat every 25 seconds
+    const interval = setInterval(() => {
+      unifiedUserSyncService.sendUserHeartbeat(rbacSession);
+    }, 25000);
+
+    const handleFocus = () => {
+      unifiedUserSyncService.sendUserHeartbeat(rbacSession);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('click', handleFocus, { passive: true });
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('click', handleFocus);
+    };
+  }, [rbacSession]);
 
   // Apply Client Theme on initial load and listen for theme change events
   useEffect(() => {
