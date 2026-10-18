@@ -432,6 +432,16 @@ async function runMasterTestSuite() {
   const serverTsPath = path.resolve(process.cwd(), 'server.ts');
   assert(fs.existsSync(serverTsPath), '14.3 server.ts backend service exists and is verified');
 
+  // Restore canonical database files after test suite completion
+  try {
+    const publicUsersPath = path.resolve(process.cwd(), 'public', 'data', 'users.json');
+    const dataUsersPath = path.resolve(process.cwd(), 'data', 'users.json');
+    if (fs.existsSync(publicUsersPath)) {
+      const canonicalData = fs.readFileSync(publicUsersPath, 'utf-8');
+      fs.writeFileSync(dataUsersPath, canonicalData);
+    }
+  } catch {}
+
   console.log('\n========================================================================');
   console.log(`🏁 MASTER SUITE RUN COMPLETE: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);
   if (failedTests === 0) {

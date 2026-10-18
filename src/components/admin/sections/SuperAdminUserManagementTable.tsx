@@ -1028,9 +1028,10 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     setIsLoading(true);
     cachedSuperAdminUsersData = null;
     try {
-      await unifiedUserSyncService.syncAllData();
+      const res = await unifiedUserSyncService.syncAllData();
       await fetchUsers(true);
-      showToast('क्लाउड तथा गिटहबबाट नयाँ डेटा सफलतापूर्वक सिङ्क भयो!');
+      const totalCount = res?.users?.length || 0;
+      showToast(`🎉 सिङ्क सम्पन्न: ${totalCount} प्रयोगकर्ता सफलतापूर्वक अद्यावधिक भए!`);
     } catch {
       showToast('सिङ्क गर्न सकिएन।');
     } finally {

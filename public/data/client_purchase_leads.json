@@ -1,1 +1,53 @@
-[]
+[
+  {
+    "id": "LEAD-REG-1792315521014",
+    "fullName": "Dipnarayan shrma",
+    "address": "राजविराज, सप्तरी",
+    "mobile": "9816705721",
+    "email": "dipnarayansharma16@gmail.com",
+    "whatsapp": "9816705721",
+    "deviceFingerprint": "user-registered",
+    "status": "REGISTERED_USER",
+    "planId": "standard",
+    "planNameNepali": "दर्ता भएको ग्राहक (Registered User)",
+    "planAmountNPR": 0,
+    "paymentMethod": "none",
+    "submittedAtISO": "2026-10-18T09:25:21.015Z",
+    "submittedAtBS": "२०८३ कात्तिक १",
+    "clientNotes": "मोबाइल ब्राउजरबाट नयाँ ग्राहक दर्ता गरिएको"
+  },
+  {
+    "id": "LEAD-REG-1792312207306",
+    "fullName": "अनुशा भण्डारी",
+    "address": "काठमाडौँ",
+    "mobile": "9767424778",
+    "email": "anusha@example.com",
+    "whatsapp": "9767424778",
+    "deviceFingerprint": "user-registered",
+    "status": "REGISTERED_USER",
+    "planId": "standard",
+    "planNameNepali": "दर्ता भएको ग्राहक (Registered User)",
+    "planAmountNPR": 0,
+    "paymentMethod": "none",
+    "submittedAtISO": "2026-10-18T08:30:07.306Z",
+    "submittedAtBS": "२०८३ कात्तिक १",
+    "clientNotes": "मोबाइलबाट नयाँ ग्राहक दर्ता गरिएको"
+  },
+  {
+    "id": "LEAD-1792305565261",
+    "fullName": "राम चन्द्र ज्ञवाली",
+    "address": "काठमाडौँ-१०, बानेश्वर",
+    "mobile": "9841234567",
+    "email": "ram@example.com",
+    "whatsapp": "9841234567",
+    "deviceFingerprint": "user-registered",
+    "status": "REGISTERED_USER",
+    "planId": "standard",
+    "planNameNepali": "दर्ता भएको ग्राहक (Registered User)",
+    "planAmountNPR": 0,
+    "paymentMethod": "none",
+    "submittedAtISO": "2026-10-18T06:39:25.255Z",
+    "submittedAtBS": "२०८३ कात्तिक १",
+    "clientNotes": "अनलाइन फारमबाट नयाँ खाता दर्ता गरिएको"
+  }
+]

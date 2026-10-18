@@ -60,7 +60,13 @@ const STORAGE_KEY_SYNC_PENDING_QUEUE = 'balananda_sync_pending_queue_v1';
 const SYNC_BROADCAST_CHANNEL = 'balananda_unified_sync_bus_v2';
 
 // Native Backend Realtime SSE & Polling Endpoints with Cloud Relay Fallback for GitHub Pages
-export const REALTIME_SYNC_TOPIC = 'balananda_jyotish_realtime_sync_v2081';
+export const REALTIME_REGISTRY_TOPIC = 'balananda_jyotish_registry_v2083';
+export const REALTIME_REGISTRY_MIRROR = 'balananda_registry_mirror_v2083';
+export const REALTIME_PRESENCE_TOPIC = 'balananda_jyotish_presence_v2083';
+export const REALTIME_SECURITY_TOPIC = 'balananda_jyotish_security_v2083';
+export const REALTIME_LEGACY_TOPIC = 'balananda_jyotish_realtime_sync_v2081';
+export const REALTIME_SYNC_TOPIC = REALTIME_REGISTRY_TOPIC;
+
 export const isLocalhostEnvironment = () => {
   if (typeof window === 'undefined') return true;
   const host = window.location.hostname.toLowerCase();
@@ -69,28 +75,28 @@ export const isLocalhostEnvironment = () => {
 
 export const getRealtimeSSEUrl = () => {
   if (!isLocalhostEnvironment()) {
-    return `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse?since=12h`;
+    return `https://ntfy.sh/${REALTIME_SECURITY_TOPIC}/sse?since=12h`;
   }
   return apiClient.resolveUrl('/api/realtime/events');
 };
 
 export const getRealtimePollUrl = () => {
   if (!isLocalhostEnvironment()) {
-    return `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/json?poll=1&since=all`;
+    return `https://ntfy.sh/${REALTIME_REGISTRY_TOPIC}/json?poll=1&since=all`;
   }
   return apiClient.resolveUrl('/api/realtime/poll');
 };
 
 export const REALTIME_SSE_URL = typeof window !== 'undefined'
-  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse?since=12h` : `${window.location.origin}/api/realtime/events`)
+  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SECURITY_TOPIC}/sse?since=12h` : `${window.location.origin}/api/realtime/events`)
   : '/api/realtime/events';
 
 export const REALTIME_PUB_URL = typeof window !== 'undefined'
-  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}` : `${window.location.origin}/api/realtime/events`)
+  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_REGISTRY_TOPIC}` : `${window.location.origin}/api/realtime/events`)
   : '/api/realtime/events';
 
 export const REALTIME_POLL_URL = typeof window !== 'undefined'
-  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/json?poll=1&since=all` : `${window.location.origin}/api/realtime/poll`)
+  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_REGISTRY_TOPIC}/json?poll=1&since=all` : `${window.location.origin}/api/realtime/poll`)
   : '/api/realtime/poll';
 
 
@@ -100,6 +106,7 @@ class UnifiedUserSyncService {
   private lastSyncTime: Date = new Date();
   private clientSse: EventSource | null = null;
   private activePresenceMap = new Map<string, number>();
+  private lastNetworkHeartbeatSentAt: number = 0;
 
   constructor() {
     this.initPresenceMap();
@@ -251,7 +258,7 @@ class UnifiedUserSyncService {
       const role = activeSession.role || 'CUSTOMER';
       const now = Date.now();
 
-      // Record presence locally
+      // 1. Immediately record presence locally
       this.recordPresence(phone || userId, now);
 
       const payload = {
@@ -263,26 +270,35 @@ class UnifiedUserSyncService {
         timestamp: now
       };
 
-      // BroadcastChannel to all tabs on this machine
+      // 2. BroadcastChannel to all tabs on this machine (0ms latency)
       try {
         this.broadcastChannel?.postMessage(payload);
       } catch {}
 
-      // Cloud relay ntfy.sh (Priority 1 = silent heartbeat)
-      try {
-        fetch(`https://ntfy.sh/${REALTIME_SYNC_TOPIC}`, {
-          method: 'POST',
-          headers: {
-            'Title': `Heartbeat: ${phone || userId}`,
-            'Priority': '1',
-            'Tags': 'green_heart'
-          },
-          body: JSON.stringify(payload)
-        }).catch(() => {});
-      } catch {}
+      // 3. Network Throttle: Max 1 network heartbeat per 60 seconds (prevents relay rate limits)
+      if (now - this.lastNetworkHeartbeatSentAt < 60000) {
+        return;
+      }
+      this.lastNetworkHeartbeatSentAt = now;
 
-      // If localhost, also send to backend
-      if (isLocalhostEnvironment()) {
+      // 4. Send lightweight presence ping to dedicated PRESENCE topic
+      if (!isLocalhostEnvironment()) {
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 2500);
+          fetch(`https://ntfy.sh/${REALTIME_PRESENCE_TOPIC}`, {
+            method: 'POST',
+            headers: {
+              'Title': `Heartbeat: ${phone || userId}`,
+              'Priority': '1',
+              'Tags': 'green_heart'
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          }).catch(() => {}).finally(() => clearTimeout(tid));
+        } catch {}
+      } else {
+        // If localhost, send to local Node backend
         apiClient.post('/api/realtime/events', payload).catch(() => {});
       }
     } catch {}
@@ -710,13 +726,21 @@ class UnifiedUserSyncService {
     action?: string;
     reason?: string;
   }): Promise<void> {
+    // Enterprise Security: Strip password fields from transit payload
+    const safeEvent = { ...event };
+    if (safeEvent.user) {
+      safeEvent.user = { ...safeEvent.user };
+      delete safeEvent.user.passwordHash;
+      delete safeEvent.user.passwordPlain;
+    }
+
     const payloadObj = {
-      ...event,
+      ...safeEvent,
       timestamp: Date.now(),
       iso: new Date().toISOString()
     };
 
-    // 1. BroadcastChannel (for other tabs on the same browser)
+    // 1. BroadcastChannel (for other tabs on the same browser - 0ms latency)
     try {
       this.broadcastChannel?.postMessage(payloadObj);
     } catch (e) {
@@ -730,15 +754,21 @@ class UnifiedUserSyncService {
       }
     } catch {}
 
-    // 3. Resilient Cloud Pub/Sub Relay (ntfy.sh) - works seamlessly across GitHub Pages, Incognito, and Mobile apps
+    // 3. Resilient Sharded Cloud Relay (ntfy.sh with mirror fallback)
     try {
+      const isSecurityEvent = event.type === 'USER_FORCE_SIGNOUT' || event.type === 'USER_DELETED' || event.type === 'USER_STATUS_CHANGED';
+      const isRegistryEvent = event.type === 'USER_SIGNUP' || event.type === 'USER_UPDATE' || event.type === 'PURCHASE_REQUEST';
+      const targetTopic = isSecurityEvent
+        ? REALTIME_SECURITY_TOPIC
+        : (isRegistryEvent ? REALTIME_REGISTRY_TOPIC : REALTIME_SYNC_TOPIC);
+
       const asciiTitle = event.type === 'USER_SIGNUP'
-        ? `New User Registration: ${(event.user?.phone || event.user?.id || 'User')}`
+        ? `New User Registration: ${(safeEvent.user?.phone || safeEvent.user?.id || 'User')}`
         : event.type === 'PURCHASE_REQUEST'
-        ? `New Purchase Request: ${(event.lead?.mobile || event.lead?.id || 'Lead')}`
+        ? `New Purchase Request: ${(safeEvent.lead?.mobile || safeEvent.lead?.id || 'Lead')}`
         : event.type === 'LICENSE_APPROVED' || event.type === 'PURCHASE_APPROVED'
         ? `License Approved: ${(event.mobile || event.leadId || '')}`
-        : event.type === 'USER_FORCE_SIGNOUT' || event.type === 'USER_DELETED'
+        : isSecurityEvent
         ? `Security Revocation: ${(event.mobile || event.userId || '')}`
         : `Sync Event: ${event.type}`;
 
@@ -748,17 +778,39 @@ class UnifiedUserSyncService {
         ? 'bell,white_check_mark'
         : 'lock,shield';
 
-      fetch(`https://ntfy.sh/${REALTIME_SYNC_TOPIC}`, {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 3500);
+
+      // Push to primary topic
+      fetch(`https://ntfy.sh/${targetTopic}`, {
         method: 'POST',
         headers: {
           'Title': asciiTitle,
-          'Priority': '4',
+          'Priority': isSecurityEvent ? '5' : '4',
           'Tags': tags
         },
-        body: JSON.stringify(payloadObj)
+        body: JSON.stringify(payloadObj),
+        signal: controller.signal
       }).catch(err => {
-        console.warn('[RealtimeSync] Cloud push failed:', err);
-      });
+        console.warn('[RealtimeSync] Primary cloud push warning:', err);
+      }).finally(() => clearTimeout(tid));
+
+      // For registration and security events, mirror to secondary topic for redundancy
+      if (isRegistryEvent || isSecurityEvent) {
+        const mirrorTopic = isSecurityEvent ? `${REALTIME_SECURITY_TOPIC}_m` : REALTIME_REGISTRY_MIRROR;
+        const mirrorController = new AbortController();
+        const mirrorTid = setTimeout(() => mirrorController.abort(), 3500);
+        fetch(`https://ntfy.sh/${mirrorTopic}`, {
+          method: 'POST',
+          headers: {
+            'Title': asciiTitle,
+            'Priority': isSecurityEvent ? '5' : '4',
+            'Tags': tags
+          },
+          body: JSON.stringify(payloadObj),
+          signal: mirrorController.signal
+        }).catch(() => {}).finally(() => clearTimeout(mirrorTid));
+      }
     } catch (err) {
       console.warn('[RealtimeSync] Cloud relay error:', err);
     }
@@ -1725,146 +1777,197 @@ class UnifiedUserSyncService {
    * Try pulling data from local Node server or GitHub Pages static json files
    */
   private async trySyncFromExpressServer(): Promise<void> {
-    let fetchedUsers: any[] | null = null;
-    let fetchedLeads: any[] | null = null;
+    const fetchedUsers: any[] = [];
+    const fetchedLeads: any[] = [];
 
-    // 1. Fetch via Centralized Authoritative API Client (only on localhost / Node.js backend environment)
+    // 1. Fetch via Centralized Authoritative API Client (when Node.js backend environment is active)
     if (isLocalhostEnvironment()) {
       try {
         const usersRes = await apiClient.get<any>('/api/users', { timeoutMs: 2000 });
         if (usersRes?.success && Array.isArray(usersRes.users)) {
-          fetchedUsers = usersRes.users;
+          fetchedUsers.push(...usersRes.users);
         }
       } catch {}
 
       try {
         const leadsRes = await apiClient.get<any>('/api/client-leads', { timeoutMs: 2000 });
         if (leadsRes?.success && Array.isArray(leadsRes.leads)) {
-          fetchedLeads = leadsRes.leads;
+          fetchedLeads.push(...leadsRes.leads);
         }
       } catch {}
     }
 
-    // 2. Poll Realtime Hub / Cloud Relay for any recent signups / purchase requests across devices
-    try {
-      const pollUrl = getRealtimePollUrl();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(pollUrl, { cache: 'no-store', signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const pollUsers: RBACUser[] = [];
-        const pollLeads: ClientLead[] = [];
+    // 2. ALWAYS Load Canonical Bundled JSON files (guarantees cross-device canonical data on GitHub Pages & offline)
+    const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/';
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const origin = (typeof window !== 'undefined' && window.location?.origin) || '';
+    const staticCandidates = [
+      origin ? `${origin}${cleanBase}data/users.json` : '',
+      `${cleanBase}data/users.json`,
+      './data/users.json',
+      'data/users.json',
+      '/data/users.json',
+      '/nepali-vedic-jyotish-panchanga/data/users.json'
+    ].filter(Boolean);
 
-        const handleParsedItem = (msg: any) => {
-          if (!msg || !msg.type) return;
-          if (msg.type === 'USER_HEARTBEAT') {
-            this.recordPresence(msg.phone || msg.userId, msg.timestamp || Date.now());
-          } else if (msg.type === 'USER_SIGNUP' && msg.user) {
-            pollUsers.push(msg.user);
-            this.recordPresence(msg.user.phone || msg.user.id, Date.now());
-            // ALSO generate a corresponding ClientLead with status REGISTERED_USER
-            pollLeads.push({
-              id: `LEAD-REG-${msg.user.id || Date.now()}`,
-              fullName: msg.user.fullName,
-              address: msg.user.savedAddresses?.[0]?.streetAddress || 'काठमाडौँ',
-              mobile: msg.user.phone,
-              email: msg.user.email || '',
-              whatsapp: msg.user.phone,
-              deviceFingerprint: getDeviceFingerprint(),
-              status: 'REGISTERED_USER',
-              submittedAtISO: msg.user.createdAtISO || new Date().toISOString(),
-              submittedAtBS: msg.user.createdAtBS || '२०८१'
-            });
-          } else if (msg.type === 'PURCHASE_REQUEST' && msg.lead) {
-            pollLeads.push(msg.lead);
-            this.recordPresence(msg.lead.mobile || msg.lead.id, Date.now());
-          }
-        };
-
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const json = await res.json();
-          if (Array.isArray(json?.events)) {
-            json.events.forEach(handleParsedItem);
-          } else if (Array.isArray(json)) {
-            json.forEach((item: any) => {
-              const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
-              handleParsedItem(msg);
-            });
-          }
-        } else {
-          // Newline-delimited JSON (e.g. ntfy /json?poll=1)
-          const text = await res.text();
-          const lines = text.trim().split('\n');
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const item = JSON.parse(line);
-              const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
-              handleParsedItem(msg);
-            } catch {}
+    for (const url of staticCandidates) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            fetchedUsers.push(...data);
+            break;
           }
         }
-
-        if (pollUsers.length > 0) {
-          fetchedUsers = fetchedUsers ? [...pollUsers, ...fetchedUsers] : pollUsers;
-        }
-        if (pollLeads.length > 0) {
-          fetchedLeads = fetchedLeads ? [...pollLeads, ...fetchedLeads] : pollLeads;
-        }
-      }
-    } catch (e) {
-      // Quiet fallback
+      } catch {}
     }
 
-    // 3. Fallback to local offline bundled JSON if backend was not reachable (e.g. offline static standalone)
-    if (!fetchedUsers || fetchedUsers.length === 0) {
-      const staticCandidates = [
-        './data/users.json',
-        '/data/users.json'
-      ];
-      for (const url of staticCandidates) {
-        try {
-          const res = await fetch(url, { cache: 'no-store' });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-              fetchedUsers = data;
+    // Node.js test/server environment filesystem fallback
+    if (fetchedUsers.length === 0 && typeof process !== 'undefined' && (process as any).versions?.node) {
+      try {
+        const fsModule = await import('fs');
+        const pathModule = await import('path');
+        const candidatePaths = [
+          pathModule.resolve(process.cwd(), 'data', 'users.json'),
+          pathModule.resolve(process.cwd(), 'public', 'data', 'users.json')
+        ];
+        for (const p of candidatePaths) {
+          if (fsModule.existsSync(p)) {
+            const raw = JSON.parse(fsModule.readFileSync(p, 'utf-8'));
+            if (Array.isArray(raw) && raw.length > 0) {
+              fetchedUsers.push(...raw);
               break;
             }
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
 
-    if (!fetchedLeads || fetchedLeads.length === 0) {
-      const staticLeadsCandidates = [
-        './data/client_purchase_leads.json',
-        '/data/client_purchase_leads.json'
-      ];
-      for (const url of staticLeadsCandidates) {
-        try {
-          const res = await fetch(url, { cache: 'no-store' });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-              fetchedLeads = data;
+    const staticLeadsCandidates = [
+      origin ? `${origin}${cleanBase}data/client_purchase_leads.json` : '',
+      `${cleanBase}data/client_purchase_leads.json`,
+      './data/client_purchase_leads.json',
+      'data/client_purchase_leads.json',
+      '/data/client_purchase_leads.json',
+      '/nepali-vedic-jyotish-panchanga/data/client_purchase_leads.json'
+    ].filter(Boolean);
+
+    for (const url of staticLeadsCandidates) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            fetchedLeads.push(...data);
+            break;
+          }
+        }
+      } catch {}
+    }
+
+    if (fetchedLeads.length === 0 && typeof process !== 'undefined' && (process as any).versions?.node) {
+      try {
+        const fsModule = await import('fs');
+        const pathModule = await import('path');
+        const candidatePaths = [
+          pathModule.resolve(process.cwd(), 'data', 'client_purchase_leads.json'),
+          pathModule.resolve(process.cwd(), 'public', 'data', 'client_purchase_leads.json')
+        ];
+        for (const p of candidatePaths) {
+          if (fsModule.existsSync(p)) {
+            const raw = JSON.parse(fsModule.readFileSync(p, 'utf-8'));
+            if (Array.isArray(raw) && raw.length > 0) {
+              fetchedLeads.push(...raw);
               break;
             }
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
 
-    // 4. Merge fetched users into local storage safely (never deleting local newly created users)
-    if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
+    // 3. Poll Realtime Cloud Relays (Sharded Registry Topic + Mirror + Legacy Topic)
+    // Uses fail-fast timeout (2500ms) with graceful catch
+    const handleParsedItem = (msg: any) => {
+      if (!msg || !msg.type) return;
+      if (msg.type === 'USER_HEARTBEAT') {
+        this.recordPresence(msg.phone || msg.userId, msg.timestamp || Date.now());
+      } else if (msg.type === 'USER_SIGNUP' && msg.user) {
+        fetchedUsers.push(msg.user);
+        this.recordPresence(msg.user.phone || msg.user.id, Date.now());
+        fetchedLeads.push({
+          id: `LEAD-REG-${msg.user.id || Date.now()}`,
+          fullName: msg.user.fullName,
+          address: msg.user.savedAddresses?.[0]?.streetAddress || 'काठमाडौँ',
+          mobile: msg.user.phone,
+          email: msg.user.email || '',
+          whatsapp: msg.user.phone,
+          deviceFingerprint: getDeviceFingerprint(),
+          status: 'REGISTERED_USER',
+          submittedAtISO: msg.user.createdAtISO || new Date().toISOString(),
+          submittedAtBS: msg.user.createdAtBS || '२०८१'
+        });
+      } else if (msg.type === 'PURCHASE_REQUEST' && msg.lead) {
+        fetchedLeads.push(msg.lead);
+        this.recordPresence(msg.lead.mobile || msg.lead.id, Date.now());
+      }
+    };
+
+    const pollTopicSafe = async (topic: string) => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=all`, {
+          cache: 'no-store',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const json = await res.json();
+            if (Array.isArray(json?.events)) {
+              json.events.forEach(handleParsedItem);
+            } else if (Array.isArray(json)) {
+              json.forEach((item: any) => {
+                const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
+                handleParsedItem(msg);
+              });
+            }
+          } else {
+            const text = await res.text();
+            const lines = text.trim().split('\n');
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const item = JSON.parse(line);
+                const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
+                handleParsedItem(msg);
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+    };
+
+    if (!isLocalhostEnvironment()) {
+      // Run poll queries across sharded registry, mirror, and legacy topics
+      await Promise.allSettled([
+        pollTopicSafe(REALTIME_REGISTRY_TOPIC),
+        pollTopicSafe(REALTIME_REGISTRY_MIRROR),
+        pollTopicSafe(REALTIME_LEGACY_TOPIC)
+      ]);
+    }
+
+    // 4. Merge all fetched users into local storage safely (never deleting local newly created users)
+    if (fetchedUsers.length > 0) {
       const local = getStoredRBACUsers();
       const map = new Map<string, RBACUser>();
       // Keep local first
       local.forEach(u => {
         if (!isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id)) {
-          map.set(this.normalizePhoneOrId(u.phone || u.id), u);
+          const k = this.normalizePhoneOrId(u.phone || u.id);
+          if (k) map.set(k, u);
         }
       });
       // Merge remote if not present locally
@@ -1879,8 +1982,8 @@ class UnifiedUserSyncService {
       saveRBACUsers(Array.from(map.values()));
     }
 
-    // 5. Merge fetched leads into local storage safely
-    if (Array.isArray(fetchedLeads) && fetchedLeads.length > 0) {
+    // 5. Merge all fetched leads into local storage safely
+    if (fetchedLeads.length > 0) {
       const localLeads = getStoredClientLeads();
       const map = new Map<string, ClientLead>();
       localLeads.forEach(l => {

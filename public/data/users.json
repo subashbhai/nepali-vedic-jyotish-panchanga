@@ -1,1 +1,200 @@
-[]
+[
+  {
+    "id": "usr_1792315521014_891",
+    "customerId": "सदस्य-००१",
+    "username": "9816705721",
+    "phone": "9816705721",
+    "email": "dipnarayansharma16@gmail.com",
+    "fullName": "Dipnarayan shrma",
+    "passwordHash": "b926e929192ee30e047ab90fc9d1e0d811a4ccc5f0411da2047abfccc8cd8f60",
+    "plainPasswordNotice": "hashed",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": false,
+    "address": "राजविराज, सप्तरी",
+    "gender": "male",
+    "birthProfileId": "profile_member_1792315520877",
+    "birthDetails": {
+      "id": "profile_member_1792315520877",
+      "customerId": "सदस्य-००१",
+      "name": "Dipnarayan shrma",
+      "gender": "male",
+      "dateAD": "1988-08-07",
+      "dateBS": "वि.सं. 2045 4 महिना 23 गते",
+      "time": "18:41",
+      "timeSeconds": "00",
+      "location": {
+        "name": "राजविराज, सप्तरी",
+        "englishName": "Saptari District",
+        "district": "सप्तरी",
+        "province": "मधेश प्रदेश",
+        "country": "नेपाल",
+        "latitude": 26.5417,
+        "longitude": 86.75,
+        "timeZone": 5.75,
+        "flag": "🇳🇵"
+      },
+      "phone": "9816705721",
+      "email": "dipnarayansharma16@gmail.com",
+      "category": "Member",
+      "notes": "अनलाइन दर्ता सदस्य कुण्डली",
+      "createdAt": "2026-10-18T09:25:20.877Z",
+      "moonRashi": "वृष",
+      "lagnaRashi": "मकर",
+      "nakshatra": "मृगशिरा",
+      "nakshatraPada": 1,
+      "clientId": "client_self"
+    },
+    "photoUrl": "",
+    "permissions": [
+      "store.view",
+      "cart.manage",
+      "orders.place",
+      "orders.view_own",
+      "profile.edit",
+      "address.manage",
+      "marriage.profile.view",
+      "marriage.profile.create",
+      "marriage.profile.edit",
+      "marriage.requests.send",
+      "marriage.messages.send",
+      "marriage.ads.create",
+      "marriage.favorites.manage"
+    ],
+    "savedAddresses": [
+      {
+        "id": "addr_1792315521015",
+        "title": "मुख्य ठेगाना",
+        "fullName": "Dipnarayan shrma",
+        "phone": "9816705721",
+        "district": "सप्तरी",
+        "localLevel": "राजविराज नगरपालिका",
+        "ward": "१",
+        "streetAddress": "राजविराज, सप्तरी",
+        "isDefault": true
+      }
+    ],
+    "trial": {
+      "hasUsedTrial": false,
+      "isTrialActive": false,
+      "trialStartedAtISO": null,
+      "trialExpiresAtISO": null,
+      "trialExpiresAtTimestamp": null,
+      "trialPeriodHours": 24
+    },
+    "jyotishAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "vastuAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "createdAtISO": "2026-10-18T09:25:21.015Z",
+    "createdAtBS": "२०८३ कात्तिक १",
+    "lastLoginISO": "2026-10-18T09:25:21.015Z"
+  },
+  {
+    "id": "usr_1792312207306_18",
+    "customerId": "सदस्य-००२",
+    "username": "9767424778",
+    "phone": "9767424778",
+    "email": "anusha@example.com",
+    "fullName": "अनुशा भण्डारी",
+    "passwordHash": "b926e929192ee30e047ab90fc9d1e0d811a4ccc5f0411da2047abfccc8cd8f60",
+    "plainPasswordNotice": "hashed",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": false,
+    "address": "काठमाडौँ",
+    "gender": "female",
+    "photoUrl": "",
+    "permissions": [
+      "store.view",
+      "cart.manage",
+      "orders.place",
+      "orders.view_own",
+      "profile.edit",
+      "address.manage",
+      "marriage.profile.view"
+    ],
+    "trial": {
+      "hasUsedTrial": false,
+      "isTrialActive": false,
+      "trialStartedAtISO": null,
+      "trialExpiresAtISO": null,
+      "trialExpiresAtTimestamp": null,
+      "trialPeriodHours": 24
+    },
+    "jyotishAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "vastuAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "createdAtISO": "2026-10-18T08:30:07.306Z",
+    "createdAtBS": "२०८३ कात्तिक १",
+    "lastLoginISO": "2026-10-18T08:30:07.306Z"
+  },
+  {
+    "id": "usr_1792305565255_t13cd",
+    "customerId": "सदस्य-००३",
+    "username": "9841234567",
+    "phone": "9841234567",
+    "email": "ram@example.com",
+    "fullName": "राम चन्द्र ज्ञवाली",
+    "passwordHash": "b926e929192ee30e047ab90fc9d1e0d811a4ccc5f0411da2047abfccc8cd8f60",
+    "plainPasswordNotice": "hashed",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": false,
+    "address": "काठमाडौँ-१०, बानेश्वर",
+    "gender": "male",
+    "photoUrl": "",
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "trial": {
+      "hasUsedTrial": false,
+      "isTrialActive": false,
+      "trialStartedAtISO": null,
+      "trialExpiresAtISO": null,
+      "trialExpiresAtTimestamp": null,
+      "trialPeriodHours": 24
+    },
+    "jyotishAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "vastuAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "createdAtISO": "2026-10-18T06:39:25.255Z",
+    "createdAtBS": "२०८३ कात्तिक १",
+    "lastLoginISO": "2026-10-18T06:39:25.255Z"
+  }
+]
