@@ -69,7 +69,7 @@ export const isLocalhostEnvironment = () => {
 
 export const getRealtimeSSEUrl = () => {
   if (!isLocalhostEnvironment()) {
-    return `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse`;
+    return `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse?since=12h`;
   }
   return apiClient.resolveUrl('/api/realtime/events');
 };
@@ -82,7 +82,7 @@ export const getRealtimePollUrl = () => {
 };
 
 export const REALTIME_SSE_URL = typeof window !== 'undefined'
-  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse` : `${window.location.origin}/api/realtime/events`)
+  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse?since=12h` : `${window.location.origin}/api/realtime/events`)
   : '/api/realtime/events';
 
 export const REALTIME_PUB_URL = typeof window !== 'undefined'
@@ -99,14 +99,20 @@ class UnifiedUserSyncService {
   private isSyncing = false;
   private lastSyncTime: Date = new Date();
   private clientSse: EventSource | null = null;
+  private activePresenceMap = new Map<string, number>();
 
   constructor() {
+    this.initPresenceMap();
+
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         this.broadcastChannel = new BroadcastChannel(SYNC_BROADCAST_CHANNEL);
         this.broadcastChannel.onmessage = (ev) => {
           if (ev.data?.type === 'SYNC_DATA_UPDATED') {
             window.dispatchEvent(new CustomEvent('unified-data-updated'));
+          } else if (ev.data?.type === 'USER_HEARTBEAT') {
+            this.recordPresence(ev.data.phone || ev.data.userId, ev.data.timestamp || Date.now());
+            window.dispatchEvent(new CustomEvent('user-presence-updated', { detail: ev.data }));
           } else if (ev.data?.type === 'FORCE_SIGNOUT' || ev.data?.type === 'USER_DELETED') {
             const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
             if (activeSessionRaw) {
@@ -189,6 +195,194 @@ class UnifiedUserSyncService {
 
   public getLastSyncTime(): Date {
     return this.lastSyncTime;
+  }
+
+  /**
+   * Real-Time User Presence Engine
+   */
+  private initPresenceMap(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('balananda_presence_cache_v1');
+      if (raw) {
+        const obj = JSON.parse(raw);
+        const now = Date.now();
+        Object.entries(obj).forEach(([k, ts]) => {
+          if (typeof ts === 'number' && (now - ts) < 3600000) {
+            this.activePresenceMap.set(k, ts);
+          }
+        });
+      }
+    } catch {}
+  }
+
+  private persistPresenceMap(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const obj: Record<string, number> = {};
+      const now = Date.now();
+      this.activePresenceMap.forEach((ts, k) => {
+        if (now - ts < 3600000) {
+          obj[k] = ts;
+        }
+      });
+      localStorage.setItem('balananda_presence_cache_v1', JSON.stringify(obj));
+    } catch {}
+  }
+
+  public recordPresence(phoneOrId?: string, timestamp = Date.now()): void {
+    if (!phoneOrId) return;
+    const norm = this.normalizePhoneOrId(phoneOrId);
+    const cleanDigits = phoneOrId.replace(/\D/g, '').slice(-10);
+    if (norm) this.activePresenceMap.set(norm, timestamp);
+    if (cleanDigits) this.activePresenceMap.set(cleanDigits, timestamp);
+    this.activePresenceMap.set(phoneOrId.trim().toLowerCase(), timestamp);
+    this.persistPresenceMap();
+  }
+
+  public async sendUserHeartbeat(session?: any): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+      const activeSession = session || getActiveRBACSession();
+      if (!activeSession) return;
+      const userId = activeSession.userId || activeSession.id || '';
+      const phone = activeSession.phone || activeSession.username || '';
+      const fullName = activeSession.fullName || '';
+      const role = activeSession.role || 'CUSTOMER';
+      const now = Date.now();
+
+      // Record presence locally
+      this.recordPresence(phone || userId, now);
+
+      const payload = {
+        type: 'USER_HEARTBEAT',
+        userId,
+        phone,
+        fullName,
+        role,
+        timestamp: now
+      };
+
+      // BroadcastChannel to all tabs on this machine
+      try {
+        this.broadcastChannel?.postMessage(payload);
+      } catch {}
+
+      // Cloud relay ntfy.sh (Priority 1 = silent heartbeat)
+      try {
+        fetch(`https://ntfy.sh/${REALTIME_SYNC_TOPIC}`, {
+          method: 'POST',
+          headers: {
+            'Title': `Heartbeat: ${phone || userId}`,
+            'Priority': '1',
+            'Tags': 'green_heart'
+          },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch {}
+
+      // If localhost, also send to backend
+      if (isLocalhostEnvironment()) {
+        apiClient.post('/api/realtime/events', payload).catch(() => {});
+      }
+    } catch {}
+  }
+
+  public isUserOnline(phoneOrId?: string): boolean {
+    if (!phoneOrId) return false;
+    const norm = this.normalizePhoneOrId(phoneOrId);
+    const cleanDigits = phoneOrId.replace(/\D/g, '').slice(-10);
+    const now = Date.now();
+
+    // Check active session on this device
+    try {
+      if (typeof window !== 'undefined') {
+        const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+        if (activeSessionRaw) {
+          const sess = JSON.parse(activeSessionRaw);
+          const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+          const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+          if ((norm && (sessMob === norm || sessId === norm)) || (cleanDigits && sessMob === cleanDigits)) {
+            return true;
+          }
+        }
+      }
+    } catch {}
+
+    const t1 = norm ? this.activePresenceMap.get(norm) : undefined;
+    const t2 = cleanDigits ? this.activePresenceMap.get(cleanDigits) : undefined;
+    const t3 = this.activePresenceMap.get(phoneOrId.trim().toLowerCase());
+    const latest = Math.max(t1 || 0, t2 || 0, t3 || 0);
+
+    return latest > 0 && (now - latest) <= 65000;
+  }
+
+  public getUserPresenceStatus(phoneOrId?: string): {
+    isOnline: boolean;
+    isRecent: boolean;
+    lastSeenText: string;
+    lastSeenTimestamp: number;
+  } {
+    if (!phoneOrId) return { isOnline: false, isRecent: false, lastSeenText: 'अफलाइन', lastSeenTimestamp: 0 };
+    const norm = this.normalizePhoneOrId(phoneOrId);
+    const cleanDigits = phoneOrId.replace(/\D/g, '').slice(-10);
+    const now = Date.now();
+
+    let isCurrentDevice = false;
+    try {
+      if (typeof window !== 'undefined') {
+        const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
+        if (activeSessionRaw) {
+          const sess = JSON.parse(activeSessionRaw);
+          const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+          const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+          if ((norm && (sessMob === norm || sessId === norm)) || (cleanDigits && sessMob === cleanDigits)) {
+            isCurrentDevice = true;
+          }
+        }
+      }
+    } catch {}
+
+    const t1 = norm ? this.activePresenceMap.get(norm) : undefined;
+    const t2 = cleanDigits ? this.activePresenceMap.get(cleanDigits) : undefined;
+    const t3 = this.activePresenceMap.get(phoneOrId.trim().toLowerCase());
+    let latest = Math.max(t1 || 0, t2 || 0, t3 || 0);
+
+    if (isCurrentDevice) {
+      latest = now;
+      this.recordPresence(phoneOrId, now);
+    }
+
+    if (latest === 0) {
+      return { isOnline: false, isRecent: false, lastSeenText: 'अफलाइन', lastSeenTimestamp: 0 };
+    }
+
+    const diffSeconds = Math.floor((now - latest) / 1000);
+    if (diffSeconds <= 65) {
+      return { isOnline: true, isRecent: false, lastSeenText: 'हाल अनलाइन', lastSeenTimestamp: latest };
+    } else if (diffSeconds < 300) {
+      const mins = Math.max(1, Math.floor(diffSeconds / 60));
+      return { isOnline: false, isRecent: true, lastSeenText: `${mins} मिनेट अघि`, lastSeenTimestamp: latest };
+    } else if (diffSeconds < 3600) {
+      const mins = Math.floor(diffSeconds / 60);
+      return { isOnline: false, isRecent: false, lastSeenText: `${mins} मिनेट अघि`, lastSeenTimestamp: latest };
+    } else if (diffSeconds < 86400) {
+      const hrs = Math.floor(diffSeconds / 3600);
+      return { isOnline: false, isRecent: false, lastSeenText: `${hrs} घण्टा अघि`, lastSeenTimestamp: latest };
+    } else {
+      return { isOnline: false, isRecent: false, lastSeenText: 'धेरै पहिले', lastSeenTimestamp: latest };
+    }
+  }
+
+  public getOnlineUsersCount(): number {
+    const registered = this.getRegisteredUsers();
+    let count = 0;
+    for (const u of registered) {
+      if (this.isUserOnline(u.phone || u.id)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /**
@@ -346,7 +540,10 @@ class UnifiedUserSyncService {
 
           if (!parsed || !parsed.type) return;
 
-          if ((parsed.type === 'LICENSE_APPROVED' || parsed.type === 'PURCHASE_APPROVED') && (parsed.mobile || parsed.leadId)) {
+          if (parsed.type === 'USER_HEARTBEAT') {
+            this.recordPresence(parsed.phone || parsed.userId, parsed.timestamp || Date.now());
+            window.dispatchEvent(new CustomEvent('user-presence-updated', { detail: parsed }));
+          } else if ((parsed.type === 'LICENSE_APPROVED' || parsed.type === 'PURCHASE_APPROVED') && (parsed.mobile || parsed.leadId)) {
             const mobile = parsed.mobile || '';
             const norm = this.normalizePhoneOrId(mobile);
             const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
@@ -378,6 +575,7 @@ class UnifiedUserSyncService {
             // Instant real-time delivery to SuperAdmin (< 1 sec)
             const lead = parsed.lead;
             if (!isPermanentlyDeleted(lead.mobile) && !isPermanentlyDeleted(lead.id)) {
+              this.recordPresence(lead.mobile || lead.id, Date.now());
               const localLeads = getStoredClientLeads();
               const idx = localLeads.findIndex(l => l.id === lead.id || (l.transactionId && l.transactionId === lead.transactionId));
               if (idx >= 0) {
@@ -391,10 +589,29 @@ class UnifiedUserSyncService {
           } else if (parsed.type === 'USER_SIGNUP' && parsed.user) {
             const u = parsed.user;
             if (!isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id)) {
+              this.recordPresence(u.phone || u.id, Date.now());
               const localUsers = getStoredRBACUsers();
               const k = this.normalizePhoneOrId(u.phone || u.id);
               if (!localUsers.some(ex => this.normalizePhoneOrId(ex.phone || ex.id) === k)) {
                 saveRBACUsers([u, ...localUsers]);
+                this.notifyListeners();
+              }
+              // Also ensure registered lead exists
+              const localLeads = getStoredClientLeads();
+              if (!localLeads.some(l => this.normalizePhoneOrId(l.mobile) === k)) {
+                const newLead: ClientLead = {
+                  id: `LEAD-REG-${u.id || Date.now()}`,
+                  fullName: u.fullName,
+                  address: u.savedAddresses?.[0]?.streetAddress || 'काठमाडौँ',
+                  mobile: u.phone,
+                  email: u.email || '',
+                  whatsapp: u.phone,
+                  deviceFingerprint: getDeviceFingerprint(),
+                  status: 'REGISTERED_USER',
+                  submittedAtISO: u.createdAtISO || new Date().toISOString(),
+                  submittedAtBS: u.createdAtBS || '२०८१'
+                };
+                saveClientLeads([newLead, ...localLeads]);
                 this.notifyListeners();
               }
             }
@@ -1511,42 +1728,69 @@ class UnifiedUserSyncService {
     let fetchedUsers: any[] | null = null;
     let fetchedLeads: any[] | null = null;
 
-    // 1. Fetch via Centralized Authoritative API Client
-    try {
-      const usersRes = await apiClient.get<any>('/api/users', { timeoutMs: 3000 });
-      if (usersRes?.success && Array.isArray(usersRes.users)) {
-        fetchedUsers = usersRes.users;
-      }
-    } catch {}
+    // 1. Fetch via Centralized Authoritative API Client (only on localhost / Node.js backend environment)
+    if (isLocalhostEnvironment()) {
+      try {
+        const usersRes = await apiClient.get<any>('/api/users', { timeoutMs: 2000 });
+        if (usersRes?.success && Array.isArray(usersRes.users)) {
+          fetchedUsers = usersRes.users;
+        }
+      } catch {}
 
-    try {
-      const leadsRes = await apiClient.get<any>('/api/client-leads', { timeoutMs: 3000 });
-      if (leadsRes?.success && Array.isArray(leadsRes.leads)) {
-        fetchedLeads = leadsRes.leads;
-      }
-    } catch {}
+      try {
+        const leadsRes = await apiClient.get<any>('/api/client-leads', { timeoutMs: 2000 });
+        if (leadsRes?.success && Array.isArray(leadsRes.leads)) {
+          fetchedLeads = leadsRes.leads;
+        }
+      } catch {}
+    }
 
     // 2. Poll Realtime Hub / Cloud Relay for any recent signups / purchase requests across devices
     try {
       const pollUrl = getRealtimePollUrl();
-      const res = await fetch(pollUrl, { cache: 'no-store' });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(pollUrl, { cache: 'no-store', signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const pollUsers: RBACUser[] = [];
         const pollLeads: ClientLead[] = [];
+
+        const handleParsedItem = (msg: any) => {
+          if (!msg || !msg.type) return;
+          if (msg.type === 'USER_HEARTBEAT') {
+            this.recordPresence(msg.phone || msg.userId, msg.timestamp || Date.now());
+          } else if (msg.type === 'USER_SIGNUP' && msg.user) {
+            pollUsers.push(msg.user);
+            this.recordPresence(msg.user.phone || msg.user.id, Date.now());
+            // ALSO generate a corresponding ClientLead with status REGISTERED_USER
+            pollLeads.push({
+              id: `LEAD-REG-${msg.user.id || Date.now()}`,
+              fullName: msg.user.fullName,
+              address: msg.user.savedAddresses?.[0]?.streetAddress || 'काठमाडौँ',
+              mobile: msg.user.phone,
+              email: msg.user.email || '',
+              whatsapp: msg.user.phone,
+              deviceFingerprint: getDeviceFingerprint(),
+              status: 'REGISTERED_USER',
+              submittedAtISO: msg.user.createdAtISO || new Date().toISOString(),
+              submittedAtBS: msg.user.createdAtBS || '२०८१'
+            });
+          } else if (msg.type === 'PURCHASE_REQUEST' && msg.lead) {
+            pollLeads.push(msg.lead);
+            this.recordPresence(msg.lead.mobile || msg.lead.id, Date.now());
+          }
+        };
 
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const json = await res.json();
           if (Array.isArray(json?.events)) {
-            json.events.forEach((ev: any) => {
-              if (ev.type === 'USER_SIGNUP' && ev.user) pollUsers.push(ev.user);
-              else if (ev.type === 'PURCHASE_REQUEST' && ev.lead) pollLeads.push(ev.lead);
-            });
+            json.events.forEach(handleParsedItem);
           } else if (Array.isArray(json)) {
             json.forEach((item: any) => {
               const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
-              if (msg?.type === 'USER_SIGNUP' && msg.user) pollUsers.push(msg.user);
-              else if (msg?.type === 'PURCHASE_REQUEST' && msg.lead) pollLeads.push(msg.lead);
+              handleParsedItem(msg);
             });
           }
         } else {
@@ -1558,8 +1802,7 @@ class UnifiedUserSyncService {
             try {
               const item = JSON.parse(line);
               const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
-              if (msg?.type === 'USER_SIGNUP' && msg.user) pollUsers.push(msg.user);
-              else if (msg?.type === 'PURCHASE_REQUEST' && msg.lead) pollLeads.push(msg.lead);
+              handleParsedItem(msg);
             } catch {}
           }
         }
@@ -1642,13 +1885,16 @@ class UnifiedUserSyncService {
       const map = new Map<string, ClientLead>();
       localLeads.forEach(l => {
         if (!isPermanentlyDeleted(l.mobile) && !isPermanentlyDeleted(l.id)) {
+          const k = this.normalizePhoneOrId(l.mobile || l.id);
+          if (k) map.set(k, l);
           map.set(l.id, l);
         }
       });
       fetchedLeads.forEach((l: any) => {
         if (!isPermanentlyDeleted(l.mobile) && !isPermanentlyDeleted(l.id)) {
-          if (!map.has(l.id)) {
-            map.set(l.id, l);
+          const k = this.normalizePhoneOrId(l.mobile || l.id);
+          if (k && !map.has(k) && !map.has(l.id)) {
+            map.set(k, l);
           }
         }
       });

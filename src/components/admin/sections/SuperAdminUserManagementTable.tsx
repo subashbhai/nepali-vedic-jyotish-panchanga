@@ -41,7 +41,7 @@ import {
   Upload
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
-import { unifiedUserSyncService, REALTIME_SSE_URL, getRealtimeSSEUrl } from '../../../services/unifiedUserSyncService';
+import { unifiedUserSyncService, REALTIME_SSE_URL, getRealtimeSSEUrl, isLocalhostEnvironment } from '../../../services/unifiedUserSyncService';
 import { ClientLead, getStoredClientLeads, saveClientLeads } from '../../../db/clientLeadStore';
 import { getStoredRBACUsers, saveRBACUsers } from '../../../db/rbacStore';
 import { isPermanentlyDeleted } from '../../../db/securityBlacklist';
@@ -117,6 +117,7 @@ export interface SuperAdminUser {
 
 export interface UserStats {
   totalUsers: number;
+  onlineUsers: number;
   todaySignups: number;
   activeUsers: number;
   suspendedUsers: number;
@@ -182,6 +183,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   const [users, setUsers] = useState<SuperAdminUser[]>(() => cachedSuperAdminUsersData?.users || []);
   const [stats, setStats] = useState<UserStats>(() => cachedSuperAdminUsersData?.stats || {
     totalUsers: 0,
+    onlineUsers: 0,
     todaySignups: 0,
     activeUsers: 0,
     suspendedUsers: 0,
@@ -196,6 +198,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   });
 
   const [isLoading, setIsLoading] = useState(() => !cachedSuperAdminUsersData);
+  const [presenceVersion, setPresenceVersion] = useState(0);
   const [searchQuery, setSearchQuery] = useState(initialSearchPhone || '');
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearchPhone || '');
   const [filterType, setFilterType] = useState<string>('all');
@@ -330,32 +333,34 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
       const purList = unifiedUserSyncService.getPurchasedUsers();
       setPurchasedUsers(purList);
 
-      // 2. Try Node.js Express server if available (/api/superadmin/users)
+      // 2. Try Node.js Express server if available (/api/superadmin/users) on localhost
       let serverUsers: SuperAdminUser[] = [];
       let serverStats: UserStats | null = null;
-      try {
-        const params = new URLSearchParams({
-          search: debouncedSearch,
-          filter: filterType,
-          sort: sortBy,
-          page: String(currentPage),
-          limit: String(pageSize)
-        });
+      if (isLocalhostEnvironment()) {
+        try {
+          const params = new URLSearchParams({
+            search: debouncedSearch,
+            filter: filterType,
+            sort: sortBy,
+            page: String(currentPage),
+            limit: String(pageSize)
+          });
 
-        const res = await fetch(`/api/superadmin/users?${params.toString()}`, {
-          headers: getSuperAdminAuthHeaders()
-        });
+          const res = await fetch(`/api/superadmin/users?${params.toString()}`, {
+            headers: getSuperAdminAuthHeaders()
+          });
 
-        const ct = res.headers.get('content-type') || '';
-        if (res.ok && ct.includes('application/json')) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.users)) {
-            serverUsers = data.users;
-            if (data.stats) serverStats = data.stats;
+          const ct = res.headers.get('content-type') || '';
+          if (res.ok && ct.includes('application/json')) {
+            const data = await res.json();
+            if (data.success && Array.isArray(data.users)) {
+              serverUsers = data.users;
+              if (data.stats) serverStats = data.stats;
+            }
           }
+        } catch {
+          // Expected on GitHub Pages static deployment
         }
-      } catch {
-        // Expected on GitHub Pages static deployment
       }
 
       // 3. Build unified SuperAdminUser list
@@ -485,6 +490,8 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           const chk = unifiedUserSyncService.checkUserPurchaseAlert(u.phone || u.id);
           return chk.isRejected;
         });
+      } else if (filterType === 'live_online') {
+        finalUsers = finalUsers.filter(u => unifiedUserSyncService.isUserOnline(u.phone || u.id));
       }
 
       setUsers(finalUsers);
@@ -494,8 +501,11 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
       const todayStr = new Date().toISOString().split('T')[0];
       const allUsersList = Array.from(userMap.values());
       const nowTs = Date.now();
+      const currentOnlineCount = unifiedUserSyncService.getOnlineUsersCount();
+
       const liveStats: UserStats = serverStats ? {
         ...serverStats,
+        onlineUsers: currentOnlineCount,
         awaitingVerification: purList.filter(p => p.status === 'PURCHASE_PENDING' || p.paymentVerificationStatus !== 'VERIFIED').length,
         expiringIn30Days: allUsersList.filter(u => {
           const exp = u.jyotishAccess?.expiresAtTimestamp;
@@ -508,6 +518,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
         rejectedPurchases: purList.filter(p => p.status === 'PURCHASE_REJECTED').length
       } : {
         totalUsers: userMap.size,
+        onlineUsers: currentOnlineCount,
         todaySignups: allUsersList.filter(u => (u.createdAtISO || '').startsWith(todayStr)).length,
         activeUsers: allUsersList.filter(u => u.status === 'active').length,
         suspendedUsers: allUsersList.filter(u => u.status === 'suspended').length,
@@ -570,9 +581,14 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
           if (!parsed || !parsed.type) return;
 
-          if (parsed.type === 'USER_SIGNUP' && parsed.user) {
+          if (parsed.type === 'USER_HEARTBEAT') {
+            unifiedUserSyncService.recordPresence(parsed.phone || parsed.userId, parsed.timestamp || Date.now());
+            setPresenceVersion(v => v + 1);
+          } else if (parsed.type === 'USER_SIGNUP' && parsed.user) {
             const newUser = parsed.user;
             if (isPermanentlyDeleted(newUser.phone) || isPermanentlyDeleted(newUser.id)) return;
+            unifiedUserSyncService.recordPresence(newUser.phone || newUser.id, Date.now());
+            setPresenceVersion(v => v + 1);
 
             // Save immediately into local store to persist
             const localUsers = getStoredRBACUsers();
@@ -589,6 +605,8 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             showToast(`🔔 नयाँ प्रयोगकर्ता दर्ता भयो: ${newUser.fullName || newUser.phone} (तुरन्त सिङ्क गरियो)`);
           } else if (parsed.type === 'PURCHASE_REQUEST' && parsed.lead) {
             const newLead = parsed.lead;
+            unifiedUserSyncService.recordPresence(newLead.mobile || newLead.id, Date.now());
+            setPresenceVersion(v => v + 1);
             const localLeads = getStoredClientLeads();
             const exists = localLeads.some(l => l.id === newLead.id);
             if (!exists) {
@@ -641,6 +659,19 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     return () => clearInterval(interval);
   }, [autoRefresh, fetchUsers]);
 
+  // Periodic presence ticker (keeps online indicators live every 5s without reloading data)
+  useEffect(() => {
+    const presenceTicker = setInterval(() => {
+      setPresenceVersion(v => v + 1);
+    }, 5000);
+    const handlePresence = () => setPresenceVersion(v => v + 1);
+    window.addEventListener('user-presence-updated', handlePresence);
+    return () => {
+      clearInterval(presenceTicker);
+      window.removeEventListener('user-presence-updated', handlePresence);
+    };
+  }, []);
+
   // Listen to window storage / registration events and cross-tab BroadcastChannel
   useEffect(() => {
     const handleSync = () => fetchUsers(true);
@@ -653,9 +684,12 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     let bc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
-        bc = new BroadcastChannel('balananda_unified_sync_channel');
+        bc = new BroadcastChannel('balananda_unified_sync_bus_v2');
         bc.onmessage = (event) => {
-          if (event.data?.type === 'SYNC_DATA_UPDATED' || event.data?.type === 'SYSTEM_RESET') {
+          if (event.data?.type === 'USER_HEARTBEAT') {
+            unifiedUserSyncService.recordPresence(event.data.phone || event.data.userId, event.data.timestamp || Date.now());
+            setPresenceVersion(v => v + 1);
+          } else if (event.data?.type === 'SYNC_DATA_UPDATED' || event.data?.type === 'SYSTEM_RESET') {
             cachedSuperAdminUsersData = null;
             fetchUsers(true);
             if (event.data?.type === 'SYSTEM_RESET') {
@@ -992,6 +1026,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
   const handleCloudSync = async () => {
     setIsLoading(true);
+    cachedSuperAdminUsersData = null;
     try {
       await unifiedUserSyncService.syncAllData();
       await fetchUsers(true);
@@ -1124,8 +1159,8 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           </div>
         </div>
 
-        {/* ── 8 INTERACTIVE KPI STAT FILTER BUTTONS ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 pt-2 border-t border-stone-800/80">
+        {/* ── 9 INTERACTIVE KPI STAT FILTER BUTTONS ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2.5 pt-2 border-t border-stone-800/80">
           <button
             type="button"
             onClick={() => { setFilterType('all'); setCurrentPage(1); }}
@@ -1141,6 +1176,22 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
           <button
             type="button"
+            onClick={() => { setFilterType('live_online'); setCurrentPage(1); }}
+            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+              filterType === 'live_online'
+                ? 'bg-emerald-950/80 border-emerald-400 shadow-lg shadow-emerald-950/60 ring-2 ring-emerald-400'
+                : 'bg-stone-950/70 border-stone-800/80 hover:border-emerald-700/60'
+            }`}
+          >
+            <p className="text-[10px] text-emerald-400 font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>२. लाइभ अनलाइन</span>
+            </p>
+            <p className="text-lg font-black text-emerald-300">{toDevanagariNumerals(stats.onlineUsers || 0)}</p>
+          </button>
+
+          <button
+            type="button"
             onClick={() => { setFilterType('purchase_requested'); setCurrentPage(1); }}
             className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
               filterType === 'purchase_requested'
@@ -1150,7 +1201,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           >
             <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>२. नयाँ खरिद अनुरोध</span>
+              <span>३. नयाँ खरिद अनुरोध</span>
             </p>
             <p className="text-lg font-black text-emerald-400">{toDevanagariNumerals(stats.pendingPurchases)}</p>
           </button>
@@ -1164,7 +1215,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 : 'bg-stone-950/70 border-stone-800/80 hover:border-purple-800/60'
             }`}
           >
-            <p className="text-[10px] text-purple-300 font-medium">३. भुक्तानी रुजु बाँकी</p>
+            <p className="text-[10px] text-purple-300 font-medium">४. भुक्तानी रुजु बाँकी</p>
             <p className="text-lg font-black text-purple-300">{toDevanagariNumerals(stats.awaitingVerification)}</p>
           </button>
 
@@ -1177,7 +1228,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 : 'bg-stone-950/70 border-stone-800/80 hover:border-cyan-800/60'
             }`}
           >
-            <p className="text-[10px] text-cyan-400 font-medium">४. सक्रिय सदस्यता</p>
+            <p className="text-[10px] text-cyan-400 font-medium">५. सक्रिय सदस्यता</p>
             <p className="text-lg font-black text-cyan-400">{toDevanagariNumerals(stats.approvedSubscribers)}</p>
           </button>
 
@@ -1190,7 +1241,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 : 'bg-stone-950/70 border-stone-800/80 hover:border-amber-800/60'
             }`}
           >
-            <p className="text-[10px] text-amber-400 font-medium">५. परीक्षण (Trial)</p>
+            <p className="text-[10px] text-amber-400 font-medium">६. परीक्षण (Trial)</p>
             <p className="text-lg font-black text-amber-400">{toDevanagariNumerals(stats.inTrialUsers)}</p>
           </button>
 
@@ -1203,7 +1254,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 : 'bg-stone-950/70 border-stone-800/80 hover:border-yellow-800/60'
             }`}
           >
-            <p className="text-[10px] text-yellow-400 font-medium">६. ३० दिनभित्र म्याद</p>
+            <p className="text-[10px] text-yellow-400 font-medium">७. ३० दिनभित्र म्याद</p>
             <p className="text-lg font-black text-yellow-400">{toDevanagariNumerals(stats.expiringIn30Days)}</p>
           </button>
 
@@ -1216,7 +1267,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 : 'bg-stone-950/70 border-stone-800/80 hover:border-rose-800/60'
             }`}
           >
-            <p className="text-[10px] text-rose-400 font-medium">७. म्याद समाप्त</p>
+            <p className="text-[10px] text-rose-400 font-medium">८. म्याद समाप्त</p>
             <p className="text-lg font-black text-rose-400">{toDevanagariNumerals(stats.expiredSubscribers)}</p>
           </button>
 
@@ -1229,7 +1280,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 : 'bg-stone-950/70 border-stone-800/80 hover:border-stone-700'
             }`}
           >
-            <p className="text-[10px] text-stone-400 font-medium">८. अस्वीकृत</p>
+            <p className="text-[10px] text-stone-400 font-medium">९. अस्वीकृत</p>
             <p className="text-lg font-black text-rose-400">{toDevanagariNumerals(stats.rejectedPurchases)}</p>
           </button>
         </div>
@@ -1430,6 +1481,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 className="bg-transparent text-xs text-stone-200 outline-none cursor-pointer font-medium"
               >
                 <option value="all" className="bg-stone-900">सबै प्रयोगकर्ता ({stats.totalUsers})</option>
+                <option value="live_online" className="bg-stone-900 font-bold text-emerald-400">🟢 हाल अनलाइन रहेका ({stats.onlineUsers || 0})</option>
                 <option value="today" className="bg-stone-900">आजका नयाँ दर्ता ({stats.todaySignups})</option>
                 <option value="7days" className="bg-stone-900">पछिल्लो ७ दिनका दर्ता</option>
                 <option value="30days" className="bg-stone-900">पछिल्लो ३० दिनका दर्ता</option>
@@ -1536,13 +1588,33 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                       {/* 2. नाम */}
                       <td className="py-3 px-3">
                         <div className="space-y-0.5">
-                          <div className="font-extrabold text-stone-100 flex items-center gap-1.5">
+                          <div className="font-extrabold text-stone-100 flex items-center gap-1.5 flex-wrap">
                             <span>{user.fullName || 'उपलब्ध छैन'}</span>
                             {user.role === 'SUPER_ADMIN' && (
                               <span className="text-[9px] bg-red-950 text-red-400 border border-red-800 px-1 py-0.2 rounded font-mono font-bold">
                                 ADMIN
                               </span>
                             )}
+                            {(() => {
+                              const presence = unifiedUserSyncService.getUserPresenceStatus(user.phone || user.id);
+                              if (presence.isOnline) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 shadow-sm shadow-emerald-950" title="यो प्रयोगकर्ता अहिले सफ्टवेयर चलाइरहेका छन् (Real-time Online)">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                                    <span>🟢 अनलाइन (Live)</span>
+                                  </span>
+                                );
+                              }
+                              if (presence.isRecent) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30" title={`पछिल्लो पटक सक्रिय: ${presence.lastSeenText}`}>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                    <span>🟡 {presence.lastSeenText}</span>
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                           <div className="flex items-center gap-1.5 text-[10px] text-stone-400 font-mono">
                             <span className="text-amber-400/90">{user.customerId}</span>
@@ -1689,7 +1761,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                       <td className="py-3 px-3">
                         <div className="space-y-1">
                           {/* Main status badge */}
-                          <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {user.status === 'active' ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -1705,6 +1777,23 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                                 निष्क्रिय
                               </span>
                             )}
+
+                            {(() => {
+                              const presence = unifiedUserSyncService.getUserPresenceStatus(user.phone || user.id);
+                              if (presence.isOnline) {
+                                return (
+                                  <span className="text-[10px] font-black text-emerald-400 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                                    <span>Live</span>
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="text-[9px] text-stone-500 font-mono">
+                                  {presence.lastSeenText}
+                                </span>
+                              );
+                            })()}
                           </div>
 
                           {/* Quick service feature tags */}
