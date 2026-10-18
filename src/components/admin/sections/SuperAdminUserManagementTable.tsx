@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { MenuControlPanel } from '../MenuControlPanel';
-import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unifiedUserSyncService';
+import { unifiedUserSyncService, REALTIME_SSE_URL, getRealtimeSSEUrl } from '../../../services/unifiedUserSyncService';
 import { ClientLead, getStoredClientLeads, saveClientLeads } from '../../../db/clientLeadStore';
 import { getStoredRBACUsers, saveRBACUsers } from '../../../db/rbacStore';
 import { isPermanentlyDeleted } from '../../../db/securityBlacklist';
@@ -552,7 +552,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     fetchUsers(Boolean(cachedSuperAdminUsersData && !debouncedSearch && filterType === 'all' && currentPage === 1));
   }, [fetchUsers]);
 
-  // ── 1-SECOND HIGH-SPEED REALTIME SYNCHRONIZATION VIA SSE (ntfy.sh) ──
+  // ── 1-SECOND HIGH-SPEED REALTIME SYNCHRONIZATION VIA NATIVE SSE HUB ──
   useEffect(() => {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
 
@@ -560,7 +560,8 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     let isMounted = true;
 
     try {
-      sse = new EventSource(REALTIME_SSE_URL);
+      const sseUrl = getRealtimeSSEUrl();
+      sse = new EventSource(sseUrl);
 
       sse.onmessage = (event) => {
         if (!isMounted) return;
@@ -569,7 +570,9 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
           const messageText = raw.message || raw;
           const parsed = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
 
-          if (parsed && parsed.type === 'USER_SIGNUP' && parsed.user) {
+          if (!parsed || !parsed.type) return;
+
+          if (parsed.type === 'USER_SIGNUP' && parsed.user) {
             const newUser = parsed.user;
             if (isPermanentlyDeleted(newUser.phone) || isPermanentlyDeleted(newUser.id)) return;
 
@@ -585,8 +588,8 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             }
 
             fetchUsers(true);
-            showToast(`🔔 नयाँ प्रयोगकर्ता दर्ता भयो: ${newUser.fullName || newUser.phone} (१ सेकेन्डमै सिङ्क गरियो)`);
-          } else if (parsed && parsed.type === 'PURCHASE_REQUEST' && parsed.lead) {
+            showToast(`🔔 नयाँ प्रयोगकर्ता दर्ता भयो: ${newUser.fullName || newUser.phone} (तुरन्त सिङ्क गरियो)`);
+          } else if (parsed.type === 'PURCHASE_REQUEST' && parsed.lead) {
             const newLead = parsed.lead;
             const localLeads = getStoredClientLeads();
             const exists = localLeads.some(l => l.id === newLead.id);
@@ -595,7 +598,24 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             }
             fetchUsers(true);
             showToast(`💰 नयाँ सदस्यता खरिद अनुरोध: ${newLead.fullName} (${newLead.mobile})`);
-          } else if (parsed && parsed.type === 'USER_DELETED') {
+          } else if (parsed.type === 'PURCHASE_APPROVED' || parsed.type === 'LICENSE_APPROVED') {
+            fetchUsers(true);
+            showToast(`✅ खरिद आवेदन स्वीकृत गरियो (${parsed.mobile || parsed.leadId || ''})`);
+          } else if (parsed.type === 'PURCHASE_REJECTED') {
+            fetchUsers(true);
+            showToast(`❌ खरिद आवेदन अस्वीकृत गरियो`);
+          } else if (parsed.type === 'USER_STATUS_CHANGED') {
+            fetchUsers(true);
+            showToast(`🛡️ प्रयोगकर्ता स्थिति परिवर्तन भयो`);
+          } else if (parsed.type === 'USER_DELETED') {
+            fetchUsers(true);
+          } else if (parsed.type === 'SYSTEM_RESET') {
+            cachedSuperAdminUsersData = null;
+            setUsers([]);
+            setPurchasedUsers([]);
+            fetchUsers(false);
+            showToast(`⚡ प्रणाली डेटा पूर्ण रूपमा रिसेट गरियो`);
+          } else if (parsed.type === 'SERVICE_LICENSE_UPDATED') {
             fetchUsers(true);
           }
         } catch {}

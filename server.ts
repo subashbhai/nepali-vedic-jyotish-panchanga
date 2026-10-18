@@ -173,10 +173,81 @@ async function startServer() {
   const TRIAL_REGISTRY_FILE = path.join(DATA_DIR, "trial_registry.json");
   const LIBRARY_FILE = path.join(DATA_DIR, "library_content.json");
 
+  // Atomic Safe File Writer preventing concurrent file corruption
+  const writeJsonAtomic = (filePath: string, data: any) => {
+    try {
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(2, 6)}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+      fs.renameSync(tmpPath, filePath);
+    } catch (err) {
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    }
+  };
+
+  // ==============================================================
+  // NATIVE HIGH-SPEED REALTIME SSE (Server-Sent Events) HUB
+  // Sub-300ms direct notification delivery across Web, Android, Desktop
+  // ==============================================================
+  const sseClients = new Set<express.Response>();
+  const recentEventsLog: Array<{ type: string; payload: any; timestamp: number }> = [];
+
+  const broadcastRealtimeEvent = (type: string, payload: any = {}) => {
+    const eventObj = { type, payload, timestamp: Date.now() };
+    recentEventsLog.unshift(eventObj);
+    if (recentEventsLog.length > 200) recentEventsLog.pop();
+
+    const dataString = `data: ${JSON.stringify(eventObj)}\n\n`;
+    for (const client of sseClients) {
+      try {
+        client.write(dataString);
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  };
+
+  // 15s Heartbeat to maintain active connection across proxies / firewalls
+  setInterval(() => {
+    for (const client of sseClients) {
+      try {
+        client.write(`:ping ${Date.now()}\n\n`);
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  }, 15000);
+
+  // GET /api/realtime/events (Native Server-Sent Events Endpoint)
+  app.get("/api/realtime/events", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.flushHeaders?.();
+
+    res.write(`data: ${JSON.stringify({ type: "CONNECTED", timestamp: Date.now(), clientsCount: sseClients.size + 1 })}\n\n`);
+    sseClients.add(res);
+
+    req.on("close", () => {
+      sseClients.delete(res);
+    });
+  });
+
+  // GET /api/realtime/poll (Fallback polling for environments without SSE)
+  app.get("/api/realtime/poll", (req, res) => {
+    const since = Number(req.query.since) || 0;
+    const filtered = recentEventsLog.filter(e => e.timestamp > since);
+    return res.json({ success: true, events: filtered, serverTime: Date.now(), clientsConnected: sseClients.size });
+  });
+
   const getServiceLicenses = (): any[] => {
     try {
       if (!fs.existsSync(SERVICE_LICENSES_FILE)) {
-        fs.writeFileSync(SERVICE_LICENSES_FILE, JSON.stringify([], null, 2), "utf-8");
+        writeJsonAtomic(SERVICE_LICENSES_FILE, []);
         return [];
       }
       return JSON.parse(fs.readFileSync(SERVICE_LICENSES_FILE, "utf-8"));
@@ -187,7 +258,7 @@ async function startServer() {
 
   const saveServiceLicenses = (licenses: any[]) => {
     try {
-      fs.writeFileSync(SERVICE_LICENSES_FILE, JSON.stringify(licenses, null, 2), "utf-8");
+      writeJsonAtomic(SERVICE_LICENSES_FILE, licenses);
     } catch (e) {
       console.error("Failed to save service_licenses.json:", e);
     }
@@ -196,7 +267,7 @@ async function startServer() {
   const getPurchaseRequests = (): any[] => {
     try {
       if (!fs.existsSync(PURCHASE_REQUESTS_FILE)) {
-        fs.writeFileSync(PURCHASE_REQUESTS_FILE, JSON.stringify([], null, 2), "utf-8");
+        writeJsonAtomic(PURCHASE_REQUESTS_FILE, []);
         return [];
       }
       return JSON.parse(fs.readFileSync(PURCHASE_REQUESTS_FILE, "utf-8"));
@@ -207,7 +278,7 @@ async function startServer() {
 
   const savePurchaseRequests = (requests: any[]) => {
     try {
-      fs.writeFileSync(PURCHASE_REQUESTS_FILE, JSON.stringify(requests, null, 2), "utf-8");
+      writeJsonAtomic(PURCHASE_REQUESTS_FILE, requests);
     } catch (e) {
       console.error("Failed to save license_purchase_requests.json:", e);
     }
@@ -216,7 +287,7 @@ async function startServer() {
   const getLicenseAuditLogs = (): any[] => {
     try {
       if (!fs.existsSync(LICENSE_AUDIT_FILE)) {
-        fs.writeFileSync(LICENSE_AUDIT_FILE, JSON.stringify([], null, 2), "utf-8");
+        writeJsonAtomic(LICENSE_AUDIT_FILE, []);
         return [];
       }
       return JSON.parse(fs.readFileSync(LICENSE_AUDIT_FILE, "utf-8"));
@@ -229,7 +300,7 @@ async function startServer() {
     try {
       const logs = getLicenseAuditLogs();
       logs.unshift(log);
-      fs.writeFileSync(LICENSE_AUDIT_FILE, JSON.stringify(logs.slice(0, 1000), null, 2), "utf-8");
+      writeJsonAtomic(LICENSE_AUDIT_FILE, logs.slice(0, 1000));
     } catch (e) {
       console.error("Failed to write license_audit_logs.json:", e);
     }
@@ -238,7 +309,7 @@ async function startServer() {
   const getClientLeads = (): any[] => {
     try {
       if (!fs.existsSync(CLIENT_LEADS_FILE)) {
-        fs.writeFileSync(CLIENT_LEADS_FILE, JSON.stringify([], null, 2), "utf-8");
+        writeJsonAtomic(CLIENT_LEADS_FILE, []);
         return [];
       }
       return JSON.parse(fs.readFileSync(CLIENT_LEADS_FILE, "utf-8"));
@@ -250,7 +321,7 @@ async function startServer() {
 
   const saveClientLeads = (leads: any[]) => {
     try {
-      fs.writeFileSync(CLIENT_LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
+      writeJsonAtomic(CLIENT_LEADS_FILE, leads);
     } catch (e) {
       console.error("Failed to save client_purchase_leads.json:", e);
     }
@@ -259,7 +330,7 @@ async function startServer() {
   const getUsers = (): any[] => {
     try {
       if (!fs.existsSync(USERS_FILE)) {
-        fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2), "utf-8");
+        writeJsonAtomic(USERS_FILE, []);
         return [];
       }
       return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
@@ -271,7 +342,7 @@ async function startServer() {
 
   const saveUsers = (users: any[]) => {
     try {
-      fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+      writeJsonAtomic(USERS_FILE, users);
     } catch (e) {
       console.error("Failed to save users.json:", e);
     }
@@ -280,7 +351,7 @@ async function startServer() {
   const getTrialRegistry = (): Record<string, any> => {
     try {
       if (!fs.existsSync(TRIAL_REGISTRY_FILE)) {
-        fs.writeFileSync(TRIAL_REGISTRY_FILE, JSON.stringify({}, null, 2), "utf-8");
+        writeJsonAtomic(TRIAL_REGISTRY_FILE, {});
         return {};
       }
       return JSON.parse(fs.readFileSync(TRIAL_REGISTRY_FILE, "utf-8"));
@@ -291,7 +362,7 @@ async function startServer() {
 
   const saveTrialRegistry = (reg: Record<string, any>) => {
     try {
-      fs.writeFileSync(TRIAL_REGISTRY_FILE, JSON.stringify(reg, null, 2), "utf-8");
+      writeJsonAtomic(TRIAL_REGISTRY_FILE, reg);
     } catch (e) {
       console.error("Failed to save trial_registry.json:", e);
     }
@@ -657,6 +728,23 @@ async function startServer() {
       }
 
       saveServiceLicenses(licenses);
+
+      broadcastRealtimeEvent("SERVICE_LICENSE_UPDATED", {
+        license: updatedLicense,
+        userId,
+        serviceKey,
+        action,
+        status: updatedLicense.status
+      });
+
+      if (action === "lock") {
+        broadcastRealtimeEvent("USER_FORCE_SIGNOUT", {
+          userId,
+          phone,
+          action: "service_locked",
+          reason: `सुपरएडमिनद्वारा ${serviceKey === 'jyotish' ? 'ज्योतिष' : 'वास्तु'} सेवा लक गरिएको छ।`
+        });
+      }
 
       appendLicenseAudit({
         id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -1074,6 +1162,7 @@ async function startServer() {
       }
 
       saveClientLeads(leads);
+      broadcastRealtimeEvent("PURCHASE_REQUEST", { lead: record });
       return res.json({ success: true, lead: record, message: "आवेदन सफलतापूर्वक सुरक्षित भयो।" });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -1106,6 +1195,12 @@ async function startServer() {
         planDuration
       });
       saveClientLeads(leads);
+      broadcastRealtimeEvent("PURCHASE_APPROVED", {
+        lead: target,
+        leadId: target.id,
+        mobile: target.mobile,
+        status: "PURCHASE_APPROVED"
+      });
 
       return res.json({
         success: true,
@@ -1145,6 +1240,12 @@ async function startServer() {
         planDuration
       });
       saveClientLeads(leads);
+      broadcastRealtimeEvent("PURCHASE_APPROVED", {
+        lead: target,
+        leadId: target.id,
+        mobile: target.mobile,
+        status: "PURCHASE_APPROVED"
+      });
 
       return res.json({
         success: true,
@@ -1171,6 +1272,12 @@ async function startServer() {
       target.rejectionReason = reason || "रकम रुजु हुन सकेन।";
 
       saveClientLeads(leads);
+      broadcastRealtimeEvent("PURCHASE_REJECTED", {
+        lead: target,
+        leadId: target.id,
+        mobile: target.mobile,
+        status: "PURCHASE_REJECTED"
+      });
       return res.json({ success: true, lead: target, message: `${target.fullName} को आवेदन अस्वीकृत गरियो।` });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -1184,6 +1291,7 @@ async function startServer() {
       let leads = getClientLeads();
       leads = leads.filter((l: any) => l.id !== id);
       saveClientLeads(leads);
+      broadcastRealtimeEvent("LEAD_DELETED", { leadId: id });
       return res.json({ success: true, message: "आवेदन सफलतापूर्वक मेटाइयो।" });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -1396,6 +1504,8 @@ async function startServer() {
       }
       saveClientLeads(leads);
 
+      broadcastRealtimeEvent("USER_SIGNUP", { user: newUser, token });
+
       return res.json({
         success: true,
         message: "खाता सफलतापूर्वक दर्ता भयो! सम्पूर्ण विवरण Super Admin मा पनि दर्ता भइसकेको छ।",
@@ -1502,6 +1612,21 @@ async function startServer() {
       }
 
       saveUsers(users);
+      const updatedUser = users[targetIdx];
+      if (status === "suspended" || status === "inactive") {
+        broadcastRealtimeEvent("USER_FORCE_SIGNOUT", {
+          userId: updatedUser.id,
+          phone: updatedUser.phone,
+          action: status,
+          reason: `सुपरएडमिनद्वारा खाता ${status === "suspended" ? "निलम्बित" : "निष्क्रिय"} गरिएको छ।`
+        });
+      }
+      broadcastRealtimeEvent("USER_STATUS_CHANGED", {
+        userId: updatedUser.id,
+        phone: updatedUser.phone,
+        status: updatedUser.status
+      });
+
       return res.json({ success: true, message: "प्रयोगकर्ता स्थिति सफलतापूर्वक परिवर्तन भयो।", user: users[targetIdx] });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -1549,6 +1674,17 @@ async function startServer() {
         delete registry[regKey];
         saveTrialRegistry(registry);
       }
+
+      broadcastRealtimeEvent("USER_FORCE_SIGNOUT", {
+        userId: target?.id || id,
+        phone: cleanDigits || target?.phone,
+        action: "deleted",
+        reason: "सुपरएडमिनद्वारा खाता स्थायी रूपमा मेटाइयो।"
+      });
+      broadcastRealtimeEvent("USER_DELETED", {
+        userId: target?.id || id,
+        phone: cleanDigits || target?.phone
+      });
 
       return res.json({ success: true, message: "प्रयोगकर्ता खाता, लाइसेन्स र सम्पूर्ण डेटा स्थायी रूपमा मेटाइयो।" });
     } catch (err: any) {
@@ -1975,7 +2111,112 @@ async function startServer() {
     }
   });
 
-  // 5.7 POST /api/superadmin/system-reset (1-Touch Factory Data Reset for Launch Testing)
+  // 5.7.1 POST /api/superadmin/data-reset/preview (Preview Controlled User-Data Reset Scope)
+  app.post("/api/superadmin/data-reset/preview", requireSuperAdminAuth, (req, res) => {
+    try {
+      const users = getUsers();
+      const leads = getClientLeads();
+      const licenses = getServiceLicenses();
+      const purchaseReqs = getPurchaseRequests();
+      const registry = getTrialRegistry();
+
+      return res.json({
+        success: true,
+        scope: "USER_DATA_ONLY",
+        targetDatabase: "Authoritative JSON Disk DB (data/)",
+        estimates: {
+          registeredUsers: users.length,
+          clientLeads: leads.length,
+          serviceLicenses: licenses.length,
+          purchaseRequests: purchaseReqs.length,
+          trialRegistrations: Object.keys(registry).length
+        },
+        preserved: [
+          "SuperAdmin Administrative Master Account & Sessions",
+          "Application Core Configurations & Menu Control Schemas",
+          "Software Releases, APK and Windows Download Binaries",
+          "Vedic Astrological & Vastu Calculation Engines & Reference Datasets",
+          "Vedic Digital Library Catalog (library_content.json)",
+          "Security Blacklist & Regulatory Audit Trail"
+        ],
+        requiredConfirmationCode: "CONFIRM_PURGE_2081",
+        notice: "यो कार्यले केवल प्रयोगकर्ता सम्बन्धी व्यक्तिगत डेटा मात्र हटाउनेछ। सफ्टवेयरका मुख्य कोड र प्रशासकीय पहुँच यथावत् रहनेछ।"
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.7.2 POST /api/superadmin/data-reset/execute (Controlled User-Data Reset with Confirmation)
+  app.post("/api/superadmin/data-reset/execute", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { confirmationCode } = req.body;
+      if (confirmationCode !== "CONFIRM_PURGE_2081") {
+        return res.status(400).json({
+          success: false,
+          error: "अवैध प्रमाणीकरण कोड। डेटा रिसेट गर्न 'CONFIRM_PURGE_2081' अनिवार्य छ।"
+        });
+      }
+
+      // 1. Create timestamped safety backup in data/backups/
+      const backupsDir = path.join(DATA_DIR, "backups");
+      if (!fs.existsSync(backupsDir)) {
+        fs.mkdirSync(backupsDir, { recursive: true });
+      }
+      const timestamp = Date.now();
+      const backupPath = path.join(backupsDir, `pre_reset_backup_${timestamp}.json`);
+      const backupData = {
+        timestampISO: new Date().toISOString(),
+        users: getUsers(),
+        leads: getClientLeads(),
+        licenses: getServiceLicenses(),
+        purchaseRequests: getPurchaseRequests(),
+        trialRegistry: getTrialRegistry()
+      };
+      writeJsonAtomic(backupPath, backupData);
+
+      // 2. Perform Atomic User Data Wipe
+      saveUsers([]);
+      saveClientLeads([]);
+      saveServiceLicenses([]);
+      saveTrialRegistry({});
+      try {
+        if (fs.existsSync(PURCHASE_REQUESTS_FILE)) {
+          writeJsonAtomic(PURCHASE_REQUESTS_FILE, []);
+        }
+      } catch {}
+
+      // 3. Record Audit Log
+      const adminSession = (req as any).superAdmin;
+      appendLicenseAudit({
+        id: `audit_reset_${timestamp}`,
+        timestampISO: new Date().toISOString(),
+        timestampBS: "२०८१",
+        performedBy: adminSession?.username || "superadmin",
+        action: "CONTROLLED_USER_DATA_RESET",
+        targetUserId: "ALL_USERS",
+        targetUsername: "ALL_USERS",
+        serviceKey: "all",
+        details: `प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_${timestamp}.json`
+      });
+
+      // 4. Broadcast Realtime Reset Event over native SSE stream
+      broadcastRealtimeEvent("SYSTEM_RESET", {
+        timestamp,
+        scope: "USER_DATA_ONLY"
+      });
+
+      return res.json({
+        success: true,
+        message: "प्रयोगकर्ता डेटा सफलतापूर्वक नियन्त्रित रूपमा रिसेट गरियो। सुरक्षा ब्याकअप फाइल सुरक्षित गरिएको छ।",
+        backupFile: `pre_reset_backup_${timestamp}.json`
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.7.3 POST /api/superadmin/system-reset (Fast Shortcut)
   app.post("/api/superadmin/system-reset", requireSuperAdminAuth, (req, res) => {
     try {
       saveUsers([]);
@@ -1984,12 +2225,14 @@ async function startServer() {
       saveTrialRegistry({});
       try {
         if (fs.existsSync(PURCHASE_REQUESTS_FILE)) {
-          fs.writeFileSync(PURCHASE_REQUESTS_FILE, JSON.stringify([], null, 2), "utf-8");
-        }
-        if (fs.existsSync(LICENSE_AUDIT_FILE)) {
-          fs.writeFileSync(LICENSE_AUDIT_FILE, JSON.stringify([], null, 2), "utf-8");
+          writeJsonAtomic(PURCHASE_REQUESTS_FILE, []);
         }
       } catch {}
+
+      broadcastRealtimeEvent("SYSTEM_RESET", {
+        timestamp: Date.now(),
+        scope: "USER_DATA_ONLY"
+      });
 
       return res.json({
         success: true,

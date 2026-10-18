@@ -22,6 +22,7 @@ import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier } from '../db/sec
 import { deleteLicensesForUserPermanently } from '../db/serviceLicenseStore';
 import { deleteClientPolicyPermanently, registerOrUpdateClientPolicy, loadAllClientPolicies, saveAllClientPolicies, getClientPolicyByMobile } from '../db/menuControlStore';
 import { convertADToBS } from '../utils/nepaliCalendar';
+import { apiClient } from './apiClient';
 
 
 export interface UnifiedPurchaseRequest {
@@ -58,16 +59,13 @@ const STORAGE_KEY_CLOUD_CACHE = 'balananda_cloud_sync_cache_v2';
 const STORAGE_KEY_SYNC_PENDING_QUEUE = 'balananda_sync_pending_queue_v1';
 const SYNC_BROADCAST_CHANNEL = 'balananda_unified_sync_bus_v2';
 
-// Cloud Relay endpoints with resilient fallbacks
-// High-speed zero-config Realtime Relay (< 1s delivery across any browser, phone, or GitHub Pages deployment)
+// Native Backend Realtime SSE & Polling Endpoints (Fast, Self-Contained, Zero External Dependency)
 export const REALTIME_SYNC_TOPIC = 'balananda_jyotish_realtime_sync_v2081';
-export const REALTIME_PUB_URL = `https://ntfy.sh/${REALTIME_SYNC_TOPIC}`;
-export const REALTIME_SSE_URL = `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse`;
-export const REALTIME_POLL_URL = `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/json?poll=1&since=all`;
-
-const KV_NAMESPACE = 'balananda_jyotish_sync_relay_v2';
-const PRIMARY_CLOUD_ENDPOINT = `https://kvdb.io/9kL1SjM2P4z7qR9tXw/${KV_NAMESPACE}`;
-const FALLBACK_CLOUD_ENDPOINT = `https://api.restful-api.dev/objects`;
+export const getRealtimeSSEUrl = () => apiClient.resolveUrl('/api/realtime/events');
+export const getRealtimePollUrl = () => apiClient.resolveUrl('/api/realtime/poll');
+export const REALTIME_SSE_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/realtime/events` : '/api/realtime/events';
+export const REALTIME_PUB_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/realtime/events` : '/api/realtime/events';
+export const REALTIME_POLL_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/realtime/poll` : '/api/realtime/poll';
 
 class UnifiedUserSyncService {
   private broadcastChannel: BroadcastChannel | null = null;
@@ -276,15 +274,19 @@ class UnifiedUserSyncService {
       if (this.clientSse) {
         this.clientSse.close();
       }
-      this.clientSse = new EventSource(REALTIME_SSE_URL);
+      const sseUrl = getRealtimeSSEUrl();
+      this.clientSse = new EventSource(sseUrl);
       this.clientSse.onmessage = (event) => {
         try {
           const raw = JSON.parse(event.data);
           const messageText = raw.message || raw;
           const parsed = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
 
-          if (parsed?.type === 'LICENSE_APPROVED' && parsed.mobile) {
-            const norm = this.normalizePhoneOrId(parsed.mobile);
+          if (!parsed || !parsed.type) return;
+
+          if ((parsed.type === 'LICENSE_APPROVED' || parsed.type === 'PURCHASE_APPROVED') && (parsed.mobile || parsed.leadId)) {
+            const mobile = parsed.mobile || '';
+            const norm = this.normalizePhoneOrId(mobile);
             const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
             let isCurrent = false;
             if (activeSessionRaw) {
@@ -295,7 +297,7 @@ class UnifiedUserSyncService {
 
             // Check if this device has leads matching the approved mobile or leadId
             const storedLeads = getStoredClientLeads();
-            const matchedLead = storedLeads.find(l => this.normalizePhoneOrId(l.mobile) === norm || l.id === parsed.leadId);
+            const matchedLead = storedLeads.find(l => (norm && this.normalizePhoneOrId(l.mobile) === norm) || l.id === parsed.leadId);
             if (matchedLead) isCurrent = true;
 
             // Check device trial record
@@ -303,14 +305,14 @@ class UnifiedUserSyncService {
               const trialRecordRaw = localStorage.getItem('balananda_device_trial_lock_v2');
               if (trialRecordRaw) {
                 const tr = JSON.parse(trialRecordRaw);
-                if (this.normalizePhoneOrId(tr.leadMobile) === norm) isCurrent = true;
+                if (norm && this.normalizePhoneOrId(tr.leadMobile) === norm) isCurrent = true;
               }
             } catch {}
 
             if (isCurrent || !activeSessionRaw) {
-              this.checkAndApplyClientApproval(parsed.mobile);
+              this.checkAndApplyClientApproval(mobile || parsed.leadId);
             }
-          } else if (parsed?.type === 'PURCHASE_REQUEST' && parsed.lead) {
+          } else if (parsed.type === 'PURCHASE_REQUEST' && parsed.lead) {
             // Instant real-time delivery to SuperAdmin (< 1 sec)
             const lead = parsed.lead;
             if (!isPermanentlyDeleted(lead.mobile) && !isPermanentlyDeleted(lead.id)) {
@@ -324,7 +326,7 @@ class UnifiedUserSyncService {
               saveClientLeads(localLeads);
               this.notifyListeners();
             }
-          } else if (parsed?.type === 'USER_SIGNUP' && parsed.user) {
+          } else if (parsed.type === 'USER_SIGNUP' && parsed.user) {
             const u = parsed.user;
             if (!isPermanentlyDeleted(u.phone) && !isPermanentlyDeleted(u.id)) {
               const localUsers = getStoredRBACUsers();
@@ -334,7 +336,7 @@ class UnifiedUserSyncService {
                 this.notifyListeners();
               }
             }
-          } else if (parsed?.type === 'USER_DELETED') {
+          } else if (parsed.type === 'USER_DELETED' || parsed.type === 'USER_FORCE_SIGNOUT') {
             // Security revoke: Immediately delete locally and force signout if active
             const normTarget = this.normalizePhoneOrId(parsed.mobile || parsed.phone || parsed.userId);
             const targetId = (parsed.userId || parsed.id || '').toLowerCase();
@@ -350,14 +352,14 @@ class UnifiedUserSyncService {
                 const isMatch = (normTarget && (sessMob === normTarget || sessId === normTarget)) ||
                                 (targetId && (sessId === targetId || sessMob === targetId));
                 if (isMatch) {
-                  this.forceClientSignout('deleted', 'तपाईंको खाता प्रणालीबाट स्थायी रूपमा हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+                  this.forceClientSignout('deleted', parsed.reason || 'तपाईंको खाता प्रणालीबाट हटाइएको छ वा निलम्बन गरिएको छ।');
                 }
               } catch {}
             }
             this.notifyListeners();
-          } else if (parsed?.type === 'USER_STATUS_CHANGED') {
+          } else if (parsed.type === 'USER_STATUS_CHANGED') {
             // Security revoke: If status is suspended or inactive, force immediate client signout
-            const status = parsed.userStatus;
+            const status = parsed.userStatus || parsed.status;
             const normTarget = this.normalizePhoneOrId(parsed.mobile || parsed.phone || parsed.userId);
             const targetId = (parsed.userId || parsed.id || '').toLowerCase();
 
@@ -374,11 +376,13 @@ class UnifiedUserSyncService {
                     const defaultMsg = status === 'suspended'
                       ? 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।'
                       : 'सुरक्षा सूचना: तपाईंको खाता निष्क्रिय (De-activated) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।';
-                    this.forceClientSignout(status, parsed.details || defaultMsg);
+                    this.forceClientSignout(status, parsed.details || parsed.reason || defaultMsg);
                   }
                 } catch {}
               }
             }
+            this.notifyListeners();
+          } else if (parsed.type === 'SYSTEM_RESET') {
             this.notifyListeners();
           }
         } catch {}
@@ -393,10 +397,10 @@ class UnifiedUserSyncService {
   }
 
   /**
-   * Instantly broadcast an event across all devices (< 1 second) via high-speed relay
+   * Instantly broadcast an event across all local tabs and devices (< 1 second)
    */
   public async pushEventToRealtimeRelay(event: {
-    type: 'USER_SIGNUP' | 'USER_UPDATE' | 'PURCHASE_REQUEST' | 'LICENSE_APPROVED' | 'USER_DELETED' | 'USER_STATUS_CHANGED';
+    type: 'USER_SIGNUP' | 'USER_UPDATE' | 'PURCHASE_REQUEST' | 'LICENSE_APPROVED' | 'PURCHASE_APPROVED' | 'USER_DELETED' | 'USER_STATUS_CHANGED' | string;
     user?: any;
     lead?: any;
     mobile?: string;
@@ -405,29 +409,13 @@ class UnifiedUserSyncService {
     leadId?: string;
     details?: string;
   }): Promise<void> {
-    if (typeof fetch === 'undefined') return;
-
     try {
-      const payload = {
+      this.broadcastChannel?.postMessage({
         ...event,
-        timestamp: Date.now(),
-        iso: new Date().toISOString()
-      };
-
-      // 1. Post to high-speed ntfy relay (SSE delivers in < 300ms)
-      fetch(REALTIME_PUB_URL, {
-        method: 'POST',
-        headers: {
-          'Title': event.type === 'USER_SIGNUP'
-            ? `New User Registration: ${event.user?.phone || 'member'}`
-            : (event.type === 'PURCHASE_REQUEST' ? `New Purchase Request: ${event.lead?.mobile || 'client'}` : 'Balananda Realtime Event'),
-          'Priority': 'high',
-          'Tags': event.type === 'USER_SIGNUP' ? 'bust_in_silhouette,sparkles' : 'bell,white_check_mark'
-        },
-        body: JSON.stringify(payload)
-      }).catch(err => console.warn('[RealtimeSync] ntfy push error:', err));
+        timestamp: Date.now()
+      });
     } catch (e) {
-      console.warn('[RealtimeSync] Relay push failed:', e);
+      console.warn('[RealtimeSync] Broadcast failed:', e);
     }
   }
 
@@ -650,20 +638,18 @@ class UnifiedUserSyncService {
       console.warn('Error clearing user cache on delete:', e);
     }
 
-    // 7. Make Express Server API delete calls if running
-    if (typeof fetch !== 'undefined') {
-      const idsToDelete = [phoneOrId];
-      if (secondaryIdentifier && secondaryIdentifier !== phoneOrId) {
-        idsToDelete.push(secondaryIdentifier);
-      }
-      idsToDelete.forEach(id => {
-        const enc = encodeURIComponent(id);
-        fetch(`/api/superadmin/users/${enc}`, { method: 'DELETE', headers: { 'x-superadmin-token': 'SUPER_ADMIN' } }).catch(() => {});
-        fetch(`/api/users/${enc}`, { method: 'DELETE' }).catch(() => {});
-        fetch(`/api/client-leads/${enc}`, { method: 'DELETE' }).catch(() => {});
-        fetch(`/api/licenses/user/${enc}`, { method: 'DELETE', headers: { 'x-superadmin-token': 'SUPER_ADMIN' } }).catch(() => {});
-      });
+    // 7. Make Backend Server API delete calls
+    const idsToDelete = [phoneOrId];
+    if (secondaryIdentifier && secondaryIdentifier !== phoneOrId) {
+      idsToDelete.push(secondaryIdentifier);
     }
+    idsToDelete.forEach(id => {
+      const enc = encodeURIComponent(id);
+      apiClient.delete(`/api/superadmin/users/${enc}`).catch(() => {});
+      apiClient.delete(`/api/users/${enc}`).catch(() => {});
+      apiClient.delete(`/api/client-leads/${enc}`).catch(() => {});
+      apiClient.delete(`/api/licenses/user/${enc}`).catch(() => {});
+    });
 
     // 8. Push updated state to Realtime Relay and Cloud Cache
     this.pushEventToRealtimeRelay({
@@ -726,8 +712,10 @@ class UnifiedUserSyncService {
       try {
         localStorage.removeItem('balananda_permanently_deleted_identifiers_v2');
         localStorage.removeItem('balananda_registered_users_v1');
+        localStorage.removeItem('balananda_rbac_users_v2');
         localStorage.removeItem('nepali_astro_rbac_users_v2');
         localStorage.removeItem('balananda_client_access_control_v2');
+        localStorage.removeItem('balananda_client_leads_v2');
         localStorage.removeItem('balananda_client_purchase_leads_v2');
         localStorage.removeItem(STORAGE_KEY_CLOUD_CACHE);
         localStorage.removeItem('sukdev_esewa_payment_requests_v1');
@@ -737,6 +725,8 @@ class UnifiedUserSyncService {
         localStorage.removeItem('software_full_access_unlocked_v1');
         localStorage.removeItem('balananda_software_full_access_license_v2');
         localStorage.removeItem('balananda_service_licenses_v1');
+        localStorage.removeItem('balananda_rbac_session_v2');
+        localStorage.removeItem('balananda_rbac_active_session_v1');
 
         saveRBACUsers([]);
         saveClientLeads([]);
@@ -746,15 +736,11 @@ class UnifiedUserSyncService {
       }
     }
 
-    if (typeof fetch !== 'undefined') {
+    try {
+      await apiClient.post('/api/superadmin/data-reset/execute', { confirmationCode: 'CONFIRM_PURGE_2081' });
+    } catch {
       try {
-        await fetch('/api/superadmin/system-reset', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-superadmin-token': 'SUPER_ADMIN'
-          }
-        });
+        await apiClient.post('/api/superadmin/system-reset', {});
       } catch {}
     }
 
@@ -900,23 +886,10 @@ class UnifiedUserSyncService {
       details: reason
     }).catch(() => {});
 
-    // 7. Background Server Call if running
-    if (typeof fetch !== 'undefined') {
-      const enc = encodeURIComponent(phoneOrId);
-      fetch(`/api/superadmin/users/${enc}/status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-superadmin-token': 'SUPER_ADMIN'
-        },
-        body: JSON.stringify({ status, reason })
-      }).catch(() => {});
-      fetch(`/api/users/${enc}/update-status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, reason })
-      }).catch(() => {});
-    }
+    // 7. Background Server Call
+    const enc = encodeURIComponent(phoneOrId);
+    apiClient.post(`/api/superadmin/users/${enc}/status`, { status, reason }).catch(() => {});
+    apiClient.post(`/api/users/${enc}/update-status`, { status, reason }).catch(() => {});
 
     this.notifyListeners();
     return true;
@@ -1368,59 +1341,37 @@ class UnifiedUserSyncService {
    * Try pulling data from local Node server or GitHub Pages static json files
    */
   private async trySyncFromExpressServer(): Promise<void> {
-    if (typeof fetch === 'undefined') return;
-
-    // 1. Try local Express API endpoints first (if running npm start / node server.ts)
     let fetchedUsers: any[] | null = null;
     let fetchedLeads: any[] | null = null;
 
+    // 1. Fetch via Centralized Authoritative API Client
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
-
-      const usersRes = await fetch('/api/users', { signal: controller.signal }).catch(() => null);
-      if (usersRes && usersRes.ok) {
-        const ct = usersRes.headers.get('content-type') || '';
-        if (ct.includes('application/json')) {
-          const uData = await usersRes.json();
-          if (uData?.success && Array.isArray(uData.users)) {
-            fetchedUsers = uData.users;
-          }
-        }
+      const usersRes = await apiClient.get<any>('/api/users', { timeoutMs: 3000 });
+      if (usersRes?.success && Array.isArray(usersRes.users)) {
+        fetchedUsers = usersRes.users;
       }
-
-      const leadsRes = await fetch('/api/client-leads', { signal: controller.signal }).catch(() => null);
-      if (leadsRes && leadsRes.ok) {
-        const ct = leadsRes.headers.get('content-type') || '';
-        if (ct.includes('application/json')) {
-          const lData = await leadsRes.json();
-          if (lData?.success && Array.isArray(lData.leads)) {
-            fetchedLeads = lData.leads;
-          }
-        }
-      }
-      clearTimeout(timeout);
     } catch {}
 
-    // 2. Poll Realtime Relay cache for any recent signups / purchase requests across devices (< 1s delivery recovery)
     try {
-      const pollRes = await fetch(REALTIME_POLL_URL, { cache: 'no-store' }).catch(() => null);
-      if (pollRes && pollRes.ok) {
-        const text = await pollRes.text();
-        const lines = text.trim().split('\n').filter(Boolean);
+      const leadsRes = await apiClient.get<any>('/api/client-leads', { timeoutMs: 3000 });
+      if (leadsRes?.success && Array.isArray(leadsRes.leads)) {
+        fetchedLeads = leadsRes.leads;
+      }
+    } catch {}
+
+    // 2. Poll Realtime Hub fallback for any recent signups / purchase requests across devices
+    try {
+      const pollRes = await apiClient.get<any>('/api/realtime/poll', { timeoutMs: 2000 });
+      if (pollRes?.success && Array.isArray(pollRes.events)) {
         const pollUsers: RBACUser[] = [];
         const pollLeads: ClientLead[] = [];
 
-        lines.forEach(line => {
-          try {
-            const parsed = JSON.parse(line);
-            const msg = typeof parsed.message === 'string' ? JSON.parse(parsed.message) : parsed.message;
-            if (msg && msg.type === 'USER_SIGNUP' && msg.user) {
-              pollUsers.push(msg.user);
-            } else if (msg && msg.type === 'PURCHASE_REQUEST' && msg.lead) {
-              pollLeads.push(msg.lead);
-            }
-          } catch {}
+        pollRes.events.forEach((ev: any) => {
+          if (ev.type === 'USER_SIGNUP' && ev.user) {
+            pollUsers.push(ev.user);
+          } else if (ev.type === 'PURCHASE_REQUEST' && ev.lead) {
+            pollLeads.push(ev.lead);
+          }
         });
 
         if (pollUsers.length > 0) {
@@ -1431,21 +1382,19 @@ class UnifiedUserSyncService {
         }
       }
     } catch (e) {
-      console.warn('[UnifiedSync] Poll relay warning:', e);
+      // Quiet fallback
     }
 
-    // 3. If not on Express server (e.g. GitHub Pages static deployment), fetch from static JSON
+    // 3. Fallback to local offline bundled JSON if backend was not reachable (e.g. offline static standalone)
     if (!fetchedUsers || fetchedUsers.length === 0) {
       const staticCandidates = [
         './data/users.json',
-        '/nepali-vedic-jyotish-panchanga/data/users.json',
-        'https://raw.githubusercontent.com/subashbhai/nepali-vedic-jyotish-panchanga/main/data/users.json'
+        '/data/users.json'
       ];
       for (const url of staticCandidates) {
         try {
           const res = await fetch(url, { cache: 'no-store' });
-          const ct = res.headers.get('content-type') || '';
-          if (res.ok && (ct.includes('application/json') || ct.includes('text/plain') || url.includes('.json'))) {
+          if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {
               fetchedUsers = data;
@@ -1459,14 +1408,12 @@ class UnifiedUserSyncService {
     if (!fetchedLeads || fetchedLeads.length === 0) {
       const staticLeadsCandidates = [
         './data/client_purchase_leads.json',
-        '/nepali-vedic-jyotish-panchanga/data/client_purchase_leads.json',
-        'https://raw.githubusercontent.com/subashbhai/nepali-vedic-jyotish-panchanga/main/data/client_purchase_leads.json'
+        '/data/client_purchase_leads.json'
       ];
       for (const url of staticLeadsCandidates) {
         try {
           const res = await fetch(url, { cache: 'no-store' });
-          const ct = res.headers.get('content-type') || '';
-          if (res.ok && (ct.includes('application/json') || ct.includes('text/plain') || url.includes('.json'))) {
+          if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {
               fetchedLeads = data;
