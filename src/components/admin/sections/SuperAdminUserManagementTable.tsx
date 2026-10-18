@@ -41,7 +41,6 @@ import {
   Upload
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
-import { MenuControlPanel } from '../MenuControlPanel';
 import { unifiedUserSyncService, REALTIME_SSE_URL, getRealtimeSSEUrl } from '../../../services/unifiedUserSyncService';
 import { ClientLead, getStoredClientLeads, saveClientLeads } from '../../../db/clientLeadStore';
 import { getStoredRBACUsers, saveRBACUsers } from '../../../db/rbacStore';
@@ -238,7 +237,6 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   const [adminNoteModalUser, setAdminNoteModalUser] = useState<SuperAdminUser | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [mobileActionUser, setMobileActionUser] = useState<SuperAdminUser | null>(null);
-  const [switchboardModalUser, setSwitchboardModalUser] = useState<SuperAdminUser | null>(null);
 
   // ── DUAL TABLE STATE: 1. REGISTERED USERS vs 2. PURCHASED USERS ──
   const [activeTableTab, setActiveTableTab] = useState<'registered_users' | 'purchased_users'>('registered_users');
@@ -271,7 +269,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     setIsDeleting(true);
     const target = userToDelete;
     try {
-      unifiedUserSyncService.deleteUserPermanently(target.id, target.phone);
+      unifiedUserSyncService.deleteUserPermanently(target.id, target.phone || (target as any).username, target.fullName);
       setUserToDelete(null);
       showToast(`प्रयोगकर्ता ${target.fullName || target.phone} प्रणालीबाट स्थायी रूपमा हटाइयो।`);
       await fetchUsers(true);
@@ -288,7 +286,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     setIsDeleting(true);
     const target = leadToDelete;
     try {
-      unifiedUserSyncService.deleteUserPermanently(target.id, target.mobile);
+      unifiedUserSyncService.deleteUserPermanently(target.id, target.mobile, target.fullName);
       setLeadToDelete(null);
       showToast(`खरिद रेकर्ड (${target.fullName} - ${target.mobile}) स्थायी रूपमा हटाइयो।`);
       await fetchUsers(true);
@@ -1260,16 +1258,23 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             </div>
           </div>
           <p className="text-xs text-stone-400 max-w-md">
-            ग्राहकले सफ्टवेयर खरिद गर्दा तलको तीन-स्तरीय क्रमबद्ध प्रक्रिया अनुसार भुक्तानी रुजु, प्रयोगकर्ता लिसिटिङ र मेनु नियन्त्रण सञ्चालन गर्नुहोस्।
+            ग्राहकले सफ्टवेयर खरिद गर्दा तलको तीन-स्तरीय क्रमबद्ध प्रक्रिया अनुसार भुक्तानी रुजु, प्रयोगकर्ता लिसिटिङ र सदस्यता तथा सेवा लाइसेन्स नियन्त्रण सञ्चालन गर्नुहोस्।
           </p>
         </div>
 
         {/* 3 Interactive Stepper Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Step 1: Payment Approval (Clickable) */}
+          {/* Step 1: Payment Approval (Clickable - Built-in) */}
           <button
             type="button"
-            onClick={() => onOpenPaymentsForUser?.('')}
+            onClick={() => {
+              setActiveTableTab('purchased_users');
+              setPurchaseFilter('pending');
+              const pendingLead = purchasedUsers.find(l => l.status === 'PURCHASE_PENDING');
+              if (pendingLead) {
+                openPaymentApprovalModal(pendingLead);
+              }
+            }}
             className="bg-stone-950/70 hover:bg-stone-900 border border-stone-800 hover:border-amber-500/60 rounded-2xl p-3.5 text-left transition-all cursor-pointer group shadow-sm flex flex-col justify-between"
           >
             <div>
@@ -1289,7 +1294,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
               </p>
             </div>
             <div className="mt-2 text-[10px] text-amber-400/90 font-bold group-hover:underline">
-              भुक्तानी रुजु केन्द्र खोल्नुहोस् ↗
+              पेन्डिङ खरिद रुजु सूची हेर्नुहोस् ↗
             </div>
           </button>
 
@@ -1314,10 +1319,10 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             </div>
           </div>
 
-          {/* Step 3: Menu Switchboard (Clickable) */}
+          {/* Step 3: Service Licenses (Clickable) */}
           <button
             type="button"
-            onClick={() => onOpenSwitchboardForUser?.('')}
+            onClick={() => onOpenLicensesForUser?.('')}
             className="bg-stone-950/70 hover:bg-stone-900 border border-stone-800 hover:border-amber-500/60 rounded-2xl p-3.5 text-left transition-all cursor-pointer group shadow-sm flex flex-col justify-between"
           >
             <div>
@@ -1327,17 +1332,17 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                     ३
                   </div>
                   <h4 className="font-bold text-xs sm:text-sm text-stone-200 group-hover:text-amber-300 transition-colors">
-                    ३. मेनु तथा सेवा नियन्त्रण (Menu Control)
+                    ३. सदस्यता तथा लाइसेन्स नियन्त्रण (License & Access)
                   </h4>
                 </div>
                 <span className="text-[10px] text-stone-500 group-hover:text-amber-400 font-mono">चरण ३ →</span>
               </div>
               <p className="text-[11px] text-stone-400 leading-relaxed">
-                ग्राहकका लागि कुण्डली, फलादेश, पञ्चाङ्ग, वास्तु आदि मेनुहरूलाई <strong>खुल्ला (Open), बन्द (Close) वा लक (Lock)</strong> अनुकूलन गर्नुहोस्।
+                ज्योतिष तथा वास्तुशास्त्र सेवाहरूलाई <strong>Single Device Hard-Lock, QR खरिद स्वीकृति र लाइसेन्स अवधि नवीकरण</strong> व्यवस्थापन गर्नुहोस्।
               </p>
             </div>
             <div className="mt-2 text-[10px] text-amber-400/90 font-bold group-hover:underline">
-              मेनु स्विचबोर्ड कन्ट्रोल खोल्नुहोस् ↗
+              लाइसेन्स कन्ट्रोल खोल्नुहोस् ↗
             </div>
           </button>
         </div>
@@ -1730,18 +1735,12 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onOpenSwitchboardForUser?.(user.phone);
-                            }}
-                            className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 transition-colors cursor-pointer"
-                            title="मेनु तथा सेवा स्विचबोर्ड (Switchboard)"
-                          >
-                            <Sliders className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenPaymentsForUser?.(user.phone);
+                              const pCheck = unifiedUserSyncService.checkUserPurchaseAlert(user.phone || user.id);
+                              if (pCheck.lead) {
+                                openPaymentApprovalModal(pCheck.lead);
+                              } else {
+                                showToast('यस प्रयोगकर्ताको कुनै पेन्डिङ खरिद/भुक्तानी आवेदन भेटिएन।');
+                              }
                             }}
                             className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/25 text-blue-400 border border-blue-500/30 transition-colors cursor-pointer"
                             title="भुक्तानी तथा खरिद रुजु (eSewa Approvals)"
@@ -2168,12 +2167,12 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
                               <button
                                 type="button"
-                                onClick={() => onOpenSwitchboardForUser?.(lead.mobile)}
-                                className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-bold border border-amber-500/30 cursor-pointer transition-colors flex items-center gap-1"
-                                title="चरण ३: यस ग्राहकका लागि मेनु स्विचबोर्ड नियन्त्रण खोल्नुहोस्"
+                                onClick={() => onOpenLicensesForUser?.(lead.mobile)}
+                                className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 text-xs font-bold border border-purple-500/30 cursor-pointer transition-colors flex items-center gap-1"
+                                title="यस ग्राहकका लागि सदस्यता तथा सेवा लाइसेन्स नियन्त्रण खोल्नुहोस्"
                               >
-                                <Sliders className="w-3 h-3 text-amber-400" />
-                                <span>मेनु</span>
+                                <Crown className="w-3 h-3 text-purple-400" />
+                                <span>लाइसेन्स</span>
                               </button>
 
                               <button
@@ -2363,36 +2362,24 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 <span>२४-घण्टे ट्रायल रिसेट गर्नुहोस्</span>
               </button>
 
-              {/* Menu & Submenu Access Switchboard */}
+              {/* Payment Approvals (eSewa / Khalti) */}
               <button
                 onClick={() => {
-                  setSwitchboardModalUser(contextMenu.user);
-                  setContextMenu(prev => ({ ...prev, visible: false }));
-                }}
-                className="w-full text-left px-3.5 py-1.5 hover:bg-amber-950/40 border-t border-stone-800/60 flex items-center justify-between text-amber-300 font-bold transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                  <span>मेनु तथा सेवा स्विचबोर्ड</span>
-                </span>
-                <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1 py-0.2 rounded font-mono">
-                  Open/Lock
-                </span>
-              </button>
-
-              {/* Payment Approvals (eSewa) */}
-              <button
-                onClick={() => {
-                  if (onOpenPaymentsForUser && contextMenu.user) {
-                    onOpenPaymentsForUser(contextMenu.user.phone);
+                  if (contextMenu.user) {
+                    const pCheck = unifiedUserSyncService.checkUserPurchaseAlert(contextMenu.user.phone || contextMenu.user.id);
+                    if (pCheck.lead) {
+                      openPaymentApprovalModal(pCheck.lead);
+                    } else {
+                      showToast('यस प्रयोगकर्ताको कुनै खरिद/भुक्तानी आवेदन भेटिएन।');
+                    }
                   }
                   setContextMenu(prev => ({ ...prev, visible: false }));
                 }}
-                className="w-full text-left px-3.5 py-1.5 hover:bg-blue-950/40 flex items-center justify-between text-blue-300 font-bold transition-colors"
+                className="w-full text-left px-3.5 py-1.5 hover:bg-blue-950/40 border-t border-stone-800/60 flex items-center justify-between text-blue-300 font-bold transition-colors"
               >
                 <span className="flex items-center gap-2">
                   <CreditCard className="w-3.5 h-3.5 text-blue-400" />
-                  <span>भुक्तानी तथा खरिद रुजु (eSewa)</span>
+                  <span>भुक्तानी तथा खरिद रुजु</span>
                 </span>
                 <span className="text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-1 py-0.2 rounded font-mono">
                   Approvals
@@ -2528,26 +2515,13 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
               <button
                 onClick={() => {
-                  setSwitchboardModalUser(mobileActionUser);
+                  const pCheck = unifiedUserSyncService.checkUserPurchaseAlert(mobileActionUser.phone || mobileActionUser.id);
                   setMobileActionUser(null);
-                }}
-                className="w-full p-3 bg-amber-950/40 border border-amber-500/50 hover:border-amber-400 rounded-xl text-left flex items-center justify-between text-amber-300 font-bold"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Sliders className="w-4 h-4 text-amber-400" />
-                  <span>मेनु तथा सेवा स्विचबोर्ड (Open/Close/Lock)</span>
-                </div>
-                <span className="text-[10px] bg-amber-500 text-stone-950 font-black px-2 py-0.5 rounded-lg">
-                  स्विचबोर्ड
-                </span>
-              </button>
-
-              <button
-                onClick={() => {
-                  if (onOpenPaymentsForUser) {
-                    onOpenPaymentsForUser(mobileActionUser.phone);
+                  if (pCheck.lead) {
+                    openPaymentApprovalModal(pCheck.lead);
+                  } else {
+                    showToast('यस प्रयोगकर्ताको कुनै खरिद/भुक्तानी आवेदन भेटिएन।');
                   }
-                  setMobileActionUser(null);
                 }}
                 className="w-full p-3 bg-blue-950/40 border border-blue-500/50 hover:border-blue-400 rounded-xl text-left flex items-center justify-between text-blue-300 font-bold"
               >
@@ -2702,20 +2676,13 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                   type="button"
                   onClick={() => {
                     const phone = detailsModalUser.phone;
+                    const pCheck = unifiedUserSyncService.checkUserPurchaseAlert(phone || detailsModalUser.id);
                     setDetailsModalUser(null);
-                    onOpenSwitchboardForUser?.(phone);
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Sliders className="w-3.5 h-3.5" />
-                  <span>मेनु स्विचबोर्ड</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const phone = detailsModalUser.phone;
-                    setDetailsModalUser(null);
-                    onOpenPaymentsForUser?.(phone);
+                    if (pCheck.lead) {
+                      openPaymentApprovalModal(pCheck.lead);
+                    } else {
+                      showToast('यस प्रयोगकर्ताको कुनै खरिद/भुक्तानी आवेदन भेटिएन।');
+                    }
                   }}
                   className="px-3 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
@@ -3292,44 +3259,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
       )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* ── MODAL 6: DEDICATED MENU & SERVICE SWITCHBOARD MODAL ── */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {switchboardModalUser && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-5xl bg-stone-900 border border-amber-500/60 rounded-3xl p-4 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400">
-                  <Sliders className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base sm:text-lg text-white">
-                    मेनु तथा सेवा स्विचबोर्ड — {switchboardModalUser.fullName}
-                  </h3>
-                  <p className="text-xs text-amber-400 font-mono">
-                    {switchboardModalUser.customerId} • {switchboardModalUser.phone} • {switchboardModalUser.address}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSwitchboardModalUser(null)}
-                className="p-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="pt-2">
-              <MenuControlPanel
-                initialSelectedMobile={switchboardModalUser.phone}
-                onBackToUsers={() => setSwitchboardModalUser(null)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* ── MODAL 7: PAYMENT DETAILS & INSTANT APPROVAL MODAL ── */}
+      {/* ── MODAL 6: PAYMENT DETAILS & INSTANT APPROVAL MODAL ── */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {paymentApprovalModalLead && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150">

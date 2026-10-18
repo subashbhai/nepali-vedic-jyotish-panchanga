@@ -107,20 +107,38 @@ class UnifiedUserSyncService {
         this.broadcastChannel.onmessage = (ev) => {
           if (ev.data?.type === 'SYNC_DATA_UPDATED') {
             window.dispatchEvent(new CustomEvent('unified-data-updated'));
-          } else if (ev.data?.type === 'FORCE_SIGNOUT') {
+          } else if (ev.data?.type === 'FORCE_SIGNOUT' || ev.data?.type === 'USER_DELETED') {
             const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
             if (activeSessionRaw) {
               try {
                 const sess = JSON.parse(activeSessionRaw);
-                const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
-                const sessId = (sess?.userId || sess?.id || '').toLowerCase();
-                const targetMob = this.normalizePhoneOrId(ev.data.phone);
-                const targetId = (ev.data.userId || '').toLowerCase();
+                if (sess && sess.role !== 'SUPER_ADMIN') {
+                  const sessMob = (sess?.phone || sess?.username || '').replace(/\D/g, '').slice(-10);
+                  const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+                  const sessUsername = (sess?.username || '').toLowerCase();
 
-                const isMatch = (targetMob && (sessMob === targetMob || sessId === targetMob)) ||
-                                (targetId && (sessId === targetId || sessMob === targetId));
-                if (isMatch) {
-                  this.forceClientSignout(ev.data.action, ev.data.reason);
+                  const targets: string[] = [
+                    ev.data.phone,
+                    ev.data.mobile,
+                    ev.data.userId,
+                    ev.data.id,
+                    ev.data.leadId,
+                    ...(ev.data.targetIdentifiers || [])
+                  ].filter(Boolean);
+
+                  const isMatch = targets.some(t => {
+                    const tLower = t.toLowerCase();
+                    const tDigits = t.replace(/\D/g, '').slice(-10);
+                    return (
+                      tLower === sessId ||
+                      tLower === sessUsername ||
+                      (sessMob && (tLower === sessMob || tDigits === sessMob))
+                    );
+                  }) || ev.data.mobile === 'ALL_DATA_RESET' || ev.data.targetIdentifiers?.includes('ALL');
+
+                  if (isMatch) {
+                    this.forceClientSignout('deleted', ev.data.reason || 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+                  }
                 }
               } catch {}
             }
@@ -158,11 +176,11 @@ class UnifiedUserSyncService {
         }
       });
 
-      // Immediate & recurring session security verification (every 3 seconds)
+      // Immediate & recurring session security verification (every 1 second)
       this.validateActiveSessionLiveness();
       setInterval(() => {
         this.validateActiveSessionLiveness();
-      }, 3000);
+      }, 1000);
 
       // Initialize client-side SSE for instant approval & security revoke listening
       this.initClientSSEListener();
@@ -185,6 +203,9 @@ class UnifiedUserSyncService {
       localStorage.removeItem('balananda_rbac_session_v2');
       localStorage.removeItem('balananda_rbac_active_session_v1');
       localStorage.removeItem('sukdev_user_subscription_account_v1');
+      localStorage.removeItem('balananda_active_profile_id');
+      localStorage.removeItem('balananda_user_birth_profile_user_self');
+      localStorage.removeItem('balananda_user_birth_profile_client_self');
 
       // 2. Clear full software access licenses for this device
       localStorage.removeItem('balananda_approved_client_license_v2');
@@ -232,8 +253,9 @@ class UnifiedUserSyncService {
       // SuperAdmin portal session is exempt from user-level revocation
       if (sess.role === 'SUPER_ADMIN') return true;
 
-      const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+      const sessMob = (sess?.phone || sess?.username || '').replace(/\D/g, '').slice(-10);
       const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+      const sessUsername = (sess?.username || '').toLowerCase();
 
       // 1. Check blacklist
       if (
@@ -250,11 +272,24 @@ class UnifiedUserSyncService {
       const rbacUsers = getStoredRBACUsers();
       const dbUser = rbacUsers.find(u => 
         (u.id && u.id.toLowerCase() === sessId) ||
-        (u.phone && this.normalizePhoneOrId(u.phone) === sessMob) ||
-        (u.username && u.username.toLowerCase() === (sess.username || '').toLowerCase())
+        (u.phone && (u.phone.replace(/\D/g, '').slice(-10) === sessMob || u.phone.toLowerCase() === sessUsername)) ||
+        (u.username && u.username.toLowerCase() === sessUsername)
       );
 
-      if (dbUser) {
+      // If user was deleted from RBAC Store, check if a registered lead exists:
+      if (!dbUser) {
+        const clientLeads = getStoredClientLeads();
+        const leadUser = clientLeads.find(l => 
+          (l.id && l.id.toLowerCase() === sessId) ||
+          (l.mobile && l.mobile.replace(/\D/g, '').slice(-10) === sessMob)
+        );
+
+        if (!leadUser) {
+          // User was permanently removed by SuperAdmin! Force logout immediately (< 1ms)
+          this.forceClientSignout('deleted', 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+          return false;
+        }
+      } else {
         if (dbUser.status === 'suspended' || dbUser.status === 'inactive' || dbUser.status === 'disabled') {
           const defaultMsg = dbUser.status === 'suspended'
             ? 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।'
@@ -365,21 +400,39 @@ class UnifiedUserSyncService {
             }
           } else if (parsed.type === 'USER_DELETED' || parsed.type === 'USER_FORCE_SIGNOUT') {
             // Security revoke: Immediately delete locally and force signout if active
-            const normTarget = this.normalizePhoneOrId(parsed.mobile || parsed.phone || parsed.userId);
-            const targetId = (parsed.userId || parsed.id || '').toLowerCase();
-            if (parsed.mobile) addPermanentlyDeletedIdentifier(parsed.mobile);
-            if (parsed.userId) addPermanentlyDeletedIdentifier(parsed.userId);
+            const targets: string[] = [
+              parsed.mobile,
+              parsed.phone,
+              parsed.userId,
+              parsed.id,
+              parsed.leadId,
+              ...(parsed.targetIdentifiers || [])
+            ].filter(Boolean);
+
+            targets.forEach(t => addPermanentlyDeletedIdentifier(t));
 
             const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
             if (activeSessionRaw) {
               try {
                 const sess = JSON.parse(activeSessionRaw);
-                const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
-                const sessId = (sess?.userId || sess?.id || '').toLowerCase();
-                const isMatch = (normTarget && (sessMob === normTarget || sessId === normTarget)) ||
-                                (targetId && (sessId === targetId || sessMob === targetId));
-                if (isMatch) {
-                  this.forceClientSignout('deleted', parsed.reason || 'तपाईंको खाता प्रणालीबाट हटाइएको छ वा निलम्बन गरिएको छ।');
+                if (sess && sess.role !== 'SUPER_ADMIN') {
+                  const sessMob = (sess?.phone || sess?.username || '').replace(/\D/g, '').slice(-10);
+                  const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+                  const sessUsername = (sess?.username || '').toLowerCase();
+
+                  const isMatch = targets.some(t => {
+                    const tLower = t.toLowerCase();
+                    const tDigits = t.replace(/\D/g, '').slice(-10);
+                    return (
+                      tLower === sessId ||
+                      tLower === sessUsername ||
+                      (sessMob && (tLower === sessMob || tDigits === sessMob))
+                    );
+                  }) || parsed.mobile === 'ALL_DATA_RESET' || parsed.targetIdentifiers?.includes('ALL');
+
+                  if (isMatch) {
+                    this.forceClientSignout('deleted', parsed.reason || 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+                  }
                 }
               } catch {}
             }
@@ -395,10 +448,11 @@ class UnifiedUserSyncService {
               if (activeSessionRaw) {
                 try {
                   const sess = JSON.parse(activeSessionRaw);
-                  const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
+                  const sessMob = (sess?.phone || sess?.username || '').replace(/\D/g, '').slice(-10);
                   const sessId = (sess?.userId || sess?.id || '').toLowerCase();
-                  const isMatch = (normTarget && (sessMob === normTarget || sessId === normTarget)) ||
-                                  (targetId && (sessId === targetId || sessMob === targetId));
+                  const sessUsername = (sess?.username || '').toLowerCase();
+                  const isMatch = (normTarget && (sessMob === normTarget || sessId === normTarget || sessUsername === normTarget)) ||
+                                  (targetId && (sessId === targetId || sessMob === targetId || sessUsername === targetId));
                   if (isMatch) {
                     const defaultMsg = status === 'suspended'
                       ? 'सुरक्षा सूचना: तपाईंको खाता सुपरएडमिन द्वारा निलम्बन (Lock) गरिएको छ। तपाईं पाहुना (Visitor) मोडमा हुनुहुन्छ।'
@@ -435,6 +489,9 @@ class UnifiedUserSyncService {
     userStatus?: string;
     leadId?: string;
     details?: string;
+    targetIdentifiers?: string[];
+    action?: string;
+    reason?: string;
   }): Promise<void> {
     const payloadObj = {
       ...event,
@@ -622,67 +679,76 @@ class UnifiedUserSyncService {
   /**
    * Permanently delete a user or purchase lead across all stores, caches, and servers
    */
-  public deleteUserPermanently(phoneOrId: string, secondaryIdentifier?: string): boolean {
+  public deleteUserPermanently(phoneOrId: string, secondaryIdentifier?: string, optionalFullName?: string): boolean {
     if (!phoneOrId) return false;
 
-    // 1. Blacklist permanently so they can never be resurrected
-    addPermanentlyDeletedIdentifier(phoneOrId);
-    if (secondaryIdentifier) {
-      addPermanentlyDeletedIdentifier(secondaryIdentifier);
+    // 1. Construct exhaustive target list
+    const targetIdentifiers: string[] = [];
+    const addTarget = (val?: string) => {
+      if (!val) return;
+      const trimmed = val.trim();
+      if (!trimmed) return;
+      targetIdentifiers.push(trimmed);
+      targetIdentifiers.push(trimmed.toLowerCase());
+      const digits = trimmed.replace(/\D/g, '');
+      if (digits.length >= 7) {
+        targetIdentifiers.push(digits);
+        targetIdentifiers.push(digits.slice(-10));
+      }
+    };
+    addTarget(phoneOrId);
+    addTarget(secondaryIdentifier);
+    if (optionalFullName) {
+      addTarget(optionalFullName);
+    }
+    const uniqueTargets = Array.from(new Set(targetIdentifiers));
+
+    // 2. Blacklist all identifiers permanently
+    uniqueTargets.forEach(t => addPermanentlyDeletedIdentifier(t));
+
+    // 3. Remove from RBAC Store, Leads, Licenses, Policies
+    uniqueTargets.forEach(t => {
+      deleteRBACUserPermanently(t);
+      deleteClientLeadPermanently(t);
+      deleteLicensesForUserPermanently(t);
+      deleteClientPolicyPermanently(t);
+    });
+
+    // 4. Remove any user-specific profile storage
+    if (typeof window !== 'undefined') {
+      try {
+        uniqueTargets.forEach(t => {
+          localStorage.removeItem(`balananda_user_birth_profile_${t}`);
+        });
+      } catch {}
     }
 
-    // 2. Remove from RBAC Store
-    deleteRBACUserPermanently(phoneOrId);
-    if (secondaryIdentifier) {
-      deleteRBACUserPermanently(secondaryIdentifier);
-    }
-
-    // 3. Remove from Client Leads
-    deleteClientLeadPermanently(phoneOrId);
-    if (secondaryIdentifier) {
-      deleteClientLeadPermanently(secondaryIdentifier);
-    }
-
-    // 4. Remove from Service Licenses
-    deleteLicensesForUserPermanently(phoneOrId);
-    if (secondaryIdentifier) {
-      deleteLicensesForUserPermanently(secondaryIdentifier);
-    }
-
-    // 5. Remove from Menu Access Policies
-    deleteClientPolicyPermanently(phoneOrId);
-    if (secondaryIdentifier) {
-      deleteClientPolicyPermanently(secondaryIdentifier);
-    }
-
-    // 6. Clean localStorage Cloud Cache & purchase requests
+    // 5. Clean localStorage Cloud Cache & purchase requests
     try {
       if (typeof window !== 'undefined') {
-        const norm1 = phoneOrId.trim().toLowerCase();
-        const clean1 = phoneOrId.replace(/\D/g, '').slice(-10);
-        const norm2 = secondaryIdentifier ? secondaryIdentifier.trim().toLowerCase() : '';
-        const clean2 = secondaryIdentifier ? secondaryIdentifier.replace(/\D/g, '').slice(-10) : '';
-
         const cache = this.getCloudCache();
         if (cache) {
           if (Array.isArray(cache.users)) {
             cache.users = cache.users.filter(u => {
               const uMob = (u.phone || '').replace(/\D/g, '').slice(-10);
               const uId = (u.id || '').toLowerCase();
-              if (clean1 && clean1.length >= 7 && uMob === clean1) return false;
-              if (clean2 && clean2.length >= 7 && uMob === clean2) return false;
-              if (uId === norm1 || uId === norm2) return false;
-              return true;
+              const uUser = (u.username || '').toLowerCase();
+              return !uniqueTargets.some(t => {
+                const tLower = t.toLowerCase();
+                const tDigits = t.replace(/\D/g, '').slice(-10);
+                return tLower === uId || tLower === uUser || (uMob && (tLower === uMob || tDigits === uMob));
+              });
             });
           }
           if (Array.isArray(cache.purchases)) {
             cache.purchases = cache.purchases.filter(p => {
               const pMob = (p.mobile || '').replace(/\D/g, '').slice(-10);
               const pId = (p.id || '').toLowerCase();
-              if (clean1 && clean1.length >= 7 && pMob === clean1) return false;
-              if (clean2 && clean2.length >= 7 && pMob === clean2) return false;
-              if (pId === norm1 || pId === norm2) return false;
-              return true;
+              return !uniqueTargets.some(t => {
+                const tLower = t.toLowerCase();
+                const tDigits = t.replace(/\D/g, '').slice(-10);
+                return tLower === pId || (pMob && (tLower === pMob || tDigits === pMob));
+              });
             });
           }
           this.setCloudCache(cache);
@@ -696,10 +762,11 @@ class UnifiedUserSyncService {
             const filteredReg = list.filter((u: any) => {
               const uMob = (u.phone || u.username || '').replace(/\D/g, '').slice(-10);
               const uId = (u.id || '').toLowerCase();
-              if (clean1 && clean1.length >= 7 && uMob === clean1) return false;
-              if (clean2 && clean2.length >= 7 && uMob === clean2) return false;
-              if (uId === norm1 || uId === norm2) return false;
-              return true;
+              return !uniqueTargets.some(t => {
+                const tLower = t.toLowerCase();
+                const tDigits = t.replace(/\D/g, '').slice(-10);
+                return tLower === uId || (uMob && (tLower === uMob || tDigits === uMob));
+              });
             });
             localStorage.setItem('balananda_registered_users_v1', JSON.stringify(filteredReg));
           }
@@ -709,12 +776,8 @@ class UnifiedUserSyncService {
       console.warn('Error clearing user cache on delete:', e);
     }
 
-    // 7. Make Backend Server API delete calls
-    const idsToDelete = [phoneOrId];
-    if (secondaryIdentifier && secondaryIdentifier !== phoneOrId) {
-      idsToDelete.push(secondaryIdentifier);
-    }
-    idsToDelete.forEach(id => {
+    // 6. Make Backend Server API delete calls
+    uniqueTargets.filter(t => t.length > 3).forEach(id => {
       const enc = encodeURIComponent(id);
       apiClient.delete(`/api/superadmin/users/${enc}`).catch(() => {});
       apiClient.delete(`/api/users/${enc}`).catch(() => {});
@@ -722,44 +785,61 @@ class UnifiedUserSyncService {
       apiClient.delete(`/api/licenses/user/${enc}`).catch(() => {});
     });
 
-    // 8. Push updated state to Realtime Relay and Cloud Cache
-    this.pushEventToRealtimeRelay({
-      type: 'USER_DELETED',
-      mobile: phoneOrId,
-      leadId: secondaryIdentifier
-    }).catch(() => {});
-    this.pushLocalStateToCloud().catch(() => {});
+    const cleanPhone = (secondaryIdentifier || phoneOrId || '').replace(/\D/g, '').slice(-10);
 
-    // Instant force signout on current device (< 1ms) if current session belongs to deleted user
+    // 7. Instant force signout on current device (< 1ms) if current session belongs to deleted user
     if (typeof window !== 'undefined') {
       const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
       if (activeSessionRaw) {
         try {
           const sess = JSON.parse(activeSessionRaw);
-          const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
-          const sessId = (sess?.userId || sess?.id || '').toLowerCase();
-          const target1 = this.normalizePhoneOrId(phoneOrId);
-          const target2 = secondaryIdentifier ? this.normalizePhoneOrId(secondaryIdentifier) : '';
+          if (sess && sess.role !== 'SUPER_ADMIN') {
+            const sessMob = (sess?.phone || sess?.username || '').replace(/\D/g, '').slice(-10);
+            const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+            const sessUsername = (sess?.username || '').toLowerCase();
 
-          if ((target1 && sessMob === target1) || sessId === phoneOrId.toLowerCase() || (target2 && (sessMob === target2 || sessId === secondaryIdentifier?.toLowerCase()))) {
-            this.forceClientSignout('deleted', 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+            const isMatch = uniqueTargets.some(t => {
+              const tLower = t.toLowerCase();
+              const tDigits = t.replace(/\D/g, '').slice(-10);
+              return (
+                tLower === sessId ||
+                tLower === sessUsername ||
+                (sessMob && (tLower === sessMob || tDigits === sessMob))
+              );
+            });
+
+            if (isMatch) {
+              this.forceClientSignout('deleted', 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।');
+            }
           }
         } catch {}
       }
 
-      // Broadcast to other tabs on this machine (< 1ms)
+      // 8. Broadcast to other tabs on this machine (< 1ms)
       try {
         this.broadcastChannel?.postMessage({
-          type: 'FORCE_SIGNOUT',
+          type: 'USER_DELETED',
           userId: phoneOrId,
-          phone: secondaryIdentifier || phoneOrId,
+          phone: cleanPhone || secondaryIdentifier || phoneOrId,
+          targetIdentifiers: uniqueTargets,
           action: 'deleted',
-          reason: 'खाता स्थायी रूपमा हटाइयो'
+          reason: 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।'
         });
       } catch {}
     }
 
-    // 9. Dispatch all update events across components
+    // 9. Push updated state to Realtime Relay and Cloud Cache (< 100ms)
+    this.pushEventToRealtimeRelay({
+      type: 'USER_DELETED',
+      mobile: cleanPhone || secondaryIdentifier || phoneOrId,
+      userId: phoneOrId,
+      leadId: secondaryIdentifier,
+      targetIdentifiers: uniqueTargets,
+      reason: 'सुरक्षा सूचना: तपाईंको खाता प्रणालीबाट हटाइएको छ। तपाईं पाहुना (Visitor) मोडमा फर्किनुभएको छ।'
+    }).catch(() => {});
+    this.pushLocalStateToCloud().catch(() => {});
+
+    // 10. Dispatch all update events across components
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('unified-data-updated'));
       window.dispatchEvent(new CustomEvent('user-registered'));
@@ -907,7 +987,7 @@ class UnifiedUserSyncService {
             policyUpdated = true;
             return {
               ...p,
-              status: status === 'active' ? 'active' : (status === 'inactive' ? 'inactive' : 'suspended')
+              status: (status === 'active' ? 'active' : (status === 'inactive' ? 'inactive' : 'suspended')) as 'active' | 'suspended' | 'inactive'
             };
           }
           return p;
@@ -1123,6 +1203,7 @@ class UnifiedUserSyncService {
           fullName: approvedName,
           phone: approvedPhone,
           email: targetLead.email || `${approvedPhone}@balananda.com`,
+          passwordHash: 'client_registered',
           role: 'CUSTOMER',
           roleNameNepali: 'सफ्टवेयर ग्राहक (Client)',
           status: 'active',
@@ -1132,9 +1213,13 @@ class UnifiedUserSyncService {
           createdAtBS: todayBS,
           savedAddresses: [{
             id: `addr_${Date.now()}`,
-            label: 'ठेगाना',
+            title: 'ठेगाना',
+            fullName: approvedName,
+            phone: approvedPhone,
+            district: 'काठमाडौँ',
+            localLevel: '',
+            ward: '',
             streetAddress: approvedAddress,
-            city: 'काठमाडौँ',
             isDefault: true
           }],
           permissions: ['view_kundali', 'view_panchanga', 'view_vastu', 'customer_access']
@@ -1373,11 +1458,22 @@ class UnifiedUserSyncService {
 
   // ================= PRIVATE SYNC HELPERS =================
 
-  private normalizePhoneOrId(val?: string): string {
+  public normalizePhoneOrId(val?: string): string {
     if (!val) return '';
-    const digits = val.replace(/\D/g, '');
-    if (digits.length >= 7) return digits.slice(-10);
-    return val.trim().toLowerCase();
+    const trimmed = val.trim();
+    if (
+      trimmed.startsWith('usr_') ||
+      trimmed.startsWith('LEAD-') ||
+      trimmed.startsWith('lead_') ||
+      trimmed.startsWith('ADMIN-')
+    ) {
+      return trimmed.toLowerCase();
+    }
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length === 10 || (digits.length >= 7 && digits.length <= 11)) {
+      return digits.slice(-10);
+    }
+    return trimmed.toLowerCase();
   }
 
   private isPurchaseRecord(l: ClientLead): boolean {

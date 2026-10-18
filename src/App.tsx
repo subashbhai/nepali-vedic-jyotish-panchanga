@@ -877,17 +877,26 @@ export default function App() {
       const detail = e?.detail || {};
       clearRBACSession();
       setRbacSession(null);
-      setIsSuperAdminOpen(false);
+      clearSuperAdminSession();
+      setSuperAdminSession(null);
+      setHasFullAccess(false);
+      setIsTrialActive(false);
       setIsJyotishUnlocked(false);
       setIsVastuUnlocked(false);
 
-      // Reset any private user dashboard tab back to visitor home
-      setActiveTab(prev => {
-        if (prev === 'user_dashboard' || prev === 'my_account') {
-          return 'home';
-        }
-        return prev;
-      });
+      // Clean active profile and switch to live visitor profile (< 1ms)
+      try {
+        localStorage.removeItem('balananda_active_profile_id');
+        localStorage.removeItem('balananda_user_birth_profile_user_self');
+        localStorage.removeItem('balananda_user_birth_profile_client_self');
+      } catch {}
+      setActiveProfile(null);
+
+      // Reset any private user dashboard tab back to visitor home (< 1ms)
+      setActiveTab('home');
+      if (typeof window !== 'undefined' && window.location.hash !== '' && window.location.hash !== '#home') {
+        window.location.hash = '#home';
+      }
 
       setSecuritySignoutAlert({
         isOpen: true,
@@ -902,6 +911,22 @@ export default function App() {
       } else {
         const sess = getActiveRBACSession();
         setRbacSession(sess);
+        if (!sess) {
+          setHasFullAccess(false);
+          setIsTrialActive(false);
+          setIsJyotishUnlocked(false);
+          setIsVastuUnlocked(false);
+          try {
+            localStorage.removeItem('balananda_active_profile_id');
+            localStorage.removeItem('balananda_user_birth_profile_user_self');
+            localStorage.removeItem('balananda_user_birth_profile_client_self');
+          } catch {}
+          setActiveProfile(null);
+          setActiveTab(prev => (prev === 'user_dashboard' || prev === 'my_account' ? 'home' : prev));
+          if (typeof window !== 'undefined' && (window.location.hash === '#dashboard' || window.location.hash === '#user_dashboard' || window.location.hash === '#my_account')) {
+            window.location.hash = '#home';
+          }
+        }
       }
     };
 
@@ -2867,7 +2892,13 @@ export default function App() {
               </p>
               <button
                 type="button"
-                onClick={() => setSecuritySignoutAlert(null)}
+                onClick={() => {
+                  setSecuritySignoutAlert(null);
+                  setActiveTab('home');
+                  if (typeof window !== 'undefined' && window.location.hash !== '' && window.location.hash !== '#home') {
+                    window.location.hash = '#home';
+                  }
+                }}
                 className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-black rounded-xl text-sm transition-all cursor-pointer shadow-lg"
               >
                 बुझेँ, पाहुना (Visitor) को रूपमा जारी राख्नुहोस्
