@@ -185,8 +185,11 @@ async function runMasterTestSuite() {
   // SUITE 3: User Profile Read & Write, Birth Details & State Persistence
   console.log('\n--- SUITE 3: Profile Read/Write, Birth Details Update & Persistence ---');
   const userId = reg1.user!.id;
-  const birthDetails = {
+  const birthDetails: any = {
     name: 'राम चन्द्र ज्ञवाली',
+    dateAD: '1988-06-29',
+    time: '08:30',
+    location: 'काठमाडौँ',
     yearBS: '२०४५',
     monthBS: '०३',
     dayBS: '१५',
@@ -204,7 +207,7 @@ async function runMasterTestSuite() {
   const storedUsers = getStoredRBACUsers();
   const updatedRam = storedUsers.find(u => u.id === userId);
   assert(updatedRam?.fullName === 'राम चन्द्र ज्ञवाली (आचार्य)', '3.2 Updated full name persisted in storage');
-  assert(updatedRam?.birthDetails?.yearBS === '२०४५', '3.3 Birth details correctly attached to user record');
+  assert((updatedRam?.birthDetails as any)?.yearBS === '२०४५', '3.3 Birth details correctly attached to user record');
 
 
   // SUITE 4: eSewa Purchase Application Submission (5 Mandatory Fields)
@@ -216,6 +219,7 @@ async function runMasterTestSuite() {
     mobile: '9851098765',
     whatsapp: '9851098765',
     email: 'hari@example.com',
+    deviceFingerprint: 'mock-fp-01',
     planId: 'yearly_both',
     planNameNepali: '१ वर्षको सदस्यता (सम्पूर्ण सेवा)',
     planAmountNPR: 2100,
@@ -246,7 +250,7 @@ async function runMasterTestSuite() {
   assert(postApprovalLead?.paymentVerificationStatus === 'VERIFIED', '5.3 Verification status marked VERIFIED');
 
   // Verify instant client license unlock without reload
-  const clientApproved = isClientPurchaseApproved('9851098765');
+  const clientApproved = (isClientPurchaseApproved as any)('9851098765');
   assert(clientApproved === true, '5.4 isClientPurchaseApproved() returns true immediately on client');
   assert(mockStore.get('software_full_access_unlocked_v1') === 'true', '5.5 software_full_access_unlocked_v1 flag active');
 
@@ -259,6 +263,8 @@ async function runMasterTestSuite() {
     address: 'चितवन-१०, भरतपुर',
     mobile: '9845011223',
     whatsapp: '9845011223',
+    email: 'gopal@example.com',
+    deviceFingerprint: 'mock-fp-02',
     planId: 'yearly_both',
     planNameNepali: '१ वर्षको सदस्यता',
     planAmountNPR: 2100,
@@ -318,12 +324,12 @@ async function runMasterTestSuite() {
 
   // SUITE 9: Cross-Tab / Cross-Device Session Synchronization
   console.log('\n--- SUITE 9: Cross-Tab Session Synchronization ---');
-  let syncEventReceived = false;
+  let syncEventReceived: boolean = false;
   window.addEventListener('unified-data-updated', () => {
     syncEventReceived = true;
   });
   window.dispatchEvent(new CustomEvent('unified-data-updated'));
-  assert(syncEventReceived === true, '9.1 Unified data update event dispatches and handles cleanly');
+  assert((syncEventReceived as any) === true, '9.1 Unified data update event dispatches and handles cleanly');
 
 
   // SUITE 10: Account Suspension, Deactivation & Deletion: Instant Forced Signout (<1s)
@@ -359,7 +365,7 @@ async function runMasterTestSuite() {
     lastActivityISO: new Date().toISOString()
   });
 
-  let signoutEventDispatched = false;
+  let signoutEventDispatched: boolean = false;
   window.addEventListener('user-force-logout', (ev: any) => {
     signoutEventDispatched = true;
   });
@@ -367,7 +373,7 @@ async function runMasterTestSuite() {
   // Suspend user
   unifiedUserSyncService.updateUserAccountStatus('9812345678', 'suspended', 'परीक्षणको लागि निलम्बन');
   assert(getActiveRBACSession() === null, '10.1 Active session immediately cleared from localStorage');
-  assert(signoutEventDispatched === true, '10.2 user-force-logout event broadcast for instant UI downgrade (< 1s)');
+  assert((signoutEventDispatched as any) === true, '10.2 user-force-logout event broadcast for instant UI downgrade (< 1s)');
 
 
   // SUITE 11: Security & Tamper Protection
