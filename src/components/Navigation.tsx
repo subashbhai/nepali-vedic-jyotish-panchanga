@@ -72,7 +72,9 @@ import { mobileHybridSync } from '../services/mobileHybridSync';
 
 // Public menus visible on the first screen before login (Jyotish & Vastu require active trial or purchase license)
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
+  'home',
   'dashboard',
+  'user_dashboard',
   'panchanga',
   'sewa',
   'vivah',
@@ -88,14 +90,15 @@ export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
 ]);
 
 export const NORMAL_USER_ALLOWED_TABS = new Set<NavTab>([
+  'home',
   'dashboard',
+  'user_dashboard',
   'panchanga',
   'sewa',
   'calendar',
   'samachar',
   'date_converter',
   'org_profile',
-  'user_dashboard',
   'rashifal',
   'yajaman',
   'kharedi',
@@ -110,6 +113,7 @@ export const NORMAL_USER_ALLOWED_TABS = new Set<NavTab>([
 ]);
 
 export type NavTab = 
+  | 'home'
   | 'dashboard' 
   | 'panchanga'
   | 'sewa'
@@ -258,7 +262,8 @@ export const MAIN_NAV_ITEMS: Array<{
   highlight?: boolean;
   hasSubmenu?: boolean;
 }> = [
-  { id: 'dashboard', labelNepali: 'गृहपृष्ठ', icon: Home },
+  { id: 'home', labelNepali: 'गृहपृष्ठ', icon: Home },
+  { id: 'user_dashboard', labelNepali: 'ड्यासबोर्ड', icon: LayoutDashboard },
   { id: 'panchanga', labelNepali: 'पञ्चाङ्ग', icon: Clock },
   { id: 'jyotishi', labelNepali: 'ज्योतिष सेवा', icon: Sparkles, isJyotishWorkspace: true, highlight: true },
   { id: 'vastu', labelNepali: 'वास्तु सेवा', icon: Compass, highlight: true },
@@ -624,7 +629,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
         {/* Left: Branding & Active Section Title */}
         <button
           type="button"
-          onClick={() => onTabChange('dashboard')}
+          onClick={() => onTabChange('home')}
           className="flex items-center gap-2 min-w-0 text-left cursor-pointer active:opacity-80 transition-opacity"
           title="गृहपृष्ठमा जानुहोस्"
         >
@@ -741,6 +746,10 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               ? activeTab === 'vastu'
               : isSewa
               ? activeTab === 'sewa'
+              : item.id === 'home'
+              ? ((activeTab === 'home' || (activeTab as string) === 'dashboard') && activeModule === 'MAIN')
+              : item.id === 'user_dashboard'
+              ? (activeTab === 'user_dashboard' && activeModule === 'MAIN')
               : activeTab === item.id && activeModule === 'MAIN';
 
             const featId = mapTabKeyToFeatureId(item.id);
@@ -1800,16 +1809,16 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 <p className="text-[10px] font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
                   ⚡ द्रुत पहुँच (Quick Access)
                 </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {isTabVisibleInNavigation('dashboard').visible && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {isTabVisibleInNavigation('home').visible && (
                     <button
                       type="button"
                       onClick={() => {
                         setIsMobileDrawerOpen(false);
-                        onTabChange('dashboard');
+                        onTabChange('home');
                       }}
                       className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
-                        activeTab === 'dashboard' && activeModule === 'MAIN'
+                        (activeTab === 'home' || activeTab === 'dashboard') && activeModule === 'MAIN'
                           ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
                           : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
                       }`}
@@ -1819,7 +1828,30 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       </div>
                       <div className="min-w-0">
                         <span className="text-xs font-bold block truncate">गृहपृष्ठ</span>
-                        <span className="text-[10px] opacity-75 block truncate">ड्यासबोर्ड</span>
+                        <span className="text-[10px] opacity-75 block truncate">मुख्य पृष्ठ</span>
+                      </div>
+                    </button>
+                  )}
+
+                  {isTabVisibleInNavigation('user_dashboard').visible && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('user_dashboard');
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                        activeTab === 'user_dashboard' && activeModule === 'MAIN'
+                          ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                          : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-700 dark:text-orange-400 flex items-center justify-center shrink-0">
+                        <LayoutDashboard className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold block truncate">ड्यासबोर्ड</span>
+                        <span className="text-[10px] opacity-75 block truncate">मेरो कार्यक्षेत्र</span>
                       </div>
                     </button>
                   )}

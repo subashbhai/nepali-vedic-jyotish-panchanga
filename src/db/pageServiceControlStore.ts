@@ -55,16 +55,28 @@ const STORAGE_KEY = 'balananda_page_service_control_v1';
 
 export const DEFAULT_PAGES: PageControlItem[] = [
   {
-    id: 'page_dashboard',
-    tabKey: 'dashboard',
-    titleNepali: 'गृहपृष्ठ (Dashboard)',
-    titleEnglish: 'Home Dashboard',
+    id: 'page_home',
+    tabKey: 'home',
+    titleNepali: 'गृहपृष्ठ (Home)',
+    titleEnglish: 'Home Page',
     category: 'core',
     icon: 'Home',
     status: 'active',
     accessLevel: 'public',
     hideInNavigation: false,
     descriptionNepali: 'केन्द्रीय गृहपृष्ठ, दैनिक पञ्चाङ्ग सारांश र मुख्य सेवाहरूमा त्वरित पहुँच।'
+  },
+  {
+    id: 'page_dashboard',
+    tabKey: 'user_dashboard',
+    titleNepali: 'ड्यासबोर्ड (User Dashboard)',
+    titleEnglish: 'User Dashboard',
+    category: 'core',
+    icon: 'LayoutDashboard',
+    status: 'active',
+    accessLevel: 'public',
+    hideInNavigation: false,
+    descriptionNepali: 'व्यक्तिगत कुण्डली, दैनिक-मासिक राशिफल, ट्रान्जिट प्रभाव र कार्यक्षेत्र।'
   },
   {
     id: 'page_panchanga',
@@ -497,6 +509,11 @@ export function resetPageServiceConfigToDefault(): PageServiceMasterConfig {
 export function mapTabKeyToFeatureId(tabKey: string): string {
   switch (tabKey) {
     case 'jyotishi':
+    case 'home':
+      return 'home';
+    case 'dashboard':
+    case 'user_dashboard':
+      return 'user_dashboard';
     case 'kundali':
       return 'kundali';
     case 'vastu':
@@ -565,7 +582,11 @@ export function isTabVisibleInNavigation(tabKey: string): { visible: boolean; is
   // When Super Admin unchecks "शीर्ष मेनु बारमा देखाउने" (hideInNavigation) or sets status to 'disabled',
   // the menu item MUST disappear immediately from top bar and drawer for all users and super admins.
   const cfg = getStoredPageServiceConfig();
-  const page = cfg.pages?.find(p => p.tabKey === tabKey);
+  const page = cfg.pages?.find(p => 
+    p.tabKey === tabKey || 
+    (tabKey === 'home' && (p.tabKey === 'home' || p.tabKey === 'dashboard')) ||
+    (tabKey === 'user_dashboard' && (p.tabKey === 'user_dashboard' || p.tabKey === 'dashboard'))
+  );
   if (page) {
     if (page.hideInNavigation || page.status === 'disabled') {
       return { visible: false, isUserOverride: false };

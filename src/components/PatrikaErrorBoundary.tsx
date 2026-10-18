@@ -207,7 +207,7 @@ export class PatrikaErrorBoundary extends Component<PatrikaErrorBoundaryProps, P
             <button
               type="button"
               onClick={() => {
-                window.location.hash = '#dashboard';
+                window.location.hash = '#home';
                 window.location.reload();
               }}
               className="flex items-center gap-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-bold text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 transition-colors cursor-pointer"

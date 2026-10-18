@@ -3,8 +3,6 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Users,
-  Sliders,
-  CreditCard,
   Crown,
   Newspaper,
   Download,
@@ -48,12 +46,10 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<string>(() => {
     // Map initialSubRoute to SuperAdminControlCenter tab
-    if (initialSubRoute === 'users' || initialSubRoute === 'user-management') return 'user_list';
-    if (initialSubRoute === 'access-control' || initialSubRoute === 'menu-control' || initialSubRoute === 'switchboard') return 'menu_switchboard';
+    if (initialSubRoute === 'users' || initialSubRoute === 'user-management' || initialSubRoute === 'access-control' || initialSubRoute === 'switchboard' || initialSubRoute === 'payments') return 'user_list';
     if (initialSubRoute === 'magic-links' || initialSubRoute === 'magic_links' || initialSubRoute === 'links' || initialSubRoute === 'role-links') return 'role_magic_links';
     if (initialSubRoute === 'store-pos' || initialSubRoute === 'pos' || initialSubRoute === 'store' || initialSubRoute === 'store_admin') return 'store_pos';
     if (initialSubRoute === 'subscriptions' || initialSubRoute === 'service_licenses' || initialSubRoute === 'licenses' || initialSubRoute === 'trials') return 'service_licenses';
-    if (initialSubRoute === 'payments' || initialSubRoute === 'client-approvals' || initialSubRoute === 'approvals') return 'client_approvals';
     if (initialSubRoute === 'finance') return 'finance';
     if (initialSubRoute === 'content' || initialSubRoute === 'samachar') return 'samachar_editor';
     if (initialSubRoute === 'software' || initialSubRoute === 'downloads') return 'software_releases';
@@ -99,20 +95,6 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
       labelNepali: 'प्रयोगकर्ता व्यवस्थापन',
       labelEnglish: 'User Management',
       icon: Users
-    },
-    {
-      id: 'menu_switchboard',
-      subRoute: 'access-control',
-      labelNepali: 'मेनु तथा सेवा स्विचबोर्ड',
-      labelEnglish: 'Menu & Access Control',
-      icon: Sliders
-    },
-    {
-      id: 'client_approvals',
-      subRoute: 'payments',
-      labelNepali: 'भुक्तानी तथा खरिद रुजु',
-      labelEnglish: 'Payment Approvals (eSewa)',
-      icon: CreditCard
     },
     {
       id: 'service_licenses',

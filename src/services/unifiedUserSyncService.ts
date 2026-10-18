@@ -59,13 +59,40 @@ const STORAGE_KEY_CLOUD_CACHE = 'balananda_cloud_sync_cache_v2';
 const STORAGE_KEY_SYNC_PENDING_QUEUE = 'balananda_sync_pending_queue_v1';
 const SYNC_BROADCAST_CHANNEL = 'balananda_unified_sync_bus_v2';
 
-// Native Backend Realtime SSE & Polling Endpoints (Fast, Self-Contained, Zero External Dependency)
+// Native Backend Realtime SSE & Polling Endpoints with Cloud Relay Fallback for GitHub Pages
 export const REALTIME_SYNC_TOPIC = 'balananda_jyotish_realtime_sync_v2081';
-export const getRealtimeSSEUrl = () => apiClient.resolveUrl('/api/realtime/events');
-export const getRealtimePollUrl = () => apiClient.resolveUrl('/api/realtime/poll');
-export const REALTIME_SSE_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/realtime/events` : '/api/realtime/events';
-export const REALTIME_PUB_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/realtime/events` : '/api/realtime/events';
-export const REALTIME_POLL_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/realtime/poll` : '/api/realtime/poll';
+export const isLocalhostEnvironment = () => {
+  if (typeof window === 'undefined') return true;
+  const host = window.location.hostname.toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.endsWith('.local');
+};
+
+export const getRealtimeSSEUrl = () => {
+  if (!isLocalhostEnvironment()) {
+    return `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse`;
+  }
+  return apiClient.resolveUrl('/api/realtime/events');
+};
+
+export const getRealtimePollUrl = () => {
+  if (!isLocalhostEnvironment()) {
+    return `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/json?poll=1&since=all`;
+  }
+  return apiClient.resolveUrl('/api/realtime/poll');
+};
+
+export const REALTIME_SSE_URL = typeof window !== 'undefined'
+  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/sse` : `${window.location.origin}/api/realtime/events`)
+  : '/api/realtime/events';
+
+export const REALTIME_PUB_URL = typeof window !== 'undefined'
+  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}` : `${window.location.origin}/api/realtime/events`)
+  : '/api/realtime/events';
+
+export const REALTIME_POLL_URL = typeof window !== 'undefined'
+  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SYNC_TOPIC}/json?poll=1&since=all` : `${window.location.origin}/api/realtime/poll`)
+  : '/api/realtime/poll';
+
 
 class UnifiedUserSyncService {
   private broadcastChannel: BroadcastChannel | null = null;
@@ -397,7 +424,7 @@ class UnifiedUserSyncService {
   }
 
   /**
-   * Instantly broadcast an event across all local tabs and devices (< 1 second)
+   * Instantly broadcast an event across all local tabs, devices, and cloud relay (< 1 second)
    */
   public async pushEventToRealtimeRelay(event: {
     type: 'USER_SIGNUP' | 'USER_UPDATE' | 'PURCHASE_REQUEST' | 'LICENSE_APPROVED' | 'PURCHASE_APPROVED' | 'USER_DELETED' | 'USER_STATUS_CHANGED' | string;
@@ -409,13 +436,57 @@ class UnifiedUserSyncService {
     leadId?: string;
     details?: string;
   }): Promise<void> {
+    const payloadObj = {
+      ...event,
+      timestamp: Date.now(),
+      iso: new Date().toISOString()
+    };
+
+    // 1. BroadcastChannel (for other tabs on the same browser)
     try {
-      this.broadcastChannel?.postMessage({
-        ...event,
-        timestamp: Date.now()
-      });
+      this.broadcastChannel?.postMessage(payloadObj);
     } catch (e) {
       console.warn('[RealtimeSync] Broadcast failed:', e);
+    }
+
+    // 2. Node/Express backend if on localhost
+    try {
+      if (isLocalhostEnvironment()) {
+        apiClient.post('/api/realtime/events', payloadObj).catch(() => {});
+      }
+    } catch {}
+
+    // 3. Resilient Cloud Pub/Sub Relay (ntfy.sh) - works seamlessly across GitHub Pages, Incognito, and Mobile apps
+    try {
+      const asciiTitle = event.type === 'USER_SIGNUP'
+        ? `New User Registration: ${(event.user?.phone || event.user?.id || 'User')}`
+        : event.type === 'PURCHASE_REQUEST'
+        ? `New Purchase Request: ${(event.lead?.mobile || event.lead?.id || 'Lead')}`
+        : event.type === 'LICENSE_APPROVED' || event.type === 'PURCHASE_APPROVED'
+        ? `License Approved: ${(event.mobile || event.leadId || '')}`
+        : event.type === 'USER_FORCE_SIGNOUT' || event.type === 'USER_DELETED'
+        ? `Security Revocation: ${(event.mobile || event.userId || '')}`
+        : `Sync Event: ${event.type}`;
+
+      const tags = event.type === 'USER_SIGNUP'
+        ? 'bust_in_silhouette,sparkles'
+        : event.type === 'PURCHASE_REQUEST'
+        ? 'bell,white_check_mark'
+        : 'lock,shield';
+
+      fetch(`https://ntfy.sh/${REALTIME_SYNC_TOPIC}`, {
+        method: 'POST',
+        headers: {
+          'Title': asciiTitle,
+          'Priority': '4',
+          'Tags': tags
+        },
+        body: JSON.stringify(payloadObj)
+      }).catch(err => {
+        console.warn('[RealtimeSync] Cloud push failed:', err);
+      });
+    } catch (err) {
+      console.warn('[RealtimeSync] Cloud relay error:', err);
     }
   }
 
@@ -1359,20 +1430,43 @@ class UnifiedUserSyncService {
       }
     } catch {}
 
-    // 2. Poll Realtime Hub fallback for any recent signups / purchase requests across devices
+    // 2. Poll Realtime Hub / Cloud Relay for any recent signups / purchase requests across devices
     try {
-      const pollRes = await apiClient.get<any>('/api/realtime/poll', { timeoutMs: 2000 });
-      if (pollRes?.success && Array.isArray(pollRes.events)) {
+      const pollUrl = getRealtimePollUrl();
+      const res = await fetch(pollUrl, { cache: 'no-store' });
+      if (res.ok) {
         const pollUsers: RBACUser[] = [];
         const pollLeads: ClientLead[] = [];
 
-        pollRes.events.forEach((ev: any) => {
-          if (ev.type === 'USER_SIGNUP' && ev.user) {
-            pollUsers.push(ev.user);
-          } else if (ev.type === 'PURCHASE_REQUEST' && ev.lead) {
-            pollLeads.push(ev.lead);
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json();
+          if (Array.isArray(json?.events)) {
+            json.events.forEach((ev: any) => {
+              if (ev.type === 'USER_SIGNUP' && ev.user) pollUsers.push(ev.user);
+              else if (ev.type === 'PURCHASE_REQUEST' && ev.lead) pollLeads.push(ev.lead);
+            });
+          } else if (Array.isArray(json)) {
+            json.forEach((item: any) => {
+              const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
+              if (msg?.type === 'USER_SIGNUP' && msg.user) pollUsers.push(msg.user);
+              else if (msg?.type === 'PURCHASE_REQUEST' && msg.lead) pollLeads.push(msg.lead);
+            });
           }
-        });
+        } else {
+          // Newline-delimited JSON (e.g. ntfy /json?poll=1)
+          const text = await res.text();
+          const lines = text.trim().split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const item = JSON.parse(line);
+              const msg = typeof item.message === 'string' ? JSON.parse(item.message) : (item.message || item);
+              if (msg?.type === 'USER_SIGNUP' && msg.user) pollUsers.push(msg.user);
+              else if (msg?.type === 'PURCHASE_REQUEST' && msg.lead) pollLeads.push(msg.lead);
+            } catch {}
+          }
+        }
 
         if (pollUsers.length > 0) {
           fetchedUsers = fetchedUsers ? [...pollUsers, ...fetchedUsers] : pollUsers;

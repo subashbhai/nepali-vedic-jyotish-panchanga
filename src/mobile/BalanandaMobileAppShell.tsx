@@ -429,7 +429,7 @@ export const BalanandaMobileAppShell: React.FC<{
                 </p>
                 <div className="bg-stone-900/90 rounded-2xl border border-stone-800 overflow-hidden divide-y divide-stone-800/80">
                   {[
-                    { id: 'home', label: 'गृहपृष्ठ ड्यासबोर्ड', sub: 'आजको पञ्चाङ्ग, राशिफल तथा मुख्य सेवाहरू', icon: Home },
+                    { id: 'home', label: 'गृहपृष्ठ', sub: 'आजको पञ्चाङ्ग, राशिफल तथा मुख्य सेवाहरू', icon: Home },
                     { id: 'kundali', label: 'जन्म कुण्डली तथा फलादेश', sub: 'लग्न, नवांश, विंशोत्तरी दशा तथा ग्रह स्थिति', icon: Compass },
                     { id: 'horoscope', label: 'दैनिक राशिफल', sub: '१२ राशिको फलादेश तथा शुभ समय', icon: Star },
                     { id: 'panchanga', label: 'दैनिक पञ्चाङ्ग', sub: 'तिथि, वार, नक्षत्र, योग, करण र मुहूर्त', icon: Calendar },

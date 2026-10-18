@@ -116,13 +116,11 @@ import { AdminReportSection } from './sections/AdminReportSection';
 import { AdminBackupSection } from './sections/AdminBackupSection';
 import { NewsEditorDashboard } from './sections/NewsEditorDashboard';
 import { AdminRoleMagicLinksSection } from './sections/AdminRoleMagicLinksSection';
-import { AdminClientApprovalsSection } from './sections/AdminClientApprovalsSection';
 import { AdminTargetedPushNotificationSection } from './sections/AdminTargetedPushNotificationSection';
 import { AdminVivahSection } from './sections/AdminVivahSection';
 import { AdminAdvertisementSection } from './sections/AdminAdvertisementSection';
 import { SuperAdminRashifalManagement } from './sections/SuperAdminRashifalManagement';
 import { StoreMediaAdminTab } from './StoreMediaAdminTab';
-import { MenuControlPanel } from './MenuControlPanel';
 import { AdminServiceLicenseSection } from './sections/AdminServiceLicenseSection';
 import { UserControlMasterView } from './UserControlMasterView';
 import { SuperAdminUserManagementTable } from './sections/SuperAdminUserManagementTable';
@@ -307,8 +305,8 @@ function getBlockIdFromTab(tab?: string): string | null {
   if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
   if (['pages_services', 'samachar_editor', 'samachar', 'rashifal_management', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
   if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
-  if (['user_list', 'menu_switchboard', 'user_control', 'menu_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
-  if (['client_approvals', 'finance', 'service_licenses', 'subscriptions', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
+  if (['user_list', 'user_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
+  if (['finance', 'service_licenses', 'subscriptions', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
   if (['daily_whatsapp', 'whatsapp', 'targeted_push', 'notifications', 'geo_monitor'].includes(tab)) return 'block_communication';
   if (['settings', 'pricing', 'security_audit', 'audit', 'reports', 'backup', 'software_releases', 'releases', 'downloads'].includes(tab)) return 'block_settings_security';
   return null;
@@ -353,16 +351,12 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
 
   // Current Active Tab
   const [activeTab, setActiveTab] = useState<string>(initialTab);
-  const [selectedSwitchboardMobile, setSelectedSwitchboardMobile] = useState<string | undefined>(undefined);
-  const [selectedPaymentMobile, setSelectedPaymentMobile] = useState<string | undefined>(undefined);
   const [selectedLicenseMobile, setSelectedLicenseMobile] = useState<string | undefined>(undefined);
   const [selectedUserMobile, setSelectedUserMobile] = useState<string | undefined>(undefined);
 
-  // 4-Menu Interlink Tab Switcher
+  // Tab Switcher
   const switchTab = (targetTab: string, mobile?: string) => {
     if (mobile) {
-      if (targetTab === 'menu_switchboard') setSelectedSwitchboardMobile(mobile);
-      if (targetTab === 'client_approvals') setSelectedPaymentMobile(mobile);
       if (targetTab === 'service_licenses' || targetTab === 'subscriptions') setSelectedLicenseMobile(mobile);
       if (targetTab === 'user_list' || targetTab === 'users') setSelectedUserMobile(mobile);
     }
@@ -379,9 +373,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     const s = new Set<string>();
     s.add(initialTab);
     if (['user_list', 'user_control', 'users'].includes(initialTab)) s.add('user_list');
-    if (['menu_switchboard', 'menu_control', 'mobile_policy'].includes(initialTab)) s.add('menu_switchboard');
     if (['service_licenses', 'subscriptions', 'licenses'].includes(initialTab)) s.add('service_licenses');
-    if (['client_approvals', 'payments'].includes(initialTab)) s.add('client_approvals');
     return s;
   });
 
@@ -390,9 +382,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       setMountedTabs(prev => {
         let key = activeTab;
         if (['user_list', 'user_control', 'users'].includes(activeTab)) key = 'user_list';
-        else if (['menu_switchboard', 'menu_control', 'mobile_policy'].includes(activeTab)) key = 'menu_switchboard';
         else if (['service_licenses', 'subscriptions', 'licenses'].includes(activeTab)) key = 'service_licenses';
-        else if (['client_approvals', 'payments'].includes(activeTab)) key = 'client_approvals';
 
         if (prev.has(key) && prev.has(activeTab)) return prev;
         const next = new Set(prev);
@@ -697,19 +687,18 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       number: '४',
       title: '४. प्रयोगकर्ता र विशेषज्ञ',
       shortTitle: 'प्रयोगकर्ता र विशेषज्ञ',
-      description: 'मोबाइल दर्ता, पासवर्ड जेनेरेसन, मेनु स्विचबोर्ड, प्रमाणित पण्डित/ज्योतिषी, यजमान ग्राहक र कर्मचारी RBAC',
+      description: 'मोबाइल दर्ता, पासवर्ड जेनेरेसन, सेवा लाइसेन्स, प्रमाणित पण्डित/ज्योतिषी, यजमान ग्राहक र कर्मचारी RBAC',
       icon: Users,
       accentColor: 'from-emerald-500/20 to-teal-600/10 border-emerald-500/40 text-emerald-400',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
       defaultTab: 'user_list',
       items: [
         { id: 'user_list', label: '१. प्रयोगकर्ता व्यवस्थापन', icon: Users, badge: 'केन्द्रीय' },
-        { id: 'menu_switchboard', label: '२. मेनु तथा सेवा स्विचबोर्ड', icon: Sliders, badge: 'स्विचबोर्ड' },
-        { id: 'service_licenses', label: '३. सेवा लाइसेन्स (Jyotish & Vastu Lock)', icon: Lock, badge: 'नयाँ' },
-        { id: 'experts', label: '४. प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
-        { id: 'yajaman', label: '५. यजमान ग्राहक प्रोफाइल', icon: UserCheck },
-        { id: 'staff_rbac', label: '६. कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
-        { id: 'role_magic_links', label: '७. सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
+        { id: 'service_licenses', label: '२. सेवा लाइसेन्स (Jyotish & Vastu Lock)', icon: Crown, badge: 'लाइसेन्स' },
+        { id: 'experts', label: '३. प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
+        { id: 'yajaman', label: '४. यजमान ग्राहक प्रोफाइल', icon: UserCheck },
+        { id: 'staff_rbac', label: '५. कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
+        { id: 'role_magic_links', label: '६. सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
       ]
     },
     {
@@ -717,15 +706,14 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       number: '५',
       title: '५. आर्थिक तथा सदस्यता',
       shortTitle: 'आर्थिक तथा सदस्यता',
-      description: 'सफ्टवेयर खरिद स्वीकृति, eSewa र बैंक भुक्तानी प्रमाणीकरण, तथा विशेषज्ञ सदस्यता योजना नवीकरण',
+      description: 'eSewa र बैंक भुक्तानी प्रमाणीकरण, तथा विशेषज्ञ सदस्यता योजना नवीकरण',
       icon: DollarSign,
       accentColor: 'from-amber-500/20 to-yellow-600/10 border-amber-500/40 text-amber-400',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-      defaultTab: 'client_approvals',
+      defaultTab: 'finance',
       items: [
-        { id: 'client_approvals', label: 'सफ्टवेयर खरिद स्वीकृति', icon: CreditCard, badge: pendingPurchasesCount > 0 ? `${pendingPurchasesCount}` : null },
-        { id: 'finance', label: 'भुक्तानी प्रमाणीकरण (eSewa & Bank)', icon: DollarSign, badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
-        { id: 'memberships', label: 'सदस्यता योजना & नवीकरण', icon: Crown }
+        { id: 'finance', label: '१. भुक्तानी प्रमाणीकरण (eSewa & Bank)', icon: DollarSign, badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
+        { id: 'memberships', label: '२. सदस्यता योजना & नवीकरण', icon: Crown }
       ]
     },
     {
@@ -1014,10 +1002,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                   </div>
                 </div>
                 <button
-                  onClick={() => handleOpenBlock('block_finance', 'client_approvals')}
+                  onClick={() => handleOpenBlock('block_users_experts', 'user_list')}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
                 >
-                  स्वीकृति दिनुहोस् →
+                  प्रयोगकर्ता व्यवस्थापनमा हेर्नुहोस् →
                 </button>
               </div>
             )}
@@ -1133,59 +1121,8 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
         <div className={(activeTab === 'user_list' || activeTab === 'user_control' || activeTab === 'users') ? 'block' : 'hidden'}>
           <SuperAdminUserManagementTable
             initialSearchPhone={selectedUserMobile}
-            onOpenSwitchboardForUser={(mobile) => switchTab('menu_switchboard', mobile)}
-            onOpenPaymentsForUser={(mobile) => switchTab('client_approvals', mobile)}
             onOpenLicensesForUser={(mobile) => switchTab('service_licenses', mobile)}
           />
-        </div>
-      )}
-      {mountedTabs.has('menu_switchboard') && (
-        <div className={(activeTab === 'menu_switchboard' || activeTab === 'menu_control' || activeTab === 'mobile_policy') ? 'block' : 'hidden'}>
-          <div className="bg-stone-900 border border-stone-800 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4">
-            <div className="border-b border-stone-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
-                  <Sliders className="w-5 h-5 text-amber-500" />
-                  <span>मेनु तथा ग्राहक पहुँच नियन्त्रण (Full Menu Switchboard)</span>
-                </h2>
-                <p className="text-xs text-stone-400">
-                  दर्ता भएका वास्तविक प्रयोगकर्ताहरूका सबै मेनु र उपमेनुहरूलाई १. Open (खुल्ला) २. Close (बन्द) ३. Lock (लक) गर्नुहोस्
-                </p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => switchTab('user_list')}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs transition-colors w-fit cursor-pointer flex items-center gap-1.5"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>← प्रयोगकर्ता व्यवस्थापन</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchTab('client_approvals', selectedSwitchboardMobile)}
-                  className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 font-bold text-xs transition-colors w-fit cursor-pointer flex items-center gap-1.5"
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>भुक्तानी रुजु (eSewa)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchTab('service_licenses', selectedSwitchboardMobile)}
-                  className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs transition-colors w-fit cursor-pointer flex items-center gap-1.5"
-                >
-                  <Crown className="w-3.5 h-3.5" />
-                  <span>सदस्यता & लाइसेन्स</span>
-                </button>
-              </div>
-            </div>
-            <MenuControlPanel
-              initialSelectedMobile={selectedSwitchboardMobile}
-              onBackToUsers={() => switchTab('user_list')}
-              onOpenPayments={(mobile) => switchTab('client_approvals', mobile)}
-              onOpenLicenses={(mobile) => switchTab('service_licenses', mobile)}
-            />
-          </div>
         </div>
       )}
       {(mountedTabs.has('service_licenses') || mountedTabs.has('subscriptions') || mountedTabs.has('licenses')) && (
@@ -1194,8 +1131,6 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
             <AdminServiceLicenseSection
               initialUserPhone={selectedLicenseMobile}
               onNavigateToUsers={(mobile) => switchTab('user_list', mobile)}
-              onNavigateToSwitchboard={(mobile) => switchTab('menu_switchboard', mobile)}
-              onNavigateToPayments={(mobile) => switchTab('client_approvals', mobile)}
             />
           </div>
         </div>
@@ -1224,17 +1159,6 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       {activeTab === 'role_magic_links' && <AdminRoleMagicLinksSection />}
 
       {/* ── BLOCK 5: FINANCE & MEMBERSHIPS ── */}
-      {mountedTabs.has('client_approvals') && (
-        <div className={activeTab === 'client_approvals' ? 'block' : 'hidden'}>
-          <AdminClientApprovalsSection
-            initialUserPhone={selectedPaymentMobile}
-            onRefresh={loadAllData}
-            onNavigateToUsers={(mobile) => switchTab('user_list', mobile)}
-            onNavigateToSwitchboard={(mobile) => switchTab('menu_switchboard', mobile)}
-            onNavigateToLicenses={(mobile) => switchTab('service_licenses', mobile)}
-          />
-        </div>
-      )}
       {activeTab === 'finance' && (
         <AdminFinanceSection
           esewaRequests={esewaRequests}
