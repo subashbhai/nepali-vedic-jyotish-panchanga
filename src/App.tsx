@@ -881,8 +881,6 @@ export default function App() {
       setSuperAdminSession(null);
       setHasFullAccess(false);
       setIsTrialActive(false);
-      setIsJyotishUnlocked(false);
-      setIsVastuUnlocked(false);
 
       // Clean active profile and switch to live visitor profile (< 1ms)
       try {
@@ -914,15 +912,13 @@ export default function App() {
         if (!sess) {
           setHasFullAccess(false);
           setIsTrialActive(false);
-          setIsJyotishUnlocked(false);
-          setIsVastuUnlocked(false);
           try {
             localStorage.removeItem('balananda_active_profile_id');
             localStorage.removeItem('balananda_user_birth_profile_user_self');
             localStorage.removeItem('balananda_user_birth_profile_client_self');
           } catch {}
           setActiveProfile(null);
-          setActiveTab(prev => (prev === 'user_dashboard' || prev === 'my_account' ? 'home' : prev));
+          setActiveTab(prev => ((prev as string) === 'user_dashboard' || (prev as string) === 'my_account' ? 'home' : prev));
           if (typeof window !== 'undefined' && (window.location.hash === '#dashboard' || window.location.hash === '#user_dashboard' || window.location.hash === '#my_account')) {
             window.location.hash = '#home';
           }

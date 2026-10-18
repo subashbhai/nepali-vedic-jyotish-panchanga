@@ -99,6 +99,7 @@ async function runWorkflowTests() {
     username: '9856012345',
     fullName: 'पण्डित हरि प्रसाद सापकोटा',
     phone: '9856012345',
+    passwordHash: 'hash_sample',
     email: 'hariprasad.jyotish@gmail.com',
     role: 'CUSTOMER',
     roleNameNepali: 'सफ्टवेयर ग्राहक (Client)',
@@ -109,9 +110,13 @@ async function runWorkflowTests() {
     createdAtBS: '२०८१-११-२५',
     savedAddresses: [{
       id: 'addr_01',
-      label: 'ठेगाना',
+      title: 'ठेगाना',
+      fullName: 'पण्डित हरि प्रसाद सापकोटा',
+      phone: '9856012345',
+      district: 'कास्की',
+      localLevel: '',
+      ward: '८',
       streetAddress: 'पोखरा-८, सिमलचौर, कास्की',
-      city: 'पोखरा',
       isDefault: true
     }],
     permissions: ['view_kundali', 'customer_access']

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
-  Sliders, 
   ShieldCheck, 
   Lock, 
   ArrowLeft, 
@@ -9,7 +8,6 @@ import {
   RefreshCw,
   Sparkles
 } from 'lucide-react';
-import { MenuControlPanel } from './MenuControlPanel';
 import { AdminUserManagementSection } from './sections/AdminUserManagementSection';
 import { SuperAdminUserManagementTable } from './sections/SuperAdminUserManagementTable';
 import { AdminServiceLicenseSection } from './sections/AdminServiceLicenseSection';
@@ -19,7 +17,7 @@ interface UserControlMasterViewProps {
   onBackToDashboard?: () => void;
   onLogoutAdmin?: () => void;
   hideHeader?: boolean;
-  initialSubTab?: 'user_table' | 'user_list' | 'menu_switchboard' | 'service_licenses' | 'rbac_staff';
+  initialSubTab?: 'user_table' | 'user_list' | 'service_licenses' | 'rbac_staff';
 }
 
 export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
@@ -30,9 +28,9 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
 }) => {
   // Normalize initialSubTab: map legacy 'user_list' directly to 'user_table'
   const resolvedSubTab = (initialSubTab === 'user_list' ? 'user_table' : initialSubTab) as 
-    'user_table' | 'menu_switchboard' | 'service_licenses' | 'rbac_staff';
+    'user_table' | 'service_licenses' | 'rbac_staff';
 
-  const [activeSubTab, setActiveSubTab] = useState<'user_table' | 'menu_switchboard' | 'service_licenses' | 'rbac_staff'>(resolvedSubTab);
+  const [activeSubTab, setActiveSubTab] = useState<'user_table' | 'service_licenses' | 'rbac_staff'>(resolvedSubTab);
   const [selectedMobile, setSelectedMobile] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -109,12 +107,12 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-stone-400 hidden sm:block">
-                वास्तविक डेटाबेस प्रयोगकर्ता, ३-तर्फी मेनु स्विचबोर्ड र लाइसेन्स व्यवस्थापन
+                वास्तविक डेटाबेस प्रयोगकर्ता, भुक्तानी रुजु र सेवा लाइसेन्स व्यवस्थापन
               </p>
             </div>
           </div>
 
-          {/* Center: 4 Clean Sub-menu Tabs */}
+          {/* Center: 3 Clean Sub-menu Tabs */}
           <div className="flex items-center gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800 overflow-x-auto max-w-full">
             <button
               type="button"
@@ -131,19 +129,6 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveSubTab('menu_switchboard')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeSubTab === 'menu_switchboard'
-                  ? 'bg-amber-500 text-stone-950 font-black shadow-sm'
-                  : 'text-stone-300 hover:text-white hover:bg-stone-800'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5 shrink-0" />
-              <span>२. मेनु तथा सेवा स्विचबोर्ड</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setActiveSubTab('service_licenses')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeSubTab === 'service_licenses'
@@ -152,7 +137,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
               }`}
             >
               <Lock className="w-3.5 h-3.5 shrink-0" />
-              <span>३. सेवा लाइसेन्स</span>
+              <span>२. सेवा लाइसेन्स</span>
             </button>
 
             <button
@@ -168,7 +153,7 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-              <span>४. कर्मचारी & RBAC</span>
+              <span>३. कर्मचारी & RBAC</span>
             </button>
           </div>
 
@@ -205,39 +190,10 @@ export const UserControlMasterView: React.FC<UserControlMasterViewProps> = ({
           {activeSubTab === 'user_table' && (
             <div className="w-full">
               <SuperAdminUserManagementTable
-                onOpenSwitchboardForUser={(mobile) => {
+                onOpenLicensesForUser={(mobile) => {
                   setSelectedMobile(mobile);
-                  setActiveSubTab('menu_switchboard');
+                  setActiveSubTab('service_licenses');
                 }}
-              />
-            </div>
-          )}
-
-          {/* ── 2. FULL MENU SWITCHBOARD (Open / Close / Lock Linked with Real Users) ── */}
-          {activeSubTab === 'menu_switchboard' && (
-            <div className="bg-stone-900 rounded-3xl shadow-sm border border-stone-800 p-4 sm:p-6 space-y-4">
-              <div className="border-b border-stone-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <h2 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
-                    <Sliders className="w-5 h-5 text-amber-500" />
-                    <span>मेनु तथा ग्राहक पहुँच नियन्त्रण (Full Menu Switchboard)</span>
-                  </h2>
-                  <p className="text-xs text-stone-400">
-                    डेटाबेसका वास्तविक दर्ता भएका प्रयोगकर्ताहरूका सबै मेनु र उपमेनुहरूलाई १. Open (खुल्ला) २. Close (बन्द) ३. Lock (लक) गर्नुहोस्
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('user_table')}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs transition-colors w-fit cursor-pointer flex items-center gap-1.5"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>← प्रयोगकर्ता व्यवस्थापन तालिकामा फर्कनुहोस्</span>
-                </button>
-              </div>
-              <MenuControlPanel
-                initialSelectedMobile={selectedMobile}
-                onBackToUsers={() => setActiveSubTab('user_table')}
               />
             </div>
           )}

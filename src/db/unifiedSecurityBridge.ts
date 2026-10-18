@@ -482,8 +482,7 @@ export function authenticateUnifiedUser(
   }
 
   if (clientPolicy) {
-    // Check status
-    if (clientPolicy.status === 'suspended' || clientPolicy.status === 'inactive' || clientPolicy.status === 'disabled') {
+    if (clientPolicy.status === 'suspended' || clientPolicy.status === 'inactive') {
       return {
         success: false,
         message: clientPolicy.status === 'suspended'

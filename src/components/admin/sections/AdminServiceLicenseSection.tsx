@@ -50,8 +50,6 @@ import {
 interface AdminServiceLicenseSectionProps {
   initialUserPhone?: string;
   onNavigateToUsers?: (mobile?: string) => void;
-  onNavigateToSwitchboard?: (mobile?: string) => void;
-  onNavigateToPayments?: (mobile?: string) => void;
 }
 
 // Module-level in-memory cache for instant 0ms mount
@@ -66,9 +64,7 @@ let cachedLicenseData: {
 
 export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProps> = ({
   initialUserPhone,
-  onNavigateToUsers,
-  onNavigateToSwitchboard,
-  onNavigateToPayments
+  onNavigateToUsers
 }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'audit'>('users');
   const [searchQuery, setSearchQuery] = useState(initialUserPhone || '');
@@ -373,26 +369,6 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
             >
               <Users className="w-3.5 h-3.5" />
               <span>← प्रयोगकर्ता व्यवस्थापन</span>
-            </button>
-          )}
-          {onNavigateToSwitchboard && (
-            <button
-              type="button"
-              onClick={() => onNavigateToSwitchboard()}
-              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span>मेनु स्विचबोर्ड</span>
-            </button>
-          )}
-          {onNavigateToPayments && (
-            <button
-              type="button"
-              onClick={() => onNavigateToPayments()}
-              className="px-3 py-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <CreditCard className="w-3.5 h-3.5 text-blue-400" />
-              <span>भुक्तानी रुजु (eSewa)</span>
             </button>
           )}
           <button
@@ -705,24 +681,6 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
                             )}
 
                             {/* Interlink Quick Actions */}
-                            <button
-                              type="button"
-                              onClick={() => onNavigateToSwitchboard?.(u.phone)}
-                              className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition-colors cursor-pointer"
-                              title="मेनु स्विचबोर्ड खोल्नुहोस्"
-                            >
-                              <Sliders className="w-3.5 h-3.5" />
-                            </button>
-                            {onNavigateToPayments && (
-                              <button
-                                type="button"
-                                onClick={() => onNavigateToPayments(u.phone)}
-                                className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors cursor-pointer"
-                                title="भुक्तानी तथा खरिद रुजुमा हेर्नुहोस्"
-                              >
-                                <CreditCard className="w-3.5 h-3.5" />
-                              </button>
-                            )}
                             <button
                               type="button"
                               onClick={() => onNavigateToUsers?.(u.phone)}

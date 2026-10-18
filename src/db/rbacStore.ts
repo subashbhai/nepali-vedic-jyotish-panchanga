@@ -745,7 +745,8 @@ export function updateRBACUserStatus(
     pending: 'प्रमाणीकरणमा राखियो (Set to Pending)',
     rejected: 'खाता अस्वीकृत (Rejected)',
     suspended: 'खाता निलम्बन (Suspended)',
-    disabled: 'खाता बन्द (Disabled)'
+    disabled: 'खाता बन्द (Disabled)',
+    inactive: 'निष्क्रिय खाता (Inactive)'
   };
 
   logRBACAuditAction({

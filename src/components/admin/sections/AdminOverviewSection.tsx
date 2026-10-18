@@ -86,7 +86,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
       title: 'सफ्टवेयर खरिद स्वीकृति बाँकी',
       count: stats.pendingPurchases || 0,
       type: 'purchase',
-      tab: 'client_approvals',
+      tab: 'user_list',
       desc: `${stats.pendingPurchases || 0} जना ग्राहकको सफ्टवेयर खरिद प्रमाणीकरण तथा लाइसेन्स सक्रियता बाँकी छ।`,
       urgency: 'high'
     },
@@ -220,13 +220,13 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
       badgeColor: stats.pendingPurchases ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
       description: 'सफ्टवेयर खरिद स्वीकृति तथा लाइसेन्स, eSewa भुक्तानी प्रमाणीकरण र विशेषज्ञ वार्षिक सदस्यता नवीकरण।',
       icon: CreditCard,
-      mainTab: 'client_approvals',
-      mainActionLabel: 'सफ्टवेयर खरिद स्वीकृति',
+      mainTab: 'user_list',
+      mainActionLabel: 'प्रयोगकर्ता तथा खरिद रुजु',
       gradient: 'from-emerald-950/40 via-stone-900 to-stone-900',
       borderColor: 'border-emerald-500/30 hover:border-emerald-400',
       iconColor: 'text-emerald-400 bg-emerald-500/15',
       subLinks: [
-        { tab: 'client_approvals', label: 'सफ्टवेयर खरिद स्वीकृति' },
+        { tab: 'user_list', label: 'सफ्टवेयर खरिद तथा प्रयोगकर्ता रुजु' },
         { tab: 'finance', label: 'भुक्तानी प्रमाणीकरण' },
         { tab: 'memberships', label: 'सदस्यता व्यवस्थापन' }
       ]
@@ -291,7 +291,7 @@ export const AdminOverviewSection: React.FC<AdminOverviewSectionProps> = ({
     { id: 'pendingStoreOrders', label: 'स्टोर अर्डर पेन्डिङ', value: stats.pendingStoreOrders, icon: ShoppingBag, tab: 'store_pos', color: 'from-orange-600 to-amber-700' },
     { id: 'pendingPosOrders', label: 'POS काउन्टर अर्डर', value: stats.pendingPosOrders, icon: CreditCard, tab: 'store_pos', color: 'from-violet-600 to-purple-700' },
     { id: 'lowStockItems', label: 'कम स्टक सामग्री', value: stats.lowStockItems, icon: PackageX, tab: 'store_pos', color: 'from-pink-600 to-rose-700' },
-    { id: 'pendingPurchases', label: 'सफ्टवेयर खरिद पेन्डिङ', value: stats.pendingPurchases || 0, icon: Crown, tab: 'client_approvals', color: 'from-amber-500 to-rose-600', badge: (stats.pendingPurchases || 0) > 0 ? 'Urgent' : null },
+    { id: 'pendingPurchases', label: 'सफ्टवेयर खरिद पेन्डिङ', value: stats.pendingPurchases || 0, icon: Crown, tab: 'user_list', color: 'from-amber-500 to-rose-600', badge: (stats.pendingPurchases || 0) > 0 ? 'Urgent' : null },
     { id: 'totalVivah', label: 'विवाह मञ्च प्रोफाइल', value: stats.totalVivahProfiles || 0, icon: HeartHandshake, tab: 'vivah_portal', color: 'from-pink-600 to-rose-700', badge: (stats.pendingVivah || 0) > 0 ? `${stats.pendingVivah} पेन्डिङ` : null },
     { id: 'pendingPatrika', label: 'पत्रिका रेकर्ड पेन्डिङ', value: stats.pendingPatrikaRecords, icon: FileText, tab: 'patrika', color: 'from-blue-500 to-cyan-600' },
   ];

@@ -129,7 +129,7 @@ async function runSecurityTests() {
 
   // --- PHASE 2: Super Admin Locks (Suspends) User ---
   console.log('\n--- PHASE 2: Super Admin Locks (Suspension) User ---');
-  let forceSignoutEventTriggered = false;
+  let forceSignoutEventTriggered: boolean = false;
   let forceSignoutDetail: any = null;
 
   windowMock.addEventListener('user-force-logout', (ev: any) => {
@@ -143,7 +143,7 @@ async function runSecurityTests() {
 
   assert(lockResult === true, '2.1 updateUserAccountStatus lock returns true');
   assert(elapsedLockMs < 50, `2.2 Lock executed in milliseconds (${elapsedLockMs}ms)`);
-  assert(forceSignoutEventTriggered === true, '2.3 Instant user-force-logout event dispatched');
+  assert((forceSignoutEventTriggered as any) === true, '2.3 Instant user-force-logout event dispatched');
   assert(forceSignoutDetail?.action === 'suspended', '2.4 Event detail action is suspended');
 
   // Verify client session is wiped
@@ -176,7 +176,7 @@ async function runSecurityTests() {
 
   assert(deactiveResult === true, '4.1 updateUserAccountStatus inactive returns true');
   assert(elapsedDeactiveMs < 50, `4.2 Deactivation executed in milliseconds (${elapsedDeactiveMs}ms)`);
-  assert(forceSignoutEventTriggered === true, '4.3 user-force-logout dispatched on deactivation');
+  assert((forceSignoutEventTriggered as any) === true, '4.3 user-force-logout dispatched on deactivation');
   assert(forceSignoutDetail?.action === 'inactive', '4.4 Event action is inactive');
 
   const sessionAfterDeactive = getActiveRBACSession();
@@ -201,7 +201,7 @@ async function runSecurityTests() {
 
   assert(deleteResult === true, '5.2 deleteUserPermanently returns true');
   assert(elapsedDelMs < 50, `5.3 Deletion executed in milliseconds (${elapsedDelMs}ms)`);
-  assert(forceSignoutEventTriggered === true, '5.4 user-force-logout dispatched on deletion');
+  assert((forceSignoutEventTriggered as any) === true, '5.4 user-force-logout dispatched on deletion');
   assert(forceSignoutDetail?.action === 'deleted', '5.5 Action marked as deleted');
 
   const sessionAfterDelete = getActiveRBACSession();
