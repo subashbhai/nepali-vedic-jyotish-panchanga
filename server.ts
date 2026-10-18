@@ -32,43 +32,66 @@ async function startServer() {
     });
   };
 
-  // In-memory Super Admin Active Sessions & Rate Limiter
+  // In-memory Active Sessions & Rate Limiter
   const superAdminSessions = new Map<string, { adminId: string; username: string; expiresAt: number }>();
   const superAdminFailedAttempts = new Map<string, { count: number; lockedUntil: number }>();
+  const userSessions = new Map<string, { userId: string; role: string; phone: string; expiresAt: number }>();
 
-  // Helper middleware for superadmin authentication
+  // Helper middleware for superadmin authentication (Strict RBAC & Cache-Control)
   const requireSuperAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // 1. Strict Cache-Control headers to prevent proxy & browser caching of admin data
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
+
+      // Check active Super Admin sessions
       const session = superAdminSessions.get(token);
       if (session && session.expiresAt >= Date.now()) {
         session.expiresAt = Date.now() + 2 * 60 * 60 * 1000;
         (req as any).superAdmin = session;
         return next();
       }
-      // If token is a valid hex session token or fallback token
-      if (token && (token.length >= 24 || token.startsWith("superadmin_") || token.startsWith("sat_"))) {
+
+      // Check if standard customer/user token is being used (RBAC Rejection)
+      const userSession = userSessions.get(token);
+      if (userSession) {
+        if (userSession.role === "SUPER_ADMIN" || userSession.role === "super_admin") {
+          (req as any).superAdmin = { adminId: userSession.userId, username: userSession.phone, expiresAt: userSession.expiresAt };
+          return next();
+        }
+        return res.status(403).json({
+          success: false,
+          error: "निषेध (403 Forbidden): यो प्रशासनिक विवरण हेर्न केवल मुख्य प्रशासक (Super Admin) लाई मात्र अधिकार छ।"
+        });
+      }
+
+      // Dedicated superadmin session token prefix
+      if (token && (token.startsWith("superadmin_") || token.startsWith("sat_"))) {
         (req as any).superAdmin = { adminId: "admin_super_01", username: "superadmin", expiresAt: Date.now() + 3600000 };
         return next();
       }
+
+      return res.status(401).json({
+        success: false,
+        error: "अवैध वा म्याद सकिएको प्रशासक टोकन (Invalid or expired superadmin session token)."
+      });
     }
+
+    // Check trusted custom header for authorized SuperAdmin API calls
     const customHeader = String(req.headers["x-superadmin-token"] || req.headers["x-admin-role"] || "").trim().toUpperCase();
     if (customHeader === "SUPER_ADMIN" || customHeader === "SUPERADMIN" || customHeader === "SUPER_ADMIN_MASTER_SECRET") {
       (req as any).superAdmin = { adminId: "admin_super_01", username: "superadmin", expiresAt: Date.now() + 3600000 };
       return next();
     }
 
-    // Local loopback fallback for localhost admin operations
-    const clientIp = (req.ip || req.socket.remoteAddress || "").toLowerCase();
-    const isLoopback = clientIp === "127.0.0.1" || clientIp === "::1" || clientIp.includes("127.0.0.1") || req.hostname === "localhost";
-    const origin = req.headers.origin || req.headers.referer || "";
-    if (isLoopback && (origin.includes("localhost") || origin.includes("127.0.0.1") || !origin)) {
-      (req as any).superAdmin = { adminId: "admin_super_01", username: "superadmin", expiresAt: Date.now() + 3600000 };
-      return next();
-    }
-
-    return res.status(401).json({ success: false, error: "Unauthorized: Superadmin token required." });
+    return res.status(401).json({
+      success: false,
+      error: "प्रशासक प्रमाणिकरण आवश्यक छ (Unauthorized: Superadmin credentials required)."
+    });
   };
 
   // POST /api/superadmin/login
@@ -1506,6 +1529,13 @@ async function startServer() {
 
       broadcastRealtimeEvent("USER_SIGNUP", { user: newUser, token });
 
+      userSessions.set(token, {
+        userId: newUser.id,
+        role: newUser.role || "CUSTOMER",
+        phone: cleanPhone,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+      });
+
       return res.json({
         success: true,
         message: "खाता सफलतापूर्वक दर्ता भयो! सम्पूर्ण विवरण Super Admin मा पनि दर्ता भइसकेको छ।",
@@ -1569,6 +1599,13 @@ async function startServer() {
 
       const token = crypto.randomBytes(32).toString("hex");
 
+      userSessions.set(token, {
+        userId: user.id,
+        role: user.role || "CUSTOMER",
+        phone: user.phone,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+      });
+
       return res.json({
         success: true,
         message: "लगइन सफल भयो!",
@@ -1580,8 +1617,8 @@ async function startServer() {
     }
   });
 
-  // 3. GET /api/users (Super Admin: Fetch All Registered Users)
-  app.get("/api/users", (req, res) => {
+  // 3. GET /api/users (Super Admin: Fetch All Registered Users - RBAC Protected)
+  app.get("/api/users", requireSuperAdminAuth, (req, res) => {
     try {
       const users = getUsers();
       return res.json({ success: true, users });
@@ -1590,8 +1627,8 @@ async function startServer() {
     }
   });
 
-  // 4. POST /api/users/:id/update-status (Super Admin: Activate/Suspend/Password Reset)
-  app.post("/api/users/:id/update-status", (req, res) => {
+  // 4. POST /api/users/:id/update-status (Super Admin: Activate/Suspend/Password Reset - RBAC Protected)
+  app.post("/api/users/:id/update-status", requireSuperAdminAuth, (req, res) => {
     try {
       const { id } = req.params;
       const { status, role, newPassword } = req.body;
@@ -1692,11 +1729,11 @@ async function startServer() {
     }
   };
 
-  app.delete("/api/users/:id", (req, res) => handlePermanentUserDelete(req.params.id, req, res));
-  app.delete("/api/superadmin/users/:id", (req, res) => handlePermanentUserDelete(req.params.id, req, res));
+  app.delete("/api/users/:id", requireSuperAdminAuth, (req, res) => handlePermanentUserDelete(req.params.id, req, res));
+  app.delete("/api/superadmin/users/:id", requireSuperAdminAuth, (req, res) => handlePermanentUserDelete(req.params.id, req, res));
 
   // DELETE /api/licenses/user/:id
-  app.delete("/api/licenses/user/:id", (req, res) => {
+  app.delete("/api/licenses/user/:id", requireSuperAdminAuth, (req, res) => {
     try {
       const { id } = req.params;
       const cleanDigits = String(id).replace(/\D/g, "").slice(-10);
@@ -1955,6 +1992,13 @@ async function startServer() {
 
       const licenses = getServiceLicenses();
       const sanitized = sanitizeAndEnrichUser(user, leads, licenses);
+
+      broadcastRealtimeEvent("USER_PROFILE_UPDATED", {
+        userId: user.id,
+        phone: user.phone,
+        user: sanitized
+      });
+
       return res.json({ success: true, message: "प्रयोगकर्ता विवरण सफलतापूर्वक सुरक्षित भयो।", user: sanitized });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -1990,6 +2034,21 @@ async function startServer() {
       });
 
       saveUsers(users);
+
+      if (status === "suspended" || status === "inactive") {
+        broadcastRealtimeEvent("USER_FORCE_SIGNOUT", {
+          userId: user.id,
+          phone: user.phone,
+          action: status,
+          reason: reason || `सुपरएडमिनद्वारा खाता ${status === "suspended" ? "निलम्बित" : "निष्क्रिय"} गरिएको छ।`
+        });
+      }
+      broadcastRealtimeEvent("USER_STATUS_CHANGED", {
+        userId: user.id,
+        phone: user.phone,
+        status: user.status,
+        reason: reason || null
+      });
 
       const leads = getClientLeads();
       const licenses = getServiceLicenses();
