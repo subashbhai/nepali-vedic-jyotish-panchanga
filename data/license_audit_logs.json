@@ -1,5 +1,27 @@
 [
   {
+    "id": "audit_reset_1792320129052",
+    "timestampISO": "2026-10-18T10:42:09.064Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792320129052.json"
+  },
+  {
+    "id": "audit_reset_1792320017694",
+    "timestampISO": "2026-10-18T10:40:17.705Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792320017694.json"
+  },
+  {
     "id": "audit_reset_1792310582507",
     "timestampISO": "2026-10-18T08:03:02.524Z",
     "timestampBS": "२०८१",

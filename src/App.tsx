@@ -839,25 +839,23 @@ export default function App() {
   useEffect(() => {
     if (!rbacSession) return;
 
-    // Send heartbeat immediately on login / session active
+    // Send initial presence heartbeat
     unifiedUserSyncService.sendUserHeartbeat(rbacSession);
 
-    // Recurring heartbeat every 25 seconds
+    // Throttled recurring heartbeat every 60 seconds (prevents relay rate limits)
     const interval = setInterval(() => {
       unifiedUserSyncService.sendUserHeartbeat(rbacSession);
-    }, 25000);
+    }, 60000);
 
     const handleFocus = () => {
       unifiedUserSyncService.sendUserHeartbeat(rbacSession);
     };
 
     window.addEventListener('focus', handleFocus);
-    window.addEventListener('click', handleFocus, { passive: true });
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('click', handleFocus);
     };
   }, [rbacSession]);
 
