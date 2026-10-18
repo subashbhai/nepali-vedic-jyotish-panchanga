@@ -154,13 +154,14 @@ import { setAdminSession, getActiveAdminSession, AdminSession } from './db/admin
 import { validateRoleMagicToken } from './db/roleMagicTokenStore';
 
 export const TAB_TO_HASH: Record<string, string> = {
+  home: 'home',
   dashboard: 'dashboard',
+  user_dashboard: 'dashboard',
   panchanga: 'panchanga',
   jyotishi: 'jyotish',
   vastu: 'vastu',
   vivah: 'vivah',
   yajaman: 'yajaman',
-  user_dashboard: 'user_dashboard',
   samachar: 'samachar',
   kharedi: 'pasal',
   pustak: 'pustak',
@@ -200,9 +201,9 @@ export const TAB_TO_HASH: Record<string, string> = {
 };
 
 export const HASH_TO_TAB: Record<string, NavTab> = {
-  '': 'dashboard',
-  'dashboard': 'dashboard',
-  'home': 'dashboard',
+  '': 'home',
+  'home': 'home',
+  'dashboard': 'user_dashboard',
   'user_dashboard': 'user_dashboard',
   'user-dashboard': 'user_dashboard',
   'my-dashboard': 'user_dashboard',
@@ -281,7 +282,8 @@ export const HASH_TO_TAB: Record<string, NavTab> = {
 };
 
 export const TAB_PAGE_TITLES: Record<string, string> = {
-  dashboard: 'गृहपृष्ठ - नेपाली वैदिक ज्योतिष र पञ्चाङ्ग',
+  home: 'गृहपृष्ठ - नेपाली वैदिक ज्योतिष र पञ्चाङ्ग',
+  dashboard: 'व्यक्तिगत प्रयोगकर्ता ड्यासबोर्ड (My Space)',
   jyotish: 'नेपाली वैदिक ज्योतिष सेवा कार्यक्षेत्र',
   jyotishi: 'नेपाली वैदिक ज्योतिष सेवा कार्यक्षेत्र',
   panchanga: 'नेपाली वैदिक पञ्चाङ्ग',
@@ -337,7 +339,7 @@ export const ADMIN_PORTAL_TABS = new Set<NavTab>([
 ]);
 
 const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } => {
-  if (typeof window === 'undefined') return { tab: 'dashboard', module: 'MAIN' };
+  if (typeof window === 'undefined') return { tab: 'home', module: 'MAIN' };
 
   // 1. Direct portal query parameters take highest precedence
   try {
@@ -373,15 +375,18 @@ const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } 
   } catch {}
 
   const raw = window.location.hash.replace(/^#\/?/, '').split('?')[0].trim().toLowerCase();
-  if (!raw || raw === 'dashboard' || raw === 'home') {
-    return { tab: 'dashboard', module: 'MAIN' };
+  if (!raw || raw === 'home') {
+    return { tab: 'home', module: 'MAIN' };
+  }
+  if (raw === 'dashboard' || raw === 'user_dashboard' || raw === 'user-dashboard' || raw === 'my-dashboard' || raw === 'mydashboard' || raw === 'profile') {
+    return { tab: 'user_dashboard', module: 'MAIN' };
   }
   const resolved = HASH_TO_TAB[raw] || (raw as NavTab);
   if (resolved === 'jyotishi' || raw === 'jyotish' || raw === 'aarje') {
     const session = getActiveRBACSession();
     const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
     if (!isSuper && !checkServiceAccess('jyotish', session).allowed) {
-      return { tab: 'dashboard', module: 'MAIN' };
+      return { tab: 'home', module: 'MAIN' };
     }
     return { tab: 'jyotishi', module: 'JYOTISH' };
   }
@@ -389,14 +394,11 @@ const getInitialRouteFromHash = (): { tab: NavTab; module: 'MAIN' | 'JYOTISH' } 
     const session = getActiveRBACSession();
     const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
     if (!isSuper && !checkServiceAccess('vastu', session).allowed) {
-      return { tab: 'dashboard', module: 'MAIN' };
+      return { tab: 'home', module: 'MAIN' };
     }
   }
   if (resolved === 'user_dashboard') {
-    const session = getActiveRBACSession();
-    if (!session) {
-      return { tab: 'dashboard', module: 'MAIN' };
-    }
+    return { tab: 'user_dashboard', module: 'MAIN' };
   }
   return { tab: resolved, module: 'MAIN' };
 };
@@ -663,10 +665,17 @@ export default function App() {
       }
 
       const hash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
-      if (!hash || hash === 'dashboard' || hash === 'home') {
+      if (!hash || hash === 'home') {
         setActiveModule('MAIN');
-        setActiveTab('dashboard');
-        document.title = TAB_PAGE_TITLES.dashboard;
+        setActiveTab('home');
+        document.title = TAB_PAGE_TITLES.home;
+        return;
+      }
+
+      if (hash === 'dashboard' || hash === 'user_dashboard' || hash === 'user-dashboard' || hash === 'my-dashboard' || hash === 'mydashboard' || hash === 'profile') {
+        setActiveModule('MAIN');
+        setActiveTab('user_dashboard');
+        document.title = TAB_PAGE_TITLES.user_dashboard;
         return;
       }
 
@@ -676,8 +685,8 @@ export default function App() {
         const jAccess = checkServiceAccess('jyotish', session);
         if (!isSuper && !jAccess.allowed) {
           setActiveModule('MAIN');
-          setActiveTab('dashboard');
-          document.title = TAB_PAGE_TITLES.dashboard;
+          setActiveTab('home');
+          document.title = TAB_PAGE_TITLES.home;
           setLockedFeatureName('ज्योतिष सेवा');
           setIsClientPurchaseLeadModalOpen(true);
           return;
@@ -694,8 +703,8 @@ export default function App() {
         const vAccess = checkServiceAccess('vastu', session);
         if (!isSuper && !vAccess.allowed) {
           setActiveModule('MAIN');
-          setActiveTab('dashboard');
-          document.title = TAB_PAGE_TITLES.dashboard;
+          setActiveTab('home');
+          document.title = TAB_PAGE_TITLES.home;
           setLockedFeatureName('वास्तु सेवा');
           setIsClientPurchaseLeadModalOpen(true);
           return;
@@ -703,13 +712,6 @@ export default function App() {
       }
 
       const resolved = HASH_TO_TAB[hash] || (hash as NavTab);
-      if (resolved === 'user_dashboard' && !getActiveRBACSession()) {
-        setActiveModule('MAIN');
-        setActiveTab('dashboard');
-        document.title = TAB_PAGE_TITLES.dashboard;
-        setIsRBACAuthModalOpen(true);
-        return;
-      }
       setActiveModule('MAIN');
       setActiveTab(resolved);
 
@@ -879,10 +881,10 @@ export default function App() {
       setIsJyotishUnlocked(false);
       setIsVastuUnlocked(false);
 
-      // Reset any private user dashboard tab back to visitor dashboard
+      // Reset any private user dashboard tab back to visitor home
       setActiveTab(prev => {
         if (prev === 'user_dashboard' || prev === 'my_account') {
-          return 'dashboard';
+          return 'home';
         }
         return prev;
       });
@@ -1215,6 +1217,9 @@ export default function App() {
     replaceHistory: boolean = false
   ) => {
     let resolved = (targetTab as string) === 'patro' ? 'calendar' : (targetTab as NavTab);
+    if (resolved === 'dashboard') {
+      resolved = 'user_dashboard';
+    }
     
     if (resolved === 'settings') {
       setIsSettingsModalOpen(true);
@@ -1239,7 +1244,7 @@ export default function App() {
         resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' :
         resolved === 'vastu' ? 'वास्तु सेवा' :
         resolved === 'rashifal' ? 'दैनिक राशिफल' :
-        resolved === 'dashboard' ? 'गृहपृष्ठ' : 'यो सेवा'
+        resolved === 'home' ? 'गृहपृष्ठ' : 'यो सेवा'
       );
       setIsClientPurchaseLeadModalOpen(true);
       return;
@@ -1302,12 +1307,17 @@ export default function App() {
     setActiveModule('MAIN');
     setActiveTab(resolved);
 
-    const fullHash = targetHash === 'dashboard' ? '#dashboard' : `#${targetHash}`;
-    if (window.location.hash !== fullHash) {
+    const fullHash = resolved === 'home'
+      ? (window.location.hash === '' ? '' : '#home')
+      : (targetHash === 'dashboard' || resolved === 'user_dashboard')
+        ? '#dashboard'
+        : `#${targetHash}`;
+
+    if (window.location.hash !== fullHash && !(resolved === 'home' && window.location.hash === '')) {
       if (replaceHistory) {
-        window.history.replaceState({ tab: resolved }, '', fullHash);
+        window.history.replaceState({ tab: resolved }, '', fullHash || window.location.pathname);
       } else {
-        window.history.pushState({ tab: resolved }, '', fullHash);
+        window.history.pushState({ tab: resolved }, '', fullHash || window.location.pathname);
       }
     }
   }, [rbacSession, isFullyUnlocked]);
@@ -1319,14 +1329,14 @@ export default function App() {
 
   // Function to exit Jyotish workspace back to main
   const exitJyotishModule = useCallback(() => {
-    navigateTab('dashboard');
+    navigateTab('home');
   }, [navigateTab]);
 
   const handleLogoutRBAC = () => {
     clearRBACSession();
     setRbacSession(null);
     setPasalInitialTab('home');
-    navigateTab('dashboard', undefined, true);
+    navigateTab('home', undefined, true);
     if (window.location.search) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -2071,7 +2081,7 @@ export default function App() {
             <PageMaintenanceView
               pageTitle={currentPageControl?.titleNepali || 'यो सेवा'}
               maintenanceMessage={activePageAccess.reasonNepali || currentPageControl?.maintenanceMessage}
-              onGoHome={() => navigateTab('dashboard')}
+              onGoHome={() => navigateTab('home')}
             />
           ) : !rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(activeTab) && !ADMIN_PORTAL_TABS.has(activeTab) ? (
             <VedicLoginGateView
@@ -2105,7 +2115,7 @@ export default function App() {
                       profileName: currentProfile?.name
                     }}
                   >
-          {activeTab === 'dashboard' && (
+          {activeTab === 'home' && (
             <DashboardView
               todayPanchanga={todayPanchanga}
               activeProfile={activeProfile}
@@ -2421,7 +2431,7 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigateTab('dashboard')}
+                    onClick={() => navigateTab('home')}
                     className="px-4 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold text-sm rounded-xl cursor-pointer hover:bg-stone-200"
                   >
                     गृहपृष्ठमा फर्कनुहोस्
@@ -2438,7 +2448,7 @@ export default function App() {
             )
           )}
 
-          {activeTab === 'user_dashboard' && rbacSession && (
+          {(activeTab === 'user_dashboard' || (activeTab as string) === 'dashboard') && (
             <UserDashboardView
               rbacSession={rbacSession}
               activeProfile={resolvedUserProfile || (activeProfile && activeProfile.id !== 'live_current_moment' ? activeProfile : null)}
@@ -2447,7 +2457,7 @@ export default function App() {
               todayBS={todayBS}
               transitPlanets={todayTransitPlanets}
               orgProfile={orgProfile}
-              onNavigateHome={() => navigateTab('dashboard')}
+              onNavigateHome={() => navigateTab('home')}
               onNavigateTab={navigateTab}
               onUpdateProfile={(updated) => {
                 setActiveProfile(updated);
@@ -2477,21 +2487,21 @@ export default function App() {
             <VedicPasalMainView 
               initialTab={pasalInitialTab}
               orgProfile={orgProfile}
-              onNavigateHome={() => navigateTab('dashboard')} 
+              onNavigateHome={() => navigateTab('home')} 
             />
           )}
 
           {activeTab === 'app_download' && (
             <ApplicationDownloadView
               onOpenModal={() => setIsApkPromptModalOpen(true)}
-              onNavigateHome={() => navigateTab('dashboard')}
+              onNavigateHome={() => navigateTab('home')}
             />
           )}
 
           {activeTab === 'books_download' && (
             <DigitalLibraryView
               orgProfile={orgProfile}
-              onBackToStore={() => navigateTab('dashboard')}
+              onBackToStore={() => navigateTab('home')}
             />
           )}
 
@@ -2507,7 +2517,7 @@ export default function App() {
           )}
 
           {activeTab === 'apply_expert' && (
-            <ExpertApplicationView onNavigateToDashboard={() => navigateTab('dashboard')} />
+            <ExpertApplicationView onNavigateToDashboard={() => navigateTab('home')} />
           )}
 
           {activeTab === 'jyotishi' && (
@@ -2539,7 +2549,7 @@ export default function App() {
 
           {activeTab === 'admin_control' && (
             <AdminControlPanel
-              onClosePanel={() => navigateTab('dashboard')}
+              onClosePanel={() => navigateTab('home')}
               onNavigateApp={(tab) => navigateTab(tab as any)}
               initialTab={adminInitialTab as any}
               profiles={profiles || []}
@@ -2554,7 +2564,7 @@ export default function App() {
               onBackToDashboard={() => navigateTab('admin_control')}
               onLogoutAdmin={() => {
                 handleLogoutRBAC();
-                navigateTab('dashboard');
+                navigateTab('home');
               }}
             />
           )}
@@ -2564,7 +2574,7 @@ export default function App() {
               initialTab="admin"
               isStandalone={true}
               orgProfile={orgProfile}
-              onNavigateHome={() => navigateTab('dashboard')}
+              onNavigateHome={() => navigateTab('home')}
             />
           )}
 
@@ -2573,7 +2583,7 @@ export default function App() {
               initialTab="pos"
               isStandalone={true}
               orgProfile={orgProfile}
-              onNavigateHome={() => navigateTab('dashboard')}
+              onNavigateHome={() => navigateTab('home')}
             />
           )}
 
@@ -2596,7 +2606,7 @@ export default function App() {
                 todayPanchanga={todayPanchanga}
                 orgProfile={orgProfile}
                 transitPlanets={todayTransitPlanets}
-                onClose={() => navigateTab('dashboard')}
+                onClose={() => navigateTab('home')}
               />
             </div>
           )}
@@ -2716,15 +2726,15 @@ export default function App() {
             setIsRBACAuthModalOpen(false);
             setIsSuperAdminAuthModalOpen(false);
             if (session.role === 'SUPER_ADMIN') {
-              if (activeTab === 'dashboard') navigateTab('admin_control');
+              if (activeTab === 'home' || activeTab === 'dashboard') navigateTab('admin_control');
             } else if (session.role === 'STORE_ADMIN') {
-              if (activeTab === 'dashboard') navigateTab('store_admin');
+              if (activeTab === 'home' || activeTab === 'dashboard') navigateTab('store_admin');
             } else if (session.role === 'POS_STAFF') {
-              if (activeTab === 'dashboard') navigateTab('pos');
+              if (activeTab === 'home' || activeTab === 'dashboard') navigateTab('pos');
             } else if (session.role === 'NEWS_EDITOR') {
-              if (activeTab === 'dashboard') navigateTab('news_editor');
+              if (activeTab === 'home' || activeTab === 'dashboard') navigateTab('news_editor');
             } else if (session.role === 'MARRIAGE_MODERATOR') {
-              if (activeTab === 'dashboard') navigateTab('vivah_admin');
+              if (activeTab === 'home' || activeTab === 'dashboard') navigateTab('vivah_admin');
             }
           }}
         />
