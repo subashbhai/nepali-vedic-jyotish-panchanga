@@ -4,6 +4,7 @@ import { BirthDetails } from '../types/astrology';
 import { verifyClientMobileLogin, getClientPolicyByMobile, hashPassword } from './menuControlStore';
 import { authenticateUnifiedUser } from './unifiedSecurityBridge';
 import { isPermanentlyDeleted, addPermanentlyDeletedIdentifier, removePermanentlyDeletedIdentifier } from './securityBlacklist';
+import { apiClient } from '../services/apiClient';
 
 export type SystemRole = 'CUSTOMER' | 'POS_STAFF' | 'STORE_ADMIN' | 'SUPER_ADMIN' | 'MARRIAGE_USER' | 'MARRIAGE_MODERATOR' | 'NEWS_EDITOR';
 
@@ -628,38 +629,22 @@ export function registerRBACAccount(
     window.dispatchEvent(new CustomEvent('user-storage-updated'));
   }
 
-  try {
-    import('../services/unifiedUserSyncService').then(({ unifiedUserSyncService }) => {
-      unifiedUserSyncService.recordUserSignup(newUser);
-    }).catch(() => {});
-  } catch {}
 
   // Trigger server registration asynchronously to ensure permanent persistence in data/users.json
-  if (typeof window !== 'undefined' && typeof window.document !== 'undefined' && typeof fetch !== 'undefined') {
-    fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fullName: newUser.fullName,
-        phone: newUser.phone,
-        email: newUser.email,
-        password: data.password,
-        role: newUser.role,
-        address: data.address,
-        gender: data.birthDetails?.gender || 'male',
-        birthDetails: data.birthDetails,
-        birthProfileId: data.birthProfileId,
-        createdAtBS: newUser.createdAtBS
-      })
-    })
-      .then(r => r.json())
-      .then(res => {
-        if (res.success && res.user) {
-          syncUsersFromServer().catch(() => {});
-        }
-      })
-      .catch(e => console.warn('Server registration background sync warning:', e));
-  }
+  try {
+    apiClient.post('/api/auth/register', {
+      fullName: newUser.fullName,
+      phone: newUser.phone,
+      email: newUser.email,
+      password: data.password,
+      role: newUser.role,
+      address: data.address,
+      gender: data.birthDetails?.gender || 'male',
+      birthDetails: data.birthDetails,
+      birthProfileId: data.birthProfileId,
+      createdAtBS: newUser.createdAtBS
+    }).catch(e => console.warn('Server registration background sync warning:', e));
+  } catch {}
 
   // Log action
   logRBACAuditAction({
@@ -1034,6 +1019,17 @@ export function updateRBACUserProfile(
   window.dispatchEvent(new CustomEvent('balananda_user_profile_updated', { detail: updatedUser }));
   window.dispatchEvent(new CustomEvent('balananda_user_signed_up', { detail: updatedUser }));
   window.dispatchEvent(new CustomEvent('user-storage-updated'));
+
+  // Persist to backend server data/users.json immediately
+  try {
+    apiClient.put(`/api/users/${encodeURIComponent(userId)}/profile`, {
+      fullName: updatedUser.fullName,
+      email: updatedUser.email,
+      phone: updatedUser.phone,
+      birthDetails: updatedUser.birthDetails,
+      photoUrl: updatedUser.photoUrl
+    }).catch(e => console.warn('User profile API sync warning:', e));
+  } catch {}
 
   return {
     success: true,
