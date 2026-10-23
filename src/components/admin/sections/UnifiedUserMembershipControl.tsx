@@ -288,34 +288,70 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
   // Real-time SSE / Broadcast listener
   useEffect(() => {
     let evtSource: EventSource | null = null;
-    try {
-      evtSource = new EventSource(REALTIME_SSE_URL);
-      evtSource.onmessage = (e) => {
-        try {
-          const parsed = JSON.parse(e.data);
-          if ([
-            'USER_REGISTERED',
-            'USER_PROFILE_UPDATED',
-            'USER_STATUS_CHANGED',
-            'MEMBERSHIP_ACTIVATED',
-            'MEMBERSHIP_APPROVED',
-            'MEMBERSHIP_REJECTED',
-            'MEMBERSHIP_STATUS_MUTATED',
-            'USER_SERVICES_UPDATED'
-          ].includes(parsed.type)) {
+    if (typeof window !== 'undefined' && 'EventSource' in window) {
+      try {
+        evtSource = new EventSource(REALTIME_SSE_URL);
+        evtSource.onmessage = (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            if ([
+              'USER_REGISTERED',
+              'USER_PROFILE_UPDATED',
+              'USER_STATUS_CHANGED',
+              'MEMBERSHIP_ACTIVATED',
+              'MEMBERSHIP_APPROVED',
+              'MEMBERSHIP_REJECTED',
+              'MEMBERSHIP_STATUS_MUTATED',
+              'USER_SERVICES_UPDATED'
+            ].includes(parsed.type)) {
+              fetchUsers(true);
+            }
+          } catch {}
+        };
+      } catch {}
+    }
+
+    const handleSync = () => fetchUsers(true);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('user-registered', handleSync);
+      window.addEventListener('user-storage-updated', handleSync);
+      window.addEventListener('unified-data-updated', handleSync);
+      window.addEventListener('client-leads-updated', handleSync);
+      window.addEventListener('service-license-updated', handleSync);
+    }
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('balananda_unified_sync_bus_v2');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'SYNC_DATA_UPDATED' || event.data?.type === 'SYSTEM_RESET') {
             fetchUsers(true);
           }
-        } catch {}
-      };
-    } catch {}
+        };
+      } catch {}
+    }
 
-    const unsub = unifiedUserSyncService.subscribe(() => {
-      fetchUsers(true);
-    });
+    let unsub: (() => void) | null = null;
+    if (typeof unifiedUserSyncService?.subscribe === 'function') {
+      try {
+        unsub = unifiedUserSyncService.subscribe(() => {
+          fetchUsers(true);
+        });
+      } catch {}
+    }
 
     return () => {
       if (evtSource) evtSource.close();
-      unsub();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('user-registered', handleSync);
+        window.removeEventListener('user-storage-updated', handleSync);
+        window.removeEventListener('unified-data-updated', handleSync);
+        window.removeEventListener('client-leads-updated', handleSync);
+        window.removeEventListener('service-license-updated', handleSync);
+      }
+      if (bc) bc.close();
+      if (unsub) unsub();
     };
   }, [fetchUsers]);
 
