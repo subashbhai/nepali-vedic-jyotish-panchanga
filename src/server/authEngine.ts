@@ -61,6 +61,37 @@ function writeJsonAtomic(filePath: string, data: any) {
   }
 }
 
+/**
+ * Diagnostic Masking Utilities (Complies with Zero Secret Leakage security standards)
+ */
+export function maskPhoneNumber(phone: string): string {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length <= 4) return '****';
+  return digits.slice(0, 2) + '****' + digits.slice(-4);
+}
+
+export function maskEmailAddress(email: string): string {
+  if (!email || !email.includes('@')) return '***@***';
+  const [local, domain] = email.split('@');
+  const maskedLocal = local.length <= 2 ? local[0] + '***' : local[0] + '***' + local[local.length - 1];
+  return `${maskedLocal}@${domain}`;
+}
+
+export function logAuthAudit(event: string, meta: Record<string, any>) {
+  const timestamp = new Date().toISOString();
+  const entry = {
+    timestamp,
+    event,
+    ...meta
+  };
+  console.log(`[AUTH_AUDIT] ${timestamp} [${event}]`, JSON.stringify(entry));
+  try {
+    const dataDir = path.resolve(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    fs.appendFileSync(path.join(dataDir, 'otp_audit.log'), JSON.stringify(entry) + '\n');
+  } catch {}
+}
+
 class AuthEngine {
   private registrationChallenges = new Map<string, RegistrationChallenge>();
   private activeSessions = new Map<string, UserSessionData>();
@@ -137,9 +168,25 @@ class AuthEngine {
     emailRaw: string,
     existingUsers: Array<{ phone?: string; email?: string }>,
     clientIp: string = 'unknown'
-  ): Promise<{ success: boolean; challengeId?: string; message: string; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    challengeId?: string;
+    message: string;
+    deliveryStatus?: any;
+    devHint?: { phoneOtp: string; emailOtp: string };
+    isDevMock?: boolean;
+    partialDelivery?: boolean;
+    error?: string;
+  }> {
+    logAuthAudit('SIGNUP_REQUEST_RECEIVED', {
+      phone: maskPhoneNumber(phoneRaw),
+      email: maskEmailAddress(emailRaw),
+      clientIp
+    });
+
     // 1. Rate limiting
     if (!this.checkRateLimit(clientIp, 10, 60000).allowed) {
+      logAuthAudit('SIGNUP_RATE_LIMITED', { clientIp });
       return {
         success: false,
         message: 'धेरै पटक प्रयास भयो। कृपया १ मिनेटपछि पुनः प्रयास गर्नुहोस्।'
@@ -149,6 +196,7 @@ class AuthEngine {
     // 2. Validate Full Name
     const fullName = String(fullNameRaw || '').trim();
     if (!fullName || fullName.length < 2 || fullName.length > 70) {
+      logAuthAudit('SIGNUP_VALIDATION_FAILED', { reason: 'invalid_full_name' });
       return {
         success: false,
         message: 'कृपया पूरा नाम (२ देखि ७० अक्षरभित्र) अनिवार्य रूपमा प्रविष्ट गर्नुहोस्।'
@@ -158,6 +206,7 @@ class AuthEngine {
     // 3. Validate Phone Number
     const phoneNorm = normalizePhoneNumber(phoneRaw);
     if (!phoneNorm.valid) {
+      logAuthAudit('SIGNUP_VALIDATION_FAILED', { reason: 'invalid_phone_number' });
       return {
         success: false,
         message: 'कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx वा ९७xxxxxxxx)।'
@@ -167,6 +216,7 @@ class AuthEngine {
     // 4. Validate Email
     const emailNorm = normalizeEmail(emailRaw);
     if (!emailNorm.valid) {
+      logAuthAudit('SIGNUP_VALIDATION_FAILED', { reason: 'invalid_email' });
       return {
         success: false,
         message: 'कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस् (उदा: yourname@gmail.com)।'
@@ -184,6 +234,10 @@ class AuthEngine {
     });
 
     if (duplicateUser) {
+      logAuthAudit('SIGNUP_DUPLICATE_ACCOUNT', {
+        phone: maskPhoneNumber(clean10Digits),
+        email: maskEmailAddress(cleanEmail)
+      });
       return {
         success: false,
         message: 'यो मोबाइल नम्बर वा इमेल पहिले नै दर्ता भएको खातासँग आबद्ध छ। कृपया लगइन वा खाता पुनःप्राप्ति गर्नुहोस्।'
@@ -225,6 +279,13 @@ class AuthEngine {
     this.registrationChallenges.set(challengeId, challenge);
     this.persistChallenges();
 
+    logAuthAudit('CHALLENGE_CREATED', {
+      challengeId,
+      phone: maskPhoneNumber(challenge.phoneNormalized),
+      email: maskEmailAddress(challenge.email),
+      expiresAt: new Date(challenge.expiresAt).toISOString()
+    });
+
     // 7. Dispatch SMS and Email via real provider adapters concurrently
     const [smsResult, emailResult] = await Promise.all([
       smsProviderService.sendSMS(challenge.phoneNormalized, phoneOtp, {
@@ -236,29 +297,98 @@ class AuthEngine {
       })
     ]);
 
-    // Handle provider dispatch errors in production
-    if (!smsResult.success && process.env.NODE_ENV === 'production') {
-      this.registrationChallenges.delete(challengeId);
-      this.persistChallenges();
-      return {
-        success: false,
-        message: `मोबाइलमा SMS OTP पठाउन सकिएन: ${smsResult.error || 'सेवा प्रदायक समस्या'}`
-      };
-    }
-
-    if (!emailResult.success && process.env.NODE_ENV === 'production') {
-      this.registrationChallenges.delete(challengeId);
-      this.persistChallenges();
-      return {
-        success: false,
-        message: `इमेलमा OTP पठाउन सकिएन: ${emailResult.error || 'इमेल गेटवे समस्या'}`
-      };
-    }
-
-    return {
-      success: true,
+    logAuthAudit('OTP_DISPATCH_RESULTS', {
       challengeId,
-      message: 'तपाईंको मोबाइल र इमेल दुवैमा ६ अङ्कको गोप्य सुरक्षा कोड (OTP) पठाइएको छ। कृपया दुवै कोड प्रविष्ट गर्नुहोस्।'
+      sms: {
+        provider: smsResult.provider,
+        channelStatus: smsResult.channelStatus,
+        isMock: smsResult.isMock,
+        success: smsResult.success,
+        error: smsResult.error
+      },
+      email: {
+        provider: emailResult.provider,
+        channelStatus: emailResult.channelStatus,
+        isMock: emailResult.isMock,
+        success: emailResult.success,
+        error: emailResult.error
+      }
+    });
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    const bothMock = smsResult.isMock && emailResult.isMock;
+
+    // Case 1: Both in simulation/mock mode
+    if (bothMock) {
+      return {
+        success: true,
+        challengeId,
+        isDevMock: true,
+        deliveryStatus: {
+          sms: { success: true, provider: smsResult.provider, isMock: true, status: smsResult.channelStatus },
+          email: { success: true, provider: emailResult.provider, isMock: true, status: emailResult.channelStatus },
+          isMock: true
+        },
+        devHint: !isProduction ? { phoneOtp, emailOtp } : undefined,
+        message: '[परीक्षण मोड]: वास्तविक SMS/Email गेटवे (.env मा SPARROW_SMS_TOKEN / RESEND_API_KEY) कन्फिगर नभएकोले परीक्षण कोड कन्सोल र स्क्रिनमा उपलब्ध छ।'
+      };
+    }
+
+    // Case 2: Both real gateways succeeded
+    if (smsResult.success && emailResult.success) {
+      return {
+        success: true,
+        challengeId,
+        isDevMock: false,
+        deliveryStatus: {
+          sms: { success: true, provider: smsResult.provider, isMock: false, status: smsResult.channelStatus },
+          email: { success: true, provider: emailResult.provider, isMock: false, status: emailResult.channelStatus },
+          isMock: false
+        },
+        message: 'तपाईंको मोबाइल र इमेल दुवैमा ६ अङ्कको गोप्य सुरक्षा कोड (OTP) पठाइएको छ।'
+      };
+    }
+
+    // Case 3: Mobile SMS succeeded, but Email failed
+    if (smsResult.success && !emailResult.success) {
+      return {
+        success: true,
+        challengeId,
+        partialDelivery: true,
+        deliveryStatus: {
+          sms: { success: true, provider: smsResult.provider, isMock: smsResult.isMock, status: smsResult.channelStatus },
+          email: { success: false, provider: emailResult.provider, error: emailResult.error, status: emailResult.channelStatus }
+        },
+        devHint: !isProduction ? { phoneOtp, emailOtp } : undefined,
+        message: `मोबाइलमा SMS OTP पठाइयो। तर इमेल पठाउन सकिएन (${emailResult.error || 'इमेल गेटवे समस्या'})। तपाईं मोबाइल कोडबाट प्रमाणीकरण अघि बढाउन सक्नुहुन्छ।`
+      };
+    }
+
+    // Case 4: Email succeeded, but Mobile SMS failed
+    if (!smsResult.success && emailResult.success) {
+      return {
+        success: true,
+        challengeId,
+        partialDelivery: true,
+        deliveryStatus: {
+          sms: { success: false, provider: smsResult.provider, error: smsResult.error, status: smsResult.channelStatus },
+          email: { success: true, provider: emailResult.provider, isMock: emailResult.isMock, status: emailResult.channelStatus }
+        },
+        devHint: !isProduction ? { phoneOtp, emailOtp } : undefined,
+        message: `इमेलमा OTP पठाइयो। तर मोबाइलमा SMS पठाउन सकिएन (${smsResult.error || 'SMS गेटवे समस्या'})। कृपया इमेलबाट प्राप्त कोड प्रविष्ट गर्नुहोस्।`
+      };
+    }
+
+    // Case 5: Both failed
+    this.registrationChallenges.delete(challengeId);
+    this.persistChallenges();
+    return {
+      success: false,
+      deliveryStatus: {
+        sms: { success: false, provider: smsResult.provider, error: smsResult.error },
+        email: { success: false, provider: emailResult.provider, error: emailResult.error }
+      },
+      message: `OTP पठाउन सकिएन। SMS: ${smsResult.error || 'अज्ञात समस्या'}, Email: ${emailResult.error || 'अज्ञात समस्या'}`
     };
   }
 
@@ -434,7 +564,7 @@ class AuthEngine {
   async resendOTP(
     challengeId: string,
     target: 'phone' | 'email' | 'both'
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; devHint?: { phoneOtp?: string; emailOtp?: string } }> {
     const challenge = this.registrationChallenges.get(challengeId);
     if (!challenge) {
       return { success: false, message: 'सत्र फेला परेन। कृपया पुनः सुरु गर्नुहोस्।' };
@@ -457,10 +587,12 @@ class AuthEngine {
     const newSalt = crypto.randomBytes(16).toString('hex');
     challenge.salt = newSalt;
 
+    let newPhoneOtp = '';
+    let newEmailOtp = '';
     const promises: Promise<any>[] = [];
 
     if (target === 'phone' || target === 'both') {
-      const newPhoneOtp = generateSecureOTP();
+      newPhoneOtp = generateSecureOTP();
       challenge.phoneOtpHashed = hashOTP(newPhoneOtp, newSalt);
       challenge.phoneAttempts = 0;
       challenge.lastPhoneResendAt = now;
@@ -468,7 +600,7 @@ class AuthEngine {
     }
 
     if (target === 'email' || target === 'both') {
-      const newEmailOtp = generateSecureOTP();
+      newEmailOtp = generateSecureOTP();
       challenge.emailOtpHashed = hashOTP(newEmailOtp, newSalt);
       challenge.emailAttempts = 0;
       challenge.lastEmailResendAt = now;
@@ -477,7 +609,26 @@ class AuthEngine {
 
     this.persistChallenges();
     await Promise.all(promises);
-    return { success: true, message: 'नयाँ प्रमाणीकरण कोड (OTP) पुनः पठाइएको छ।' };
+
+    logAuthAudit('OTP_RESEND_DISPATCHED', {
+      challengeId,
+      target,
+      phone: maskPhoneNumber(challenge.phoneNormalized),
+      email: maskEmailAddress(challenge.email),
+      resendCount: challenge.resendCount
+    });
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    const devHint = !isProduction ? {
+      phoneOtp: newPhoneOtp || undefined,
+      emailOtp: newEmailOtp || undefined
+    } : undefined;
+
+    return {
+      success: true,
+      message: 'नयाँ प्रमाणीकरण कोड (OTP) पुनः पठाइएको छ।',
+      devHint
+    };
   }
 
   /**

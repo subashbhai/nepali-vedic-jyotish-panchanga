@@ -49,7 +49,7 @@ class ApiClient {
   }
 
   /**
-   * Set an explicit base URL (e.g. for Android Capacitor or tests)
+   * Set an explicit base URL (e.g. for Android Capacitor, tests, or remote backends)
    */
   public setBaseUrl(url: string): void {
     this.customBaseUrl = url.replace(/\/+$/, '');
@@ -61,7 +61,31 @@ class ApiClient {
   public getBaseUrl(): string {
     if (this.customBaseUrl) return this.customBaseUrl;
 
-    if (typeof window !== 'undefined' && typeof window.location !== 'undefined') {
+    if (typeof window !== 'undefined') {
+      // 1. Check local storage for explicitly configured backend URL
+      try {
+        const stored = localStorage.getItem('balananda_backend_url') || localStorage.getItem('balananda_api_base_url');
+        if (stored && stored.trim()) {
+          return stored.trim().replace(/\/+$/, '');
+        }
+      } catch {}
+
+      // 2. Check Vite environment variable
+      try {
+        const envUrl = (import.meta as any)?.env?.VITE_API_URL;
+        if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+          return envUrl.trim().replace(/\/+$/, '');
+        }
+      } catch {}
+
+      // 3. GitHub Pages detection: GitHub Pages (*.github.io) is a static hosting platform.
+      // It has no Express backend and strictly rejects POST requests with HTTP 405.
+      // Default to http://localhost:3000 so local server development/testing works without 405!
+      if (window.location.hostname && (window.location.hostname.endsWith('github.io') || window.location.hostname.includes('github.io'))) {
+        return 'http://localhost:3000';
+      }
+
+      // 4. Standard window origin if not static github.io
       const origin = window.location.origin;
       if (origin && origin !== 'null' && origin.startsWith('http')) {
         return origin;
@@ -72,7 +96,7 @@ class ApiClient {
       return `http://localhost:${process.env.PORT}`;
     }
 
-    return '';
+    return 'http://localhost:3000';
   }
 
   /**
@@ -186,11 +210,20 @@ class ApiClient {
         }
 
         if (!response.ok) {
-          const errorMsg = payload?.error || payload?.message || `सर्भर अनुरोध असफल भयो (${response.status})`;
+          let errorMsg = payload?.error || payload?.message;
+          if (!errorMsg) {
+            if (response.status === 405) {
+              errorMsg = 'सर्भर अनुरोध असफल भयो (HTTP 405 Method Not Allowed): स्ट्याटिक होस्टिङ (जस्तै GitHub Pages) मा ब्याकइन्ड सर्भर उपलब्ध छैन। कृपया ब्याकइन्ड (http://localhost:3000) चलाउनुहोस् वा ब्याकइन्ड API URL कन्फिगर गर्नुहोस्।';
+            } else {
+              errorMsg = `सर्भर अनुरोध असफल भयो (${response.status})`;
+            }
+          }
           return {
             success: false,
             statusCode: response.status,
             error: errorMsg,
+            message: errorMsg,
+            data: payload,
             ...payload
           };
         }
@@ -199,6 +232,7 @@ class ApiClient {
           return {
             success: payload.success !== undefined ? payload.success : true,
             statusCode: response.status,
+            data: payload.data !== undefined ? payload.data : payload,
             ...payload
           };
         }
