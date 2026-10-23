@@ -69,9 +69,9 @@ import { QuickDateConverter } from './QuickDateConverter';
 import { SocialShareModal } from './SocialShareModal';
 import { sanitizeCloneForCanvas } from '../utils/pdfGenerator';
 import { ReportActionToolbar } from './common/ReportActionToolbar';
-import { DailyWhatsAppDispatchManager } from './admin/DailyWhatsAppDispatchManager';
 import { RBACSession } from '../db/rbacStore';
 import { PersonalizedMemberAstrologyHub } from './dashboard/PersonalizedMemberAstrologyHub';
+import { getUserPersonalBirthProfile } from '../db/profileStore';
 import { 
   generateDailyVedicSankalpa,
   SankalpaPujaType,
@@ -173,12 +173,30 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
   const [sankalpaCopied, setSankalpaCopied] = useState(false);
   const [isDailyPanchangaModalOpen, setIsDailyPanchangaModalOpen] = useState(false);
 
+  // Resolve effective profile for the authenticated user to prevent showing other profiles (e.g. hari bahadur)
+  const effectiveProfile = React.useMemo(() => {
+    if (rbacSession) {
+      if (activeProfile && activeProfile.name === rbacSession.fullName) {
+        return activeProfile;
+      }
+      const userPersonal = getUserPersonalBirthProfile(
+        rbacSession.userId,
+        rbacSession.fullName,
+        rbacSession.phone || rbacSession.username
+      );
+      if (userPersonal) return userPersonal;
+    }
+    return activeProfile;
+  }, [rbacSession, activeProfile]);
+
   // Daily Sankalpa Customization & Full-Screen States
   const [sankalpaPujaType, setSankalpaPujaType] = useState<SankalpaPujaType>('daily');
   const [sankalpaGotra, setSankalpaGotra] = useState<string>(
-    activeProfile?.gotra || activeProfile?.fatherDetails?.gotra || 'अमुक (आफ्नो गोत्र)'
+    effectiveProfile?.gotra || effectiveProfile?.fatherDetails?.gotra || 'अमुक (आफ्नो गोत्र)'
   );
-  const [sankalpaName, setSankalpaName] = useState<string>(activeProfile?.name || 'subash khanal');
+  const [sankalpaName, setSankalpaName] = useState<string>(
+    effectiveProfile?.name || rbacSession?.fullName || 'श्रद्धेय यजमान'
+  );
   const [sankalpaLocation, setSankalpaLocation] = useState<string>('');
   const [isSankalpaFullScreen, setIsSankalpaFullScreen] = useState(false);
 
@@ -324,21 +342,24 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
   const [isDetectingCardGPS, setIsDetectingCardGPS] = React.useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = React.useState(false);
 
-  // Sync when activeProfile changes
+  // Sync when effectiveProfile or rbacSession changes
   React.useEffect(() => {
-    if (activeProfile?.location) {
-      setActiveGeoLocation(activeProfile.location);
+    const prof = effectiveProfile || activeProfile;
+    if (prof?.location) {
+      setActiveGeoLocation(prof.location);
     } else {
       setActiveGeoLocation(getStoredUserLocation());
     }
-    if (activeProfile?.name) {
-      setSankalpaName(activeProfile.name);
+    if (prof?.name) {
+      setSankalpaName(prof.name);
+    } else if (rbacSession?.fullName) {
+      setSankalpaName(rbacSession.fullName);
     }
-    const profileGotra = activeProfile?.gotra || activeProfile?.fatherDetails?.gotra;
+    const profileGotra = prof?.gotra || prof?.fatherDetails?.gotra;
     if (profileGotra) {
       setSankalpaGotra(profileGotra);
     }
-  }, [activeProfile]);
+  }, [effectiveProfile, activeProfile, rbacSession]);
 
   // Sync activeGeoLocation into sankalpaLocation if empty, contains 'undefined', or is an institutional/school/private name
   React.useEffect(() => {
@@ -652,9 +673,9 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
       )}
 
       {/* 🌟 PERSONALIZED MEMBER ASTROLOGICAL HUB (जब सदस्य लगइन भएको हुन्छ) */}
-      {rbacSession && activeProfile && (
+      {rbacSession && (
         <PersonalizedMemberAstrologyHub
-          profile={activeProfile}
+          profile={effectiveProfile || activeProfile!}
           todayPanchanga={todayPanchanga}
           todayAD={todayAD}
           todayBS={todayBS}
@@ -746,9 +767,9 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
                   </button>
                 </div>
 
-                {activeProfile && (
-                  <span className="text-[10px] bg-amber-50 dark:bg-stone-800 text-amber-900 dark:text-amber-200 px-2 py-1 rounded-xl font-bold border border-amber-200 dark:border-amber-800/60 max-w-[140px] truncate shrink-0" title={`यजमान: ${activeProfile.name}`}>
-                    यजमान: {activeProfile.name}
+                {(effectiveProfile || activeProfile) && (
+                  <span className="text-[10px] bg-amber-50 dark:bg-stone-800 text-amber-900 dark:text-amber-200 px-2 py-1 rounded-xl font-bold border border-amber-200 dark:border-amber-800/60 max-w-[140px] truncate shrink-0" title={`यजमान: ${(effectiveProfile || activeProfile)?.name}`}>
+                    यजमान: {(effectiveProfile || activeProfile)?.name}
                   </span>
                 )}
               </div>

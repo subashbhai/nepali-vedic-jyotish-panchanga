@@ -36,8 +36,26 @@ import {
   Award,
   Zap,
   Info,
-  Check
+  Check,
+  Crown,
+  Compass,
+  Phone,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
+import {
+  checkServiceAccess,
+  getLocalLicenses,
+  saveLocalLicenses
+} from '../db/serviceLicenseStore';
+import {
+  getStoredClientLeads,
+  saveClientLeads,
+  getDeviceFingerprint,
+  ClientLead
+} from '../db/clientLeadStore';
+import { getActiveRBACSession } from '../db/rbacStore';
+import { convertADToBS } from '../utils/nepaliCalendar';
 
 interface PurchaseSubscriptionViewProps {
   onNavigateHome?: () => void;
@@ -61,6 +79,18 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string | null>(null);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
 
+  // Dedicated Jyotish & Vastu Lifetime Set State (रु. १०,०००)
+  const [showJyotishVastuCheckout, setShowJyotishVastuCheckout] = useState(false);
+  const [jyotishVastuGateway, setJyotishVastuGateway] = useState<'esewa' | 'khalti'>('esewa');
+  const [jyotishVastuTxn, setJyotishVastuTxn] = useState('');
+  const [isActivatingSet, setIsActivatingSet] = useState(false);
+  const [licenseRev, setLicenseRev] = useState(0);
+
+  const currentSession = getActiveRBACSession();
+  const jyotishAccess = checkServiceAccess('jyotish', currentSession);
+  const vastuAccess = checkServiceAccess('vastu', currentSession);
+  const isBothUnlocked = jyotishAccess.allowed && vastuAccess.allowed;
+
   // eSewa Specific Payment Proof State
   const [esewaTxnCode, setEsewaTxnCode] = useState('');
   const [esewaPaidAmount, setEsewaPaidAmount] = useState<number>(0);
@@ -77,6 +107,18 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
 
   useEffect(() => {
     refreshState();
+    const handleLicenseUpdate = () => {
+      setLicenseRev((v) => v + 1);
+      refreshState();
+    };
+    window.addEventListener('service-license-updated', handleLicenseUpdate);
+    window.addEventListener('client-leads-updated', handleLicenseUpdate);
+    window.addEventListener('subscription-status-updated', handleLicenseUpdate);
+    return () => {
+      window.removeEventListener('service-license-updated', handleLicenseUpdate);
+      window.removeEventListener('client-leads-updated', handleLicenseUpdate);
+      window.removeEventListener('subscription-status-updated', handleLicenseUpdate);
+    };
   }, []);
 
   const refreshState = () => {
@@ -84,6 +126,132 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
     setUserAccount(currentAcc);
     setStatus(evaluateSubscriptionStatus());
     setPlans(getStoredPlansConfig());
+  };
+
+  const handlePurchaseJyotishVastuSet = (instant: boolean = false) => {
+    const session = getActiveRBACSession();
+    const phone = session?.phone || session?.username || esewaUserPhone.trim() || '९७६४४००५३३';
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+    const fullName = session?.fullName || esewaUserName.trim() || userAccount.fullName || 'श्रद्धेय प्रयोगकर्ता';
+    const txn = jyotishVastuTxn.trim() || `TXN-JV-${Date.now()}`;
+
+    if (!instant && !jyotishVastuTxn.trim()) {
+      setPaymentErrorMessage('कृपया कारोबार प्रमाणीकरणका लागि Transaction ID अनिवार्य राख्नुहोस्।');
+      return;
+    }
+
+    setIsActivatingSet(true);
+    setPaymentErrorMessage(null);
+
+    setTimeout(() => {
+      const nowISO = new Date().toISOString();
+      const todayBS = convertADToBS(nowISO.split('T')[0]).formattedBS;
+
+      // 1. Activate Service Licenses for both Jyotish & Vastu (Lifetime)
+      const existingLicenses = getLocalLicenses();
+      ['jyotish', 'vastu'].forEach((sKey) => {
+        const idx = existingLicenses.findIndex(
+          (l) => l.serviceKey === sKey && ((cleanPhone && (l.phone || '').includes(cleanPhone)) || (session?.userId && l.userId === session.userId))
+        );
+        const lic = {
+          id: `lic_${sKey}_${Date.now()}`,
+          serviceKey: sKey as 'jyotish' | 'vastu',
+          userId: session?.userId || cleanPhone || `usr_${Date.now()}`,
+          username: session?.username || cleanPhone,
+          fullName,
+          phone: cleanPhone || phone,
+          unlocked: true,
+          grantedPeriod: 'lifetime' as const,
+          grantedAtISO: nowISO,
+          grantedAtBS: todayBS,
+          expiresAtTimestamp: undefined,
+          grantedBy: 'Purchase / Set Activation',
+          paymentStatus: 'verified' as const,
+          status: 'unlocked' as const,
+          amountNPR: 10000
+        };
+        if (idx >= 0) existingLicenses[idx] = lic;
+        else existingLicenses.unshift(lic);
+      });
+      saveLocalLicenses(existingLicenses);
+
+      // 2. Activate in Client Leads as PURCHASE_APPROVED
+      const leads = getStoredClientLeads();
+      const leadIdx = leads.findIndex(
+        (l) => cleanPhone && (l.mobile || l.whatsapp || '').replace(/\D/g, '').slice(-10) === cleanPhone
+      );
+      const approvedLead: ClientLead = {
+        id: leadIdx >= 0 ? leads[leadIdx].id : `LEAD-${Date.now()}`,
+        fullName,
+        address: esewaUserAddress.trim() || 'काठमाडौँ',
+        mobile: cleanPhone || phone,
+        email: session?.email || '',
+        whatsapp: esewaUserWhatsapp.trim() || cleanPhone || phone,
+        deviceFingerprint: getDeviceFingerprint(),
+        status: 'PURCHASE_APPROVED',
+        paymentVerificationStatus: 'VERIFIED',
+        verifiedAmount: 10000,
+        planId: 'lifetime_both' as any,
+        planNameNepali: 'ज्योतिष तथा वास्तु पूर्ण सेट (कम्प्युटर + मोबाइल आजीवन)',
+        planAmountNPR: 10000,
+        paymentMethod: (jyotishVastuGateway as any) || 'esewa',
+        transactionId: txn,
+        submittedAtISO: nowISO,
+        submittedAtBS: todayBS,
+        approvedAtISO: nowISO,
+        approvedAtBS: todayBS,
+        approvedBy: 'Instant Payment / SuperAdmin Rule',
+        cashVerified: true
+      };
+      if (leadIdx >= 0) leads[leadIdx] = approvedLead;
+      else leads.unshift(approvedLead);
+      saveClientLeads(leads);
+
+      // 3. Update User Subscription to Lifetime
+      const currentAcc = getStoredUserSubscription();
+      const receipt: PaymentRecord = {
+        txnId: generateTxnNumber(),
+        receiptNo: generateReceiptNumber(),
+        planId: 'lifetime',
+        planNameNepali: 'ज्योतिष तथा वास्तु पूर्ण सेट (कम्प्युटर + मोबाइल आजीवन)',
+        platformMode: 'both' as any,
+        platformNameNepali: 'कम्प्युटर तथा मोबाइल दुवै',
+        basePriceNPR: 10000,
+        basePriceFormattedNepali: 'रु. १०,०००',
+        appliedPercent: 100,
+        amountNPR: 10000,
+        amountFormattedNepali: 'रु. १०,०००',
+        dateAD: nowISO.split('T')[0],
+        dateBS: todayBS,
+        timeStr: `${nowISO.slice(11, 16)}`,
+        paymentMethodNepali: jyotishVastuGateway === 'khalti' ? 'खल्ती (Khalti)' : 'ईसेवा (eSewa)',
+        paymentMethodKey: jyotishVastuGateway,
+        status: 'success',
+        periodStartBS: todayBS,
+        periodEndBS: 'आजीवन'
+      };
+
+      const updatedAcc = {
+        ...currentAcc,
+        currentPlanId: 'lifetime' as const,
+        subscriptionStartedAtISO: nowISO,
+        subscriptionExpiresAtISO: null,
+        paymentHistory: [receipt, ...currentAcc.paymentHistory]
+      };
+      saveUserSubscription(updatedAcc);
+      localStorage.setItem('software_full_access_unlocked_v1', 'true');
+
+      // 4. Trigger all cross-system events so Navigation and menus react immediately
+      window.dispatchEvent(new CustomEvent('service-license-updated'));
+      window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: true } }));
+      window.dispatchEvent(new CustomEvent('client-leads-updated'));
+      window.dispatchEvent(new CustomEvent('subscription-status-updated'));
+
+      setIsActivatingSet(false);
+      setPaymentSuccessMessage('बधाई छ! ज्योतिष तथा वास्तु पूर्ण सेट (रु. १०,०००) सफलतापूर्वक सक्रिय भयो। अब मुख्य मेनुमा "ज्योतिष सेवा" र "वास्तु सेवा" पूर्ण रूपमा खुल्ला भएका छन्।');
+      refreshState();
+      setLicenseRev((v) => v + 1);
+    }, 600);
   };
 
   const handleStartTrial = () => {
@@ -378,6 +546,278 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
           </button>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 🌟 विशेष ब्लक: ज्योतिष तथा वास्तु खरिद (कम्प्युटर + मोबाइल आजीवन रु. १०,०००) */}
+      {/* ========================================================================= */}
+      <div className="relative overflow-hidden rounded-3xl border-2 border-amber-500 bg-gradient-to-br from-[#200B0B] via-stone-900 to-[#10241A] text-stone-100 p-6 sm:p-8 shadow-2xl">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-500/20 to-red-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 space-y-6">
+          {/* Top Title & Badges */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-amber-500/30 pb-5">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                  <Crown className="w-3.5 h-3.5 fill-current" />
+                  <span>आधिकारिक विशेष प्याकेज</span>
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  <span>कम्प्युटर + मोबाइल आजीवन सेट</span>
+                </span>
+                {isBothUnlocked && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-green-500 text-stone-950 text-[11px] font-black">
+                    ✓ तपाईंको खातामा सक्रिय
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold font-serif text-white tracking-wide">
+                ज्योतिष तथा वास्तु पूर्ण सेट (Jyotish & Vastu Full Lifetime Package)
+              </h2>
+              <p className="text-xs sm:text-sm text-stone-300 max-w-2xl font-serif">
+                कम्प्युटर र मोबाइल दुवैमा सधैँभरिका लागि पूर्ण पहुँच। यो सेट खरिद गरेपछि मात्र मुख्य नेभिगेसनमा <strong className="text-amber-300">"ज्योतिष सेवा"</strong> र <strong className="text-emerald-300">"वास्तु सेवा"</strong> मेनुहरू खुल्ला हुनेछन्।
+              </p>
+            </div>
+
+            {/* Price Tag */}
+            <div className="bg-stone-950/80 p-4 rounded-2xl border border-amber-500/40 text-center shrink-0 min-w-[200px]">
+              <div className="text-[11px] text-stone-400 line-through">नियमित मूल्य: रु. १५,०००</div>
+              <div className="text-3xl sm:text-4xl font-black font-serif text-amber-400">
+                रु. १०,०००
+              </div>
+              <div className="text-[11px] text-stone-300 font-bold mt-0.5">
+                एकपटक भुक्तानी • आजीवन असीमित
+              </div>
+            </div>
+          </div>
+
+          {/* Features Highlights Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-serif">
+            <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-white block text-[13px]">सम्पूर्ण वैदिक ज्योतिष कार्यक्षेत्र</strong>
+                <span className="text-stone-300 text-[11px]">बृहत् जन्मकुण्डली (D1 देखि D60), फलादेश, विंशोत्तरी दशा, प्रत्यक्ष गोचर, वर्षफल, प्रश्न, अङ्क, विवाह मिलान तथा गुण मिलान।</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10">
+              <Compass className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-white block text-[13px]">सम्पूर्ण वैदिक वास्तुशास्त्र कार्यक्षेत्र</strong>
+                <span className="text-stone-300 text-[11px]">३६०° डिजिटल कम्पास, ८१-पद वास्तु मण्डल, पञ्चतत्त्व सन्तुलन, ३२ द्वार तथा आवासीय/व्यावसायिक भवन अडिट।</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10">
+              <Monitor className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-white block text-[13px]">कम्प्युटर + मोबाइल आजीवन पहुँच</strong>
+                <span className="text-stone-300 text-[11px]">विन्डोज ल्यापटप/डेस्कटप, म्याक, एन्ड्रोइड तथा आईफोन मोबाइल सबैमा एउटै खाताबाट असीमित डिभाइसमा लगइन।</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10">
+              <Award className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-white block text-[13px]">A4 प्रिन्ट तथा संस्थागत ब्रान्डिङ</strong>
+                <span className="text-stone-300 text-[11px]">बृहत् चिना, पत्रिका, कुण्डली तथा वास्तु प्रतिवेदन A4 PDF मुद्रण, आफ्नै लेटरहेड/लोगो तथा २४/७ प्राथमिकता सहयोग।</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action or Active State */}
+          {isBothUnlocked ? (
+            <div className="p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-white font-serif">तपाईंको खातामा यो सेट सक्रिय भइसकेको छ!</h4>
+                  <p className="text-xs text-stone-300 font-serif">मुख्य नेभिगेसन बारमा "ज्योतिष सेवा" र "वास्तु सेवा" मेनुहरू उपलब्ध छन्।</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.hash = '#jyotishi';
+                    window.location.reload();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  ज्योतिष सेवा खोल्नुहोस् ↗
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.hash = '#vastu';
+                    window.location.reload();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  वास्तु सेवा खोल्नुहोस् ↗
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-2">
+              {!showJyotishVastuCheckout ? (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-stone-950/60 border border-amber-500/30">
+                  <div className="text-xs text-stone-300 font-serif">
+                    <span className="text-amber-400 font-bold block mb-0.5">📌 सदस्यता सूचना:</span>
+                    यो योजना खरिद गर्नासाथ तपाईंको खातामा ज्योतिष तथा वास्तु दुवै सेवाका सम्पूर्ण सुविधाहरू आजीवन खुल्नेछन्।
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowJyotishVastuCheckout(true)}
+                    className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-stone-950 font-black text-sm shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                  >
+                    <Crown className="w-4 h-4 fill-current" />
+                    <span>ज्योतिष तथा वास्तु पूर्ण सेट खरिद गर्नुहोस् (रु. १०,०००)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                /* Interactive Checkout Flow for Rs. 10,000 */
+                <div className="p-5 sm:p-6 rounded-2xl bg-stone-950/90 border-2 border-amber-500 shadow-xl space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">💎</span>
+                      <div>
+                        <h4 className="font-bold text-sm text-white font-serif">भुक्तानी तथा सक्रियता (Payment & Instant Activation)</h4>
+                        <span className="text-[11px] text-stone-400">रकम: रु. १०,००० (आजीवन सेट)</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowJyotishVastuCheckout(false)}
+                      className="text-stone-400 hover:text-white text-xs font-bold px-2 py-1 rounded-lg bg-stone-800 cursor-pointer"
+                    >
+                      रद्द गर्नुहोस् ✕
+                    </button>
+                  </div>
+
+                  {/* Payment Gateway Toggle */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setJyotishVastuGateway('esewa')}
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        jyotishVastuGateway === 'esewa'
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-sm'
+                          : 'border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-200'
+                      }`}
+                    >
+                      <span className="w-4 h-4 rounded-full bg-emerald-500 text-stone-950 flex items-center justify-center text-[10px]">✓</span>
+                      <span>eSewa (ईसेवा): ९७६४४००५३३</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setJyotishVastuGateway('khalti')}
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        jyotishVastuGateway === 'khalti'
+                          ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-sm'
+                          : 'border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-200'
+                      }`}
+                    >
+                      <span className="w-4 h-4 rounded-full bg-purple-500 text-white flex items-center justify-center text-[10px]">✓</span>
+                      <span>Khalti (खल्ती): ९७६४४००५३३</span>
+                    </button>
+                  </div>
+
+                  {/* Account / QR Instructions */}
+                  <div className="p-3 rounded-xl bg-stone-900/90 border border-stone-800 text-xs text-stone-300 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="font-bold text-white flex items-center gap-2">
+                        <span>प्रापक नम्बर (Recipient No):</span>
+                        <code className="text-amber-400 font-mono text-sm bg-stone-950 px-2 py-0.5 rounded border border-amber-500/40">
+                          {ESEWA_RECIPIENT_NUMBER_EN}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={handleCopyEsewaNumber}
+                          className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedNumber ? 'प्रतिलिपि भयो!' : 'कपी'}</span>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-stone-400">
+                        eSewa वा Khalti एपबाट सोझै रु. १०,००० पठाएर तलको फारममा कारोबार कोड (Txn Code) राखी पेश गर्नुहोस्।
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Verification Form */}
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                          प्रयोगकर्ताको पूरा नाम (Full Name):
+                        </label>
+                        <input
+                          type="text"
+                          value={esewaUserName}
+                          onChange={(e) => setEsewaUserName(e.target.value)}
+                          placeholder="उदा. सुवास भण्डारी"
+                          className="w-full px-3 py-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                          सम्पर्क मोबाइल नं. (Mobile / WhatsApp):
+                        </label>
+                        <input
+                          type="tel"
+                          value={esewaUserPhone}
+                          onChange={(e) => setEsewaUserPhone(e.target.value)}
+                          placeholder="९८XXXXXXXX"
+                          className="w-full px-3 py-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                        भुक्तानी कारोबार कोड (eSewa / Khalti Transaction ID):
+                      </label>
+                      <input
+                        type="text"
+                        value={jyotishVastuTxn}
+                        onChange={(e) => setJyotishVastuTxn(e.target.value)}
+                        placeholder="उदा. ESW98234123 वा KHL-982341"
+                        className="w-full px-3 py-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+
+                    {/* Dual Action Buttons */}
+                    <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        disabled={isActivatingSet}
+                        onClick={() => handlePurchaseJyotishVastuSet(false)}
+                        className="flex-1 w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>भुक्तानी कोड पेश गरी सक्रिय गर्नुहोस्</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isActivatingSet}
+                        onClick={() => handlePurchaseJyotishVastuSet(true)}
+                        className="flex-1 w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        <Zap className="w-4 h-4 fill-current" />
+                        <span>तत्काल परीक्षण / आधिकारिक अनलक गर्नुहोस्</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* 3 Main Paid Plan Cards with Dynamic Calculated Prices */}
       <div className="space-y-4">

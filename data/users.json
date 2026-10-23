@@ -1,5 +1,109 @@
 [
   {
+    "id": "usr_1792754561615_81f36c",
+    "customerId": "सदस्य-२०८३-3705",
+    "username": "9764400533",
+    "phone": "9764400533",
+    "email": "anteemakash@gmail.com",
+    "fullName": "सुवास भण्डारी",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "mobileVerifiedAtISO": "2026-10-23T11:22:41.615Z",
+    "emailVerified": true,
+    "emailVerifiedAtISO": "2026-10-23T11:22:41.615Z",
+    "profileCompleted": true,
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "address": "कृष्णमन्दिर",
+    "gender": "male",
+    "birthDetails": {
+      "name": "सुवास भण्डारी",
+      "dateBS": "2040-02-17",
+      "time": "11:30 PM",
+      "location": {
+        "name": "झापा नेपाल",
+        "district": "झापा",
+        "province": "कोशी प्रदेश",
+        "country": "नेपाल"
+      },
+      "gender": "male"
+    },
+    "createdAtISO": "2026-10-23T11:22:41.615Z",
+    "updatedAtISO": "2026-10-23T11:22:41.615Z",
+    "lastLoginISO": "2026-10-23T11:22:41.615Z",
+    "province": "कोशी प्रदेश",
+    "district": "झापा",
+    "localLevel": "दमक",
+    "ward": "१",
+    "occupation": "पंडित",
+    "dobBS": "2040-2-17",
+    "birthTime": "11:30 PM",
+    "birthPlace": "झापा नेपाल",
+    "profileCompletedAtISO": "2026-10-23T11:24:45.312Z"
+  },
+  {
+    "id": "usr_1792753840552_ca8727",
+    "customerId": "सदस्य-२०८३-6023",
+    "username": "9804837330",
+    "phone": "9804837330",
+    "email": "test.vedic.1792753840349@example.com",
+    "fullName": "पं. अच्युत शर्मा",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "mobileVerifiedAtISO": "2026-10-23T11:10:40.552Z",
+    "emailVerified": true,
+    "emailVerifiedAtISO": "2026-10-23T11:10:40.552Z",
+    "profileCompleted": false,
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "address": "",
+    "gender": "other",
+    "birthDetails": null,
+    "createdAtISO": "2026-10-23T11:10:40.552Z",
+    "updatedAtISO": "2026-10-23T11:10:40.552Z",
+    "lastLoginISO": "2026-10-23T11:10:40.552Z"
+  },
+  {
+    "id": "usr_1792753797756_70eff1",
+    "customerId": "सदस्य-२०८३-4207",
+    "username": "9808615255",
+    "phone": "9808615255",
+    "email": "test.vedic.1792753797495@example.com",
+    "fullName": "पं. अच्युत शर्मा",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "mobileVerifiedAtISO": "2026-10-23T11:09:57.756Z",
+    "emailVerified": true,
+    "emailVerifiedAtISO": "2026-10-23T11:09:57.756Z",
+    "profileCompleted": false,
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "address": "",
+    "gender": "other",
+    "birthDetails": null,
+    "createdAtISO": "2026-10-23T11:09:57.756Z",
+    "updatedAtISO": "2026-10-23T11:09:57.756Z",
+    "lastLoginISO": "2026-10-23T11:09:57.756Z"
+  },
+  {
     "id": "usr_1792750963532_0xen8",
     "customerId": "सदस्य-२०८१-०००7",
     "username": "9800696958",
@@ -99,7 +203,8 @@
         "author": "admin",
         "createdAtISO": "2026-10-23T10:22:43.641Z"
       }
-    ]
+    ],
+    "profileCompleted": true
   },
   {
     "id": "usr_1792748618185_37hqo",
