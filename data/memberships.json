@@ -1,5 +1,68 @@
 [
   {
+    "id": "mem_1792750963663_ad4e8f",
+    "userId": "usr_1792750963532_0xen8",
+    "phone": "9800696958",
+    "email": "rajendra_1792750963529@example.com",
+    "fullName": "पण्डित राजेन्द्र शर्मा",
+    "planId": "yearly_both",
+    "planNameNepali": "मोबाइल + कम्प्युटर दुवै (१ वर्ष)",
+    "duration": "1_month",
+    "devices": "both",
+    "amountNPR": 1200,
+    "paymentMethod": "cash",
+    "paymentStatus": "VERIFIED",
+    "membershipStatus": "ACTIVE",
+    "cashVerified": true,
+    "cashVerifiedBy": "admin",
+    "cashVerifiedAtISO": "2026-10-23T10:22:43.663Z",
+    "submittedAtISO": "2026-10-23T10:22:43.663Z",
+    "submittedAtBS": "२०८१",
+    "approvedBy": "admin",
+    "approvedAtISO": "2026-10-23T10:22:43.663Z",
+    "approvedAtBS": "२०८१",
+    "activatedAtISO": "2026-10-23T10:22:43.663Z",
+    "expiresAtTimestamp": 1858414963663,
+    "expiresAtISO": "2028-11-21T10:22:43.663Z",
+    "expiresAtBS": "१ महिना थप",
+    "includedServices": [
+      "jyotish",
+      "panchanga"
+    ],
+    "adminNotes": "केन्द्रीय कार्यालय काउन्टरमा नगद प्राप्त",
+    "renewalCount": 2,
+    "history": [
+      {
+        "action": "MANUAL_ACTIVATION",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T10:22:43.663Z",
+        "performedBy": "admin",
+        "details": "प्रशासक admin द्वारा सदस्यता सक्रिय गरियो (मोबाइल + कम्प्युटर दुवै (१ वर्ष), 1_year)। कारण: केन्द्रीय कार्यालय काउन्टरमा नगद प्राप्त"
+      },
+      {
+        "action": "SERVICES_UPDATED",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T10:22:43.690Z",
+        "performedBy": "admin",
+        "details": "सेवाहरू संशोधन: jyotish, panchanga। कारण: केवल ज्योतिष सेवा खुल्ला गरिएको"
+      },
+      {
+        "action": "MEMBERSHIP_RENEWED",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T10:22:43.710Z",
+        "performedBy": "admin",
+        "details": "नवीकरण (1_year)। कैफियत: नियमित वार्षिक नवीकरण"
+      },
+      {
+        "action": "MEMBERSHIP_EXTENDED",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T10:22:43.723Z",
+        "performedBy": "admin",
+        "details": "म्याद थप (1_month)। कैफियत: विशेष अनुग्रह म्याद थप"
+      }
+    ]
+  },
+  {
     "id": "mem_1792748694478_313ea5",
     "userId": "user_expiring_test",
     "phone": "9841888888",

@@ -108,6 +108,26 @@ class UnifiedUserSyncService {
   private activePresenceMap = new Map<string, number>();
   private lastNetworkHeartbeatSentAt: number = 0;
 
+  /**
+   * Subscribe to unified sync updates across tabs and storage
+   */
+  public subscribe(listener: () => void): () => void {
+    if (typeof window === 'undefined') return () => {};
+    const handler = () => listener();
+    window.addEventListener('unified-data-updated', handler);
+    window.addEventListener('user-registered', handler);
+    window.addEventListener('user-storage-updated', handler);
+    window.addEventListener('client-leads-updated', handler);
+    window.addEventListener('service-license-updated', handler);
+    return () => {
+      window.removeEventListener('unified-data-updated', handler);
+      window.removeEventListener('user-registered', handler);
+      window.removeEventListener('user-storage-updated', handler);
+      window.removeEventListener('client-leads-updated', handler);
+      window.removeEventListener('service-license-updated', handler);
+    };
+  }
+
   constructor() {
     this.initPresenceMap();
 
