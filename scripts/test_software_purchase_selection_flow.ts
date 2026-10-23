@@ -83,23 +83,23 @@ async function runTest() {
   const unlockEvents = dispatchedEvents.filter(e => e.type === 'software-full-access-updated' && e.detail?.hasFullAccess === true);
   assert(unlockEvents.length === 0, '2.4 Modal does not auto-close (no false unlock event)');
 
-  // Test 3: Plan Selection (User selects 'yearly_mobile' - रु. २,०००)
-  console.log('\n--- TEST 3: User Selects Plan "१ वर्ष मोबाइल मात्र" (रु. २,०००) ---');
+  // Test 3: Plan Selection (User selects 'yearly_mobile' - रु. २००)
+  console.log('\n--- TEST 3: User Selects Plan "१ वर्ष मोबाइल मात्र" (रु. २००) ---');
   let selectedPlanCategory: 'yearly' | 'lifetime' = 'yearly';
   let selectedPlatform: 'both' | 'desktop' | 'mobile' = 'mobile';
   
   const planPricing: Record<string, { label: string; price: number; formatted: string }> = {
-    'yearly_mobile': { label: '१ वर्ष मोबाइल मात्र', price: 2000, formatted: 'रु. २,०००' },
-    'yearly_desktop': { label: '१ वर्ष कम्प्युटर मात्र', price: 3500, formatted: 'रु. ३,५००' },
-    'yearly_both': { label: '१ वर्ष मोबाइल + कम्प्युटर', price: 5000, formatted: 'रु. ५,०००' },
-    'lifetime_mobile': { label: 'आजीवन मोबाइल मात्र', price: 5000, formatted: 'रु. ५,०००' },
-    'lifetime_desktop': { label: 'आजीवन कम्प्युटर मात्र', price: 7500, formatted: 'रु. ७,५००' },
-    'lifetime_both': { label: 'आजीवन मोबाइल + कम्प्युटर', price: 10000, formatted: 'रु. १०,०००' },
+    'yearly_mobile': { label: '१ वर्ष मोबाइल मात्र', price: 200, formatted: 'रु. २००' },
+    'yearly_desktop': { label: '१ वर्ष कम्प्युटर मात्र', price: 500, formatted: 'रु. ५००' },
+    'yearly_both': { label: '१ वर्ष मोबाइल + कम्प्युटर (सर्वोत्कृष्ट / Best Value)', price: 1200, formatted: 'रु. १,२००' },
+    'lifetime_mobile': { label: 'आजीवन मोबाइल मात्र', price: 1000, formatted: 'रु. १,०००' },
+    'lifetime_desktop': { label: 'आजीवन कम्प्युटर मात्र', price: 2500, formatted: 'रु. २,५००' },
+    'lifetime_both': { label: 'आजीवन मोबाइल + कम्प्युटर (सर्वोत्कृष्ट / Best Value)', price: 3000, formatted: 'रु. ३,०००' },
   };
 
   let currentKey = `${selectedPlanCategory}_${selectedPlatform}`;
   let currentPlan = planPricing[currentKey];
-  assert(currentPlan.price === 2000, '3.1 Selected plan price is रु. २,०००');
+  assert(currentPlan.price === 200, '3.1 Selected plan price is रु. २००');
   assert(currentPlan.label === '१ वर्ष मोबाइल मात्र', '3.2 Selected plan label matches');
 
   // Attempt to submit before clicking OK -> must be blocked
@@ -133,11 +133,11 @@ async function runTest() {
   const storedLeads = getStoredClientLeads();
   assert(storedLeads.length === 1, '5.2 Exactly 1 lead stored in client leads');
   assert(storedLeads[0].planId === 'yearly_mobile', '5.3 Lead in Super Admin matches USER CHOSEN plan: yearly_mobile');
-  assert(storedLeads[0].planAmountNPR === 2000, '5.4 Lead amount is रु. २,००० (NOT the hardcoded रु. ५,०००)');
+  assert(storedLeads[0].planAmountNPR === 200, '5.4 Lead amount is रु. २०० (NOT old rates)');
   assert(storedLeads[0].planNameNepali === '१ वर्ष मोबाइल मात्र', '5.5 Lead label is "१ वर्ष मोबाइल मात्र"');
 
-  // Test 6: User Selects Lifetime Plan ("आजीवन मोबाइल + कम्प्युटर" - रु. १०,०००)
-  console.log('\n--- TEST 6: User Selects "आजीवन मोबाइल + कम्प्युटर" (रु. १०,०००) ---');
+  // Test 6: User Selects Lifetime Plan ("आजीवन मोबाइल + कम्प्युटर" - रु. ३,०००)
+  console.log('\n--- TEST 6: User Selects "आजीवन मोबाइल + कम्प्युटर (सर्वोत्कृष्ट / Best Value)" (रु. ३,०००) ---');
   selectedPlanCategory = 'lifetime';
   selectedPlatform = 'both';
   isPlanConfirmed = false; // Reset on plan change
@@ -145,8 +145,8 @@ async function runTest() {
 
   currentKey = `${selectedPlanCategory}_${selectedPlatform}`;
   currentPlan = planPricing[currentKey];
-  assert(currentPlan.price === 10000, '6.2 Lifetime plan price is रु. १०,०००');
-  assert(currentPlan.label === 'आजीवन मोबाइल + कम्प्युटर', '6.3 Lifetime plan label matches');
+  assert(currentPlan.price === 3000, '6.2 Lifetime plan price is रु. ३,०००');
+  assert(currentPlan.label === 'आजीवन मोबाइल + कम्प्युटर (सर्वोत्कृष्ट / Best Value)', '6.3 Lifetime plan label matches');
 
   // User confirms with OK
   isPlanConfirmed = true;
@@ -162,7 +162,7 @@ async function runTest() {
     planNameNepali: currentPlan.label,
     planAmountNPR: currentPlan.price,
     paymentMethod: 'khalti' as const,
-    transactionId: 'KHALTI-SITA-10000'
+    transactionId: 'KHALTI-SITA-3000'
   };
 
   const lifetimeRes = submitPurchaseApplication(lifetimeLead);
@@ -171,7 +171,7 @@ async function runTest() {
   const updatedLeads = getStoredClientLeads();
   assert(updatedLeads.length === 2, '6.6 Super Admin leads store contains both user applications');
   assert(updatedLeads[0].planId === 'lifetime_both', '6.7 Second lead correctly registered with lifetime_both');
-  assert(updatedLeads[0].planAmountNPR === 10000, '6.8 Amount correctly recorded as रु. १०,०००');
+  assert(updatedLeads[0].planAmountNPR === 3000, '6.8 Amount correctly recorded as रु. ३,०००');
 
   console.log('\n============================================================');
   console.log('🎉 ALL SOFTWARE PURCHASE SELECTION TESTS PASSED (100%)');
