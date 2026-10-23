@@ -417,8 +417,10 @@ export function getActiveRBACSession(): RBACSession | null {
 
 export function setRBACSession(session: RBACSession): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
-    localStorage.setItem('balananda_rbac_active_session_v1', JSON.stringify(session));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
+      localStorage.setItem('balananda_rbac_active_session_v1', JSON.stringify(session));
+    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('rbac-session-changed', { detail: session }));
     }
@@ -429,9 +431,11 @@ export function setRBACSession(session: RBACSession): void {
 
 export function clearRBACSession(): void {
   try {
-    localStorage.removeItem(STORAGE_KEYS.SESSION);
-    localStorage.removeItem('balananda_rbac_active_session_v1');
-    localStorage.removeItem('sukdev_user_subscription_account_v1');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+      localStorage.removeItem('balananda_rbac_active_session_v1');
+      localStorage.removeItem('sukdev_user_subscription_account_v1');
+    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('rbac-session-changed', { detail: null }));
     }

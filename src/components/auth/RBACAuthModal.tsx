@@ -73,6 +73,8 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [devHint, setDevHint] = useState<{ phoneOtp?: string; emailOtp?: string } | null>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState<any>(null);
 
   // Active Authenticated Session
   const [authenticatedSession, setAuthenticatedSession] = useState<RBACSession | null>(null);
@@ -208,6 +210,8 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
         setIsEmailVerified(false);
         setPhoneOtp('');
         setEmailOtp('');
+        setDevHint(res.devHint || null);
+        setDeliveryStatus(res.deliveryStatus || null);
         setResendCooldown(60);
         setCanResend(false);
         setMode('dual_otp');
@@ -331,6 +335,9 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       if (res.success) {
         setResendCooldown(60);
         setCanResend(false);
+        if (res.devHint) {
+          setDevHint(res.devHint);
+        }
         setSuccessMsg(res.message);
       } else {
         setErrorMsg(res.message);
@@ -662,6 +669,56 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                   तपाईंको मोबाइल <strong>{signupPhone}</strong> र इमेल <strong>{signupEmail}</strong> मा अलग-अलग ६ अङ्कको OTP पठाइएको छ। दुवै कोड प्रमाणीकरण गर्नुहोस्।
                 </p>
               </div>
+
+              {/* Dev/Test Mode Banner with 1-Click Auto-Fill */}
+              {devHint && (
+                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400/60 dark:border-amber-600/40 rounded-2xl text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+                      <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
+                      परीक्षण मोड (Simulation Mode)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (devHint.phoneOtp) setPhoneOtp(devHint.phoneOtp);
+                        if (devHint.emailOtp) setEmailOtp(devHint.emailOtp);
+                      }}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg shadow-xs cursor-pointer transition-colors flex items-center gap-1"
+                    >
+                      <span>परीक्षण कोड स्वतः भर्नुहोस्</span>
+                      <span>⚡</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed">
+                    सर्भरमा प्रत्यक्ष SMS/Email गेटवे (.env मा SPARROW_SMS_TOKEN / RESEND_API_KEY) कन्फिगर नभएकोले परीक्षण कोड स्वतः प्रदान गरिएको हो:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 font-mono font-bold text-center">
+                    <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-amber-300 dark:border-amber-700">
+                      <span className="text-[10px] text-stone-500 block">मोबाइल OTP (SMS):</span>
+                      <span className="text-amber-700 dark:text-amber-300 text-sm tracking-widest">{devHint.phoneOtp || '---'}</span>
+                    </div>
+                    <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-amber-300 dark:border-amber-700">
+                      <span className="text-[10px] text-stone-500 block">इमेल OTP (Email):</span>
+                      <span className="text-amber-700 dark:text-amber-300 text-sm tracking-widest">{devHint.emailOtp || '---'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Channel Warnings if one failed */}
+              {deliveryStatus?.sms && !deliveryStatus.sms.success && (
+                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <span>SMS गेटवे चेतावनी: {deliveryStatus.sms.error || 'मोबाइलमा सन्देश पठाउन सकिएन।'}</span>
+                </div>
+              )}
+              {deliveryStatus?.email && !deliveryStatus.email.success && (
+                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <span>इमेल गेटवे चेतावनी: {deliveryStatus.email.error || 'इमेल पठाउन सकिएन।'}</span>
+                </div>
+              )}
 
               {/* Channel 1: Mobile Phone OTP Block */}
               <div className={`p-4 rounded-2xl border-2 transition-all ${isPhoneVerified ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200' : 'bg-stone-50 dark:bg-stone-900 border-stone-300 dark:border-stone-700'}`}>

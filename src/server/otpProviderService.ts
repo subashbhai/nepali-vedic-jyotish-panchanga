@@ -3,15 +3,23 @@ import crypto from 'crypto';
 export interface SMSDeliveryResult {
   success: boolean;
   provider: string;
+  isMock: boolean;
+  channelStatus: 'gateway_delivered' | 'gateway_accepted' | 'gateway_rejected' | 'gateway_unconfigured' | 'mock_simulated';
   messageId?: string;
   error?: string;
+  notice?: string;
+  missingConfig?: string[];
 }
 
 export interface EmailDeliveryResult {
   success: boolean;
   provider: string;
+  isMock: boolean;
+  channelStatus: 'gateway_delivered' | 'gateway_accepted' | 'gateway_rejected' | 'gateway_unconfigured' | 'mock_simulated';
   messageId?: string;
   error?: string;
+  notice?: string;
+  missingConfig?: string[];
 }
 
 /**
@@ -83,13 +91,19 @@ export function hashOTP(otp: string, salt: string): string {
  * SMS Provider Adapter supporting Sparrow SMS, Twilio, Generic Webhook, and Test/Dev mock.
  */
 export class SMSProviderService {
-  private providerType: string;
-  private isProduction: boolean;
   private lastSentOTPs = new Map<string, string>();
 
-  constructor() {
-    this.providerType = (process.env.SMS_PROVIDER || 'mock').toLowerCase();
-    this.isProduction = process.env.NODE_ENV === 'production';
+  public getActiveProvider(): string {
+    const explicit = (process.env.SMS_PROVIDER || '').trim().toLowerCase();
+    if (explicit) return explicit;
+    if (process.env.SPARROW_SMS_TOKEN) return 'sparrow';
+    if (process.env.TWILIO_ACCOUNT_SID) return 'twilio';
+    if (process.env.SMS_WEBHOOK_URL) return 'webhook';
+    return 'mock';
+  }
+
+  public get isProduction(): boolean {
+    return process.env.NODE_ENV === 'production';
   }
 
   getLastSentOTP(phone: string): string | undefined {
@@ -97,139 +111,224 @@ export class SMSProviderService {
   }
 
   async sendSMS(toPhone: string, otpCode: string, templateContext?: { appName?: string }): Promise<SMSDeliveryResult> {
-    this.lastSentOTPs.set(toPhone.replace(/\D/g, '').slice(-10), otpCode);
+    const providerType = this.getActiveProvider();
+    const clean10 = toPhone.replace(/\D/g, '').slice(-10);
+    this.lastSentOTPs.set(clean10, otpCode);
     this.lastSentOTPs.set(toPhone, otpCode);
+
     const appName = templateContext?.appName || 'बालानन्द वैदिक ज्योतिष';
     const messageText = `[${appName}] तपाईंको सुरक्षा प्रमाणीकरण कोड (OTP): ${otpCode} हो। यो कोड ५ मिनेटका लागि मात्र मान्य छ। कसैसँग सेयर नगर्नुहोस्।`;
 
-    // 1. Sparrow SMS (Nepal's official SMS gateway)
-    if (this.providerType === 'sparrow') {
+    // 1. Sparrow SMS (Nepal's Official Gateway)
+    if (providerType === 'sparrow') {
       const token = process.env.SPARROW_SMS_TOKEN;
       const from = process.env.SPARROW_SMS_FROM || 'TheAlert';
 
-      if (!token) {
-        if (this.isProduction) {
-          console.error('[SMSProvider] Sparrow SMS Token missing in production environment!');
-          return { success: false, provider: 'sparrow', error: 'SMS सेवा कन्फिगर गरिएको छैन (SPARROW_SMS_TOKEN missing).' };
-        }
-      } else {
-        try {
-          const res = await fetch('http://api.sparrowsms.com/v2/sms/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              token,
-              from,
-              to: toPhone.replace(/\D/g, '').slice(-10),
-              text: messageText
-            })
-          });
+      if (!token || token === 'your_sparrow_sms_token') {
+        return {
+          success: false,
+          provider: 'sparrow',
+          isMock: false,
+          channelStatus: 'gateway_unconfigured',
+          error: 'Sparrow SMS टोकन (.env मा SPARROW_SMS_TOKEN) खाली वा पूर्वनिर्धारित छ।',
+          missingConfig: ['SPARROW_SMS_TOKEN']
+        };
+      }
 
-          const data: any = await res.json().catch(() => ({}));
-          if (res.ok && (data.response_code === 200 || data.count >= 1)) {
-            console.log(`[SMSProvider] Sparrow SMS dispatched to ${toPhone.slice(-4)}`);
-            return { success: true, provider: 'sparrow', messageId: data.response_code };
-          }
-          return { success: false, provider: 'sparrow', error: data.response || 'Sparrow SMS dispatch failed' };
-        } catch (err: any) {
-          return { success: false, provider: 'sparrow', error: err.message };
+      try {
+        const res = await fetch('http://api.sparrowsms.com/v2/sms/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            token,
+            from,
+            to: clean10,
+            text: messageText
+          })
+        });
+
+        const data: any = await res.json().catch(() => ({}));
+        if (res.ok && (data.response_code === 200 || data.count >= 1)) {
+          return {
+            success: true,
+            provider: 'sparrow',
+            isMock: false,
+            channelStatus: 'gateway_accepted',
+            messageId: String(data.response_code || '200'),
+            notice: 'Sparrow SMS गेटवेमा सन्देश सफलतापूर्वक पठाइयो।'
+          };
         }
+
+        // Map Sparrow SMS specific error codes
+        let errorDetail = data.response || 'Sparrow SMS dispatch failed';
+        if (data.response_code === 1001) errorDetail = 'Sparrow SMS टोकन अमान्य छ (1001 Invalid Token)';
+        if (data.response_code === 1002) errorDetail = 'सन्देश खाली छ (1002 Empty Text)';
+        if (data.response_code === 1003) errorDetail = 'SMS मौज्दात (Credit) समाप्त भएको छ (1003 Insufficient Credit)';
+        if (data.response_code === 1004) errorDetail = 'अमान्य प्रेषक आईडी (1004 Invalid Sender ID)';
+        if (data.response_code === 1005) errorDetail = 'अमान्य प्रापक मोबाइल नम्बर (1005 Invalid Recipient)';
+
+        return {
+          success: false,
+          provider: 'sparrow',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: errorDetail
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'sparrow',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `Sparrow SMS नेटवर्क त्रुटि: ${err.message}`
+        };
       }
     }
 
     // 2. Twilio SMS
-    if (this.providerType === 'twilio') {
+    if (providerType === 'twilio') {
       const sid = process.env.TWILIO_ACCOUNT_SID;
       const auth = process.env.TWILIO_AUTH_TOKEN;
       const from = process.env.TWILIO_PHONE_NUMBER;
 
-      if (!sid || !auth || !from) {
-        if (this.isProduction) {
-          return { success: false, provider: 'twilio', error: 'Twilio credentials missing in production environment.' };
+      if (!sid || !auth || !from || sid === 'your_twilio_sid') {
+        const missing: string[] = [];
+        if (!sid || sid === 'your_twilio_sid') missing.push('TWILIO_ACCOUNT_SID');
+        if (!auth || auth === 'your_twilio_token') missing.push('TWILIO_AUTH_TOKEN');
+        if (!from) missing.push('TWILIO_PHONE_NUMBER');
+        return {
+          success: false,
+          provider: 'twilio',
+          isMock: false,
+          channelStatus: 'gateway_unconfigured',
+          error: `Twilio विवरण (.env) अधुरो छ: ${missing.join(', ')}`,
+          missingConfig: missing
+        };
+      }
+
+      try {
+        const authHeader = Buffer.from(`${sid}:${auth}`).toString('base64');
+        const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${authHeader}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            To: toPhone,
+            From: from,
+            Body: messageText
+          })
+        });
+        const data: any = await res.json();
+        if (res.ok) {
+          return {
+            success: true,
+            provider: 'twilio',
+            isMock: false,
+            channelStatus: 'gateway_accepted',
+            messageId: data.sid,
+            notice: 'Twilio SMS गेटवेमा स्वीकार भयो।'
+          };
         }
-      } else {
-        try {
-          const authHeader = Buffer.from(`${sid}:${auth}`).toString('base64');
-          const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Basic ${authHeader}`,
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: new URLSearchParams({
-              To: toPhone,
-              From: from,
-              Body: messageText
-            })
-          });
-          const data: any = await res.json();
-          if (res.ok) {
-            return { success: true, provider: 'twilio', messageId: data.sid };
-          }
-          return { success: false, provider: 'twilio', error: data.message || 'Twilio SMS failed' };
-        } catch (err: any) {
-          return { success: false, provider: 'twilio', error: err.message };
-        }
+        return {
+          success: false,
+          provider: 'twilio',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: data.message || `Twilio SMS त्रुटि (${res.status})`
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'twilio',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `Twilio नेटवर्क त्रुटि: ${err.message}`
+        };
       }
     }
 
     // 3. Generic SMS Webhook
-    if (this.providerType === 'webhook') {
+    if (providerType === 'webhook') {
       const url = process.env.SMS_WEBHOOK_URL;
       const token = process.env.SMS_WEBHOOK_BEARER;
 
       if (!url) {
-        if (this.isProduction) {
-          return { success: false, provider: 'webhook', error: 'SMS webhook URL missing in production environment.' };
+        return {
+          success: false,
+          provider: 'webhook',
+          isMock: false,
+          channelStatus: 'gateway_unconfigured',
+          error: 'SMS Webhook URL (.env मा SMS_WEBHOOK_URL) खाली छ।',
+          missingConfig: ['SMS_WEBHOOK_URL']
+        };
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ to: toPhone, text: messageText, template: 'registration_otp' })
+        });
+        if (res.ok) {
+          return {
+            success: true,
+            provider: 'webhook',
+            isMock: false,
+            channelStatus: 'gateway_accepted',
+            notice: 'SMS Webhook मा पठाइयो।'
+          };
         }
-      } else {
-        try {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ to: toPhone, text: messageText, template: 'registration_otp' })
-          });
-          if (res.ok) return { success: true, provider: 'webhook' };
-          return { success: false, provider: 'webhook', error: 'Webhook response status ' + res.status };
-        } catch (err: any) {
-          return { success: false, provider: 'webhook', error: err.message };
-        }
+        return {
+          success: false,
+          provider: 'webhook',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `Webhook प्रतिक्रिया स्थिति: ${res.status}`
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'webhook',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `Webhook त्रुटि: ${err.message}`
+        };
       }
     }
 
-    // 4. Development / Testing Mock Provider
-    if (!this.isProduction || this.providerType === 'mock') {
-      // In development / test environment, securely record delivery event without returning plaintext in API
-      console.log(`[SMSProvider:DEV-MOCK] OTP sent to phone ending with ${toPhone.slice(-4)} at ${new Date().toISOString()}`);
-      return {
-        success: true,
-        provider: 'dev-mock',
-        messageId: `MOCK-SMS-${Date.now()}`
-      };
-    }
-
+    // 4. Development / Testing Mock Provider (fallback when no gateway configured)
     return {
-      success: false,
-      provider: this.providerType,
-      error: 'उत्पादन प्रणालीमा मान्य SMS गेटवे कन्फिगर गरिएको छैन। कृपया SPARROW_SMS_TOKEN वा TWILIO_ACCOUNT_SID व्यवस्था गर्नुहोस्।'
+      success: true,
+      provider: 'dev-mock',
+      isMock: true,
+      channelStatus: 'mock_simulated',
+      messageId: `MOCK-SMS-${Date.now()}`,
+      notice: 'परीक्षण सिम्युलेसन मोड: वास्तविक SMS गेटवे (.env मा SPARROW_SMS_TOKEN) कन्फिगर नभएकोले परीक्षण कोड कन्सोल र इन्टरफेसमा उपलब्ध गराइएको छ।'
     };
   }
 }
 
 /**
- * Email Provider Adapter supporting Resend, SendGrid, SMTP Relay, and Test/Dev mock.
+ * Email Provider Adapter supporting Resend, SendGrid, and Test/Dev mock.
  */
 export class EmailProviderService {
-  private providerType: string;
-  private isProduction: boolean;
   private lastSentOTPs = new Map<string, string>();
 
-  constructor() {
-    this.providerType = (process.env.EMAIL_PROVIDER || 'mock').toLowerCase();
-    this.isProduction = process.env.NODE_ENV === 'production';
+  public getActiveProvider(): string {
+    const explicit = (process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
+    if (explicit) return explicit;
+    if (process.env.RESEND_API_KEY) return 'resend';
+    if (process.env.SENDGRID_API_KEY) return 'sendgrid';
+    return 'mock';
+  }
+
+  public get isProduction(): boolean {
+    return process.env.NODE_ENV === 'production';
   }
 
   getLastSentOTP(email: string): string | undefined {
@@ -237,6 +336,7 @@ export class EmailProviderService {
   }
 
   async sendEmail(toEmail: string, otpCode: string, templateContext?: { appName?: string; fullName?: string }): Promise<EmailDeliveryResult> {
+    const providerType = this.getActiveProvider();
     this.lastSentOTPs.set(toEmail.toLowerCase().trim(), otpCode);
     const appName = templateContext?.appName || 'बालानन्द वैदिक ज्योतिष सेवा';
     const fullName = templateContext?.fullName || 'आदरणीय सदस्य';
@@ -269,89 +369,132 @@ export class EmailProviderService {
     `;
 
     // 1. Resend API
-    if (this.providerType === 'resend') {
+    if (providerType === 'resend') {
       const apiKey = process.env.RESEND_API_KEY;
-      const from = process.env.EMAIL_FROM || 'Balananda Jyotish <auth@balanandajyotish.com>';
+      const from = process.env.EMAIL_FROM || 'Balananda Jyotish <onboarding@resend.dev>';
 
-      if (!apiKey) {
-        if (this.isProduction) {
-          return { success: false, provider: 'resend', error: 'Resend API Key missing in production environment.' };
+      if (!apiKey || apiKey === 'your_resend_api_key') {
+        return {
+          success: false,
+          provider: 'resend',
+          isMock: false,
+          channelStatus: 'gateway_unconfigured',
+          error: 'Resend API Key (.env मा RESEND_API_KEY) खाली वा पूर्वनिर्धारित छ।',
+          missingConfig: ['RESEND_API_KEY']
+        };
+      }
+
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from,
+            to: [toEmail],
+            subject,
+            html: htmlBody
+          })
+        });
+
+        const data: any = await res.json();
+        if (res.ok) {
+          return {
+            success: true,
+            provider: 'resend',
+            isMock: false,
+            channelStatus: 'gateway_accepted',
+            messageId: data.id,
+            notice: 'Resend इमेल गेटवेमा सन्देश सफलतापूर्वक स्वीकार भयो।'
+          };
         }
-      } else {
-        try {
-          const res = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              from,
-              to: [toEmail],
-              subject,
-              html: htmlBody
-            })
-          });
-          const data: any = await res.json();
-          if (res.ok) {
-            return { success: true, provider: 'resend', messageId: data.id };
-          }
-          return { success: false, provider: 'resend', error: data.message || 'Resend email dispatch failed' };
-        } catch (err: any) {
-          return { success: false, provider: 'resend', error: err.message };
-        }
+        return {
+          success: false,
+          provider: 'resend',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: data.message || `Resend इमेल अस्वीकृत (${res.status})`
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'resend',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `Resend नेटवर्क त्रुटि: ${err.message}`
+        };
       }
     }
 
     // 2. SendGrid API
-    if (this.providerType === 'sendgrid') {
+    if (providerType === 'sendgrid') {
       const apiKey = process.env.SENDGRID_API_KEY;
       const from = process.env.EMAIL_FROM || 'auth@balanandajyotish.com';
 
-      if (!apiKey) {
-        if (this.isProduction) {
-          return { success: false, provider: 'sendgrid', error: 'SendGrid API key missing in production.' };
+      if (!apiKey || apiKey === 'your_sendgrid_api_key') {
+        return {
+          success: false,
+          provider: 'sendgrid',
+          isMock: false,
+          channelStatus: 'gateway_unconfigured',
+          error: 'SendGrid API key (.env मा SENDGRID_API_KEY) खाली वा पूर्वनिर्धारित छ।',
+          missingConfig: ['SENDGRID_API_KEY']
+        };
+      }
+
+      try {
+        const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email: toEmail }] }],
+            from: { email: from, name: appName },
+            subject,
+            content: [{ type: 'text/html', value: htmlBody }]
+          })
+        });
+
+        if (res.ok || res.status === 202) {
+          return {
+            success: true,
+            provider: 'sendgrid',
+            isMock: false,
+            channelStatus: 'gateway_accepted',
+            notice: 'SendGrid इमेल गेटवेमा स्वीकार भयो।'
+          };
         }
-      } else {
-        try {
-          const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              personalizations: [{ to: [{ email: toEmail }] }],
-              from: { email: from, name: appName },
-              subject,
-              content: [{ type: 'text/html', value: htmlBody }]
-            })
-          });
-          if (res.ok || res.status === 202) {
-            return { success: true, provider: 'sendgrid' };
-          }
-          const text = await res.text();
-          return { success: false, provider: 'sendgrid', error: text || 'Sendgrid error' };
-        } catch (err: any) {
-          return { success: false, provider: 'sendgrid', error: err.message };
-        }
+        const text = await res.text();
+        return {
+          success: false,
+          provider: 'sendgrid',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: text || `Sendgrid त्रुटि (${res.status})`
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'sendgrid',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `Sendgrid नेटवर्क त्रुटि: ${err.message}`
+        };
       }
     }
 
-    // 3. Development / Testing Mock Provider
-    if (!this.isProduction || this.providerType === 'mock') {
-      console.log(`[EmailProvider:DEV-MOCK] OTP email sent to ${toEmail.replace(/(.{2})(.*)(?=@)/, '$1***')} at ${new Date().toISOString()}`);
-      return {
-        success: true,
-        provider: 'dev-mock',
-        messageId: `MOCK-EMAIL-${Date.now()}`
-      };
-    }
-
+    // 3. Development / Testing Mock Provider (fallback when no gateway configured)
     return {
-      success: false,
-      provider: this.providerType,
-      error: 'उत्पादन प्रणालीमा मान्य इमेल सेवा कन्फिगर गरिएको छैन। कृपया RESEND_API_KEY वा SENDGRID_API_KEY व्यवस्था गर्नुहोस्।'
+      success: true,
+      provider: 'dev-mock',
+      isMock: true,
+      channelStatus: 'mock_simulated',
+      messageId: `MOCK-EMAIL-${Date.now()}`,
+      notice: 'परीक्षण सिम्युलेसन मोड: वास्तविक Email गेटवे (.env मा RESEND_API_KEY) कन्फिगर नभएकोले परीक्षण कोड कन्सोल र इन्टरफेसमा उपलब्ध गराइएको छ।'
     };
   }
 }

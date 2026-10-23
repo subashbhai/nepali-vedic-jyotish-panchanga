@@ -5,6 +5,17 @@ export interface SignupStartResponse {
   success: boolean;
   challengeId?: string;
   message: string;
+  deliveryStatus?: {
+    sms?: { success: boolean; provider: string; error?: string; isMock?: boolean; status?: string };
+    email?: { success: boolean; provider: string; error?: string; isMock?: boolean; status?: string };
+    isMock?: boolean;
+  };
+  devHint?: {
+    phoneOtp: string;
+    emailOtp: string;
+  };
+  isDevMock?: boolean;
+  partialDelivery?: boolean;
 }
 
 export interface OTPVerifyResponse {
@@ -13,6 +24,10 @@ export interface OTPVerifyResponse {
   emailVerified: boolean;
   isBothVerified: boolean;
   message: string;
+  devHint?: {
+    phoneOtp?: string;
+    emailOtp?: string;
+  };
 }
 
 export interface SignupFinalizeResponse {
@@ -50,10 +65,22 @@ class AuthService {
       email: email.trim().toLowerCase()
     });
 
-    if (res.data) return res.data;
+    const payload = (res.data || res) as any;
+    if (res.success && payload?.challengeId) {
+      return {
+        success: true,
+        challengeId: payload.challengeId,
+        message: payload.message || 'तपाईंको सुरक्षा कोड (OTP) पठाइएको छ।',
+        deliveryStatus: payload.deliveryStatus,
+        devHint: payload.devHint,
+        isDevMock: payload.isDevMock,
+        partialDelivery: payload.partialDelivery
+      };
+    }
+
     return {
       success: false,
-      message: res.error || 'साइन अप सुरु गर्दा समस्या आयो।'
+      message: payload?.message || res.error || 'साइन अप सुरु गर्दा समस्या आयो।'
     };
   }
 
@@ -66,13 +93,23 @@ class AuthService {
       otp: otp.trim()
     });
 
-    if (res.data) return res.data;
+    const payload = (res.data || res) as any;
+    if (res.success) {
+      return {
+        success: true,
+        phoneVerified: Boolean(payload.phoneVerified),
+        emailVerified: Boolean(payload.emailVerified),
+        isBothVerified: Boolean(payload.isBothVerified),
+        message: payload.message || 'मोबाइल OTP प्रमाणीकरण भयो।'
+      };
+    }
+
     return {
       success: false,
       phoneVerified: false,
-      emailVerified: false,
+      emailVerified: Boolean(payload?.emailVerified),
       isBothVerified: false,
-      message: res.error || 'मोबाइल OTP प्रमाणीकरण असफल भयो।'
+      message: payload?.message || res.error || 'मोबाइल OTP प्रमाणीकरण असफल भयो।'
     };
   }
 
@@ -85,29 +122,47 @@ class AuthService {
       otp: otp.trim()
     });
 
-    if (res.data) return res.data;
+    const payload = (res.data || res) as any;
+    if (res.success) {
+      return {
+        success: true,
+        phoneVerified: Boolean(payload.phoneVerified),
+        emailVerified: Boolean(payload.emailVerified),
+        isBothVerified: Boolean(payload.isBothVerified),
+        message: payload.message || 'इमेल OTP प्रमाणीकरण भयो।'
+      };
+    }
+
     return {
       success: false,
-      phoneVerified: false,
+      phoneVerified: Boolean(payload?.phoneVerified),
       emailVerified: false,
       isBothVerified: false,
-      message: res.error || 'इमेल OTP प्रमाणीकरण असफल भयो।'
+      message: payload?.message || res.error || 'इमेल OTP प्रमाणीकरण असफल भयो।'
     };
   }
 
   /**
    * Phase 5: Resend OTP (with 60s cooldown enforcement on server)
    */
-  async resendOTP(challengeId: string, target: 'phone' | 'email' | 'both' = 'both'): Promise<{ success: boolean; message: string }> {
-    const res = await apiClient.post<{ success: boolean; message: string }>('/api/auth/signup/resend-otp', {
+  async resendOTP(challengeId: string, target: 'phone' | 'email' | 'both' = 'both'): Promise<{ success: boolean; message: string; devHint?: any }> {
+    const res = await apiClient.post<{ success: boolean; message: string; devHint?: any }>('/api/auth/signup/resend-otp', {
       challengeId,
       target
     });
 
-    if (res.data) return res.data;
+    const payload = (res.data || res) as any;
+    if (res.success) {
+      return {
+        success: true,
+        message: payload.message || 'नयाँ प्रमाणीकरण कोड पुनः पठाइएको छ।',
+        devHint: payload.devHint
+      };
+    }
+
     return {
       success: false,
-      message: res.error || 'OTP पुनः पठाउन सकिएन।'
+      message: payload?.message || res.error || 'OTP पुनः पठाउन सकिएन।'
     };
   }
 
