@@ -1,0 +1,74 @@
+[
+  {
+    "id": "audit_1792745561235_fc416f",
+    "membershipId": "mem_1792745561228_15e7fb",
+    "userId": "user_expiring_test",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:52:41.236Z",
+    "details": "सक्रिय: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745561231_6883e4",
+    "membershipId": "mem_1792745561228_15e7fb",
+    "userId": "user_expiring_test",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "परीक्षण प्रयोगकर्ता",
+    "timestampISO": "2026-10-23T08:52:41.231Z",
+    "details": "योजना: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745561224_e260a0",
+    "membershipId": "mem_1792745561216_afee57",
+    "userId": "usr_1792745561208_41a884",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:52:41.225Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745561218_3b2ff3",
+    "membershipId": "mem_1792745561216_afee57",
+    "userId": "usr_1792745561208_41a884",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "सीता देवी सुवेदी",
+    "timestampISO": "2026-10-23T08:52:41.218Z",
+    "details": "योजना: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475423_164271",
+    "membershipId": "mem_1792745475415_756cf6",
+    "userId": "user_expiring_test",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:51:15.423Z",
+    "details": "सक्रिय: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475418_b9db0d",
+    "membershipId": "mem_1792745475415_756cf6",
+    "userId": "user_expiring_test",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "परीक्षण प्रयोगकर्ता",
+    "timestampISO": "2026-10-23T08:51:15.418Z",
+    "details": "योजना: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475412_3a91b0",
+    "membershipId": "mem_1792745475403_6e287e",
+    "userId": "usr_1792745475398_e9616c",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:51:15.412Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475406_938b9d",
+    "membershipId": "mem_1792745475403_6e287e",
+    "userId": "usr_1792745475398_e9616c",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "सीता देवी सुवेदी",
+    "timestampISO": "2026-10-23T08:51:15.406Z",
+    "details": "योजना: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  }
+]

@@ -460,6 +460,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
 
       if (filterType === 'active') finalUsers = finalUsers.filter(u => u.status === 'active');
       else if (filterType === 'suspended') finalUsers = finalUsers.filter(u => u.status === 'suspended');
+      else if (filterType === 'incomplete_registration') finalUsers = finalUsers.filter(u => !u.profileCompleted);
       else if (filterType === 'in_trial') finalUsers = finalUsers.filter(u => u.trial?.isTrialActive);
       else if (filterType === 'purchase_requested') {
         finalUsers = finalUsers.filter(u => {
@@ -1485,6 +1486,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 className="bg-transparent text-xs text-stone-200 outline-none cursor-pointer font-medium"
               >
                 <option value="all" className="bg-stone-900">सबै प्रयोगकर्ता ({stats.totalUsers})</option>
+                <option value="incomplete_registration" className="bg-stone-900 font-bold text-amber-300">⚠️ अपूर्ण प्रोफाइल / पहिलो चरण मात्र</option>
                 <option value="live_online" className="bg-stone-900 font-bold text-emerald-400">🟢 हाल अनलाइन रहेका ({stats.onlineUsers || 0})</option>
                 <option value="today" className="bg-stone-900">आजका नयाँ दर्ता ({stats.todaySignups})</option>
                 <option value="7days" className="bg-stone-900">पछिल्लो ७ दिनका दर्ता</option>

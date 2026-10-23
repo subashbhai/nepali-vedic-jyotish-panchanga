@@ -1,0 +1,20 @@
+{
+  "4b6af86d3b8c1af0d24aa4b13ccc7d2c8f88ab8725d204315f7a41e4a5fe79c5": {
+    "userId": "usr_progressive_test",
+    "phone": "9841999000",
+    "email": "progressive@example.com",
+    "fullName": "विस्तृत प्रोफाइल परीक्षक",
+    "role": "CUSTOMER",
+    "profileCompleted": true,
+    "expiresAt": 1795337584244
+  },
+  "795668867a7ed7d21589ff7753a5a9708e42414b00c3166d9802b43718cbad2e": {
+    "userId": "usr_1792745584259_049409",
+    "phone": "9841112222",
+    "email": "malicious@example.com",
+    "fullName": "दुष्ट प्रयोगकर्ता",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795337584259
+  }
+}
