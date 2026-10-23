@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import {
   generateSecureOTP,
   hashOTP,
@@ -43,10 +45,72 @@ const RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
 const MAX_VERIFICATION_ATTEMPTS = 5;
 const MAX_RESEND_COUNT = 3;
 
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const CHALLENGES_FILE = path.join(DATA_DIR, 'otp_challenges.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'active_sessions.json');
+
+function writeJsonAtomic(filePath: string, data: any) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmp = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tmp, filePath);
+  } catch {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  }
+}
+
 class AuthEngine {
   private registrationChallenges = new Map<string, RegistrationChallenge>();
   private activeSessions = new Map<string, UserSessionData>();
   private ipRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+  constructor() {
+    this.loadFromDisk();
+  }
+
+  public loadFromDisk(): void {
+    try {
+      if (fs.existsSync(CHALLENGES_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(CHALLENGES_FILE, 'utf-8'));
+        if (Array.isArray(raw)) {
+          const now = Date.now();
+          raw.forEach((c: RegistrationChallenge) => {
+            if (c && c.expiresAt > now) {
+              this.registrationChallenges.set(c.challengeId, c);
+            }
+          });
+        }
+      }
+      if (fs.existsSync(SESSIONS_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'));
+        if (typeof raw === 'object' && raw !== null) {
+          const now = Date.now();
+          Object.entries(raw).forEach(([token, sess]: [string, any]) => {
+            if (sess && sess.expiresAt > now) {
+              this.activeSessions.set(token, sess);
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[AuthEngine] Error loading state from disk:', err);
+    }
+  }
+
+  private persistChallenges(): void {
+    const list = Array.from(this.registrationChallenges.values());
+    writeJsonAtomic(CHALLENGES_FILE, list);
+  }
+
+  private persistSessions(): void {
+    const obj: Record<string, UserSessionData> = {};
+    this.activeSessions.forEach((val, key) => {
+      obj[key] = val;
+    });
+    writeJsonAtomic(SESSIONS_FILE, obj);
+  }
 
   // Helper: check rate limit per IP
   checkRateLimit(ip: string, maxRequests: number = 20, windowMs: number = 60000): { allowed: boolean; remaining: number } {
@@ -109,38 +173,40 @@ class AuthEngine {
       };
     }
 
-    // 5. Uniqueness check against existing verified accounts
-    const clean10 = phoneNorm.display.slice(-10);
-    const existing = existingUsers.find(u => {
-      const uPhone = String(u.phone || '').replace(/\D/g, '').slice(-10);
-      const uEmail = String(u.email || '').trim().toLowerCase();
-      return uPhone === clean10 || (uEmail && uEmail === emailNorm.normalized);
+    // 5. Uniqueness validation: Check against existing accounts
+    const clean10Digits = phoneNorm.display;
+    const cleanEmail = emailNorm.normalized;
+
+    const duplicateUser = existingUsers.find(u => {
+      const uPhone = (u.phone || '').replace(/\D/g, '').slice(-10);
+      const uEmail = (u.email || '').toLowerCase().trim();
+      return (uPhone && uPhone === clean10Digits) || (uEmail && uEmail === cleanEmail);
     });
 
-    if (existing) {
+    if (duplicateUser) {
       return {
         success: false,
         message: 'यो मोबाइल नम्बर वा इमेल पहिले नै दर्ता भएको खातासँग आबद्ध छ। कृपया लगइन वा खाता पुनःप्राप्ति गर्नुहोस्।'
       };
     }
 
-    // 6. Generate Dual OTPs and Salt
-    const salt = crypto.randomBytes(16).toString('hex');
+    // 6. Generate secure 6-digit OTPs and unique cryptographic salt
     const phoneOtp = generateSecureOTP();
     const emailOtp = generateSecureOTP();
+    const salt = crypto.randomBytes(16).toString('hex');
 
     const phoneOtpHashed = hashOTP(phoneOtp, salt);
     const emailOtpHashed = hashOTP(emailOtp, salt);
 
-    const challengeId = `reg_ch_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const now = Date.now();
+    const challengeId = `ch_${now}_${crypto.randomBytes(6).toString('hex')}`;
 
     const challenge: RegistrationChallenge = {
       challengeId,
       fullName,
-      phone: clean10,
+      phone: clean10Digits,
       phoneNormalized: phoneNorm.normalized,
-      email: emailNorm.normalized,
+      email: cleanEmail,
       phoneOtpHashed,
       emailOtpHashed,
       salt,
@@ -155,27 +221,44 @@ class AuthEngine {
       resendCount: 0
     };
 
-    // Store in active challenge registry
+    // Store in persistent state
     this.registrationChallenges.set(challengeId, challenge);
+    this.persistChallenges();
 
-    // 7. Dispatch OTPs concurrently through Real Providers
-    const [smsRes, emailRes] = await Promise.all([
-      smsProviderService.sendSMS(phoneNorm.normalized, phoneOtp),
-      emailProviderService.sendEmail(emailNorm.normalized, emailOtp, { fullName })
+    // 7. Dispatch SMS and Email via real provider adapters concurrently
+    const [smsResult, emailResult] = await Promise.all([
+      smsProviderService.sendSMS(challenge.phoneNormalized, phoneOtp, {
+        appName: 'बालानन्द वैदिक ज्योतिष सेवा'
+      }),
+      emailProviderService.sendEmail(challenge.email, emailOtp, {
+        fullName: challenge.fullName,
+        appName: 'बालानन्द वैदिक ज्योतिष सेवा'
+      })
     ]);
 
-    if (!smsRes.success && !emailRes.success) {
+    // Handle provider dispatch errors in production
+    if (!smsResult.success && process.env.NODE_ENV === 'production') {
       this.registrationChallenges.delete(challengeId);
+      this.persistChallenges();
       return {
         success: false,
-        message: `OTP पठाउन सकिएन। SMS: ${smsRes.error || 'त्रुटि'}, इमेल: ${emailRes.error || 'त्रुटि'}`
+        message: `मोबाइलमा SMS OTP पठाउन सकिएन: ${smsResult.error || 'सेवा प्रदायक समस्या'}`
+      };
+    }
+
+    if (!emailResult.success && process.env.NODE_ENV === 'production') {
+      this.registrationChallenges.delete(challengeId);
+      this.persistChallenges();
+      return {
+        success: false,
+        message: `इमेलमा OTP पठाउन सकिएन: ${emailResult.error || 'इमेल गेटवे समस्या'}`
       };
     }
 
     return {
       success: true,
       challengeId,
-      message: 'तपाईंको मोबाइल नम्बर र इमेल ठेगानामा अलग-अलग ६ अङ्कको सुरक्षा कोड (OTP) पठाइएको छ।'
+      message: 'तपाईंको मोबाइल र इमेल दुवैमा ६ अङ्कको गोप्य सुरक्षा कोड (OTP) पठाइएको छ। कृपया दुवै कोड प्रविष्ट गर्नुहोस्।'
     };
   }
 
@@ -199,6 +282,7 @@ class AuthEngine {
 
     if (Date.now() > challenge.expiresAt) {
       this.registrationChallenges.delete(challengeId);
+      this.persistChallenges();
       return {
         success: false,
         phoneVerified: false,
@@ -210,6 +294,7 @@ class AuthEngine {
 
     if (challenge.phoneAttempts >= MAX_VERIFICATION_ATTEMPTS) {
       this.registrationChallenges.delete(challengeId);
+      this.persistChallenges();
       return {
         success: false,
         phoneVerified: false,
@@ -226,6 +311,7 @@ class AuthEngine {
       challenge.phoneAttempts++;
       if (challenge.phoneAttempts >= MAX_VERIFICATION_ATTEMPTS) {
         this.registrationChallenges.delete(challengeId);
+        this.persistChallenges();
         return {
           success: false,
           phoneVerified: false,
@@ -234,6 +320,7 @@ class AuthEngine {
           message: 'धेरै पटक गलत OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरियो।'
         };
       }
+      this.persistChallenges();
       const remaining = MAX_VERIFICATION_ATTEMPTS - challenge.phoneAttempts;
       return {
         success: false,
@@ -246,6 +333,7 @@ class AuthEngine {
 
     // Success
     challenge.phoneVerified = true;
+    this.persistChallenges();
     const isBothVerified = challenge.phoneVerified && challenge.emailVerified;
 
     return {
@@ -277,6 +365,7 @@ class AuthEngine {
 
     if (Date.now() > challenge.expiresAt) {
       this.registrationChallenges.delete(challengeId);
+      this.persistChallenges();
       return {
         success: false,
         phoneVerified: false,
@@ -288,6 +377,7 @@ class AuthEngine {
 
     if (challenge.emailAttempts >= MAX_VERIFICATION_ATTEMPTS) {
       this.registrationChallenges.delete(challengeId);
+      this.persistChallenges();
       return {
         success: false,
         phoneVerified: false,
@@ -304,6 +394,7 @@ class AuthEngine {
       challenge.emailAttempts++;
       if (challenge.emailAttempts >= MAX_VERIFICATION_ATTEMPTS) {
         this.registrationChallenges.delete(challengeId);
+        this.persistChallenges();
         return {
           success: false,
           phoneVerified: false,
@@ -312,6 +403,7 @@ class AuthEngine {
           message: 'धेरै पटक गलत इमेल OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरियो।'
         };
       }
+      this.persistChallenges();
       const remaining = MAX_VERIFICATION_ATTEMPTS - challenge.emailAttempts;
       return {
         success: false,
@@ -324,6 +416,7 @@ class AuthEngine {
 
     // Success
     challenge.emailVerified = true;
+    this.persistChallenges();
     const isBothVerified = challenge.phoneVerified && challenge.emailVerified;
 
     return {
@@ -382,6 +475,7 @@ class AuthEngine {
       promises.push(emailProviderService.sendEmail(challenge.email, newEmailOtp, { fullName: challenge.fullName }));
     }
 
+    this.persistChallenges();
     await Promise.all(promises);
     return { success: true, message: 'नयाँ प्रमाणीकरण कोड (OTP) पुनः पठाइएको छ।' };
   }
@@ -409,6 +503,7 @@ class AuthEngine {
 
     // Challenge consumed
     this.registrationChallenges.delete(challengeId);
+    this.persistChallenges();
 
     const now = new Date();
     const userId = `usr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
@@ -425,13 +520,16 @@ class AuthEngine {
       roleNameNepali: 'यजमान / ग्राहक',
       status: 'active',
       mobileVerified: true,
+      mobileVerifiedAtISO: now.toISOString(),
       emailVerified: true,
+      emailVerifiedAtISO: now.toISOString(),
       profileCompleted: false, // Second stage profile completion pending
       permissions: ['store.view', 'kundali.view', 'profile.edit', 'yajaman.view'],
       address: '',
       gender: 'other',
       birthDetails: null,
       createdAtISO: now.toISOString(),
+      updatedAtISO: now.toISOString(),
       lastLoginISO: now.toISOString()
     };
 
@@ -446,6 +544,7 @@ class AuthEngine {
       profileCompleted: false,
       expiresAt
     });
+    this.persistSessions();
 
     return {
       success: true,
@@ -462,13 +561,17 @@ class AuthEngine {
     if (!session) return null;
     if (Date.now() > session.expiresAt) {
       this.activeSessions.delete(token);
+      this.persistSessions();
       return null;
     }
     return session;
   }
 
   revokeSession(token: string): void {
-    if (token) this.activeSessions.delete(token);
+    if (token) {
+      this.activeSessions.delete(token);
+      this.persistSessions();
+    }
   }
 
   createSession(user: { id: string; phone: string; email?: string; fullName: string; role: string; profileCompleted?: boolean }): string {
@@ -482,6 +585,7 @@ class AuthEngine {
       profileCompleted: Boolean(user.profileCompleted),
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
     });
+    this.persistSessions();
     return token;
   }
 
@@ -493,6 +597,8 @@ class AuthEngine {
     this.registrationChallenges.clear();
     this.activeSessions.clear();
     this.ipRateLimits.clear();
+    this.persistChallenges();
+    this.persistSessions();
   }
 }
 

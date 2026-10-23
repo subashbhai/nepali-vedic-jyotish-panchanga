@@ -7,6 +7,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { authEngine } from "./src/server/authEngine";
+import { membershipEngine, MEMBERSHIP_PLANS } from "./src/server/membershipEngine";
 
 dotenv.config();
 
@@ -16,6 +17,17 @@ async function startServer() {
 
   app.use(express.json({ limit: "500mb" }));
   app.use(express.urlencoded({ limit: "500mb", extended: true }));
+
+  // CORS & Preflight handling to ensure cross-origin/Electron/Capacitor requests never get 405
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-superadmin-token, x-admin-role");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
 
   // Initialize Gemini AI client server-side
   const getGeminiClient = () => {
@@ -452,6 +464,37 @@ async function startServer() {
 
     const cleanDigits = cleanInput.replace(/\D/g, "").slice(-10);
     const cleanLower = cleanInput.toLowerCase();
+
+    // 0. Authoritative Check: Membership Engine (data/memberships.json)
+    const memAccess = membershipEngine.checkServiceAccess(cleanDigits || cleanLower, serviceKey as any);
+    if (memAccess.hasAccess) {
+      return {
+        allowed: true,
+        serviceKey,
+        status: "unlocked",
+        isLifetime: memAccess.isLifetime,
+        remainingDays: memAccess.remainingDays,
+        showWarning30Days: memAccess.showWarning30Days,
+        planNameNepali: memAccess.planNameNepali,
+        reasonNepali: memAccess.messageNepali
+      };
+    } else if (memAccess.isExpired) {
+      return {
+        allowed: false,
+        serviceKey,
+        status: "expired",
+        planNameNepali: memAccess.planNameNepali,
+        reasonNepali: memAccess.messageNepali
+      };
+    } else if (memAccess.membershipStatus === 'PENDING_PAYMENT') {
+      return {
+        allowed: false,
+        serviceKey,
+        status: "pending_approval",
+        planNameNepali: memAccess.planNameNepali,
+        reasonNepali: memAccess.messageNepali
+      };
+    }
 
     // 1. Check Service Licenses (service_licenses.json)
     const licenses = getServiceLicenses();
@@ -1709,6 +1752,234 @@ async function startServer() {
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ── MEMBERSHIP ACTIVATION & ENTITLEMENT API ENDPOINTS ──
+
+  // GET /api/membership/plans (Public - Official Pricing Plans)
+  app.get("/api/membership/plans", (req, res) => {
+    return res.json({
+      success: true,
+      plans: Object.values(MEMBERSHIP_PLANS),
+      planMap: MEMBERSHIP_PLANS
+    });
+  });
+
+  // GET /api/membership/me (Customer: Current user active membership, remaining days, 30-day warning)
+  app.get("/api/membership/me", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "अनधिकृत पहुँच (Unauthorized: No token provided)." });
+      }
+      const token = authHeader.split(" ")[1];
+      const session = userSessions.get(token) || authEngine.validateSession(token);
+      if (!session) {
+        return res.status(401).json({ success: false, error: "अवैध वा म्याद सकिएको सत्र।" });
+      }
+
+      const userId = session.userId;
+      const phone = session.phone;
+      const cleanPhone = phone ? phone.replace(/\D/g, "").slice(-10) : "";
+
+      const jyotishAccess = membershipEngine.checkServiceAccess(cleanPhone || userId, "jyotish");
+      const vastuAccess = membershipEngine.checkServiceAccess(cleanPhone || userId, "vastu");
+
+      const membership =
+        membershipEngine.getMembershipByUserId(userId) ||
+        membershipEngine.listMemberships("all").find((m: any) => cleanPhone && m.phone === cleanPhone);
+
+      return res.json({
+        success: true,
+        membership: membership || null,
+        serviceAccess: {
+          jyotish: jyotishAccess,
+          vastu: vastuAccess
+        },
+        hasActiveMembership: jyotishAccess.hasAccess || vastuAccess.hasAccess,
+        isExpired: jyotishAccess.isExpired || vastuAccess.isExpired,
+        remainingDays: jyotishAccess.remainingDays,
+        showWarning30Days: jyotishAccess.showWarning30Days,
+        planNameNepali: jyotishAccess.planNameNepali,
+        messageNepali: jyotishAccess.messageNepali
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/membership/purchase (Submit Membership Purchase Request)
+  app.post("/api/membership/purchase", (req, res) => {
+    try {
+      const { userId, phone, email, fullName, planId, paymentMethod, transactionId, submittedAtBS } = req.body;
+      if (!phone || !planId) {
+        return res.status(400).json({ success: false, message: "फोन नम्बर र सदस्यता योजना अनिवार्य छन्।" });
+      }
+
+      const cleanPhone = String(phone).replace(/\D/g, "").slice(-10);
+      const effectiveUserId = userId || `user_${cleanPhone}`;
+
+      const result = membershipEngine.submitPurchaseRequest({
+        userId: effectiveUserId,
+        phone: cleanPhone,
+        email,
+        fullName: fullName || "ग्राहक",
+        planId,
+        paymentMethod: paymentMethod || "cash",
+        transactionId,
+        submittedAtBS
+      });
+
+      // Synchronize to client_purchase_leads for unified monitoring across SuperAdmin panels
+      const leads = getClientLeads();
+      const existingLead = leads.find((l: any) => l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === cleanPhone);
+      const plan = MEMBERSHIP_PLANS[planId] || MEMBERSHIP_PLANS.yearly_both;
+
+      if (existingLead) {
+        existingLead.status = "PURCHASE_PENDING";
+        existingLead.planId = plan.planId;
+        existingLead.planNameNepali = plan.nameNepali;
+        existingLead.planAmountNPR = plan.priceNPR;
+        existingLead.paymentMethod = paymentMethod || "cash";
+        existingLead.transactionId = transactionId || "";
+        existingLead.paymentVerificationStatus = "PENDING";
+        existingLead.submittedAtISO = new Date().toISOString();
+      } else {
+        leads.unshift({
+          id: `LEAD-${Date.now()}`,
+          fullName: fullName || "ग्राहक",
+          address: "नेपाल",
+          mobile: cleanPhone,
+          email: email || "",
+          whatsapp: cleanPhone,
+          deviceFingerprint: "membership-purchase",
+          status: "PURCHASE_PENDING",
+          planId: plan.planId,
+          planNameNepali: plan.nameNepali,
+          planAmountNPR: plan.priceNPR,
+          paymentMethod: paymentMethod || "cash",
+          transactionId: transactionId || "",
+          paymentVerificationStatus: "PENDING",
+          submittedAtISO: new Date().toISOString(),
+          submittedAtBS: submittedAtBS || "२०८१"
+        });
+      }
+      saveClientLeads(leads);
+
+      broadcastRealtimeEvent("MEMBERSHIP_PURCHASE_REQUESTED", { membership: result.membership });
+
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // GET /api/superadmin/memberships (SuperAdmin: List Memberships with Status Filter)
+  app.get("/api/superadmin/memberships", requireSuperAdminAuth, (req, res) => {
+    try {
+      const filter = String(req.query.filter || "all");
+      const memberships = membershipEngine.listMemberships(filter);
+      return res.json({
+        success: true,
+        count: memberships.length,
+        filter,
+        memberships
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/superadmin/memberships/:id/approve (SuperAdmin: Approve Membership & Enforce Cash Verification)
+  app.post("/api/superadmin/memberships/:id/approve", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { cashVerified, verifiedAmount, adminNotes, customDuration, approvedAtBS } = req.body;
+      const adminSession = (req as any).superAdmin;
+      const adminId = adminSession?.username || "SuperAdmin";
+
+      const result = membershipEngine.approveMembership(id, adminId, {
+        cashVerified: Boolean(cashVerified),
+        verifiedAmount,
+        adminNotes,
+        customDuration,
+        approvedAtBS
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      const membership = result.membership!;
+
+      // Automatically sync to client_purchase_leads, service_licenses and users
+      const leads = getClientLeads();
+      const lead = leads.find((l: any) => l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === membership.phone);
+      if (lead) {
+        applyLeadApproval(lead, adminId, approvedAtBS, "both", {
+          cashVerified: membership.cashVerified,
+          verifiedAmount: membership.amountNPR,
+          adminNotes: membership.adminNotes,
+          planDuration: membership.duration
+        });
+        saveClientLeads(leads);
+      } else {
+        const dummyLead = {
+          id: membership.userId || `USER-${membership.phone}`,
+          fullName: membership.fullName,
+          mobile: membership.phone,
+          email: membership.email || "",
+          planId: membership.planId,
+          planNameNepali: membership.planNameNepali,
+          planAmountNPR: membership.amountNPR,
+          paymentMethod: membership.paymentMethod,
+          transactionId: membership.transactionId
+        };
+        applyLeadApproval(dummyLead, adminId, approvedAtBS, "both", {
+          cashVerified: membership.cashVerified,
+          verifiedAmount: membership.amountNPR,
+          adminNotes: membership.adminNotes,
+          planDuration: membership.duration
+        });
+      }
+
+      broadcastRealtimeEvent("MEMBERSHIP_APPROVED", { membership });
+
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // POST /api/superadmin/memberships/:id/reject (SuperAdmin: Reject Membership Request)
+  app.post("/api/superadmin/memberships/:id/reject", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      const adminSession = (req as any).superAdmin;
+      const adminId = adminSession?.username || "SuperAdmin";
+
+      const result = membershipEngine.rejectMembership(id, adminId, reason || "अस्वीकृत");
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      const membership = result.membership!;
+      const leads = getClientLeads();
+      const lead = leads.find((l: any) => l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === membership.phone);
+      if (lead) {
+        lead.status = "PURCHASE_REJECTED";
+        lead.paymentVerificationStatus = "REJECTED";
+        lead.adminNotes = reason || "अस्वीकृत";
+        saveClientLeads(leads);
+      }
+
+      broadcastRealtimeEvent("MEMBERSHIP_REJECTED", { membership });
+
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
     }
   });
 
@@ -4493,6 +4764,16 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
 
   // Static downloads serving (APKs, Windows installers, media)
   app.use('/downloads', express.static(path.join(process.cwd(), 'public', 'downloads')));
+
+  // ── Authoritative API Fallback Guard ──
+  // Ensures any unmatched /api/* request returns a clean JSON error and NEVER falls through
+  // to the frontend SPA / Vite middleware (which produces HTTP 405 Method Not Allowed)
+  app.all("/api/*", (req, res) => {
+    return res.status(404).json({
+      success: false,
+      error: `API मार्ग फेला परेन (${req.method} ${req.path})`
+    });
+  });
 
   // Vite middleware for development or static serving for production
   if (process.env.NODE_ENV !== "production") {

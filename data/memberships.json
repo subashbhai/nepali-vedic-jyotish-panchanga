@@ -1,0 +1,198 @@
+[
+  {
+    "id": "mem_1792745561228_15e7fb",
+    "userId": "user_expiring_test",
+    "phone": "9841888888",
+    "fullName": "परीक्षण प्रयोगकर्ता",
+    "planId": "yearly_mobile",
+    "planNameNepali": "मोबाइल मात्र (१ वर्ष)",
+    "duration": "1_year",
+    "devices": "mobile_only",
+    "amountNPR": 200,
+    "paymentMethod": "bank",
+    "paymentStatus": "VERIFIED",
+    "membershipStatus": "ACTIVE",
+    "transactionId": "TXN-BANK-01",
+    "submittedAtISO": "2026-10-23T08:52:41.228Z",
+    "submittedAtBS": "२०८१",
+    "includedServices": [
+      "jyotish",
+      "vastu",
+      "panchanga"
+    ],
+    "renewalCount": 0,
+    "history": [
+      {
+        "action": "PURCHASE_SUBMITTED",
+        "status": "PENDING_PAYMENT",
+        "timestampISO": "2026-10-23T08:52:41.228Z",
+        "performedBy": "user_expiring_test",
+        "details": "मोबाइल मात्र (१ वर्ष) खरिद अनुरोध पेश गरियो (BANK)"
+      },
+      {
+        "action": "MEMBERSHIP_APPROVED",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T08:52:41.233Z",
+        "performedBy": "superadmin",
+        "details": "प्रशासक superadmin द्वारा सदस्यता स्वीकृत एवं सेवा सक्रिय गरियो"
+      }
+    ],
+    "approvedBy": "superadmin",
+    "approvedAtISO": "2026-10-23T08:52:41.233Z",
+    "approvedAtBS": "२०८१",
+    "activatedAtISO": "2026-10-23T08:52:41.233Z",
+    "expiresAtTimestamp": 1824281561233,
+    "expiresAtISO": "2027-10-23T08:52:41.233Z",
+    "expiresAtBS": "२०८२"
+  },
+  {
+    "id": "mem_1792745561216_afee57",
+    "userId": "usr_1792745561208_41a884",
+    "phone": "9851223344",
+    "email": "sita.suvedi@example.com",
+    "fullName": "सीता देवी सुवेदी",
+    "planId": "yearly_both",
+    "planNameNepali": "मोबाइल + कम्प्युटर दुवै (१ वर्ष)",
+    "duration": "1_year",
+    "devices": "both",
+    "amountNPR": 1200,
+    "paymentMethod": "cash",
+    "paymentStatus": "VERIFIED",
+    "membershipStatus": "ACTIVE",
+    "transactionId": "CASH-REF-01",
+    "submittedAtISO": "2026-10-23T08:52:41.216Z",
+    "submittedAtBS": "२०८१",
+    "includedServices": [
+      "jyotish",
+      "vastu",
+      "karmakanda",
+      "panchanga"
+    ],
+    "renewalCount": 0,
+    "history": [
+      {
+        "action": "PURCHASE_SUBMITTED",
+        "status": "PENDING_PAYMENT",
+        "timestampISO": "2026-10-23T08:52:41.216Z",
+        "performedBy": "usr_1792745561208_41a884",
+        "details": "मोबाइल + कम्प्युटर दुवै (१ वर्ष) खरिद अनुरोध पेश गरियो (CASH)"
+      },
+      {
+        "action": "MEMBERSHIP_APPROVED",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T08:52:41.222Z",
+        "performedBy": "superadmin",
+        "details": "प्रशासक superadmin द्वारा सदस्यता स्वीकृत एवं सेवा सक्रिय गरियो"
+      }
+    ],
+    "approvedBy": "superadmin",
+    "approvedAtISO": "2026-10-23T08:52:41.222Z",
+    "approvedAtBS": "२०८१",
+    "activatedAtISO": "2026-10-23T08:52:41.222Z",
+    "expiresAtTimestamp": 1824281561222,
+    "expiresAtISO": "2027-10-23T08:52:41.222Z",
+    "expiresAtBS": "२०८२",
+    "cashVerified": true,
+    "cashVerifiedBy": "superadmin",
+    "cashVerifiedAtISO": "2026-10-23T08:52:41.222Z",
+    "adminNotes": "नगद रकम रु. १२२० प्राप्त भएको रुजु गरियो"
+  },
+  {
+    "id": "mem_1792745475415_756cf6",
+    "userId": "user_expiring_test",
+    "phone": "9841888888",
+    "fullName": "परीक्षण प्रयोगकर्ता",
+    "planId": "yearly_mobile",
+    "planNameNepali": "मोबाइल मात्र (१ वर्ष)",
+    "duration": "1_year",
+    "devices": "mobile_only",
+    "amountNPR": 200,
+    "paymentMethod": "bank",
+    "paymentStatus": "VERIFIED",
+    "membershipStatus": "ACTIVE",
+    "transactionId": "TXN-BANK-01",
+    "submittedAtISO": "2026-10-23T08:51:15.415Z",
+    "submittedAtBS": "२०८१",
+    "includedServices": [
+      "jyotish",
+      "vastu",
+      "panchanga"
+    ],
+    "renewalCount": 0,
+    "history": [
+      {
+        "action": "PURCHASE_SUBMITTED",
+        "status": "PENDING_PAYMENT",
+        "timestampISO": "2026-10-23T08:51:15.415Z",
+        "performedBy": "user_expiring_test",
+        "details": "मोबाइल मात्र (१ वर्ष) खरिद अनुरोध पेश गरियो (BANK)"
+      },
+      {
+        "action": "MEMBERSHIP_APPROVED",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T08:51:15.421Z",
+        "performedBy": "superadmin",
+        "details": "प्रशासक superadmin द्वारा सदस्यता स्वीकृत एवं सेवा सक्रिय गरियो"
+      }
+    ],
+    "approvedBy": "superadmin",
+    "approvedAtISO": "2026-10-23T08:51:15.421Z",
+    "approvedAtBS": "२०८१",
+    "activatedAtISO": "2026-10-23T08:51:15.421Z",
+    "expiresAtTimestamp": 1824281475421,
+    "expiresAtISO": "2027-10-23T08:51:15.421Z",
+    "expiresAtBS": "२०८२"
+  },
+  {
+    "id": "mem_1792745475403_6e287e",
+    "userId": "usr_1792745475398_e9616c",
+    "phone": "9851223344",
+    "email": "sita.suvedi@example.com",
+    "fullName": "सीता देवी सुवेदी",
+    "planId": "yearly_both",
+    "planNameNepali": "मोबाइल + कम्प्युटर दुवै (१ वर्ष)",
+    "duration": "1_year",
+    "devices": "both",
+    "amountNPR": 1200,
+    "paymentMethod": "cash",
+    "paymentStatus": "VERIFIED",
+    "membershipStatus": "ACTIVE",
+    "transactionId": "CASH-REF-01",
+    "submittedAtISO": "2026-10-23T08:51:15.403Z",
+    "submittedAtBS": "२०८१",
+    "includedServices": [
+      "jyotish",
+      "vastu",
+      "karmakanda",
+      "panchanga"
+    ],
+    "renewalCount": 0,
+    "history": [
+      {
+        "action": "PURCHASE_SUBMITTED",
+        "status": "PENDING_PAYMENT",
+        "timestampISO": "2026-10-23T08:51:15.403Z",
+        "performedBy": "usr_1792745475398_e9616c",
+        "details": "मोबाइल + कम्प्युटर दुवै (१ वर्ष) खरिद अनुरोध पेश गरियो (CASH)"
+      },
+      {
+        "action": "MEMBERSHIP_APPROVED",
+        "status": "ACTIVE",
+        "timestampISO": "2026-10-23T08:51:15.409Z",
+        "performedBy": "superadmin",
+        "details": "प्रशासक superadmin द्वारा सदस्यता स्वीकृत एवं सेवा सक्रिय गरियो"
+      }
+    ],
+    "approvedBy": "superadmin",
+    "approvedAtISO": "2026-10-23T08:51:15.409Z",
+    "approvedAtBS": "२०८१",
+    "activatedAtISO": "2026-10-23T08:51:15.409Z",
+    "expiresAtTimestamp": 1824281475409,
+    "expiresAtISO": "2027-10-23T08:51:15.409Z",
+    "expiresAtBS": "२०८२",
+    "cashVerified": true,
+    "cashVerifiedBy": "superadmin",
+    "cashVerifiedAtISO": "2026-10-23T08:51:15.409Z",
+    "adminNotes": "नगद रकम रु. १२२० प्राप्त भएको रुजु गरियो"
+  }
+]
