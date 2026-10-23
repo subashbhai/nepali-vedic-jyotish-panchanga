@@ -98,7 +98,8 @@
     },
     "createdAtISO": "2026-10-18T09:25:21.015Z",
     "createdAtBS": "२०८३ कात्तिक १",
-    "lastLoginISO": "2026-10-18T09:25:21.015Z"
+    "lastLoginISO": "2026-10-18T09:25:21.015Z",
+    "profileCompleted": true
   },
   {
     "id": "usr_1792312207306_18",
@@ -148,7 +149,8 @@
     },
     "createdAtISO": "2026-10-18T08:30:07.306Z",
     "createdAtBS": "२०८३ कात्तिक १",
-    "lastLoginISO": "2026-10-18T08:30:07.306Z"
+    "lastLoginISO": "2026-10-18T08:30:07.306Z",
+    "profileCompleted": true
   },
   {
     "id": "usr_1792305565255_t13cd",
@@ -195,6 +197,7 @@
     },
     "createdAtISO": "2026-10-18T06:39:25.255Z",
     "createdAtBS": "२०८३ कात्तिक १",
-    "lastLoginISO": "2026-10-18T06:39:25.255Z"
+    "lastLoginISO": "2026-10-18T06:39:25.255Z",
+    "profileCompleted": true
   }
 ]

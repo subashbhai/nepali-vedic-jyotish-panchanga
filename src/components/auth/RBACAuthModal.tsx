@@ -1,20 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  SystemRole,
-  RBACUser,
-  RBACSession,
-  authenticateRBACUser,
-  registerRBACAccount,
-  resetRBACUserPassword,
-  getRoleLabelNepali,
-  getActiveRBACSession,
-  clearRBACSession,
-  syncUsersFromServer
-} from '../../db/rbacStore';
-import { registerOrUpdateClientPolicy } from '../../db/menuControlStore';
-import { start7DayTrial } from '../../db/subscriptionStore';
-import { unifiedUserSyncService } from '../../services/unifiedUserSyncService';
-import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   User,
   Lock,
@@ -22,8 +7,7 @@ import {
   Mail,
   ShieldCheck,
   CheckCircle2,
-  AlertTriangle,
-  XCircle,
+  AlertCircle,
   Eye,
   EyeOff,
   UserPlus,
@@ -35,1068 +19,1037 @@ import {
   Sparkles,
   Calendar,
   Compass,
-  Navigation,
-  Loader2,
-  Check
+  ArrowRight,
+  Check,
+  RefreshCw,
+  Briefcase,
+  Smartphone,
+  ChevronRight
 } from 'lucide-react';
-import { BirthDetails, LocationData, Gender } from '../../types/astrology';
-import { saveProfile, getStoredProfiles, saveUserPersonalBirthProfile } from '../../db/profileStore';
+import { SystemRole, RBACSession } from '../../db/rbacStore';
+import { authService } from '../../services/authService';
+import { NEPAL_77_DISTRICTS } from '../../utils/geoLocationHelper';
+import { BirthDetails, Gender } from '../../types/astrology';
+import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
 import { convertBSToADFull, convertADToBSFull } from '../../utils/bsCalendarData';
-import { toDevanagariNumerals, fromDevanagariNumerals } from '../../utils/nepaliCalendar';
-import { WORLD_LOCATIONS_DATA, searchWorldLocations } from '../../data/worldLocations';
-import {
-  getCurrentUserGPS,
-  saveUserDetectedLocation,
-  getStoredUserLocation,
-  NEPAL_77_DISTRICTS
-} from '../../utils/geoLocationHelper';
-import { getSacredLocationInfo } from '../../utils/vedicSankalpaEngine';
-
-const POPULAR_NEPAL_CITIES: Array<{
-  name: string;
-  district: string;
-  lat: number;
-  long: number;
-  tz: number;
-}> = [
-  { name: 'काठमाडौँ (Kathmandu)', district: 'काठमाडौँ', lat: 27.7172, long: 85.3240, tz: 5.75 },
-  { name: 'ललितपुर (Patan)', district: 'ललितपुर', lat: 27.6644, long: 85.3188, tz: 5.75 },
-  { name: 'भक्तपुर (Bhaktapur)', district: 'भक्तपुर', lat: 27.6710, long: 85.4298, tz: 5.75 },
-  { name: 'पोखरा (Pokhara)', district: 'कास्की', lat: 28.2096, long: 83.9856, tz: 5.75 },
-  { name: 'विराटनगर / मोरङ (Biratnagar)', district: 'मोरङ', lat: 26.4525, long: 87.2718, tz: 5.75 },
-  { name: 'झापा / विर्तामोड (Jhapa)', district: 'झापा', lat: 26.6333, long: 87.8833, tz: 5.75 },
-  { name: 'धरान / इटहरी (Sunsari)', district: 'सुनसरी', lat: 26.8125, long: 87.2833, tz: 5.75 },
-  { name: 'भरतपुर / चितवन (Chitwan)', district: 'चितवन', lat: 27.6833, long: 84.4333, tz: 5.75 },
-  { name: 'बुटवल / भैरहवा (Rupandehi)', district: 'रुपन्देही', lat: 27.7000, long: 83.4500, tz: 5.75 },
-  { name: 'वीरगञ्ज / पर्सा (Birgunj)', district: 'पर्सा', lat: 27.0000, long: 84.8667, tz: 5.75 },
-  { name: 'जनकपुर / धनुषा (Janakpur)', district: 'धनुषा', lat: 26.7271, long: 85.9231, tz: 5.75 },
-  { name: 'नेपालगञ्ज / बाँके (Banke)', district: 'बाँके', lat: 28.0500, long: 81.6167, tz: 5.75 },
-  { name: 'दाङ / घोराही (Dang)', district: 'दाङ', lat: 28.0333, long: 82.3000, tz: 5.75 },
-  { name: 'धनगढी / कैलाली (Kailali)', district: 'कैलाली', lat: 28.6833, long: 80.6000, tz: 5.75 },
-  { name: 'सुर्खेत / वीरेन्द्रनगर (Surkhet)', district: 'सुर्खेत', lat: 28.6000, long: 81.6333, tz: 5.75 },
-  { name: 'नयाँ दिल्ली (New Delhi)', district: 'दिल्ली', lat: 28.6139, long: 77.2090, tz: 5.5 }
-];
 
 interface RBACAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultRole?: SystemRole;
   isSuperAdminOnly?: boolean;
+  initialMode?: 'signin' | 'signup';
   onLoginSuccess: (session: RBACSession, createdProfile?: BirthDetails) => void;
 }
+
+type AuthModalMode = 'signin' | 'signup_3fields' | 'dual_otp' | 'profile_stage2';
 
 export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
   isOpen,
   onClose,
-  defaultRole = 'CUSTOMER',
   isSuperAdminOnly = false,
+  initialMode = 'signin',
   onLoginSuccess
 }) => {
-  const [activeTab, setActiveTab] = useState<'signin' | 'signup' | 'forgot'>(
-    isSuperAdminOnly ? 'signin' : 'signin'
+  const [mode, setMode] = useState<AuthModalMode>(
+    isSuperAdminOnly ? 'signin' : initialMode === 'signup' ? 'signup_3fields' : 'signin'
   );
 
-  // Sign In Form State
-  const [phoneOrUsername, setPhoneOrUsername] = useState('');
-  const [password, setPassword] = useState('');
+  // Sign In State
+  const [loginPhoneOrEmail, setLoginPhoneOrEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Sign Up Mandatory Fields
+  // Phase 4: Exactly 3 fields for initial signup
   const [fullName, setFullName] = useState('');
-  const [gender, setGender] = useState<Gender>('male');
   const [signupPhone, setSignupPhone] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Date of Birth State (BS & AD)
+  // Phase 5: Dual OTP State
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+
+  // Active Authenticated Session
+  const [authenticatedSession, setAuthenticatedSession] = useState<RBACSession | null>(null);
+
+  // Phase 8: Stage 2 Detailed Profile State
+  const [address, setAddress] = useState('');
+  const [selectedProvince, setSelectedProvince] = useState('बागमती प्रदेश');
+  const [selectedDistrict, setSelectedDistrict] = useState('काठमाडौँ');
+  const [localLevel, setLocalLevel] = useState('');
+  const [ward, setWard] = useState('१');
+  const [occupation, setOccupation] = useState('');
+  const [gender, setGender] = useState<Gender>('male');
+
+  // Birth Details for Kundali (Stage 2)
   const [dateType, setDateType] = useState<'BS' | 'AD'>('BS');
   const [bsYear, setBsYear] = useState('2055');
   const [bsMonth, setBsMonth] = useState('5');
   const [bsDay, setBsDay] = useState('15');
-
-  const [adYear, setAdYear] = useState('1998');
-  const [adMonth, setAdMonth] = useState('08');
-  const [adDay, setAdDay] = useState('31');
-
-  // Birth Time State (12h format)
   const [birthHour, setBirthHour] = useState('06');
   const [birthMinute, setBirthMinute] = useState('30');
   const [birthAmPm, setBirthAmPm] = useState<'AM' | 'PM'>('AM');
+  const [birthPlace, setBirthPlace] = useState('काठमाडौँ, नेपाल');
 
-  // Birth Place State
-  const [selectedCityName, setSelectedCityName] = useState('काठमाडौँ (Kathmandu)');
-  const [customCitySearch, setCustomCitySearch] = useState('');
-  const [isSearchingCustomCity, setIsSearchingCustomCity] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<LocationData>({
-    name: 'काठमाडौँ (Kathmandu)',
-    district: 'काठमाडौँ',
-    province: 'बागमती प्रदेश',
-    country: 'नेपाल',
-    latitude: 27.7172,
-    longitude: 85.3240,
-    timeZone: 5.75,
-  });
-
-  const [isDetectingGPS, setIsDetectingGPS] = useState(false);
-  const [gpsSuccessNote, setGpsSuccessNote] = useState<string | null>(null);
-  const [activeSacredGeo, setActiveSacredGeo] = useState(() => getSacredLocationInfo({
-    name: 'काठमाडौँ (Kathmandu)',
-    district: 'काठमाडौँ',
-    latitude: 27.7172,
-    longitude: 85.3240,
-    timeZone: 5.75,
-    country: 'नेपाल'
-  }));
-
-  // Forgot Password State
-  const [forgotPhone, setForgotPhone] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-
-  // Status/Error Messages
+  // Loading & Error States
+  const [isLoading, setIsLoading] = useState(false);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Synchronize BS to AD automatically
-  useEffect(() => {
-    if (dateType === 'BS') {
-      try {
-        const y = parseInt(fromDevanagariNumerals(bsYear), 10);
-        const m = parseInt(fromDevanagariNumerals(bsMonth), 10);
-        const d = parseInt(fromDevanagariNumerals(bsDay), 10);
-        if (y >= 1970 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 32) {
-          const ad = convertBSToADFull(y, m, d);
-          if (ad && typeof ad === 'string') {
-            const parts = ad.split('-');
-            if (parts.length === 3) {
-              setAdYear(parts[0]);
-              setAdMonth(parts[1]);
-              setAdDay(parts[2]);
-            }
-          }
-        }
-      } catch {}
-    }
-  }, [bsYear, bsMonth, bsDay, dateType]);
-
-  // Synchronize AD to BS automatically
-  useEffect(() => {
-    if (dateType === 'AD') {
-      try {
-        const y = parseInt(adYear, 10);
-        const m = parseInt(adMonth, 10);
-        const d = parseInt(adDay, 10);
-        if (y >= 1920 && y <= 2045 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-          const adStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          const bs = convertADToBSFull(adStr);
-          if (bs) {
-            setBsYear(String(bs.year));
-            setBsMonth(String(bs.month));
-            setBsDay(String(bs.day));
-          }
-        }
-      } catch {}
-    }
-  }, [adYear, adMonth, adDay, dateType]);
-
-  // Sync stored user location when modal opens
+  // Reset or initialize modal mode when opened
   useEffect(() => {
     if (isOpen) {
-      const stored = getStoredUserLocation();
-      if (stored && stored.name) {
-        setSelectedLocation(stored);
-        setSelectedCityName(stored.name);
-        setActiveSacredGeo(getSacredLocationInfo(stored));
+      setErrorMsg(null);
+      setSuccessMsg(null);
+      if (!isSuperAdminOnly) {
+        setMode(initialMode === 'signup' ? 'signup_3fields' : 'signin');
+      } else {
+        setMode('signin');
       }
     }
-  }, [isOpen]);
+  }, [isOpen, initialMode, isSuperAdminOnly]);
+
+  // Resend OTP Cooldown Timer
+  useEffect(() => {
+    let timer: any;
+    if (mode === 'dual_otp' && resendCooldown > 0) {
+      setCanResend(false);
+      timer = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [mode, resendCooldown]);
 
   if (!isOpen) return null;
 
-  const handleCitySelect = (cityName: string) => {
-    setSelectedCityName(cityName);
-    setGpsSuccessNote(null);
-    setErrorMsg(null);
+  // ─────────────────────────────────────────────────────────────
+  // HANDLERS
+  // ─────────────────────────────────────────────────────────────
 
-    // 1. Check popular cities
-    const foundPopular = POPULAR_NEPAL_CITIES.find(c => c.name === cityName);
-    if (foundPopular) {
-      const loc: LocationData = {
-        name: foundPopular.name,
-        district: foundPopular.district,
-        province: 'नेपाल',
-        country: foundPopular.tz === 5.5 ? 'भारत' : 'नेपाल',
-        latitude: foundPopular.lat,
-        longitude: foundPopular.long,
-        timeZone: foundPopular.tz,
-        flag: foundPopular.tz === 5.5 ? '🇮🇳' : '🇳🇵'
-      };
-      setSelectedLocation(loc);
-      setActiveSacredGeo(getSacredLocationInfo(loc));
-      saveUserDetectedLocation(loc);
-      return;
-    }
-
-    // 2. Check 77 districts
-    const foundDistrict = NEPAL_77_DISTRICTS.find(d => `${d.headquarter}, ${d.district}` === cityName || d.district === cityName);
-    if (foundDistrict) {
-      const loc: LocationData = {
-        name: `${foundDistrict.headquarter}, ${foundDistrict.district}`,
-        englishName: `${foundDistrict.districtEn} District`,
-        district: foundDistrict.district,
-        province: foundDistrict.province,
-        country: 'नेपाल',
-        latitude: foundDistrict.latitude,
-        longitude: foundDistrict.longitude,
-        timeZone: 5.75,
-        flag: '🇳🇵'
-      };
-      setSelectedLocation(loc);
-      setActiveSacredGeo(getSacredLocationInfo(loc));
-      saveUserDetectedLocation(loc);
-      return;
-    }
-
-    // 3. Check world locations
-    const foundWorld = WORLD_LOCATIONS_DATA.find(w => w.name === cityName);
-    if (foundWorld) {
-      setSelectedLocation(foundWorld);
-      setActiveSacredGeo(getSacredLocationInfo(foundWorld));
-      saveUserDetectedLocation(foundWorld);
-      return;
-    }
-  };
-
-  const handleDetectCurrentLocation = async () => {
-    setIsDetectingGPS(true);
-    setErrorMsg(null);
-    setGpsSuccessNote(null);
-    try {
-      const res = await getCurrentUserGPS();
-      setSelectedLocation(res.location);
-      setSelectedCityName(res.location.name);
-      saveUserDetectedLocation(res.location);
-      const sacred = getSacredLocationInfo(res.location);
-      setActiveSacredGeo(sacred);
-      setGpsSuccessNote(
-        `📍 स्थान पत्ता लाग्यो: ${res.location.name} (दूरी ~${res.distanceKm} कि.मी.)`
-      );
-    } catch (err: any) {
-      setErrorMsg(err.message || 'स्थान पत्ता लगाउन सकिएन।');
-    } finally {
-      setIsDetectingGPS(false);
-    }
-  };
-
+  // 1. Sign In
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!phoneOrUsername.trim() || !password) {
-      setErrorMsg('कृपया फोन नम्बर/प्रयोगकर्ता नाम र पासवर्ड भर्नुहोस्।');
+    if (!loginPhoneOrEmail.trim() || !loginPassword.trim()) {
+      setErrorMsg('कृपया मोबाइल नम्बर/इमेल र पासवर्ड दुवै प्रविष्ट गर्नुहोस्।');
       return;
     }
 
-    let res = authenticateRBACUser(phoneOrUsername.trim(), password.trim());
+    setIsLoading(true);
+    try {
+      const res = await authService.login(loginPhoneOrEmail, loginPassword);
+      setIsLoading(false);
 
-    if (!res.success) {
-      try {
-        const sRes = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneOrUsername: phoneOrUsername.trim(), password: password.trim() })
-        });
-        const sData = await sRes.json();
-        if (sData && sData.success && sData.user) {
-          await syncUsersFromServer();
-          res = authenticateRBACUser(phoneOrUsername.trim(), password.trim());
-        } else if (sData && sData.error) {
-          setErrorMsg(sData.error);
-          return;
-        }
-      } catch {}
-    }
-
-    if (res.success && res.session) {
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        onLoginSuccess(res.session!);
-        onClose();
-      }, 400);
-    } else {
-      setErrorMsg(res.message);
+      if (res.success && res.session) {
+        setSuccessMsg('लगइन सफल भयो!');
+        setTimeout(() => {
+          onLoginSuccess(res.session!);
+          onClose();
+        }, 600);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('लगइन गर्दा प्राविधिक समस्या आयो। कृपया पुनः प्रयास गर्नुहोस्।');
     }
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  // 2. Phase 4: Submit 3-Field Signup Form
+  const handleStartSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    // 1. Mandatory Validations
-    if (!fullName.trim()) {
-      setErrorMsg('कृपया आफ्नो पूरा नाम (Full Name) भर्नुहोस्।');
-      return;
-    }
-    if (!signupPhone.trim()) {
-      setErrorMsg('कृपया आफ्नो मोबाइल फोन नम्बर भर्नुहोस्।');
-      return;
-    }
-    if (!signupPassword) {
-      setErrorMsg('कृपया पासवर्ड तय गर्नुहोस्।');
-      return;
-    }
-    if (signupPassword !== confirmPassword) {
-      setErrorMsg('पासवर्ड र पुनः प्रविष्टि मिलेन।');
-      return;
-    }
-    if (signupPassword.length < 6) {
-      setErrorMsg('पासवर्ड कम्तीमा ६ अक्षरको हुनुपर्छ।');
+    const cleanName = fullName.trim();
+    const cleanPhone = signupPhone.trim();
+    const cleanEmail = signupEmail.trim();
+
+    if (!cleanName || cleanName.length < 2) {
+      setErrorMsg('कृपया आफ्नो पूरा नाम (कम्तीमा २ अक्षर) प्रविष्ट गर्नुहोस्।');
       return;
     }
 
-    // 2. Format 24-hour time string
-    let hour24 = parseInt(birthHour, 10);
-    const minStr = birthMinute.padStart(2, '0');
-    if (birthAmPm === 'PM' && hour24 < 12) hour24 += 12;
-    if (birthAmPm === 'AM' && hour24 === 12) hour24 = 0;
-    const formattedTime24 = `${String(hour24).padStart(2, '0')}:${minStr}`;
+    const digitsOnly = cleanPhone.replace(/\D/g, '');
+    if (digitsOnly.length < 10) {
+      setErrorMsg('कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx)।');
+      return;
+    }
 
-    // 3. Format Dates
-    const finalDateAD = `${adYear}-${String(adMonth).padStart(2, '0')}-${String(adDay).padStart(2, '0')}`;
-    const finalDateBS = `वि.सं. ${bsYear} ${bsMonth} महिना ${bsDay} गते`;
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setErrorMsg('कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस् (उदा: example@gmail.com)।');
+      return;
+    }
 
-    // 4. Create Birth Profile
-    const newProfile: BirthDetails = {
-      id: `profile_member_${Date.now()}`,
-      customerId: `सदस्य-${String(getStoredProfiles().length + 1).padStart(3, '०')}`,
-      name: fullName.trim(),
-      gender,
-      dateAD: finalDateAD,
-      dateBS: finalDateBS,
-      time: formattedTime24,
-      timeSeconds: '00',
-      location: selectedLocation,
-      phone: signupPhone.trim(),
-      email: signupEmail.trim(),
-      category: 'Member',
-      notes: 'अनलाइन दर्ता सदस्य कुण्डली',
-      createdAt: new Date().toISOString()
+    setIsLoading(true);
+    try {
+      const res = await authService.startSignup(cleanName, cleanPhone, cleanEmail);
+      setIsLoading(false);
+
+      if (res.success && res.challengeId) {
+        setChallengeId(res.challengeId);
+        setIsPhoneVerified(false);
+        setIsEmailVerified(false);
+        setPhoneOtp('');
+        setEmailOtp('');
+        setResendCooldown(60);
+        setCanResend(false);
+        setMode('dual_otp');
+        setSuccessMsg(res.message);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('साइन अप सुरु गर्दा समस्या आयो। कृपया पुनः प्रयास गर्नुहोस्।');
+    }
+  };
+
+  // 3. Phase 5: Verify Mobile OTP
+  const handleVerifyPhone = async () => {
+    if (!challengeId) return;
+    if (phoneOtp.trim().length < 6) {
+      setErrorMsg('कृपया ६ अङ्कको मोबाइल OTP कोड लेख्नुहोस्।');
+      return;
+    }
+
+    setIsVerifyingPhone(true);
+    setErrorMsg(null);
+    try {
+      const res = await authService.verifyPhoneOTP(challengeId, phoneOtp);
+      setIsVerifyingPhone(false);
+
+      if (res.success && res.phoneVerified) {
+        setIsPhoneVerified(true);
+        setSuccessMsg('✓ मोबाइल प्रमाणीकरण सम्पन्न भयो!');
+
+        // Check if both are now verified -> finalize automatically
+        if (res.isBothVerified || isEmailVerified) {
+          await triggerFinalize(challengeId);
+        }
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsVerifyingPhone(false);
+      setErrorMsg('मोबाइल OTP जाँच गर्दा समस्या आयो।');
+    }
+  };
+
+  // 4. Phase 5: Verify Email OTP
+  const handleVerifyEmail = async () => {
+    if (!challengeId) return;
+    if (emailOtp.trim().length < 6) {
+      setErrorMsg('कृपया ६ अङ्कको इमेल OTP कोड लेख्नुहोस्।');
+      return;
+    }
+
+    setIsVerifyingEmail(true);
+    setErrorMsg(null);
+    try {
+      const res = await authService.verifyEmailOTP(challengeId, emailOtp);
+      setIsVerifyingEmail(false);
+
+      if (res.success && res.emailVerified) {
+        setIsEmailVerified(true);
+        setSuccessMsg('✓ इमेल प्रमाणीकरण सम्पन्न भयो!');
+
+        // Check if both are now verified -> finalize automatically
+        if (res.isBothVerified || isPhoneVerified) {
+          await triggerFinalize(challengeId);
+        }
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsVerifyingEmail(false);
+      setErrorMsg('इमेल OTP जाँच गर्दा समस्या आयो।');
+    }
+  };
+
+  // 5. Phase 7: Trigger Finalize & Automatic Login
+  const triggerFinalize = async (cid: string) => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const finRes = await authService.finalizeSignup(cid);
+      setIsLoading(false);
+
+      if (finRes.success && finRes.user && finRes.token) {
+        const session: RBACSession = {
+          token: finRes.token,
+          userId: finRes.user.id,
+          username: finRes.user.phone,
+          fullName: finRes.user.fullName,
+          role: finRes.user.role || 'CUSTOMER',
+          roleNameNepali: finRes.user.roleNameNepali || 'यजमान / ग्राहक',
+          status: 'active',
+          permissions: finRes.user.permissions || ['store.view', 'kundali.view', 'profile.edit'],
+          customerId: finRes.user.customerId,
+          phone: finRes.user.phone,
+          createdAtISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+
+        setAuthenticatedSession(session);
+        setSuccessMsg('साइन अप तथा दोहोरो प्रमाणीकरण सफल भयो! स्वागत छ।');
+        // Phase 8: Transition directly to Stage 2 Profile Completion
+        setMode('profile_stage2');
+      } else {
+        setErrorMsg(finRes.message || 'दर्ता प्रक्रिया अन्तिम रूप दिन सकिएन।');
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('दर्ता सम्पन्न गर्दा समस्या आयो।');
+    }
+  };
+
+  // 6. Resend OTP
+  const handleResend = async () => {
+    if (!challengeId || !canResend) return;
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await authService.resendOTP(challengeId, 'both');
+      setIsLoading(false);
+      if (res.success) {
+        setResendCooldown(60);
+        setCanResend(false);
+        setSuccessMsg(res.message);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('OTP पुनः पठाउन सकिएन।');
+    }
+  };
+
+  // 7. Phase 8: Save Stage 2 Detailed Profile
+  const handleSaveDetailedProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg(null);
+
+    const birthDetailsObj: any = {
+      name: fullName,
+      dateBS: `${bsYear}-${bsMonth.padStart(2, '0')}-${bsDay.padStart(2, '0')}`,
+      time: `${birthHour}:${birthMinute} ${birthAmPm}`,
+      location: {
+        name: birthPlace,
+        district: selectedDistrict,
+        province: selectedProvince,
+        country: 'नेपाल'
+      },
+      gender
     };
 
-    // Save profile to store
-    const savedProfile = saveProfile(newProfile);
-    saveUserDetectedLocation(selectedLocation);
-
-    // 5. Register RBAC Account with birth details attached
-    const regRes = registerRBACAccount({
-      fullName: fullName.trim(),
-      phone: signupPhone.trim(),
-      email: signupEmail.trim(),
-      password: signupPassword,
-      role: 'CUSTOMER',
-      birthProfileId: savedProfile.id,
-      birthDetails: savedProfile,
-      address: selectedLocation.name
-    });
-
-    if (!regRes.success) {
-      setErrorMsg(regRes.message);
-      return;
-    }
-
-    // Bind personal birth profile to user ID and phone
-    if (regRes.user?.id) {
-      saveUserPersonalBirthProfile(regRes.user.id, savedProfile);
-    }
-    saveUserPersonalBirthProfile(signupPhone.trim(), savedProfile);
-    saveUserPersonalBirthProfile(savedProfile.id, savedProfile);
-
-    // Instantly notify unified sync service (< 1s delivery to Super Admin)
-    if (regRes.user) {
-      try {
-        unifiedUserSyncService.recordUserSignup(regRes.user);
-      } catch (e) {
-        console.warn('Signup sync error:', e);
-      }
-    }
-
-    // Automatically register client into Super Admin Menu Access Control System
     try {
-      registerOrUpdateClientPolicy({
-        mobile: signupPhone.trim(),
-        fullName: fullName.trim(),
-        password: signupPassword,
-        period: '1_year'
+      const res = await authService.completeDetailedProfile({
+        fullName,
+        address: address.trim() || `${selectedDistrict}, ${selectedProvince}`,
+        province: selectedProvince,
+        district: selectedDistrict,
+        localLevel: localLevel.trim(),
+        ward: ward.trim(),
+        dobBS: `${bsYear}-${bsMonth}-${bsDay}`,
+        birthTime: `${birthHour}:${birthMinute} ${birthAmPm}`,
+        birthPlace: birthPlace.trim(),
+        occupation: occupation.trim(),
+        gender,
+        birthDetails: birthDetailsObj
       });
-      start7DayTrial();
-    } catch (e) {
-      console.error('Menu control policy sync failed:', e);
-    }
+      setIsLoading(false);
 
-    // 6. Automatically Authenticate the new member
-    const authRes = authenticateRBACUser(signupPhone.trim(), signupPassword);
-    if (authRes.success && authRes.session) {
-      setSuccessMsg('सदस्यता तथा व्यक्तिगत कुण्डली सफलतापूर्वक तयार भयो!');
-      setTimeout(() => {
-        onLoginSuccess(authRes.session!, savedProfile);
-        onClose();
-      }, 500);
-    } else {
-      setSuccessMsg('खाता दर्ता भयो! कृपया अब लगइन गर्नुहोस्।');
-      setActiveTab('signin');
-      setPhoneOrUsername(signupPhone);
-      setPassword(signupPassword);
+      if (res.success && authenticatedSession) {
+        setSuccessMsg('तपाईंको विस्तृत विवरण सफलतापूर्वक सुरक्षित भयो!');
+        setTimeout(() => {
+          onLoginSuccess(authenticatedSession, birthDetailsObj);
+          onClose();
+        }, 800);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('विवरण सुरक्षित गर्दा समस्या आयो।');
     }
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setSuccessMsg(null);
-
-    if (!forgotPhone.trim() || !newPassword) {
-      setErrorMsg('कृपया दर्ता भएको फोन नम्बर र नयाँ पासवर्ड भर्नुहोस्।');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setErrorMsg('पासवर्ड कम्तीमा ६ अक्षरको हुनुपर्छ।');
-      return;
-    }
-
-    const res = resetRBACUserPassword(forgotPhone, newPassword, true);
-    if (res.success) {
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        setActiveTab('signin');
-        setPhoneOrUsername(forgotPhone);
-        setPassword(newPassword);
-      }, 1400);
-    } else {
-      setErrorMsg(res.message);
+  // 8. Skip Stage 2 and proceed with partial profile
+  const handleSkipStage2 = () => {
+    if (authenticatedSession) {
+      onLoginSuccess(authenticatedSession);
+      onClose();
     }
   };
+
+  // Districts for selected province
+  const filteredDistricts = NEPAL_77_DISTRICTS.filter((d) => d.province === selectedProvince);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="bg-white dark:bg-[#1E1B18] border border-[#E6E0D5] dark:border-stone-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative my-8 text-stone-800 dark:text-stone-100 max-h-[92vh] overflow-y-auto">
-        
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-2 sm:p-4 overflow-y-auto backdrop-blur-md bg-stone-950/80 animate-in fade-in duration-200">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white dark:bg-[#1C1917] text-stone-900 dark:text-stone-100 rounded-3xl shadow-2xl border-2 border-amber-400/80 dark:border-amber-600/80 w-full max-w-xl overflow-hidden relative my-auto max-h-[94vh] flex flex-col"
+      >
+        {/* Header Ribbon */}
+        <div className="bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#611212] text-white p-4 sm:p-5 relative shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-black/40 text-stone-200 hover:text-white transition-colors cursor-pointer"
+            title="बन्द गर्नुहोस्"
+          >
+            <X className="w-5 h-5" />
+          </button>
 
-        {/* Modal Header */}
-        <div className="text-center space-y-2 mb-5">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-white dark:bg-stone-800 p-0.5 shadow-lg border-2 border-amber-400/60 overflow-hidden ring-2 ring-amber-400/20">
-            <img 
-              src={getAssetUrl('/logo.png')} 
-              alt="बालानन्द लोगो" 
-              className="w-full h-full object-cover rounded-full select-none" 
-              onError={(e) => {
-                handleImageFallback(e, [
-                  getAssetUrl('/logo.png'),
-                  getAssetUrl('/assets/logo.png'),
-                  getAssetUrl('/balananda-logo.png'),
-                ]);
-              }}
-            />
+          <div className="flex items-center gap-3 pr-8">
+            <div className="w-12 h-12 rounded-full bg-white dark:bg-stone-900 p-0.5 border-2 border-amber-300 flex items-center justify-center shrink-0 shadow-md overflow-hidden ring-2 ring-amber-400/30">
+              <img
+                src={getAssetUrl('/logo.png')}
+                alt="बालानन्द लोगो"
+                className="w-full h-full object-cover rounded-full select-none"
+                onError={(e) => {
+                  handleImageFallback(e, [
+                    getAssetUrl('/logo.png'),
+                    getAssetUrl('/assets/logo.png'),
+                    getAssetUrl('/balananda-logo.png'),
+                  ]);
+                }}
+              />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400 text-stone-950 font-bold text-[10px] uppercase tracking-wider mb-0.5">
+                <ShieldCheck className="w-3 h-3 text-stone-950" />
+                <span>
+                  {mode === 'signin' && 'प्रयोगकर्ता लगइन'}
+                  {mode === 'signup_3fields' && 'नयाँ सदस्यता दर्ता'}
+                  {mode === 'dual_otp' && 'दोहोरो OTP प्रमाणीकरण'}
+                  {mode === 'profile_stage2' && 'दोस्रो चरण: विस्तृत विवरण'}
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black tracking-tight text-white">
+                बालानन्द वैदिक ज्योतिष सेवा
+              </h3>
+            </div>
           </div>
-
-          <div className="inline-flex items-center gap-2 bg-amber-500/10 dark:bg-amber-500/20 px-3.5 py-1 rounded-full text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30">
-            <ShieldCheck className="w-4 h-4" />
-            <span>
-              {isSuperAdminOnly ? '👑 सुपरएडमिन गोप्य लगइन पोर्टल' : 'सुरक्षित वैदिक सदस्य लगइन तथा दर्ता'}
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold font-serif">
-            बालानन्द वैदिक ज्योतिष तथा पञ्चाङ्ग
-          </h2>
-          <p className="text-xs text-stone-500 dark:text-stone-400">
-            {isSuperAdminOnly
-              ? 'केन्द्रीय कमान्ड कक्ष पहुँचका लागि आधिकारिक परिचय प्रविष्टि गर्नुहोस्'
-              : 'व्यक्तिगत दैनिक, मासिक र वार्षिक राशिफल तथा शुभ साइतका लागि सदस्य लगइन'}
-          </p>
         </div>
 
-        {/* If Superadmin mode, do not show tabs, just superadmin sign-in form */}
-        {!isSuperAdminOnly && (
-          <div className="grid grid-cols-2 gap-1 p-1 bg-stone-100 dark:bg-stone-900 rounded-2xl mb-5 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('signin');
-                setErrorMsg(null);
-                setSuccessMsg(null);
-              }}
-              className={`py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'signin'
-                  ? 'bg-[#7A1C1C] text-white shadow'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
-              }`}
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>साइन-इन (Sign In)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('signup');
-                setErrorMsg(null);
-                setSuccessMsg(null);
-              }}
-              className={`py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'signup'
-                  ? 'bg-[#7A1C1C] text-white shadow'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
-              }`}
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>साइन-अप (Sign Up)</span>
-            </button>
-          </div>
-        )}
-
-        {/* Feedback Messages */}
-        {errorMsg && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs rounded-xl flex items-start gap-2">
-            <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
-            <span className="leading-relaxed">{errorMsg}</span>
-          </div>
-        )}
-
-        {successMsg && (
-          <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300 text-xs rounded-xl flex items-start gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
-            <span className="leading-relaxed">{successMsg}</span>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------ */}
-        {/* TAB 1: SIGN IN                                               */}
-        {/* ------------------------------------------------------------ */}
-        {activeTab === 'signin' && (
-          <form onSubmit={handleSignIn} className="space-y-4 text-xs">
-            <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                {isSuperAdminOnly ? 'सुपरएडमिन प्रयोगकर्ता नाम:' : 'फोन नम्बर वा प्रयोगकर्ता नाम:'}
-              </label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  value={phoneOrUsername}
-                  onChange={e => setPhoneOrUsername(e.target.value)}
-                  placeholder={isSuperAdminOnly ? "admin" : "उदाहरण: 9800000000"}
-                  className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono text-sm"
-                  required
-                />
-              </div>
+        {/* Modal Scrollable Body */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 text-xs sm:text-sm">
+          {/* Success Banner */}
+          {successMsg && (
+            <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 dark:text-emerald-200 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{successMsg}</span>
             </div>
+          )}
 
-            <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                पासवर्ड:
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="******"
-                  className="w-full pl-9 pr-10 py-2.5 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono text-sm"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-stone-400 hover:text-stone-600"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+          {/* Error Banner */}
+          {errorMsg && (
+            <div className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 dark:text-rose-200 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMsg}</span>
             </div>
+          )}
 
-            <button
-              type="submit"
-              className="w-full py-3 bg-[#7A1C1C] hover:bg-[#8B2323] text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
-            >
-              <LogIn className="w-4 h-4 text-amber-300" />
-              <span>{isSuperAdminOnly ? 'सुपरएडमिन लगइन गर्नुहोस्' : 'लगइन गर्नुहोस्'}</span>
-            </button>
-
-            {!isSuperAdminOnly && (
-              <div className="text-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('forgot')}
-                  className="text-stone-500 hover:text-[#7A1C1C] text-[11px] underline"
-                >
-                  पासवर्ड बिर्सनुभयो? यहाँ क्लिक गर्नुहोस्
-                </button>
+          {/* ─────────────────────────────────────────────────────────────
+              VIEW 1: SIGN IN (LOGIN)
+              ───────────────────────────────────────────────────────────── */}
+          {mode === 'signin' && (
+            <form onSubmit={handleSignIn} className="space-y-4 animate-in fade-in">
+              <div>
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
+                  मोबाइल नम्बर वा प्रयोगकर्ता नाम *
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="९८xxxxxxxx / ९७xxxxxxxx"
+                    value={loginPhoneOrEmail}
+                    onChange={(e) => setLoginPhoneOrEmail(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
               </div>
-            )}
-          </form>
-        )}
 
-        {/* ------------------------------------------------------------ */}
-        {/* TAB 2: SIGN UP WITH MANDATORY BIRTH DETAILS                  */}
-        {/* ------------------------------------------------------------ */}
-        {activeTab === 'signup' && !isSuperAdminOnly && (
-          <form onSubmit={handleSignUp} className="space-y-3.5 text-xs">
-            <div className="bg-amber-500/10 border border-amber-400/30 rounded-2xl p-3 space-y-1">
-              <span className="text-[11px] font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                जन्म विवरण किन अनिवार्य छ?
-              </span>
-              <p className="text-[10px] text-stone-600 dark:text-stone-400 leading-relaxed">
-                तपाईंको जन्म मिति, समय र स्थानको आधारमा वैदिक गणित इन्जिनले तपाईंको आफ्नै दैनिक, मासिक र वार्षिक राशिफल, महादशा, साढेसाती तथा चन्द्रबल/ताराबल अनुकूल साइत स्वचालित रूपमा गणना गर्नेछ।
-              </p>
-            </div>
+              <div>
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
+                  पासवर्ड *
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="तपाईंको पासवर्ड"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full pl-9 pr-10 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-stone-400 hover:text-stone-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
 
-            {/* Full Name & Gender */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                  पूरा नाम (Full Name): *
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#7A1C1C] hover:from-[#8B2323] hover:to-[#6E1818] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
+              >
+                <LogIn className="w-4 h-4 text-amber-300" />
+                <span>{isLoading ? 'लगइन हुँदैछ...' : 'साइन इन / लगइन गर्नुहोस्'}</span>
+              </button>
+
+              <div className="pt-3 border-t border-stone-200 dark:border-stone-800 text-center">
+                <p className="text-xs text-stone-500">
+                  नयाँ खाता खोल्न चाहनुहुन्छ?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorMsg(null);
+                      setSuccessMsg(null);
+                      setMode('signup_3fields');
+                    }}
+                    className="text-amber-700 dark:text-amber-400 font-bold hover:underline cursor-pointer"
+                  >
+                    सदस्यता लिनुहोस् (Sign Up) ↗
+                  </button>
+                </p>
+              </div>
+            </form>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              VIEW 2: PHASE 4 SIGNUP (EXACTLY THREE FIELDS)
+              ───────────────────────────────────────────────────────────── */}
+          {mode === 'signup_3fields' && (
+            <form onSubmit={handleStartSignup} className="space-y-4 animate-in fade-in">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-900 dark:text-amber-200">
+                <span className="font-bold block">पहिलो चरण: केवल ३ वटा विवरण</span>
+                <span className="text-[11px] text-stone-600 dark:text-stone-400">
+                  मोबाइल र इमेलमा एक-एक वटा ६ अङ्कको गोप्य OTP सुरक्षा कोड पठाइनेछ।
+                </span>
+              </div>
+
+              {/* Field 1: Full Name */}
+              <div>
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
+                  १. पूरा नाम (Full Name) *
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
                   <input
                     type="text"
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                    placeholder="जस्तै: रामप्रसाद शर्मा"
-                    className="w-full pl-9 pr-3 py-2 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none"
                     required
+                    placeholder="उदा: पं. रामप्रसाद शर्मा"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
                   />
                 </div>
               </div>
 
+              {/* Field 2: Mobile Number */}
               <div>
-                <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                  लिङ्ग (Gender): *
-                </label>
-                <select
-                  value={gender}
-                  onChange={e => setGender(e.target.value as Gender)}
-                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-bold"
-                >
-                  <option value="male">पुरुष (Male)</option>
-                  <option value="female">महिला (Female)</option>
-                  <option value="other">अन्य (Other)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Mobile Phone & Email */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                  मोबाइल नम्बर (Phone): *
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
+                  २. मोबाइल नम्बर (Mobile Number) *
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
                   <input
                     type="tel"
-                    value={signupPhone}
-                    onChange={e => setSignupPhone(e.target.value)}
-                    placeholder="98XXXXXXXX"
-                    className="w-full pl-9 pr-3 py-2 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono"
                     required
+                    placeholder="९८xxxxxxxx / ९७xxxxxxxx"
+                    value={signupPhone}
+                    onChange={(e) => setSignupPhone(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
                   />
                 </div>
+                <span className="text-[10px] text-stone-500 mt-0.5 block">
+                  SMS मार्फत ६ अङ्कको OTP कोड पठाइनेछ।
+                </span>
               </div>
 
+              {/* Field 3: Email Address */}
               <div>
-                <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                  इमेल (ऐच्छिक):
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
+                  ३. इमेल ठेगाना (Email Address) *
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
                   <input
                     type="email"
+                    required
+                    placeholder="example@gmail.com"
                     value={signupEmail}
-                    onChange={e => setSignupEmail(e.target.value)}
-                    placeholder="user@example.com"
-                    className="w-full pl-9 pr-3 py-2 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono"
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+                <span className="text-[10px] text-stone-500 mt-0.5 block">
+                  इमेल प्रमाणीकरण कोड (OTP) पठाइनेछ।
+                </span>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
+              >
+                <ShieldCheck className="w-4 h-4 text-amber-200" />
+                <span>{isLoading ? 'OTP कोड पठाइँदैछ...' : 'सुरक्षा कोड (OTP) पठाउनुहोस् →'}</span>
+              </button>
+
+              <div className="pt-3 border-t border-stone-200 dark:border-stone-800 text-center">
+                <p className="text-xs text-stone-500">
+                  पहिले नै खाता दर्ता छ?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorMsg(null);
+                      setSuccessMsg(null);
+                      setMode('signin');
+                    }}
+                    className="text-amber-700 dark:text-amber-400 font-bold hover:underline cursor-pointer"
+                  >
+                    साइन इन / Login गर्नुहोस् ↗
+                  </button>
+                </p>
+              </div>
+            </form>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              VIEW 3: PHASE 5 DUAL OTP VERIFICATION SCREEN
+              ───────────────────────────────────────────────────────────── */}
+          {mode === 'dual_otp' && (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                <span className="font-bold block flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  दोहोरो प्रमाणीकरण आवश्यक छ
+                </span>
+                <p className="text-[11px] leading-relaxed text-stone-600 dark:text-stone-300">
+                  तपाईंको मोबाइल <strong>{signupPhone}</strong> र इमेल <strong>{signupEmail}</strong> मा अलग-अलग ६ अङ्कको OTP पठाइएको छ। दुवै कोड प्रमाणीकरण गर्नुहोस्।
+                </p>
+              </div>
+
+              {/* Channel 1: Mobile Phone OTP Block */}
+              <div className={`p-4 rounded-2xl border-2 transition-all ${isPhoneVerified ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200' : 'bg-stone-50 dark:bg-stone-900 border-stone-300 dark:border-stone-700'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-xs flex items-center gap-1.5">
+                    <Smartphone className="w-4 h-4 text-amber-600" />
+                    १. मोबाइल OTP (SMS)
+                  </span>
+                  {isPhoneVerified ? (
+                    <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                      प्रमाणीकरण भयो
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
+                      बाँकी छ
+                    </span>
+                  )}
+                </div>
+
+                {!isPhoneVerified ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="६ अङ्कको कोड"
+                      value={phoneOtp}
+                      onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                      className="flex-1 px-3 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl font-mono text-center text-sm font-bold tracking-widest focus:border-amber-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      disabled={isVerifyingPhone || phoneOtp.length < 6}
+                      onClick={handleVerifyPhone}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {isVerifyingPhone ? 'जाँचिँदै...' : 'रुजु गर्नुहोस्'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>मोबाइल नम्बर ({signupPhone}) प्रमाणित भयो।</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Channel 2: Email OTP Block */}
+              <div className={`p-4 rounded-2xl border-2 transition-all ${isEmailVerified ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200' : 'bg-stone-50 dark:bg-stone-900 border-stone-300 dark:border-stone-700'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-xs flex items-center gap-1.5">
+                    <Mail className="w-4 h-4 text-amber-600" />
+                    २. इमेल OTP (Email)
+                  </span>
+                  {isEmailVerified ? (
+                    <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                      प्रमाणीकरण भयो
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
+                      बाँकी छ
+                    </span>
+                  )}
+                </div>
+
+                {!isEmailVerified ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="६ अङ्कको कोड"
+                      value={emailOtp}
+                      onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ''))}
+                      className="flex-1 px-3 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl font-mono text-center text-sm font-bold tracking-widest focus:border-amber-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      disabled={isVerifyingEmail || emailOtp.length < 6}
+                      onClick={handleVerifyEmail}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {isVerifyingEmail ? 'जाँचिँदै...' : 'रुजु गर्नुहोस्'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>इमेल ठेगाना ({signupEmail}) प्रमाणित भयो।</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Resend OTP Bar */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <span className="text-stone-500">
+                  {canResend ? 'कोड प्राप्त भएन?' : `पुनः पठाउन बाँकी: ${resendCooldown} सेकेन्ड`}
+                </span>
+                <button
+                  type="button"
+                  disabled={!canResend || isLoading}
+                  onClick={handleResend}
+                  className={`flex items-center gap-1 font-bold ${canResend ? 'text-amber-700 dark:text-amber-400 hover:underline cursor-pointer' : 'text-stone-400 cursor-not-allowed'}`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span>नयाँ कोड पठाउनुहोस्</span>
+                </button>
+              </div>
+
+              {/* Back Link */}
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMsg(null);
+                    setSuccessMsg(null);
+                    setMode('signup_3fields');
+                  }}
+                  className="text-xs text-stone-500 hover:underline cursor-pointer"
+                >
+                  ← फोन वा इमेल सच्याउनुहोस्
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              VIEW 4: PHASE 8 SECOND-STAGE COMPLETE USER PROFILE
+              ───────────────────────────────────────────────────────────── */}
+          {mode === 'profile_stage2' && (
+            <form onSubmit={handleSaveDetailedProfile} className="space-y-4 animate-in fade-in">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    प्रमाणित खाता: <strong>{fullName}</strong>
+                  </span>
+                </div>
+                <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">
+                  दोहोरो प्रमाणित ✓
+                </span>
+              </div>
+
+              <div className="border-b border-stone-200 dark:border-stone-800 pb-2">
+                <h4 className="font-extrabold text-xs sm:text-sm text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span>आफ्नो विस्तृत विवरण पूरा गर्नुहोस् (Stage 2)</span>
+                </h4>
+                <p className="text-[11px] text-stone-500 mt-0.5">
+                  चिना, कुण्डली, फलादेश तथा व्यक्तिगत सेवाहरूका लागि आवश्यक विवरण भर्नुहोस्।
+                </p>
+              </div>
+
+              {/* Readonly Verified Contact Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 bg-stone-100 dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800">
+                  <span className="text-[10px] text-stone-500 block">प्रमाणित मोबाइल नम्बर:</span>
+                  <span className="font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                    {signupPhone || authenticatedSession?.phone}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-stone-100 dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800">
+                  <span className="text-[10px] text-stone-500 block">प्रमाणित इमेल:</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400 truncate block">
+                    {signupEmail || (authenticatedSession as any)?.email || 'pramanit@balananda.com'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Geographic Location: Province & District */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                    प्रदेश (Province) *
+                  </label>
+                  <select
+                    value={selectedProvince}
+                    onChange={(e) => {
+                      setSelectedProvince(e.target.value);
+                      const dList = NEPAL_77_DISTRICTS.filter((d) => d.province === e.target.value);
+                      if (dList.length > 0) setSelectedDistrict(dList[0].district);
+                    }}
+                    className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none cursor-pointer"
+                  >
+                    {[
+                      'कोशी प्रदेश',
+                      'मधेश प्रदेश',
+                      'बागमती प्रदेश',
+                      'गण्डकी प्रदेश',
+                      'लुम्बिनी प्रदेश',
+                      'कर्णाली प्रदेश',
+                      'सुदूरपश्चिम प्रदेश'
+                    ].map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                    जिल्ला (District) *
+                  </label>
+                  <select
+                    value={selectedDistrict}
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none cursor-pointer"
+                  >
+                    {filteredDistricts.map((d) => (
+                      <option key={d.district} value={d.district}>
+                        {d.district} ({d.districtEn})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Municipality and Ward / Street Address */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                    गाउँपालिका / नगरपालिका (Local Level)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="उदा: काठमाडौँ महानगरपालिका"
+                    value={localLevel}
+                    onChange={(e) => setLocalLevel(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                    टोल / सडक / वडा नं. (Street / Tole)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="उदा: बानेश्वर-१०, थापागाउँ"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Birth Date (वि.सं. / ई.सं.) */}
-            <div className="p-3 bg-stone-50 dark:bg-stone-900/70 border border-stone-200 dark:border-stone-800 rounded-2xl space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-[#7A1C1C] dark:text-amber-400" />
-                  <span>जन्म मिति (Date of Birth): *</span>
-                </label>
-                <div className="inline-flex rounded-lg border border-stone-300 dark:border-stone-700 overflow-hidden text-[11px] font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setDateType('BS')}
-                    className={`px-2 py-0.5 ${dateType === 'BS' ? 'bg-[#7A1C1C] text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600'}`}
-                  >
-                    वि.सं. (BS)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDateType('AD')}
-                    className={`px-2 py-0.5 ${dateType === 'AD' ? 'bg-[#7A1C1C] text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600'}`}
-                  >
-                    ई.सं. (AD)
-                  </button>
+              {/* Birth Details (BS Date, Time, Place) */}
+              <div className="p-3 bg-stone-50 dark:bg-stone-900/60 rounded-2xl border border-stone-200 dark:border-stone-800 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-stone-700 dark:text-stone-300">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                    जन्ममिति तथा जन्मसमय (कुण्डलीका लागि)
+                  </span>
                 </div>
-              </div>
 
-              {dateType === 'BS' ? (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <span className="text-[10px] text-stone-500 block mb-0.5">वर्ष (वि.सं.)</span>
+                    <label className="block text-stone-500 text-[10px] mb-0.5">वर्ष (वि.सं.)</label>
                     <input
                       type="number"
                       value={bsYear}
-                      onChange={e => setBsYear(e.target.value)}
-                      min="1970"
-                      max="2100"
-                      className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                      required
+                      onChange={(e) => setBsYear(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-stone-500 block mb-0.5">महिना (१-१२)</span>
+                    <label className="block text-stone-500 text-[10px] mb-0.5">महिना</label>
                     <input
                       type="number"
+                      min={1}
+                      max={12}
                       value={bsMonth}
-                      onChange={e => setBsMonth(e.target.value)}
-                      min="1"
-                      max="12"
-                      className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                      required
+                      onChange={(e) => setBsMonth(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-stone-500 block mb-0.5">गते (१-३२)</span>
+                    <label className="block text-stone-500 text-[10px] mb-0.5">गते</label>
                     <input
                       type="number"
+                      min={1}
+                      max={32}
                       value={bsDay}
-                      onChange={e => setBsDay(e.target.value)}
-                      min="1"
-                      max="32"
-                      className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                      required
+                      onChange={(e) => setBsDay(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center"
                     />
                   </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <span className="text-[10px] text-stone-500 block mb-0.5">Year (AD)</span>
-                    <input
-                      type="number"
-                      value={adYear}
-                      onChange={e => setAdYear(e.target.value)}
-                      min="1920"
-                      max="2045"
-                      className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-stone-500 block mb-0.5">Month (1-12)</span>
-                    <input
-                      type="number"
-                      value={adMonth}
-                      onChange={e => setAdMonth(e.target.value)}
-                      min="1"
-                      max="12"
-                      className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-stone-500 block mb-0.5">Day (1-31)</span>
-                    <input
-                      type="number"
-                      value={adDay}
-                      onChange={e => setAdDay(e.target.value)}
-                      min="1"
-                      max="31"
-                      className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-              <p className="text-[10px] text-stone-400 text-right">
-                {dateType === 'BS' ? `ई.सं. समकक्ष: ${adYear}-${adMonth}-${adDay}` : `वि.सं. समकक्ष: ${bsYear}/${bsMonth}/${bsDay}`}
-              </p>
-            </div>
 
-            {/* Birth Time (घन्टा, मिनेट, AM/PM) */}
-            <div className="p-3 bg-stone-50 dark:bg-stone-900/70 border border-stone-200 dark:border-stone-800 rounded-2xl space-y-2">
-              <label className="font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-[#7A1C1C] dark:text-amber-400" />
-                <span>जन्म समय (Birth Time): *</span>
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <span className="text-[10px] text-stone-500 block mb-0.5">घन्टा (१-१२)</span>
-                  <select
-                    value={birthHour}
-                    onChange={e => setBirthHour(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                  >
-                    {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(h => (
-                      <option key={h} value={h}>{h}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <span className="text-[10px] text-stone-500 block mb-0.5">मिनेट (००-५९)</span>
-                  <select
-                    value={birthMinute}
-                    onChange={e => setBirthMinute(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono font-bold"
-                  >
-                    {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <span className="text-[10px] text-stone-500 block mb-0.5">समय चक्र</span>
-                  <div className="grid grid-cols-2 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setBirthAmPm('AM')}
-                      className={`py-1.5 rounded-lg font-bold ${birthAmPm === 'AM' ? 'bg-[#7A1C1C] text-white' : 'bg-stone-200 dark:bg-stone-800'}`}
-                    >
-                      AM
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBirthAmPm('PM')}
-                      className={`py-1.5 rounded-lg font-bold ${birthAmPm === 'PM' ? 'bg-[#7A1C1C] text-white' : 'bg-stone-200 dark:bg-stone-800'}`}
-                    >
-                      PM
-                    </button>
+                {/* Birth Time and Place */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="block text-stone-500 text-[10px] mb-0.5">जन्मसमय (घण्टा : मिनेट)</label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={birthHour}
+                        onChange={(e) => setBirthHour(e.target.value)}
+                        placeholder="HH"
+                        className="w-12 px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono"
+                      />
+                      <span>:</span>
+                      <input
+                        type="text"
+                        value={birthMinute}
+                        onChange={(e) => setBirthMinute(e.target.value)}
+                        placeholder="MM"
+                        className="w-12 px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-center font-mono"
+                      />
+                      <select
+                        value={birthAmPm}
+                        onChange={(e) => setBirthAmPm(e.target.value as any)}
+                        className="px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg text-xs"
+                      >
+                        <option value="AM">AM (बिहानी)</option>
+                        <option value="PM">PM (दिउँसो/रात्री)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-500 text-[10px] mb-0.5">जन्मस्थान (Birth Place)</label>
+                    <input
+                      type="text"
+                      placeholder="उदा: काठमाडौँ, नेपाल"
+                      value={birthPlace}
+                      onChange={(e) => setBirthPlace(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg"
+                    />
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Birth Location */}
-            <div className="p-3 bg-stone-50 dark:bg-stone-900/70 border border-stone-200 dark:border-stone-800 rounded-2xl space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5 text-xs">
-                  <MapPin className="w-4 h-4 text-[#7A1C1C] dark:text-amber-400" />
-                  <span>जन्म स्थान (Birth Place & Geolocation): *</span>
-                </label>
+              {/* Occupation and Gender */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                    पेशा / व्यवसाय (Occupation)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="उदा: प्राध्यापक, व्यापार, सेवा"
+                    value={occupation}
+                    onChange={(e) => setOccupation(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                    लिङ्ग (Gender)
+                  </label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="male">पुरुष (Male)</option>
+                    <option value="female">महिला (Female)</option>
+                    <option value="other">अन्य (Other)</option>
+                  </select>
+                </div>
               </div>
 
-              {/* 1-Click GPS Detect Button */}
-              <button
-                type="button"
-                onClick={handleDetectCurrentLocation}
-                disabled={isDetectingGPS}
-                className="w-full py-2 px-3 bg-gradient-to-r from-amber-100 to-orange-100 hover:from-amber-200 hover:to-orange-200 dark:from-stone-800 dark:to-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-xl text-amber-900 dark:text-amber-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98 disabled:opacity-50"
-              >
-                {isDetectingGPS ? (
-                  <>
-                    <Loader2 className="w-4 h-4 text-amber-700 animate-spin" />
-                    <span>GPS द्वारा स्थान पत्ता लगाइँदैछ...</span>
-                  </>
-                ) : (
-                  <>
-                    <Navigation className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-                    <span>🛰️ मेरो हालको स्थान पत्ता लगाउनुहोस् (Auto GPS)</span>
-                  </>
-                )}
-              </button>
-
-              {/* GPS Success Notification */}
-              {gpsSuccessNote && (
-                <div className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-lg text-emerald-800 dark:text-emerald-300 text-[11px] font-semibold flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                  <span>{gpsSuccessNote}</span>
-                </div>
-              )}
-
-              {/* District & City Selection Dropdown (77 Districts + World) */}
-              <div className="relative">
-                <MapPin className="w-4 h-4 text-stone-400 absolute left-3 top-2.5 pointer-events-none" />
-                <select
-                  value={selectedCityName}
-                  onChange={e => handleCitySelect(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none text-xs font-medium"
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
                 >
-                  <optgroup label="⭐ प्रमुख शहरहरू (Popular Hubs)">
-                    {POPULAR_NEPAL_CITIES.map(c => (
-                      <option key={c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </optgroup>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                  <span>{isLoading ? 'सुरक्षित गरिँदैछ...' : 'विवरण सुरक्षित गर्नुहोस् र सुरु गर्नुहोस्'}</span>
+                </button>
 
-                  {['कोशी प्रदेश', 'मधेश प्रदेश', 'बागमती प्रदेश', 'गण्डकी प्रदेश', 'लुम्बिनी प्रदेश', 'कर्णाली प्रदेश', 'सुदूरपश्चिम प्रदेश'].map(prov => {
-                    const dists = NEPAL_77_DISTRICTS.filter(d => d.province === prov);
-                    return (
-                      <optgroup key={prov} label={`🇳🇵 ${prov} (${dists.length} जिल्लाहरू)`}>
-                        {dists.map(d => {
-                          const val = `${d.headquarter}, ${d.district}`;
-                          return (
-                            <option key={d.district} value={val}>
-                              {d.district} — {d.headquarter} ({d.districtEn})
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    );
-                  })}
-
-                  <optgroup label="🌐 अन्तर्राष्ट्रिय प्रमुख शहरहरू">
-                    {WORLD_LOCATIONS_DATA.filter(w => w.region !== 'nepal').slice(0, 15).map(w => (
-                      <option key={w.name} value={w.name}>
-                        {w.flag || '📍'} {w.name} ({w.country})
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
+                <button
+                  type="button"
+                  onClick={handleSkipStage2}
+                  className="w-full py-2.5 text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 font-medium cursor-pointer"
+                >
+                  पछि भर्नुहोस् (ड्यासबोर्डमा जानुहोस् →)
+                </button>
               </div>
-
-              {/* Dynamic Sacred Geography Card for selected place */}
-              <div className="p-2.5 rounded-xl bg-amber-50/80 dark:bg-stone-800/90 border border-amber-200 dark:border-stone-700 text-[11px] space-y-1.5 shadow-sm">
-                <div className="flex items-center justify-between text-stone-500 dark:text-stone-400 text-[10px]">
-                  <span>स्थान: {selectedLocation.name}</span>
-                  <span className="font-mono">
-                    {selectedLocation.latitude.toFixed(2)}° N, {selectedLocation.longitude.toFixed(2)}° E
-                  </span>
-                </div>
-                <div className="flex items-start gap-1 text-stone-800 dark:text-stone-200">
-                  <span className="text-amber-800 dark:text-amber-400 font-bold shrink-0">📍 पवित्र नदी:</span>
-                  <span className="font-semibold">{activeSacredGeo.riverNepali}</span>
-                </div>
-                <div className="flex items-start gap-1 text-stone-800 dark:text-stone-200">
-                  <span className="text-amber-800 dark:text-amber-400 font-bold shrink-0">🛕 प्रसिद्ध देवपीठ:</span>
-                  <span className="font-semibold">{activeSacredGeo.deityNepali}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                  पासवर्ड तय गर्नुहोस्: *
-                </label>
-                <input
-                  type="password"
-                  value={signupPassword}
-                  onChange={e => setSignupPassword(e.target.value)}
-                  placeholder="न्यूनतम ६ अक्षर"
-                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                  पासवर्ड पुनः प्रविष्टि: *
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="पुनः टाइप गर्नुहोस्"
-                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-gradient-to-r from-[#7A1C1C] to-[#9B2C2C] hover:from-[#8B2323] hover:to-[#A73333] text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm mt-2 cursor-pointer active:scale-98"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>सदस्यता दर्ता तथा व्यक्तिगत कुण्डली तयार गर्नुहोस्</span>
-            </button>
-          </form>
-        )}
-
-        {/* ------------------------------------------------------------ */}
-        {/* TAB 3: FORGOT PASSWORD                                       */}
-        {/* ------------------------------------------------------------ */}
-        {activeTab === 'forgot' && !isSuperAdminOnly && (
-          <form onSubmit={handleResetPassword} className="space-y-4 text-xs">
-            <p className="text-stone-600 dark:text-stone-300">
-              तपाईंको दर्ता भएको फोन नम्बर प्रविष्टि गरी नयाँ पासवर्ड तय गर्नुहोस्:
-            </p>
-
-            <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                दर्ता भएको फोन नम्बर:
-              </label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                <input
-                  type="tel"
-                  value={forgotPhone}
-                  onChange={e => setForgotPhone(e.target.value)}
-                  placeholder="98XXXXXXXX"
-                  className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                नयाँ पासवर्ड:
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  placeholder="नयाँ पासवर्ड"
-                  className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-[#E6E0D5] dark:border-stone-800 rounded-xl focus:ring-2 focus:ring-[#7A1C1C] outline-none font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-[#7A1C1C] hover:bg-[#8B2323] text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
-            >
-              <KeyRound className="w-4 h-4 text-amber-300" />
-              <span>पासवर्ड अपडेट गर्नुहोस्</span>
-            </button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('signin')}
-                className="text-stone-500 hover:text-[#7A1C1C] text-[11px] underline"
-              >
-                साइन-इन पृष्ठमा फर्कनुहोस्
-              </button>
-            </div>
-          </form>
-        )}
-
-      </div>
+            </form>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 };
