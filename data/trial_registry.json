@@ -1,1 +1,18 @@
-{}
+{
+  "9800377568": {
+    "mobile": "9800377568",
+    "userId": "usr_1792748488821_k6jnm",
+    "startedAtISO": "2026-10-23T09:41:28.915Z",
+    "expiresAtISO": "2026-10-24T09:41:28.915Z",
+    "expiresAtTimestamp": 1792834888915,
+    "deviceFingerprint": "superadmin_manual"
+  },
+  "9800798845": {
+    "mobile": "9800798845",
+    "userId": "usr_1792748618185_37hqo",
+    "startedAtISO": "2026-10-23T09:43:38.272Z",
+    "expiresAtISO": "2026-10-24T09:43:38.272Z",
+    "expiresAtTimestamp": 1792835018272,
+    "deviceFingerprint": "superadmin_manual"
+  }
+}
