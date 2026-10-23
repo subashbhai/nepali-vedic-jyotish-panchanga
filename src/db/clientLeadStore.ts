@@ -568,7 +568,7 @@ export function superAdminApproveByTransactionId(
     status: 'PURCHASE_APPROVED',
     planId: 'yearly_both',
     planNameNepali: clientInfo?.planName || '१ वर्षको सदस्यता (मोबाइल + कम्प्युटर)',
-    planAmountNPR: clientInfo?.planAmount || 5000,
+    planAmountNPR: clientInfo?.planAmount || 1200,
     paymentMethod: cleanTx.startsWith('ESE') ? 'esewa' : cleanTx.startsWith('KHL') ? 'khalti' : 'bank',
     transactionId: cleanTx,
     submittedAtISO: now.toISOString(),
