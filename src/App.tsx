@@ -779,6 +779,7 @@ export default function App() {
   // RBAC Authentication State
   const [rbacSession, setRbacSession] = useState<RBACSession | null>(getInitialRBACSession);
   const [isRBACAuthModalOpen, setIsRBACAuthModalOpen] = useState(false);
+  const [authModalInitialMode, setAuthModalInitialMode] = useState<'signin' | 'signup'>('signin');
   const [isSuperAdminAuthModalOpen, setIsSuperAdminAuthModalOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<string | undefined>(undefined);
   const [pasalInitialTab, setPasalInitialTab] = useState<'home' | 'books' | 'books_download' | 'pos' | 'admin'>('home');
@@ -2131,8 +2132,14 @@ export default function App() {
             />
           ) : !rbacSession && !PUBLIC_UNAUTH_NAV_IDS.has(activeTab) && !ADMIN_PORTAL_TABS.has(activeTab) ? (
             <VedicLoginGateView
-              onOpenSignIn={() => setIsRBACAuthModalOpen(true)}
-              onOpenSignUp={() => setIsRBACAuthModalOpen(true)}
+              onOpenSignIn={() => {
+                setAuthModalInitialMode('signin');
+                setIsRBACAuthModalOpen(true);
+              }}
+              onOpenSignUp={() => {
+                setAuthModalInitialMode('signup');
+                setIsRBACAuthModalOpen(true);
+              }}
               onLoginSuccess={(session) => {
                 setRbacSession(session);
                 const isSuper =
@@ -2757,6 +2764,7 @@ export default function App() {
         <RBACAuthModal
           isOpen={isRBACAuthModalOpen || isSuperAdminAuthModalOpen}
           isSuperAdminOnly={isSuperAdminAuthModalOpen}
+          initialMode={authModalInitialMode}
           onClose={() => {
             setIsRBACAuthModalOpen(false);
             setIsSuperAdminAuthModalOpen(false);

@@ -66,6 +66,7 @@ export interface SuperAdminUser {
   statusUpdatedAtISO?: string | null;
   mobileVerified: boolean;
   emailVerified: boolean;
+  profileCompleted?: boolean;
   createdAtISO: string;
   createdAtBS: string;
   lastLoginISO?: string | null;
@@ -412,8 +413,10 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             status: (ru.status === 'disabled' || (ru.status as string) === 'suspended') ? 'suspended' : (ru.status as string) === 'inactive' ? 'inactive' : 'active',
             mobileVerified: ru.mobileVerified,
             emailVerified: ru.emailVerified,
+            profileCompleted: (ru as any).profileCompleted !== undefined ? (ru as any).profileCompleted : Boolean(ru.birthDetails?.dateBS || ru.savedAddresses?.length),
             createdAtISO: ru.createdAtISO,
             createdAtBS: ru.createdAtBS,
+            lastLoginISO: (ru as any).lastLoginISO || null,
             jyotishAccess: {
               unlocked: purchaseInfo.isApproved,
               period: purchaseInfo.isApproved ? '1_year' : null
@@ -1536,28 +1539,30 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
             <thead>
               <tr className="bg-stone-950/80 border-b border-stone-800 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
                 <th className="py-3 px-3 text-center w-12">क्र.सं.</th>
-                <th className="py-3 px-3 min-w-[170px]">नाम</th>
-                <th className="py-3 px-3 min-w-[150px]">ठेगाना</th>
-                <th className="py-3 px-3 min-w-[120px]">मोबाइल नम्बर</th>
-                <th className="py-3 px-3 min-w-[140px]">जन्ममिति</th>
-                <th className="py-3 px-3 min-w-[130px]">WhatsApp नम्बर</th>
-                <th className="py-3 px-3 min-w-[130px]">दर्ता मिति</th>
+                <th className="py-3 px-3 min-w-[170px]">नाम / ग्राहक नं.</th>
+                <th className="py-3 px-3 min-w-[140px]">ठेगाना</th>
+                <th className="py-3 px-3 min-w-[140px]">मोबाइल (रुजु)</th>
+                <th className="py-3 px-3 min-w-[160px]">इमेल (रुजु)</th>
+                <th className="py-3 px-3 min-w-[100px] text-center">प्रोफाइल</th>
+                <th className="py-3 px-3 min-w-[130px]">जन्ममिति</th>
+                <th className="py-3 px-3 min-w-[130px]">WhatsApp</th>
+                <th className="py-3 px-3 min-w-[140px]">दर्ता / लगइन</th>
                 <th className="py-3 px-3 min-w-[170px]">खरिद स्थिति / अलर्ट</th>
                 <th className="py-3 px-3 min-w-[130px]">खाता स्थिति</th>
-                <th className="py-3 px-3 text-center min-w-[90px]">कार्य</th>
+                <th className="py-3 px-3 text-center min-w-[130px]">कार्य</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-800/60 text-xs text-stone-300">
               {isLoading && users.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-16 text-center text-stone-400 space-y-3">
+                  <td colSpan={12} className="py-16 text-center text-stone-400 space-y-3">
                     <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
                     <p className="text-sm font-bold text-stone-300">डेटाबेसबाट प्रयोगकर्ताहरू लोड हुँदैछ...</p>
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-16 text-center text-stone-400 space-y-2">
+                  <td colSpan={12} className="py-16 text-center text-stone-400 space-y-2">
                     <Users className="w-10 h-10 text-stone-600 mx-auto" />
                     <p className="text-sm font-bold text-stone-200">कुनै पनि प्रयोगकर्ता फेला परेन।</p>
                     <p className="text-xs text-stone-500">खोज वा फिल्टर परिवर्तन गरेर हेर्नुहोस्।</p>
@@ -1639,15 +1644,66 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                         </div>
                       </td>
 
-                      {/* 4. मोबाइल नम्बर */}
+                      {/* 4. मोबाइल (रुजु) */}
                       <td className="py-3 px-3">
-                        <div className="flex items-center gap-1 font-mono font-bold text-stone-200">
-                          <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
-                          <span>{user.phone || 'उपलब्ध छैन'}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 font-mono font-bold text-stone-200">
+                            <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
+                            <span>{user.phone || 'उपलब्ध छैन'}</span>
+                          </div>
+                          <div>
+                            {user.mobileVerified ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 px-1.5 py-0.5 rounded" title="मोबाइल OTP द्वारा रुजु भएको">
+                                <Check className="w-2.5 h-2.5 text-emerald-400" /> रुजु भएको
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800/80 px-1.5 py-0.5 rounded" title="मोबाइल रुजु हुन बाँकी">
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-400" /> रुजु बाँकी
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
-                      {/* 5. जन्ममिति */}
+                      {/* 5. इमेल (रुजु) */}
+                      <td className="py-3 px-3">
+                        {user.email && user.email !== 'उपलब्ध छैन' ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 font-mono text-stone-200 text-xs">
+                              <Mail className="w-3 h-3 text-blue-400 shrink-0" />
+                              <span className="truncate max-w-[150px]" title={user.email}>{user.email}</span>
+                            </div>
+                            <div>
+                              {user.emailVerified ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 px-1.5 py-0.5 rounded" title="इमेल OTP द्वारा रुजु भएको">
+                                  <Check className="w-2.5 h-2.5 text-emerald-400" /> रुजु भएको
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800/80 px-1.5 py-0.5 rounded" title="इमेल रुजु हुन बाँकी">
+                                  <AlertTriangle className="w-2.5 h-2.5 text-amber-400" /> रुजु बाँकी
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-stone-500 italic">उपलब्ध छैन</span>
+                        )}
+                      </td>
+
+                      {/* 6. प्रोफाइल स्थिति */}
+                      <td className="py-3 px-3 text-center">
+                        {user.profileCompleted ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-700 shadow-sm" title="विस्तृत प्रोफाइल विवरण पूर्ण छ">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> पूर्ण
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-950 text-amber-300 border border-amber-700 shadow-sm" title="विस्तृत प्रोफाइल विवरण भर्न बाँकी">
+                            <AlertTriangle className="w-3 h-3 text-amber-400" /> अपूर्ण
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 7. जन्ममिति */}
                       <td className="py-3 px-3">
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-1 text-stone-200">
@@ -1662,7 +1718,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                         </div>
                       </td>
 
-                      {/* 6. WhatsApp नम्बर */}
+                      {/* 8. WhatsApp नम्बर */}
                       <td className="py-3 px-3">
                         {user.whatsapp && user.whatsapp !== 'उपलब्ध छैन' ? (
                           <button
@@ -1678,13 +1734,21 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                         )}
                       </td>
 
-                      {/* 7. दर्ता मिति */}
+                      {/* 9. दर्ता मिति तथा अन्तिम लगइन */}
                       <td className="py-3 px-3">
                         <div className="space-y-0.5">
                           <p className="text-stone-200 font-medium">{user.createdAtBS || '२०८१'}</p>
                           <p className="text-[10px] text-stone-500 font-mono">
-                            {new Date(user.createdAtISO).toLocaleDateString('en-CA')}
+                            दर्ता: {new Date(user.createdAtISO).toLocaleDateString('en-CA')}
                           </p>
+                          {user.lastLoginISO ? (
+                            <p className="text-[10px] text-emerald-400 font-mono flex items-center gap-1" title={`अन्तिम लगइन: ${user.lastLoginISO}`}>
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>लगइन: {new Date(user.lastLoginISO).toLocaleDateString('en-CA')}</span>
+                            </p>
+                          ) : (
+                            <p className="text-[9px] text-stone-600 italic">लगइन छैन</p>
+                          )}
                         </div>
                       </td>
 
@@ -1818,9 +1882,20 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                         </div>
                       </td>
 
-                      {/* 9. कार्य (Interlink Shortcuts & ⋮ Action Button) */}
+                      {/* 12. कार्य (Interlink Shortcuts & ⋮ Action Button) */}
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailsModalUser(user);
+                            }}
+                            className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-colors cursor-pointer"
+                            title="प्रयोगकर्ता प्रोफाइल विवरण हेर्नुहोस् (View Details)"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => {

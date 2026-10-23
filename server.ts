@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { authEngine } from "./src/server/authEngine";
 
 dotenv.config();
 
@@ -370,6 +371,39 @@ async function startServer() {
       console.error("Failed to save users.json:", e);
     }
   };
+
+  const migrateLegacyUsers = () => {
+    try {
+      const rawUsers = getUsers();
+      if (!Array.isArray(rawUsers) || rawUsers.length === 0) return;
+      let modified = false;
+      const migrated = rawUsers.map(u => {
+        let changed = false;
+        const copy = { ...u };
+        if (copy.mobileVerified === undefined) {
+          copy.mobileVerified = true;
+          changed = true;
+        }
+        if (copy.emailVerified === undefined) {
+          copy.emailVerified = true;
+          changed = true;
+        }
+        if (copy.profileCompleted === undefined) {
+          copy.profileCompleted = Boolean(copy.savedAddresses?.length || copy.birthDetails?.dateBS || (copy.address && copy.address !== 'विवरण बाँकी'));
+          changed = true;
+        }
+        if (changed) modified = true;
+        return copy;
+      });
+      if (modified) {
+        saveUsers(migrated);
+        console.log(`[Migration] Migrated legacy users with verification & profile flags.`);
+      }
+    } catch (err) {
+      console.warn('[Migration] Error migrating legacy users:', err);
+    }
+  };
+  migrateLegacyUsers();
 
   const getTrialRegistry = (): Record<string, any> => {
     try {
@@ -1395,6 +1429,289 @@ async function startServer() {
     return crypto.createHash("sha256").update(String(plain).trim()).digest("hex");
   };
 
+  // ── DUAL-OTP REGISTRATION & AUTHENTICATION ENDPOINTS (PHASE 4, 5, 7, 8, 9) ──
+
+  // 1. POST /api/auth/signup/start (Phase 4: Exactly 3 fields - Full Name, Mobile, Email)
+  app.post("/api/auth/signup/start", async (req, res) => {
+    try {
+      const { fullName, phone, email } = req.body;
+      const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+      const users = getUsers();
+
+      const result = await authEngine.startRegistration(fullName, phone, email, users, clientIp);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 2. POST /api/auth/signup/verify-phone (Phase 5: Mobile OTP verification)
+  app.post("/api/auth/signup/verify-phone", (req, res) => {
+    try {
+      const { challengeId, otp } = req.body;
+      if (!challengeId || !otp) {
+        return res.status(400).json({ success: false, message: "सत्र ID र OTP अनिवार्य छन्।" });
+      }
+      const result = authEngine.verifyPhoneOTP(challengeId, otp);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 3. POST /api/auth/signup/verify-email (Phase 5: Email OTP verification)
+  app.post("/api/auth/signup/verify-email", (req, res) => {
+    try {
+      const { challengeId, otp } = req.body;
+      if (!challengeId || !otp) {
+        return res.status(400).json({ success: false, message: "सत्र ID र OTP अनिवार्य छन्।" });
+      }
+      const result = authEngine.verifyEmailOTP(challengeId, otp);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 4. POST /api/auth/signup/resend-otp (Phase 5: Resend OTP with cooldown)
+  app.post("/api/auth/signup/resend-otp", async (req, res) => {
+    try {
+      const { challengeId, target } = req.body;
+      if (!challengeId) {
+        return res.status(400).json({ success: false, message: "सत्र ID अनिवार्य छ।" });
+      }
+      const result = await authEngine.resendOTP(challengeId, target || "both");
+      if (!result.success) {
+        return res.status(429).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 5. POST /api/auth/signup/finalize (Phase 7: Atomic account creation & automatic login after dual verification)
+  app.post("/api/auth/signup/finalize", (req, res) => {
+    try {
+      const { challengeId } = req.body;
+      if (!challengeId) {
+        return res.status(400).json({ success: false, message: "सत्र ID अनिवार्य छ।" });
+      }
+      const finalizeRes = authEngine.finalizeRegistration(challengeId);
+      if (!finalizeRes.success || !finalizeRes.user || !finalizeRes.token) {
+        return res.status(400).json(finalizeRes);
+      }
+
+      const users = getUsers();
+      users.unshift(finalizeRes.user);
+      saveUsers(users);
+
+      // Register or update client lead for Super Admin synchronization
+      const leads = getClientLeads();
+      const now = new Date();
+      const leadRecord = {
+        id: `LEAD-${Date.now()}`,
+        fullName: finalizeRes.user.fullName,
+        address: "नेपाल",
+        mobile: finalizeRes.user.phone,
+        email: finalizeRes.user.email,
+        whatsapp: finalizeRes.user.phone,
+        deviceFingerprint: "user-registered-dual-otp",
+        status: "REGISTERED_USER",
+        planId: "standard",
+        planNameNepali: "प्रमाणित दर्ता भएको ग्राहक (Dual-Verified User)",
+        planAmountNPR: 0,
+        paymentMethod: "none",
+        submittedAtISO: now.toISOString(),
+        submittedAtBS: "२०८३",
+        clientNotes: "३-फिल्ड दर्ता तथा मोबाइल र इमेल दुवै OTP प्रमाणीकरण सम्पन्न"
+      };
+      leads.unshift(leadRecord);
+      saveClientLeads(leads);
+
+      // Register session in server memory
+      userSessions.set(finalizeRes.token, {
+        userId: finalizeRes.user.id,
+        role: finalizeRes.user.role || "CUSTOMER",
+        phone: finalizeRes.user.phone,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+      });
+
+      broadcastRealtimeEvent("USER_SIGNUP", { user: finalizeRes.user, token: finalizeRes.token });
+
+      return res.json({
+        success: true,
+        message: finalizeRes.message,
+        user: finalizeRes.user,
+        token: finalizeRes.token
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 6. GET /api/auth/session (Get current authenticated session)
+  app.get("/api/auth/session", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "Unauthorized: No session token." });
+      }
+      const token = authHeader.split(" ")[1];
+      const session = userSessions.get(token) || authEngine.validateSession(token);
+      if (!session) {
+        return res.status(401).json({ success: false, error: "सत्र म्याद समाप्त भयो वा अवैध छ।" });
+      }
+
+      const users = getUsers();
+      const user = users.find(u => u.id === session.userId || u.phone === session.phone);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+
+      return res.json({
+        success: true,
+        user,
+        session: {
+          userId: user.id,
+          phone: user.phone,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+          profileCompleted: Boolean(user.profileCompleted)
+        }
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 7. POST /api/auth/logout (Revoke current session)
+  app.post("/api/auth/logout", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        userSessions.delete(token);
+        authEngine.revokeSession(token);
+      }
+      return res.json({ success: true, message: "लगआउट सफल भयो।" });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 8. GET /api/profile/me (Phase 8: Retrieve own profile)
+  app.get("/api/profile/me", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "अनधिकृत पहुँच (Unauthorized)." });
+      }
+      const token = authHeader.split(" ")[1];
+      const session = userSessions.get(token) || authEngine.validateSession(token);
+      if (!session) {
+        return res.status(401).json({ success: false, error: "अवैध सत्र टोकन।" });
+      }
+      const users = getUsers();
+      const user = users.find(u => u.id === session.userId || u.phone === session.phone);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+      return res.json({ success: true, profile: user });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 9. PUT /api/profile/me (Phase 8: Progressive Second-Stage Detailed Profile Completion)
+  app.put("/api/profile/me", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "अनधिकृत पहुँच (Unauthorized)." });
+      }
+      const token = authHeader.split(" ")[1];
+      const session = userSessions.get(token) || authEngine.validateSession(token);
+      if (!session) {
+        return res.status(401).json({ success: false, error: "अवैध सत्र टोकन।" });
+      }
+
+      const users = getUsers();
+      const userIdx = users.findIndex(u => u.id === session.userId || u.phone === session.phone);
+      if (userIdx === -1) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+
+      const user = users[userIdx];
+      const {
+        fullName,
+        address,
+        province,
+        district,
+        localLevel,
+        ward,
+        streetAddress,
+        dobBS,
+        dobAD,
+        birthTime,
+        birthPlace,
+        occupation,
+        gender,
+        birthDetails
+      } = req.body;
+
+      if (fullName && fullName.trim()) user.fullName = fullName.trim();
+      if (gender) user.gender = gender;
+      if (address !== undefined) user.address = String(address).trim();
+      if (province) user.province = province;
+      if (district) user.district = district;
+      if (localLevel) user.localLevel = localLevel;
+      if (ward) user.ward = ward;
+      if (streetAddress) user.streetAddress = streetAddress;
+      if (occupation) user.occupation = occupation;
+      if (dobBS) user.dobBS = dobBS;
+      if (dobAD) user.dobAD = dobAD;
+      if (birthTime) user.birthTime = birthTime;
+      if (birthPlace) user.birthPlace = birthPlace;
+      if (birthDetails) user.birthDetails = birthDetails;
+
+      // Mark profile complete
+      user.profileCompleted = true;
+      user.profileCompletedAtISO = new Date().toISOString();
+
+      saveUsers(users);
+
+      // Update lead record
+      const leads = getClientLeads();
+      const lead = leads.find(l => l.mobile === user.phone);
+      if (lead) {
+        lead.fullName = user.fullName;
+        lead.address = user.address || `${user.district || ''}, ${user.province || ''}`;
+        saveClientLeads(leads);
+      }
+
+      broadcastRealtimeEvent("USER_PROFILE_UPDATED", { user });
+
+      return res.json({
+        success: true,
+        message: "तपाईंको विस्तृत विवरण (Profile) सफलतापूर्वक पूरा भयो!",
+        user
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // 1. POST /api/auth/register (Central User Registration)
   app.post("/api/auth/register", (req, res) => {
     try {
@@ -1787,6 +2104,7 @@ async function startServer() {
       statusUpdatedAtISO: u.statusUpdatedAtISO || null,
       mobileVerified: !!u.mobileVerified,
       emailVerified: !!u.emailVerified,
+      profileCompleted: u.profileCompleted !== undefined ? !!u.profileCompleted : Boolean(u.birthDetails?.dateBS || u.savedAddresses?.length || (u.address && u.address !== "विवरण बाँकी")),
       createdAtISO: u.createdAtISO || new Date().toISOString(),
       createdAtBS: u.createdAtBS || "२०८१",
       lastLoginISO: u.lastLoginISO || null,
