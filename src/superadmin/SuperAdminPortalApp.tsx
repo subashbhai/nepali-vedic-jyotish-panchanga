@@ -46,10 +46,21 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<string>(() => {
     // Map initialSubRoute to SuperAdminControlCenter tab
-    if (initialSubRoute === 'users' || initialSubRoute === 'user-management' || initialSubRoute === 'access-control' || initialSubRoute === 'switchboard' || initialSubRoute === 'payments') return 'user_list';
+    if (
+      initialSubRoute === 'users' ||
+      initialSubRoute === 'user-management' ||
+      initialSubRoute === 'access-control' ||
+      initialSubRoute === 'switchboard' ||
+      initialSubRoute === 'payments' ||
+      initialSubRoute === 'user_list' ||
+      initialSubRoute === 'subscriptions' ||
+      initialSubRoute === 'service_licenses' ||
+      initialSubRoute === 'licenses' ||
+      initialSubRoute === 'trials' ||
+      initialSubRoute === 'user_membership_control'
+    ) return 'user_membership_control';
     if (initialSubRoute === 'magic-links' || initialSubRoute === 'magic_links' || initialSubRoute === 'links' || initialSubRoute === 'role-links') return 'role_magic_links';
     if (initialSubRoute === 'store-pos' || initialSubRoute === 'pos' || initialSubRoute === 'store' || initialSubRoute === 'store_admin') return 'store_pos';
-    if (initialSubRoute === 'subscriptions' || initialSubRoute === 'service_licenses' || initialSubRoute === 'licenses' || initialSubRoute === 'trials') return 'service_licenses';
     if (initialSubRoute === 'finance') return 'finance';
     if (initialSubRoute === 'content' || initialSubRoute === 'samachar') return 'samachar_editor';
     if (initialSubRoute === 'software' || initialSubRoute === 'downloads') return 'software_releases';
@@ -90,18 +101,11 @@ export const SuperAdminPortalLayout: React.FC<SuperAdminPortalLayoutProps> = ({
       icon: ShoppingBag
     },
     {
-      id: 'user_list',
+      id: 'user_membership_control',
       subRoute: 'users',
-      labelNepali: 'प्रयोगकर्ता व्यवस्थापन',
-      labelEnglish: 'User Management',
+      labelNepali: 'प्रयोगकर्ता तथा सदस्यता नियन्त्रण',
+      labelEnglish: 'User & Membership Control',
       icon: Users
-    },
-    {
-      id: 'service_licenses',
-      subRoute: 'subscriptions',
-      labelNepali: 'सदस्यता तथा लाइसेन्स',
-      labelEnglish: 'Subscriptions & Trials',
-      icon: Crown
     },
     {
       id: 'samachar_editor',

@@ -124,6 +124,7 @@ import { StoreMediaAdminTab } from './StoreMediaAdminTab';
 import { AdminServiceLicenseSection } from './sections/AdminServiceLicenseSection';
 import { UserControlMasterView } from './UserControlMasterView';
 import { SuperAdminUserManagementTable } from './sections/SuperAdminUserManagementTable';
+import { UnifiedUserMembershipControl } from './sections/UnifiedUserMembershipControl';
 import { SoftwareReleaseManagerModal } from '../superadmin/SoftwareReleaseManagerModal';
 import { AdminSoftwareUploadSection } from './sections/AdminSoftwareUploadSection';
 import { getStoredClientLeads, ClientLead } from '../../db/clientLeadStore';
@@ -305,8 +306,8 @@ function getBlockIdFromTab(tab?: string): string | null {
   if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
   if (['pages_services', 'samachar_editor', 'samachar', 'rashifal_management', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
   if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
-  if (['user_list', 'user_control', 'users', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
-  if (['finance', 'service_licenses', 'subscriptions', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
+  if (['user_membership_control', 'user_list', 'user_control', 'users', 'service_licenses', 'subscriptions', 'licenses', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
+  if (['finance', 'esewa', 'memberships', 'members'].includes(tab)) return 'block_finance';
   if (['daily_whatsapp', 'whatsapp', 'targeted_push', 'notifications', 'geo_monitor'].includes(tab)) return 'block_communication';
   if (['settings', 'pricing', 'security_audit', 'audit', 'reports', 'backup', 'software_releases', 'releases', 'downloads'].includes(tab)) return 'block_settings_security';
   return null;
@@ -357,8 +358,8 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   // Tab Switcher
   const switchTab = (targetTab: string, mobile?: string) => {
     if (mobile) {
-      if (targetTab === 'service_licenses' || targetTab === 'subscriptions') setSelectedLicenseMobile(mobile);
-      if (targetTab === 'user_list' || targetTab === 'users') setSelectedUserMobile(mobile);
+      if (targetTab === 'user_membership_control' || targetTab === 'service_licenses' || targetTab === 'subscriptions') setSelectedLicenseMobile(mobile);
+      if (targetTab === 'user_membership_control' || targetTab === 'user_list' || targetTab === 'users') setSelectedUserMobile(mobile);
     }
     setActiveTab(targetTab);
     if (!isDirectFullPage) {
@@ -372,8 +373,9 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => {
     const s = new Set<string>();
     s.add(initialTab);
-    if (['user_list', 'user_control', 'users'].includes(initialTab)) s.add('user_list');
-    if (['service_licenses', 'subscriptions', 'licenses'].includes(initialTab)) s.add('service_licenses');
+    if (['user_membership_control', 'user_list', 'user_control', 'users', 'service_licenses', 'subscriptions', 'licenses'].includes(initialTab)) {
+      s.add('user_membership_control');
+    }
     return s;
   });
 
@@ -381,8 +383,9 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     if (activeTab) {
       setMountedTabs(prev => {
         let key = activeTab;
-        if (['user_list', 'user_control', 'users'].includes(activeTab)) key = 'user_list';
-        else if (['service_licenses', 'subscriptions', 'licenses'].includes(activeTab)) key = 'service_licenses';
+        if (['user_membership_control', 'user_list', 'user_control', 'users', 'service_licenses', 'subscriptions', 'licenses'].includes(activeTab)) {
+          key = 'user_membership_control';
+        }
 
         if (prev.has(key) && prev.has(activeTab)) return prev;
         const next = new Set(prev);
@@ -691,14 +694,13 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       icon: Users,
       accentColor: 'from-emerald-500/20 to-teal-600/10 border-emerald-500/40 text-emerald-400',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-      defaultTab: 'user_list',
+      defaultTab: 'user_membership_control',
       items: [
-        { id: 'user_list', label: '१. प्रयोगकर्ता व्यवस्थापन', icon: Users, badge: 'केन्द्रीय' },
-        { id: 'service_licenses', label: '२. सेवा लाइसेन्स (Jyotish & Vastu Lock)', icon: Crown, badge: 'लाइसेन्स' },
-        { id: 'experts', label: '३. प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
-        { id: 'yajaman', label: '४. यजमान ग्राहक प्रोफाइल', icon: UserCheck },
-        { id: 'staff_rbac', label: '५. कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
-        { id: 'role_magic_links', label: '६. सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
+        { id: 'user_membership_control', label: '१. प्रयोगकर्ता तथा सदस्यता नियन्त्रण', icon: Users, badge: 'एकीकृत' },
+        { id: 'experts', label: '२. प्रमाणित विशेषज्ञहरू', icon: Award, badge: pendingExpertsCount > 0 ? pendingExpertsCount : null },
+        { id: 'yajaman', label: '३. यजमान ग्राहक प्रोफाइल', icon: UserCheck },
+        { id: 'staff_rbac', label: '४. कर्मचारी तथा RBAC खाता', icon: ShieldCheck },
+        { id: 'role_magic_links', label: '५. सक्रिय म्याजिक लिङ्क', icon: Key, badge: 'Direct' }
       ]
     },
     {
@@ -1002,10 +1004,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
                   </div>
                 </div>
                 <button
-                  onClick={() => handleOpenBlock('block_users_experts', 'user_list')}
+                  onClick={() => handleOpenBlock('block_users_experts', 'user_membership_control')}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0 transition-colors"
                 >
-                  प्रयोगकर्ता व्यवस्थापनमा हेर्नुहोस् →
+                  प्रयोगकर्ता तथा सदस्यता नियन्त्रणमा हेर्नुहोस् →
                 </button>
               </div>
             )}
@@ -1116,23 +1118,21 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       )}
       {activeTab === 'media_downloads' && <StoreMediaAdminTab />}
 
-      {/* ── BLOCK 4: USERS & EXPERTS MANAGEMENT (Instant 0ms Keep-Alive Cached Workstations) ── */}
-      {mountedTabs.has('user_list') && (
-        <div className={(activeTab === 'user_list' || activeTab === 'user_control' || activeTab === 'users') ? 'block' : 'hidden'}>
-          <SuperAdminUserManagementTable
-            initialSearchPhone={selectedUserMobile}
-            onOpenLicensesForUser={(mobile) => switchTab('service_licenses', mobile)}
+      {/* ── BLOCK 4: UNIFIED USER & MEMBERSHIP CONTROL (Instant 0ms Keep-Alive Cached Workstations) ── */}
+      {(mountedTabs.has('user_membership_control') || mountedTabs.has('user_list') || mountedTabs.has('service_licenses')) && (
+        <div className={(
+          activeTab === 'user_membership_control' ||
+          activeTab === 'user_list' ||
+          activeTab === 'user_control' ||
+          activeTab === 'users' ||
+          activeTab === 'service_licenses' ||
+          activeTab === 'subscriptions' ||
+          activeTab === 'licenses'
+        ) ? 'block' : 'hidden'}>
+          <UnifiedUserMembershipControl
+            initialSearchPhone={selectedUserMobile || selectedLicenseMobile}
+            onNavigateTab={switchTab}
           />
-        </div>
-      )}
-      {(mountedTabs.has('service_licenses') || mountedTabs.has('subscriptions') || mountedTabs.has('licenses')) && (
-        <div className={(activeTab === 'service_licenses' || activeTab === 'subscriptions' || activeTab === 'licenses') ? 'block' : 'hidden'}>
-          <div className="bg-stone-900 border border-stone-800 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4">
-            <AdminServiceLicenseSection
-              initialUserPhone={selectedLicenseMobile}
-              onNavigateToUsers={(mobile) => switchTab('user_list', mobile)}
-            />
-          </div>
         </div>
       )}
       {activeTab === 'experts' && (

@@ -2349,6 +2349,31 @@ async function startServer() {
 
     const userLicenses = licenses.filter(lic => lic.userId === u.id || (lic.phone && String(lic.phone).replace(/\D/g, "").slice(-10) === cleanPhone));
 
+    // Membership & service entitlement from central engine
+    const userMembership = membershipEngine.getMembershipByUserId(u.id) || (cleanPhone ? membershipEngine.getMembershipByPhoneOrId(cleanPhone) : undefined);
+    const memAccess = membershipEngine.checkServiceAccess(cleanPhone || u.id, "jyotish");
+
+    const allUserLeads = leads.filter(l => {
+      const lPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
+      return (cleanPhone && lPhone === cleanPhone) || (u.email && l.email && u.email.toLowerCase() === l.email.toLowerCase());
+    });
+
+    const isMemberActive = memAccess.hasAccess || (u.jyotishAccess && u.jyotishAccess.unlocked) || userMembership?.membershipStatus === 'ACTIVE';
+    const isMemberExpired = memAccess.isExpired || userMembership?.membershipStatus === 'EXPIRED';
+    const isPendingPayment = userMembership?.membershipStatus === 'PENDING_PAYMENT' || matchingLead?.status === 'PURCHASE_PENDING';
+
+    const membershipStatus: string = isMemberActive ? 'ACTIVE' : isMemberExpired ? 'EXPIRED' : isPendingPayment ? 'PENDING_PAYMENT' : 'NONE';
+    const purchasedPlanName: string = userMembership?.planNameNepali || (isMemberActive ? memAccess.planNameNepali : (matchingLead?.planNameNepali || 'कुनै छैन'));
+    const paymentStatus: string = userMembership?.paymentStatus || matchingLead?.paymentVerificationStatus || 'NONE';
+
+    const remainingDays: number = memAccess.remainingDays;
+    const showWarning30Days: boolean = memAccess.showWarning30Days;
+    const activationDateISO: string | null = userMembership?.activatedAtISO || matchingLead?.approvedAtISO || null;
+    const activationDateBS: string | null = userMembership?.approvedAtBS || matchingLead?.approvedAtBS || null;
+    const expiryDateISO: string | null = userMembership?.expiresAtISO || matchingLead?.expiresAtISO || (u.jyotishAccess?.expiresAtTimestamp ? new Date(u.jyotishAccess.expiresAtTimestamp).toISOString() : null);
+    const expiryDateBS: string | null = userMembership?.expiresAtBS || matchingLead?.expiresAtBS || u.jyotishAccess?.expiresAtBS || null;
+    const availableServices: string[] = userMembership?.includedServices || (isMemberActive ? ['jyotish', 'vastu', 'karmakanda', 'panchanga'] : ['panchanga']);
+
     // dobBS and dobAD formatting
     const dobBS = u.birthDetails?.dateBS || u.dobBS || "विवरण बाँकी";
     const dobAD = u.birthDetails?.dateAD || u.dobAD || "विवरण बाँकी";
@@ -2379,8 +2404,8 @@ async function startServer() {
       createdAtISO: u.createdAtISO || new Date().toISOString(),
       createdAtBS: u.createdAtBS || "२०८१",
       lastLoginISO: u.lastLoginISO || null,
-      jyotishAccess: u.jyotishAccess || { unlocked: false, period: null, expiresAtTimestamp: null, expiresAtBS: null },
-      vastuAccess: u.vastuAccess || { unlocked: false, period: null, expiresAtTimestamp: null, expiresAtBS: null },
+      jyotishAccess: u.jyotishAccess || { unlocked: isMemberActive, period: null, expiresAtTimestamp: null, expiresAtBS: null },
+      vastuAccess: u.vastuAccess || { unlocked: isMemberActive, period: null, expiresAtTimestamp: null, expiresAtBS: null },
       trial: u.trial || { hasUsedTrial: false, isTrialActive: false, trialExpiresAtISO: null },
       purchaseLead: matchingLead ? {
         id: matchingLead.id,
@@ -2393,6 +2418,20 @@ async function startServer() {
         submittedAtISO: matchingLead.submittedAtISO,
         submittedAtBS: matchingLead.submittedAtBS
       } : null,
+      membership: userMembership || null,
+      membershipStatus,
+      purchasedPlan: purchasedPlanName,
+      paymentStatus,
+      remainingDays,
+      showWarning30Days,
+      activationDateISO,
+      activationDateBS,
+      expiryDateISO,
+      expiryDateBS,
+      availableServices,
+      purchaseHistory: allUserLeads,
+      membershipHistory: userMembership?.history || [],
+      auditLogs: membershipEngine.getAuditLogsForUser(u.id, cleanPhone),
       adminNotes: u.adminNotes || u.notes || [],
       history: u.history || [],
       licenses: userLicenses
@@ -2409,21 +2448,29 @@ async function startServer() {
 
       const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses));
 
-      // Global statistics
+      // Global statistics for 9 Master Classification Filters
       const now = Date.now();
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
       const stats = {
         totalUsers: enriched.length,
+        regularLoginUsers: enriched.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended").length,
+        contactVerifiedUsers: enriched.filter(u => u.mobileVerified && u.emailVerified).length,
+        pendingPurchases: enriched.filter(u => u.membershipStatus === "PENDING_PAYMENT" || u.purchaseLead?.status === "PURCHASE_PENDING").length,
+        paymentVerifiedUsers: enriched.filter(u => u.paymentStatus === "VERIFIED").length,
+        activeMembers: enriched.filter(u => u.membershipStatus === "ACTIVE").length,
+        trialUsers: enriched.filter(u => u.trial?.isTrialActive).length,
+        expiredMembers: enriched.filter(u => u.membershipStatus === "EXPIRED").length,
+        suspendedInactiveUsers: enriched.filter(u => u.status === "suspended" || u.status === "inactive").length,
+        expiringIn30Days: enriched.filter(u => u.remainingDays > 0 && u.remainingDays <= 30).length,
         todaySignups: enriched.filter(u => new Date(u.createdAtISO).getTime() >= oneDayAgo).length,
         activeUsers: enriched.filter(u => u.status === "active").length,
         suspendedUsers: enriched.filter(u => u.status === "suspended").length,
         inTrialUsers: enriched.filter(u => u.trial?.isTrialActive).length,
         trialExpiredUsers: enriched.filter(u => u.trial?.hasUsedTrial && !u.trial?.isTrialActive).length,
-        approvedSubscribers: enriched.filter(u => u.jyotishAccess?.unlocked || u.vastuAccess?.unlocked || u.purchaseLead?.status === "APPROVED").length,
-        pendingPurchases: enriched.filter(u => u.purchaseLead?.status === "PURCHASE_PENDING").length
+        approvedSubscribers: enriched.filter(u => u.membershipStatus === "ACTIVE").length
       };
 
-      // Filter
+      // Filter by the 9 Master Categories
       let filtered = enriched;
       const s = String(search).trim().toLowerCase();
       if (s) {
@@ -2434,11 +2481,49 @@ async function startServer() {
           (u.email && u.email.toLowerCase().includes(s)) ||
           (u.id && u.id.toLowerCase().includes(s)) ||
           (u.customerId && u.customerId.toLowerCase().includes(s)) ||
-          (u.address && u.address.toLowerCase().includes(s))
+          (u.address && u.address.toLowerCase().includes(s)) ||
+          (u.purchasedPlan && u.purchasedPlan.toLowerCase().includes(s))
         );
       }
 
-      if (filter === "today") {
+      // 1. सबै प्रयोगकर्ता
+      if (filter === "all") {
+        // No extra filtering
+      }
+      // 2. सामान्य Login User
+      else if (filter === "regular_login") {
+        filtered = filtered.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended");
+      }
+      // 3. सम्पर्क विवरण Verified User
+      else if (filter === "contact_verified") {
+        filtered = filtered.filter(u => u.mobileVerified && u.emailVerified);
+      }
+      // 4. खरिद/भुक्तानी पर्खिरहेका प्रयोगकर्ता
+      else if (filter === "pending_payment" || filter === "purchase_requested") {
+        filtered = filtered.filter(u => u.membershipStatus === "PENDING_PAYMENT" || u.purchaseLead?.status === "PURCHASE_PENDING");
+      }
+      // 5. खरिद प्रमाणित भएका प्रयोगकर्ता
+      else if (filter === "payment_verified") {
+        filtered = filtered.filter(u => u.paymentStatus === "VERIFIED");
+      }
+      // 6. सक्रिय सदस्य
+      else if (filter === "active_member" || filter === "approved_subscription") {
+        filtered = filtered.filter(u => u.membershipStatus === "ACTIVE");
+      }
+      // 7. Trial User
+      else if (filter === "trial_user" || filter === "in_trial") {
+        filtered = filtered.filter(u => u.trial?.isTrialActive);
+      }
+      // 8. म्याद सकिएका सदस्य
+      else if (filter === "expired_member" || filter === "expired") {
+        filtered = filtered.filter(u => u.membershipStatus === "EXPIRED");
+      }
+      // 9. निष्क्रिय वा निलम्बित प्रयोगकर्ता
+      else if (filter === "suspended_inactive" || filter === "suspended") {
+        filtered = filtered.filter(u => u.status === "suspended" || u.status === "inactive");
+      }
+      // Additional Convenience Sub-filters
+      else if (filter === "today") {
         filtered = filtered.filter(u => new Date(u.createdAtISO).getTime() >= oneDayAgo);
       } else if (filter === "7days") {
         const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
@@ -2448,16 +2533,8 @@ async function startServer() {
         filtered = filtered.filter(u => new Date(u.createdAtISO).getTime() >= thirtyDaysAgo);
       } else if (filter === "active") {
         filtered = filtered.filter(u => u.status === "active");
-      } else if (filter === "suspended") {
-        filtered = filtered.filter(u => u.status === "suspended");
-      } else if (filter === "in_trial") {
-        filtered = filtered.filter(u => u.trial?.isTrialActive);
-      } else if (filter === "trial_expired") {
-        filtered = filtered.filter(u => u.trial?.hasUsedTrial && !u.trial?.isTrialActive);
-      } else if (filter === "purchase_requested") {
-        filtered = filtered.filter(u => u.purchaseLead?.status === "PURCHASE_PENDING");
-      } else if (filter === "approved_subscription") {
-        filtered = filtered.filter(u => u.jyotishAccess?.unlocked || u.vastuAccess?.unlocked || u.purchaseLead?.status === "APPROVED");
+      } else if (filter === "incomplete_registration") {
+        filtered = filtered.filter(u => !u.profileCompleted);
       }
 
       // Sort
@@ -2752,6 +2829,239 @@ async function startServer() {
       return res.json({
         success: true,
         message: action === "reset" ? "परीक्षण (Trial) पुनः सुरु गर्न मिल्ने गरी रिसेट गरियो।" : "२४ घण्टे परीक्षण सक्रिय गरियो।",
+        user: sanitized
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.6.1 POST /api/superadmin/users/:id/activate-membership (Manual SuperAdmin Activation & Plan Assignment)
+  app.post("/api/superadmin/users/:id/activate-membership", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        planId,
+        paymentMethod = "cash",
+        cashVerified,
+        verifiedAmount,
+        adminNotes,
+        customExpiresAtTimestamp,
+        customDuration,
+        services
+      } = req.body;
+
+      const users = getUsers();
+      const user = users.find(u => u.id === id || u.phone === id);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+
+      if (!planId) {
+        return res.status(400).json({ success: false, error: "सदस्यता योजना (Plan) छनोट गर्नुहोस्।" });
+      }
+
+      const adminSession = (req as any).superAdmin;
+      const adminId = adminSession?.username || "SuperAdmin";
+
+      // Enforce cash verification if cash payment method
+      if (paymentMethod === "cash" && !cashVerified) {
+        return res.status(400).json({
+          success: false,
+          error: "नगद भुक्तानी प्राप्त भएको रुजु (Cash Payment Received Verification) अनिवार्य छ।"
+        });
+      }
+
+      const cleanPhone = String(user.phone || "").replace(/\D/g, "").slice(-10);
+
+      const result = membershipEngine.activateManualMembership({
+        userId: user.id,
+        phone: cleanPhone,
+        email: user.email,
+        fullName: user.fullName,
+        planId,
+        adminId,
+        cashVerified: Boolean(cashVerified),
+        verifiedAmount: verifiedAmount ? Number(verifiedAmount) : undefined,
+        adminNotes: adminNotes || "सुपरएडमिन द्वारा प्रत्यक्ष सक्रिय गरिएको",
+        customExpiresAtTimestamp: customExpiresAtTimestamp ? Number(customExpiresAtTimestamp) : undefined,
+        services: Array.isArray(services) && services.length > 0 ? services : undefined
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      // Sync user profile status
+      user.status = "active";
+      if (!user.history) user.history = [];
+      user.history.unshift({
+        action: "membership_activated",
+        admin: adminId,
+        timestamp: new Date().toISOString(),
+        details: `सदस्यता सक्रिय गरियो: ${result.membership?.planNameNepali || planId}`
+      });
+      saveUsers(users);
+
+      // Sync client leads & licenses
+      const leads = getClientLeads();
+      let lead = leads.find((l: any) => l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === cleanPhone);
+      if (!lead) {
+        lead = {
+          id: user.id,
+          fullName: user.fullName,
+          mobile: cleanPhone,
+          email: user.email || "",
+          planId: result.membership?.planId || planId,
+          planNameNepali: result.membership?.planNameNepali || "सदस्यता",
+          planAmountNPR: result.membership?.amountNPR || 0,
+          paymentMethod: paymentMethod,
+          status: "PURCHASE_APPROVED"
+        };
+        leads.unshift(lead);
+      }
+      applyLeadApproval(lead, adminId, "२०८१", "both", {
+        cashVerified: Boolean(cashVerified),
+        verifiedAmount: result.membership?.amountNPR,
+        adminNotes: adminNotes || "सुपरएडमिन द्वारा सक्रिय",
+        planDuration: result.membership?.duration || customDuration
+      });
+      saveClientLeads(leads);
+
+      const licenses = getServiceLicenses();
+      const sanitized = sanitizeAndEnrichUser(user, leads, licenses);
+
+      broadcastRealtimeEvent("MEMBERSHIP_ACTIVATED", {
+        userId: user.id,
+        phone: cleanPhone,
+        membership: result.membership,
+        user: sanitized
+      });
+
+      return res.json({
+        success: true,
+        message: result.message,
+        membership: result.membership,
+        user: sanitized
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.6.2 POST /api/superadmin/users/:id/membership-status (Mutate Membership: Suspend, Renew, Extend, Change Plan)
+  app.post("/api/superadmin/users/:id/membership-status", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action, duration, newPlanId, services, reason } = req.body;
+
+      if (!action || !["activate", "suspend", "deactivate", "renew", "extend", "change_plan", "toggle_service"].includes(action)) {
+        return res.status(400).json({ success: false, error: "अवैध सदस्यता कार्य (action)" });
+      }
+
+      if (!reason || !String(reason).trim()) {
+        return res.status(400).json({ success: false, error: "कार्यको कारण/कैफियत (reason) अनिवार्य छ।" });
+      }
+
+      const users = getUsers();
+      const user = users.find(u => u.id === id || u.phone === id);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+
+      const adminSession = (req as any).superAdmin;
+      const adminId = adminSession?.username || "SuperAdmin";
+      const cleanPhone = String(user.phone || "").replace(/\D/g, "").slice(-10);
+
+      const result = membershipEngine.mutateMembership(user.id, adminId, {
+        action,
+        duration,
+        newPlanId,
+        services,
+        reason: String(reason).trim()
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      // If suspended, update user status as well if requested
+      if (action === "suspend") {
+        if (!user.history) user.history = [];
+        user.history.unshift({
+          action: "membership_suspended",
+          admin: adminId,
+          timestamp: new Date().toISOString(),
+          details: `सदस्यता निलम्बन गरियो: ${reason}`
+        });
+        saveUsers(users);
+      }
+
+      const leads = getClientLeads();
+      const licenses = getServiceLicenses();
+      const sanitized = sanitizeAndEnrichUser(user, leads, licenses);
+
+      broadcastRealtimeEvent("MEMBERSHIP_STATUS_MUTATED", {
+        userId: user.id,
+        phone: cleanPhone,
+        action,
+        membership: result.membership,
+        user: sanitized
+      });
+
+      return res.json({
+        success: true,
+        message: result.message,
+        membership: result.membership,
+        user: sanitized
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.6.3 POST /api/superadmin/users/:id/toggle-service (Toggle Specific Services)
+  app.post("/api/superadmin/users/:id/toggle-service", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { services, reason = "सेवा पहुँच अद्यावधिक गरियो" } = req.body;
+
+      if (!Array.isArray(services)) {
+        return res.status(400).json({ success: false, error: "सेवाहरूको सूची (services array) आवश्यक छ।" });
+      }
+
+      const users = getUsers();
+      const user = users.find(u => u.id === id || u.phone === id);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+
+      const adminSession = (req as any).superAdmin;
+      const adminId = adminSession?.username || "SuperAdmin";
+
+      const result = membershipEngine.mutateMembership(user.id, adminId, {
+        action: "toggle_service",
+        services,
+        reason: String(reason).trim()
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      const leads = getClientLeads();
+      const licenses = getServiceLicenses();
+      const sanitized = sanitizeAndEnrichUser(user, leads, licenses);
+
+      broadcastRealtimeEvent("USER_SERVICES_UPDATED", {
+        userId: user.id,
+        user: sanitized
+      });
+
+      return res.json({
+        success: true,
+        message: "सेवा पहुँच सफलतापूर्वक अद्यावधिक गरियो।",
+        membership: result.membership,
         user: sanitized
       });
     } catch (err: any) {

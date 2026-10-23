@@ -559,10 +559,291 @@ class MembershipEngine {
   }
 
   /**
-   * Get single membership by user ID
+   * Get single membership by user ID or phone
    */
   public getMembershipByUserId(userId: string): MembershipRecord | undefined {
     return this.memberships.find(m => m.userId === userId);
+  }
+
+  public getMembershipByPhoneOrId(identifier: string): MembershipRecord | undefined {
+    const cleanPhone = identifier.replace(/\D/g, '').slice(-10);
+    return this.memberships.find(
+      m => m.userId === identifier || (cleanPhone.length >= 7 && m.phone === cleanPhone)
+    );
+  }
+
+  /**
+   * SuperAdmin manual activation or upgrade
+   */
+  public activateManualMembership(params: {
+    userId: string;
+    phone: string;
+    email?: string;
+    fullName: string;
+    planId: string;
+    duration?: PlanDuration;
+    customExpiresAtTimestamp?: number | null;
+    includedServices?: Array<'jyotish' | 'vastu' | 'karmakanda' | 'panchanga'>;
+    adminId: string;
+    adminNotes?: string;
+    paymentMethod?: 'esewa' | 'khalti' | 'bank' | 'cash';
+    transactionId?: string;
+    cashVerified?: boolean;
+    approvedAtBS?: string;
+  }): { success: boolean; membership?: MembershipRecord; message: string } {
+    const plan = MEMBERSHIP_PLANS[params.planId] || MEMBERSHIP_PLANS.yearly_both;
+    const cleanPhone = params.phone.replace(/\D/g, '').slice(-10);
+    const method = params.paymentMethod || 'cash';
+
+    if (method === 'cash' && !params.cashVerified) {
+      return {
+        success: false,
+        message: 'नगद भुक्तानी प्राप्त भएको रुजु (Cash Payment Received Verification) अनिवार्य छ।'
+      };
+    }
+
+    const duration = params.duration || plan.duration;
+    const now = new Date();
+    let expiresAtTimestamp: number | null = null;
+    let expiresAtBS = '२०८२';
+
+    if (params.customExpiresAtTimestamp !== undefined) {
+      expiresAtTimestamp = params.customExpiresAtTimestamp;
+      expiresAtBS = 'अनुकूलित (Custom)';
+    } else if (duration === 'lifetime') {
+      expiresAtTimestamp = null;
+      expiresAtBS = 'आजीवन (Lifetime)';
+    } else if (duration === '1_year') {
+      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
+      expiresAtBS = '२०८२';
+    } else if (duration === 'trial') {
+      expiresAtTimestamp = now.getTime() + 24 * 60 * 60 * 1000;
+      expiresAtBS = '२४ घण्टा परीक्षण';
+    } else if (duration === '1_month') {
+      expiresAtTimestamp = now.getTime() + 30 * 24 * 60 * 60 * 1000;
+      expiresAtBS = '१ महिना';
+    } else if (duration === '3_months') {
+      expiresAtTimestamp = now.getTime() + 90 * 24 * 60 * 60 * 1000;
+      expiresAtBS = '३ महिना';
+    } else {
+      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
+      expiresAtBS = '२०८२';
+    }
+
+    let membership = this.getMembershipByPhoneOrId(params.userId) || this.getMembershipByPhoneOrId(cleanPhone);
+
+    if (membership) {
+      membership.planId = plan.planId;
+      membership.planNameNepali = plan.nameNepali;
+      membership.duration = duration;
+      membership.devices = plan.devices;
+      membership.amountNPR = plan.priceNPR;
+      membership.paymentMethod = method;
+      membership.paymentStatus = 'VERIFIED';
+      membership.membershipStatus = 'ACTIVE';
+      membership.transactionId = params.transactionId || membership.transactionId;
+      membership.cashVerified = method === 'cash' ? true : membership.cashVerified;
+      membership.cashVerifiedBy = method === 'cash' ? params.adminId : membership.cashVerifiedBy;
+      membership.cashVerifiedAtISO = method === 'cash' ? now.toISOString() : membership.cashVerifiedAtISO;
+      membership.approvedBy = params.adminId;
+      membership.approvedAtISO = now.toISOString();
+      membership.approvedAtBS = params.approvedAtBS || '२०८१';
+      membership.activatedAtISO = now.toISOString();
+      membership.expiresAtTimestamp = expiresAtTimestamp;
+      membership.expiresAtISO = expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : null;
+      membership.expiresAtBS = expiresAtBS;
+      membership.includedServices = params.includedServices || plan.services;
+      membership.adminNotes = params.adminNotes || membership.adminNotes;
+      membership.renewalCount = (membership.renewalCount || 0) + 1;
+    } else {
+      membership = {
+        id: `mem_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+        userId: params.userId,
+        phone: cleanPhone,
+        email: params.email?.toLowerCase().trim(),
+        fullName: params.fullName,
+        planId: plan.planId,
+        planNameNepali: plan.nameNepali,
+        duration,
+        devices: plan.devices,
+        amountNPR: plan.priceNPR,
+        paymentMethod: method,
+        paymentStatus: 'VERIFIED',
+        membershipStatus: 'ACTIVE',
+        cashVerified: method === 'cash',
+        cashVerifiedBy: method === 'cash' ? params.adminId : undefined,
+        cashVerifiedAtISO: method === 'cash' ? now.toISOString() : undefined,
+        transactionId: params.transactionId,
+        submittedAtISO: now.toISOString(),
+        submittedAtBS: params.approvedAtBS || '२०८१',
+        approvedBy: params.adminId,
+        approvedAtISO: now.toISOString(),
+        approvedAtBS: params.approvedAtBS || '२०८१',
+        activatedAtISO: now.toISOString(),
+        expiresAtTimestamp,
+        expiresAtISO: expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : null,
+        expiresAtBS,
+        includedServices: params.includedServices || plan.services,
+        adminNotes: params.adminNotes,
+        renewalCount: 0,
+        history: []
+      };
+      this.memberships.unshift(membership);
+    }
+
+    membership.history?.push({
+      action: 'MANUAL_ACTIVATION',
+      status: 'ACTIVE',
+      timestampISO: now.toISOString(),
+      performedBy: params.adminId,
+      details: `प्रशासक ${params.adminId} द्वारा सदस्यता सक्रिय गरियो (${plan.nameNepali}, ${duration})। कारण: ${params.adminNotes || 'प्रत्यक्ष सक्रियता'}`
+    });
+
+    this.persistMemberships();
+    this.logAudit(membership.id, params.userId, 'MANUAL_ACTIVATION', params.adminId, `सक्रिय: ${plan.nameNepali} (${params.adminNotes || 'प्रशासक द्वारा'})`);
+
+    return {
+      success: true,
+      membership,
+      message: `${params.fullName} को सदस्यता सफलतापूर्वक सक्रिय गरियो!`
+    };
+  }
+
+  /**
+   * SuperAdmin Mutate Membership: Suspend, Renew, Extend, Change Plan, or Toggle Services
+   */
+  public mutateMembership(
+    membershipIdOrUserId: string,
+    adminId: string,
+    options: {
+      action: 'activate' | 'suspend' | 'deactivate' | 'renew' | 'extend' | 'change_plan' | 'toggle_service';
+      duration?: PlanDuration;
+      newPlanId?: string;
+      services?: Array<'jyotish' | 'vastu' | 'karmakanda' | 'panchanga'>;
+      customExpiresAtTimestamp?: number | null;
+      reason: string;
+    }
+  ): { success: boolean; membership?: MembershipRecord; message: string } {
+    const membership =
+      this.memberships.find(m => m.id === membershipIdOrUserId || m.userId === membershipIdOrUserId) ||
+      this.getMembershipByPhoneOrId(membershipIdOrUserId);
+
+    if (!membership) {
+      return { success: false, message: 'सदस्यता रेकर्ड फेला परेन।' };
+    }
+
+    const now = new Date();
+    const action = options.action;
+
+    if (action === 'suspend' || action === 'deactivate') {
+      membership.membershipStatus = 'CANCELLED';
+      membership.adminNotes = options.reason;
+      membership.history?.push({
+        action: 'MEMBERSHIP_SUSPENDED',
+        status: 'CANCELLED',
+        timestampISO: now.toISOString(),
+        performedBy: adminId,
+        details: `निलम्बन/निष्क्रिय कारण: ${options.reason}`
+      });
+      this.logAudit(membership.id, membership.userId, 'MEMBERSHIP_SUSPENDED', adminId, options.reason);
+    } else if (action === 'activate') {
+      membership.membershipStatus = 'ACTIVE';
+      membership.adminNotes = options.reason;
+      membership.history?.push({
+        action: 'MEMBERSHIP_REACTIVATED',
+        status: 'ACTIVE',
+        timestampISO: now.toISOString(),
+        performedBy: adminId,
+        details: `पुनःसक्रिय कारण: ${options.reason}`
+      });
+      this.logAudit(membership.id, membership.userId, 'MEMBERSHIP_REACTIVATED', adminId, options.reason);
+    } else if (action === 'renew' || action === 'extend') {
+      const dur = options.duration || '1_year';
+      membership.duration = dur;
+      membership.membershipStatus = 'ACTIVE';
+
+      let currentBase = membership.expiresAtTimestamp && membership.expiresAtTimestamp > now.getTime()
+        ? membership.expiresAtTimestamp
+        : now.getTime();
+
+      let newExp: number | null = null;
+      if (dur === 'lifetime') {
+        newExp = null;
+        membership.expiresAtBS = 'आजीवन (Lifetime)';
+      } else if (dur === '1_year') {
+        newExp = currentBase + 365 * 24 * 60 * 60 * 1000;
+        membership.expiresAtBS = '२०८३';
+      } else if (dur === '1_month') {
+        newExp = currentBase + 30 * 24 * 60 * 60 * 1000;
+        membership.expiresAtBS = '१ महिना थप';
+      } else if (dur === '3_months') {
+        newExp = currentBase + 90 * 24 * 60 * 60 * 1000;
+        membership.expiresAtBS = '३ महिना थप';
+      } else {
+        newExp = currentBase + 365 * 24 * 60 * 60 * 1000;
+        membership.expiresAtBS = '२०८३';
+      }
+
+      membership.expiresAtTimestamp = newExp;
+      membership.expiresAtISO = newExp ? new Date(newExp).toISOString() : null;
+      membership.renewalCount = (membership.renewalCount || 0) + 1;
+
+      membership.history?.push({
+        action: action === 'renew' ? 'MEMBERSHIP_RENEWED' : 'MEMBERSHIP_EXTENDED',
+        status: 'ACTIVE',
+        timestampISO: now.toISOString(),
+        performedBy: adminId,
+        details: `${action === 'renew' ? 'नवीकरण' : 'म्याद थप'} (${dur})। कैफियत: ${options.reason}`
+      });
+      this.logAudit(membership.id, membership.userId, action.toUpperCase(), adminId, `${dur} थप - ${options.reason}`);
+    } else if (action === 'change_plan') {
+      if (options.newPlanId && MEMBERSHIP_PLANS[options.newPlanId]) {
+        const plan = MEMBERSHIP_PLANS[options.newPlanId];
+        membership.planId = plan.planId;
+        membership.planNameNepali = plan.nameNepali;
+        membership.devices = plan.devices;
+        membership.amountNPR = plan.priceNPR;
+        membership.includedServices = plan.services;
+        membership.history?.push({
+          action: 'PLAN_CHANGED',
+          status: membership.membershipStatus,
+          timestampISO: now.toISOString(),
+          performedBy: adminId,
+          details: `योजना परिवर्तन: ${plan.nameNepali}। कारण: ${options.reason}`
+        });
+        this.logAudit(membership.id, membership.userId, 'PLAN_CHANGED', adminId, `योजना: ${plan.nameNepali}`);
+      }
+    } else if (action === 'toggle_service') {
+      if (options.services) {
+        membership.includedServices = options.services;
+        membership.history?.push({
+          action: 'SERVICES_UPDATED',
+          status: membership.membershipStatus,
+          timestampISO: now.toISOString(),
+          performedBy: adminId,
+          details: `सेवाहरू संशोधन: ${options.services.join(', ')}। कारण: ${options.reason}`
+        });
+        this.logAudit(membership.id, membership.userId, 'SERVICES_UPDATED', adminId, options.services.join(', '));
+      }
+    }
+
+    this.persistMemberships();
+
+    return {
+      success: true,
+      membership,
+      message: `सदस्यता कार्य (${action}) सफलतापूर्वक सम्पन्न भयो!`
+    };
+  }
+
+  /**
+   * Get audit logs for a user or membership
+   */
+  public getAuditLogsForUser(userId: string, phone?: string): MembershipAuditLog[] {
+    const cleanPhone = phone ? phone.replace(/\D/g, '').slice(-10) : '';
+    const userMems = this.memberships.filter(m => m.userId === userId || (cleanPhone && m.phone === cleanPhone));
+    const memIds = new Set(userMems.map(m => m.id));
+    return this.auditLogs.filter(a => a.userId === userId || memIds.has(a.membershipId));
   }
 }
 

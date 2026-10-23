@@ -1,5 +1,265 @@
 [
   {
+    "id": "usr_1792748618185_37hqo",
+    "customerId": "सदस्य-२०८१-०००6",
+    "username": "9800798845",
+    "phone": "9800798845",
+    "email": "rajendra_1792748618183@example.com",
+    "fullName": "पण्डित राजेन्द्र शर्मा",
+    "passwordHash": "ff7bd97b1a7789ddd2775122fd6817f3173672da9f802ceec57f284325bf589f",
+    "plainPasswordNotice": "hashed",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": false,
+    "address": "पोखरा, कास्की",
+    "gender": "male",
+    "birthProfileId": "prof_1792748618185",
+    "birthDetails": {
+      "dateBS": "२०४८-०२-१५",
+      "location": {
+        "name": "पोखरा, कास्की"
+      }
+    },
+    "photoUrl": "",
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "trial": {
+      "hasUsedTrial": true,
+      "isTrialActive": true,
+      "trialStartedAtISO": "2026-10-23T09:43:38.272Z",
+      "trialExpiresAtISO": "2026-10-24T09:43:38.272Z",
+      "trialExpiresAtTimestamp": 1792835018272,
+      "trialPeriodHours": 24
+    },
+    "jyotishAccess": {
+      "unlocked": true,
+      "period": "1_year",
+      "expiresAtTimestamp": 1824284618301,
+      "expiresAtBS": "२०८२",
+      "approvedAtISO": "2026-10-23T09:43:38.301Z"
+    },
+    "vastuAccess": {
+      "unlocked": true,
+      "period": "1_year",
+      "expiresAtTimestamp": 1824284618301,
+      "expiresAtBS": "२०८२",
+      "approvedAtISO": "2026-10-23T09:43:38.301Z"
+    },
+    "favorites": {
+      "books": [],
+      "videos": [],
+      "audios": [],
+      "articles": [],
+      "mantras": []
+    },
+    "createdAtISO": "2026-10-23T09:43:38.185Z",
+    "createdAtBS": "२०८१",
+    "lastLoginISO": "2026-10-23T09:43:38.185Z",
+    "dobBS": "२०४८-०२-१५",
+    "history": [
+      {
+        "action": "membership_activated",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:43:38.298Z",
+        "details": "सदस्यता सक्रिय गरियो: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+      },
+      {
+        "action": "status_changed",
+        "status": "active",
+        "reason": "छानबिन सम्पन्न, खाता पुनः सुचारु",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:43:38.264Z"
+      },
+      {
+        "action": "status_changed",
+        "status": "suspended",
+        "reason": "नियम विपरीत गतिविधि छानबिनको लागि",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:43:38.256Z"
+      },
+      {
+        "action": "profile_updated",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:43:38.246Z",
+        "details": "व्यक्तिगत विवरण सुपरएडमिन द्वारा सम्पादन गरियो।"
+      }
+    ],
+    "statusReason": "छानबिन सम्पन्न, खाता पुनः सुचारु",
+    "statusUpdatedAtISO": "2026-10-23T09:43:38.264Z",
+    "adminNotes": [
+      {
+        "id": "note_1792748618281",
+        "text": "काउन्टर सम्पर्क मार्फत रुजु गरिएको",
+        "author": "admin",
+        "createdAtISO": "2026-10-23T09:43:38.281Z"
+      }
+    ]
+  },
+  {
+    "id": "usr_1792748488821_k6jnm",
+    "customerId": "सदस्य-२०८१-०००5",
+    "username": "9800377568",
+    "phone": "9800377568",
+    "email": "rajendra_1792748488819@example.com",
+    "fullName": "पण्डित राजेन्द्र शर्मा",
+    "passwordHash": "ff7bd97b1a7789ddd2775122fd6817f3173672da9f802ceec57f284325bf589f",
+    "plainPasswordNotice": "hashed",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": false,
+    "address": "पोखरा, कास्की",
+    "gender": "male",
+    "birthProfileId": "prof_1792748488821",
+    "birthDetails": {
+      "dateBS": "२०४८-०२-१५",
+      "location": {
+        "name": "पोखरा, कास्की"
+      }
+    },
+    "photoUrl": "",
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "trial": {
+      "hasUsedTrial": true,
+      "isTrialActive": true,
+      "trialStartedAtISO": "2026-10-23T09:41:28.915Z",
+      "trialExpiresAtISO": "2026-10-24T09:41:28.915Z",
+      "trialExpiresAtTimestamp": 1792834888915,
+      "trialPeriodHours": 24
+    },
+    "jyotishAccess": {
+      "unlocked": true,
+      "period": "1_year",
+      "expiresAtTimestamp": 1824284488951,
+      "expiresAtBS": "२०८२",
+      "approvedAtISO": "2026-10-23T09:41:28.951Z"
+    },
+    "vastuAccess": {
+      "unlocked": true,
+      "period": "1_year",
+      "expiresAtTimestamp": 1824284488951,
+      "expiresAtBS": "२०८२",
+      "approvedAtISO": "2026-10-23T09:41:28.951Z"
+    },
+    "favorites": {
+      "books": [],
+      "videos": [],
+      "audios": [],
+      "articles": [],
+      "mantras": []
+    },
+    "createdAtISO": "2026-10-23T09:41:28.821Z",
+    "createdAtBS": "२०८१",
+    "lastLoginISO": "2026-10-23T09:41:28.821Z",
+    "dobBS": "२०४८-०२-१५",
+    "history": [
+      {
+        "action": "membership_activated",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:41:28.947Z",
+        "details": "सदस्यता सक्रिय गरियो: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+      },
+      {
+        "action": "status_changed",
+        "status": "active",
+        "reason": "छानबिन सम्पन्न, खाता पुनः सुचारु",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:41:28.905Z"
+      },
+      {
+        "action": "status_changed",
+        "status": "suspended",
+        "reason": "नियम विपरीत गतिविधि छानबिनको लागि",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:41:28.896Z"
+      },
+      {
+        "action": "profile_updated",
+        "admin": "admin",
+        "timestamp": "2026-10-23T09:41:28.885Z",
+        "details": "व्यक्तिगत विवरण सुपरएडमिन द्वारा सम्पादन गरियो।"
+      }
+    ],
+    "statusReason": "छानबिन सम्पन्न, खाता पुनः सुचारु",
+    "statusUpdatedAtISO": "2026-10-23T09:41:28.905Z",
+    "adminNotes": [
+      {
+        "id": "note_1792748488926",
+        "text": "काउन्टर सम्पर्क मार्फत रुजु गरिएको",
+        "author": "admin",
+        "createdAtISO": "2026-10-23T09:41:28.926Z"
+      }
+    ]
+  },
+  {
+    "id": "usr_1792748438962_rz0d8",
+    "customerId": "सदस्य-२०८१-०००4",
+    "username": "9800295405",
+    "phone": "9800295405",
+    "email": "rajendra_1792748438959@example.com",
+    "fullName": "राजेन्द्र शर्मा",
+    "passwordHash": "ff7bd97b1a7789ddd2775122fd6817f3173672da9f802ceec57f284325bf589f",
+    "plainPasswordNotice": "hashed",
+    "role": "CUSTOMER",
+    "roleNameNepali": "यजमान / ग्राहक",
+    "status": "active",
+    "mobileVerified": true,
+    "emailVerified": false,
+    "address": "काठमाडौं, बागमती प्रदेश",
+    "gender": "male",
+    "birthProfileId": "prof_1792748438962",
+    "birthDetails": null,
+    "photoUrl": "",
+    "permissions": [
+      "store.view",
+      "kundali.view",
+      "profile.edit",
+      "yajaman.view"
+    ],
+    "trial": {
+      "hasUsedTrial": false,
+      "isTrialActive": false,
+      "trialStartedAtISO": null,
+      "trialExpiresAtISO": null,
+      "trialExpiresAtTimestamp": null,
+      "trialPeriodHours": 24
+    },
+    "jyotishAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "vastuAccess": {
+      "unlocked": false,
+      "period": null,
+      "expiresAtTimestamp": null,
+      "expiresAtBS": null
+    },
+    "favorites": {
+      "books": [],
+      "videos": [],
+      "audios": [],
+      "articles": [],
+      "mantras": []
+    },
+    "createdAtISO": "2026-10-23T09:40:38.962Z",
+    "createdAtBS": "२०८१",
+    "lastLoginISO": "2026-10-23T09:40:38.962Z"
+  },
+  {
     "id": "usr_1792315521014_891",
     "customerId": "सदस्य-००१",
     "username": "9816705721",
