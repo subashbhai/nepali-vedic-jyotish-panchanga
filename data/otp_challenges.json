@@ -1,1 +1,40 @@
-[]
+[
+  {
+    "challengeId": "ch_1792753797812_cc5103509e3a",
+    "fullName": "कमल राज जोशी",
+    "phone": "9811965654",
+    "phoneNormalized": "+9779811965654",
+    "email": "test.resend.1792753797787@example.com",
+    "phoneOtpHashed": "68e63777a541405c9d98e71bed13ebb5f9e31d5df34ded29e972f4a708608d95",
+    "emailOtpHashed": "b80b837b0524edbead8c0c251289a8afad372534808cf493fa7a6eb026835970",
+    "salt": "c5d95fc269c04e7500bf4d0a2a722143",
+    "phoneVerified": false,
+    "emailVerified": false,
+    "phoneAttempts": 0,
+    "emailAttempts": 0,
+    "createdAt": 1792753797812,
+    "expiresAt": 1792754097812,
+    "lastPhoneResendAt": 1792753797812,
+    "lastEmailResendAt": 1792753797812,
+    "resendCount": 0
+  },
+  {
+    "challengeId": "ch_1792753840599_9336f5b014cb",
+    "fullName": "कमल राज जोशी",
+    "phone": "9815025151",
+    "phoneNormalized": "+9779815025151",
+    "email": "test.resend.1792753840571@example.com",
+    "phoneOtpHashed": "281f9e2cd741c7fddceae23b7aa5598c4cc24a192186c1fb6b7e94763b276793",
+    "emailOtpHashed": "e733ded447407c10e7fe3534a45327f0d6a3e29ff6d80aea038047c2665b2b0b",
+    "salt": "2655f5901dc3241a2de0916662ec9397",
+    "phoneVerified": false,
+    "emailVerified": false,
+    "phoneAttempts": 0,
+    "emailAttempts": 0,
+    "createdAt": 1792753840599,
+    "expiresAt": 1792754140599,
+    "lastPhoneResendAt": 1792753840599,
+    "lastEmailResendAt": 1792753840599,
+    "resendCount": 0
+  }
+]

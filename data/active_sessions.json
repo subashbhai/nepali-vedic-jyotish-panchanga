@@ -7,5 +7,32 @@
     "role": "CUSTOMER",
     "profileCompleted": false,
     "expiresAt": 1795340694458
+  },
+  "3312a94bf77a7a56cd07e5ca0c0ea10c0e6b6ed8162994ff7c467e158eb5fc48": {
+    "userId": "usr_1792753797756_70eff1",
+    "phone": "9808615255",
+    "email": "test.vedic.1792753797495@example.com",
+    "fullName": "पं. अच्युत शर्मा",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795345797756
+  },
+  "19a519350bf225428be62f01f53ca8299c3a2219cde13e17820e3e887ab66b9b": {
+    "userId": "usr_1792753840552_ca8727",
+    "phone": "9804837330",
+    "email": "test.vedic.1792753840349@example.com",
+    "fullName": "पं. अच्युत शर्मा",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795345840552
+  },
+  "3a17bdf2fc33f49a03d47b8bfd5493856df1d425bcd6646ae98edcb04615facc": {
+    "userId": "usr_1792754561615_81f36c",
+    "phone": "9764400533",
+    "email": "anteemakash@gmail.com",
+    "fullName": "सुवास भण्डारी",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795346561615
   }
 }

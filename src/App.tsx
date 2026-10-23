@@ -1416,12 +1416,31 @@ export default function App() {
   // User-scoped profiles based on logged in session (Multi-tenant data isolation)
   const refreshScopedProfiles = useCallback((userId?: string | null, isSuper: boolean = false) => {
     let userProfiles = getProfilesForUser(userId, isSuper);
-    // If rbacSession has birthDetails and it's not in userProfiles, include it!
-    if (rbacSession?.birthDetails && !userProfiles.some(p => p.id === rbacSession.birthDetails?.id || p.name === rbacSession.birthDetails?.name)) {
+    let personalBirthProfile: BirthDetails | null = null;
+    if (rbacSession?.userId || rbacSession?.fullName) {
+      personalBirthProfile = getUserPersonalBirthProfile(
+        rbacSession.userId,
+        rbacSession.fullName,
+        rbacSession.phone || rbacSession.username
+      );
+    }
+
+    if (personalBirthProfile && !userProfiles.some(p => p.id === personalBirthProfile!.id || p.name === personalBirthProfile!.name)) {
+      userProfiles = [personalBirthProfile, ...userProfiles];
+    } else if (rbacSession?.birthDetails && !userProfiles.some(p => p.id === rbacSession.birthDetails?.id || p.name === rbacSession.birthDetails?.name)) {
       userProfiles = [rbacSession.birthDetails, ...userProfiles];
     }
     setProfiles(userProfiles);
     setActiveProfile((prev) => {
+      // If user is authenticated, their own personal profile MUST take precedence!
+      if (personalBirthProfile) {
+        if (!prev || prev.name !== rbacSession?.fullName) {
+          try {
+            localStorage.setItem('balananda_active_profile_id', personalBirthProfile.id);
+          } catch {}
+          return personalBirthProfile;
+        }
+      }
       try {
         const storedId = localStorage.getItem('balananda_active_profile_id');
         if (storedId) {
@@ -1433,10 +1452,10 @@ export default function App() {
         const exists = userProfiles.find((p) => p.id === prev.id);
         if (exists) return exists;
       }
-      return userProfiles[0] || null;
+      return personalBirthProfile || userProfiles[0] || null;
     });
     return userProfiles;
-  }, [rbacSession?.birthDetails]);
+  }, [rbacSession?.userId, rbacSession?.fullName, rbacSession?.phone, rbacSession?.username, rbacSession?.birthDetails]);
 
   const handleSelectProfile = useCallback((p: BirthDetails) => {
     setActiveProfile(p);
@@ -1679,15 +1698,19 @@ export default function App() {
 
   // Dynamic recent date/time fallback if no user profile is active
   const resolvedUserProfile = useMemo(() => {
-    if (activeProfile && activeProfile.id !== 'live_current_moment') {
-      return enrichProfileWithAstroCalculations(activeProfile);
-    }
     if (rbacSession?.userId || rbacSession?.fullName) {
-      return getUserPersonalBirthProfile(
+      if (activeProfile && activeProfile.name === rbacSession.fullName && activeProfile.id !== 'live_current_moment') {
+        return enrichProfileWithAstroCalculations(activeProfile);
+      }
+      const personal = getUserPersonalBirthProfile(
         rbacSession.userId,
         rbacSession.fullName,
         rbacSession.phone || rbacSession.username
       );
+      if (personal) return personal;
+    }
+    if (activeProfile && activeProfile.id !== 'live_current_moment') {
+      return enrichProfileWithAstroCalculations(activeProfile);
     }
     return null;
   }, [activeProfile, rbacSession?.userId, rbacSession?.fullName, rbacSession?.phone, rbacSession?.username]);
@@ -2171,7 +2194,7 @@ export default function App() {
           {activeTab === 'home' && (
             <DashboardView
               todayPanchanga={todayPanchanga}
-              activeProfile={activeProfile}
+              activeProfile={resolvedUserProfile || (activeProfile && activeProfile.id !== 'live_current_moment' ? activeProfile : null)}
               profiles={profiles}
               orgProfile={orgProfile}
               astrologers={astrologers}
@@ -2562,9 +2585,16 @@ export default function App() {
             <MediaDownloadView />
           )}
 
+          {activeTab === 'membership' && (
+            <PurchaseSubscriptionView
+              orgProfile={orgProfile}
+              onNavigateHome={() => navigateTab('home')}
+            />
+          )}
+
           {activeTab === 'my_subscription' && (
             <MySubscriptionView
-              onNavigateToPurchase={() => navigateTab('kharedi')}
+              onNavigateToPurchase={() => navigateTab('membership')}
               orgProfile={orgProfile}
             />
           )}
