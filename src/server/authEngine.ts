@@ -7,8 +7,31 @@ import {
   normalizePhoneNumber,
   normalizeEmail,
   smsProviderService,
-  emailProviderService
+  emailProviderService,
+  whatsappProviderService
 } from './otpProviderService';
+
+export type OTPChannel = 'sms' | 'whatsapp' | 'email';
+
+export interface SingleOTPChallenge {
+  challengeId: string;
+  channel: OTPChannel;
+  destination: string; // standard 10 digits for phone or normalized email
+  destinationNormalized: string; // +977... or email
+  destinationMasked: string; // e.g. ९८****०५३३ or s***h@gmail.com
+  countryCode?: string;
+  otpHashed: string;
+  salt: string;
+  attempts: number;
+  maxAttempts: number;
+  createdAt: number;
+  expiresAt: number;
+  lastResendAt: number;
+  resendCount: number;
+  verified: boolean;
+  purpose: 'login' | 'signup' | 'verification';
+  fullName?: string;
+}
 
 export interface RegistrationChallenge {
   challengeId: string;
@@ -47,6 +70,7 @@ const MAX_RESEND_COUNT = 3;
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const CHALLENGES_FILE = path.join(DATA_DIR, 'otp_challenges.json');
+const SINGLE_CHALLENGES_FILE = path.join(DATA_DIR, 'otp_single_challenges.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'active_sessions.json');
 
 function writeJsonAtomic(filePath: string, data: any) {
@@ -94,6 +118,7 @@ export function logAuthAudit(event: string, meta: Record<string, any>) {
 
 class AuthEngine {
   private registrationChallenges = new Map<string, RegistrationChallenge>();
+  private singleOtpChallenges = new Map<string, SingleOTPChallenge>();
   private activeSessions = new Map<string, UserSessionData>();
   private ipRateLimits = new Map<string, { count: number; resetAt: number }>();
 
@@ -110,6 +135,17 @@ class AuthEngine {
           raw.forEach((c: RegistrationChallenge) => {
             if (c && c.expiresAt > now) {
               this.registrationChallenges.set(c.challengeId, c);
+            }
+          });
+        }
+      }
+      if (fs.existsSync(SINGLE_CHALLENGES_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(SINGLE_CHALLENGES_FILE, 'utf-8'));
+        if (Array.isArray(raw)) {
+          const now = Date.now();
+          raw.forEach((c: SingleOTPChallenge) => {
+            if (c && c.expiresAt > now) {
+              this.singleOtpChallenges.set(c.challengeId, c);
             }
           });
         }
@@ -133,6 +169,11 @@ class AuthEngine {
   private persistChallenges(): void {
     const list = Array.from(this.registrationChallenges.values());
     writeJsonAtomic(CHALLENGES_FILE, list);
+  }
+
+  private persistSingleChallenges(): void {
+    const list = Array.from(this.singleOtpChallenges.values());
+    writeJsonAtomic(SINGLE_CHALLENGES_FILE, list);
   }
 
   private persistSessions(): void {
@@ -320,6 +361,7 @@ class AuthEngine {
 
     // Case 1: Both in simulation/mock mode
     if (bothMock) {
+      console.log(`[SERVER_DEV_OTP_SIGNUP] Phone OTP: ${phoneOtp} | Email OTP: ${emailOtp}`);
       return {
         success: true,
         challengeId,
@@ -329,8 +371,7 @@ class AuthEngine {
           email: { success: true, provider: emailResult.provider, isMock: true, status: emailResult.channelStatus },
           isMock: true
         },
-        devHint: !isProduction ? { phoneOtp, emailOtp } : undefined,
-        message: '[परीक्षण मोड]: वास्तविक SMS/Email गेटवे (.env मा SPARROW_SMS_TOKEN / RESEND_API_KEY) कन्फिगर नभएकोले परीक्षण कोड कन्सोल र स्क्रिनमा उपलब्ध छ।'
+        message: 'तपाईंको मोबाइल र इमेलमा ६ अङ्कको सुरक्षा कोड पठाइएको छ।'
       };
     }
 
@@ -359,7 +400,6 @@ class AuthEngine {
           sms: { success: true, provider: smsResult.provider, isMock: smsResult.isMock, status: smsResult.channelStatus },
           email: { success: false, provider: emailResult.provider, error: emailResult.error, status: emailResult.channelStatus }
         },
-        devHint: !isProduction ? { phoneOtp, emailOtp } : undefined,
         message: `मोबाइलमा SMS OTP पठाइयो। तर इमेल पठाउन सकिएन (${emailResult.error || 'इमेल गेटवे समस्या'})। तपाईं मोबाइल कोडबाट प्रमाणीकरण अघि बढाउन सक्नुहुन्छ।`
       };
     }
@@ -374,7 +414,6 @@ class AuthEngine {
           sms: { success: false, provider: smsResult.provider, error: smsResult.error, status: smsResult.channelStatus },
           email: { success: true, provider: emailResult.provider, isMock: emailResult.isMock, status: emailResult.channelStatus }
         },
-        devHint: !isProduction ? { phoneOtp, emailOtp } : undefined,
         message: `इमेलमा OTP पठाइयो। तर मोबाइलमा SMS पठाउन सकिएन (${smsResult.error || 'SMS गेटवे समस्या'})। कृपया इमेलबाट प्राप्त कोड प्रविष्ट गर्नुहोस्।`
       };
     }
@@ -618,16 +657,13 @@ class AuthEngine {
       resendCount: challenge.resendCount
     });
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    const devHint = !isProduction ? {
-      phoneOtp: newPhoneOtp || undefined,
-      emailOtp: newEmailOtp || undefined
-    } : undefined;
+    if (newPhoneOtp || newEmailOtp) {
+      console.log(`[SERVER_DEV_OTP_RESEND] Phone OTP: ${newPhoneOtp || '---'} | Email OTP: ${newEmailOtp || '---'}`);
+    }
 
     return {
       success: true,
-      message: 'नयाँ प्रमाणीकरण कोड (OTP) पुनः पठाइएको छ।',
-      devHint
+      message: 'नयाँ प्रमाणीकरण कोड (OTP) पुनः पठाइएको छ।'
     };
   }
 
@@ -703,6 +739,321 @@ class AuthEngine {
       token,
       message: 'साइन अप सफल भयो! स्वागत छ।'
     };
+  }
+
+  /**
+   * Unified Single OTP Challenge Creation (SMS, WhatsApp, Email)
+   * Sends OTP strictly to the ONE selected channel only.
+   * Zero secret leakage: plain OTP is NEVER sent to the client.
+   */
+  async createSingleOTPChallenge(params: {
+    channel: OTPChannel;
+    destination: string;
+    countryCode?: string;
+    fullName?: string;
+    purpose?: 'login' | 'signup' | 'verification';
+    clientIp?: string;
+  }): Promise<{
+    success: boolean;
+    challengeId?: string;
+    channel?: OTPChannel;
+    maskedDestination?: string;
+    message: string;
+    isMock?: boolean;
+    provider?: string;
+    channelStatus?: string;
+    error?: string;
+  }> {
+    const clientIp = params.clientIp || 'unknown';
+    logAuthAudit('SINGLE_OTP_REQUEST_RECEIVED', {
+      channel: params.channel,
+      destination: params.channel === 'email' ? maskEmailAddress(params.destination) : maskPhoneNumber(params.destination),
+      purpose: params.purpose,
+      clientIp
+    });
+
+    // 1. IP Rate Limiting: 10 requests per minute
+    if (!this.checkRateLimit(clientIp, 10, 60000).allowed) {
+      logAuthAudit('SINGLE_OTP_RATE_LIMITED', { clientIp });
+      return {
+        success: false,
+        message: 'धेरै पटक प्रयास भयो। कृपया १ मिनेटपछि पुनः प्रयास गर्नुहोस्।'
+      };
+    }
+
+    // 2. Validate channel
+    const validChannels: OTPChannel[] = ['sms', 'whatsapp', 'email'];
+    if (!validChannels.includes(params.channel)) {
+      return {
+        success: false,
+        message: 'अवैध प्रमाणीकरण माध्यम छनोट गरियो। कृपया SMS, WhatsApp वा Email रोज्नुहोस्।'
+      };
+    }
+
+    // 3. Normalize & validate destination
+    let cleanDestination = '';
+    let normalizedDestination = '';
+    let maskedDestination = '';
+
+    if (params.channel === 'sms' || params.channel === 'whatsapp') {
+      const phoneNorm = normalizePhoneNumber(params.destination);
+      if (!phoneNorm.valid) {
+        return {
+          success: false,
+          message: 'कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx वा ९७xxxxxxxx)।'
+        };
+      }
+      cleanDestination = phoneNorm.display;
+      normalizedDestination = phoneNorm.normalized;
+      maskedDestination = maskPhoneNumber(phoneNorm.display);
+    } else {
+      const emailNorm = normalizeEmail(params.destination);
+      if (!emailNorm.valid) {
+        return {
+          success: false,
+          message: 'कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस् (उदा: yourname@gmail.com)।'
+        };
+      }
+      cleanDestination = emailNorm.normalized;
+      normalizedDestination = emailNorm.normalized;
+      maskedDestination = maskEmailAddress(emailNorm.normalized);
+    }
+
+    // 4. Generate cryptographically strong 6-digit OTP and unique salt
+    const otp = generateSecureOTP();
+    const salt = crypto.randomBytes(16).toString('hex');
+    const otpHashed = hashOTP(otp, salt);
+
+    const now = Date.now();
+    const challengeId = `sotp_${now}_${crypto.randomBytes(6).toString('hex')}`;
+
+    const challenge: SingleOTPChallenge = {
+      challengeId,
+      channel: params.channel,
+      destination: cleanDestination,
+      destinationNormalized: normalizedDestination,
+      destinationMasked: maskedDestination,
+      countryCode: params.countryCode || '+977',
+      otpHashed,
+      salt,
+      attempts: 0,
+      maxAttempts: MAX_VERIFICATION_ATTEMPTS,
+      createdAt: now,
+      expiresAt: now + CHALLENGE_EXPIRY_MS,
+      lastResendAt: now,
+      resendCount: 0,
+      verified: false,
+      purpose: params.purpose || 'login',
+      fullName: params.fullName
+    };
+
+    this.singleOtpChallenges.set(challengeId, challenge);
+    this.persistSingleChallenges();
+
+    // 5. Dispatch strictly to the ONE selected channel
+    let dispatchResult: any;
+    if (params.channel === 'sms') {
+      dispatchResult = await smsProviderService.sendSMS(normalizedDestination, otp, {
+        appName: 'बालानन्द वैदिक ज्योतिष सेवा'
+      });
+    } else if (params.channel === 'whatsapp') {
+      dispatchResult = await whatsappProviderService.sendWhatsApp(normalizedDestination, otp, {
+        appName: 'बालानन्द वैदिक ज्योतिष सेवा',
+        fullName: params.fullName
+      });
+    } else {
+      dispatchResult = await emailProviderService.sendEmail(normalizedDestination, otp, {
+        appName: 'बालानन्द वैदिक ज्योतिष सेवा',
+        fullName: params.fullName || 'आदरणीय सदस्य'
+      });
+    }
+
+    logAuthAudit('SINGLE_OTP_DISPATCH_RESULT', {
+      challengeId,
+      channel: params.channel,
+      destination: maskedDestination,
+      provider: dispatchResult.provider,
+      isMock: dispatchResult.isMock,
+      success: dispatchResult.success
+    });
+
+    // In dev simulation mode, log in server terminal for developer testing (NEVER sent to client)
+    if (dispatchResult.isMock) {
+      console.log(`[SERVER_DEV_OTP] Channel: ${params.channel.toUpperCase()} | Dest: ${cleanDestination} | Code: ${otp}`);
+    }
+
+    // If dispatch failed completely (and not mock)
+    if (!dispatchResult.success && !dispatchResult.isMock) {
+      this.singleOtpChallenges.delete(challengeId);
+      this.persistSingleChallenges();
+      return {
+        success: false,
+        message: `सुरक्षा कोड पठाउन सकिएन (${dispatchResult.error || 'गेटवे समस्या'})। कृपया पुनः प्रयास गर्नुहोस्।`,
+        error: dispatchResult.error
+      };
+    }
+
+    const channelNamesNepali: Record<OTPChannel, string> = {
+      sms: 'मोबाइल SMS',
+      whatsapp: 'WhatsApp',
+      email: 'इमेल'
+    };
+
+    return {
+      success: true,
+      challengeId,
+      channel: params.channel,
+      maskedDestination,
+      provider: dispatchResult.provider,
+      isMock: dispatchResult.isMock,
+      channelStatus: dispatchResult.channelStatus,
+      message: `${channelNamesNepali[params.channel]} (${maskedDestination}) मा ६ अङ्कको गोप्य सुरक्षा कोड पठाइएको छ।`
+    };
+  }
+
+  /**
+   * Unified Single OTP Verification (Works for SMS, WhatsApp, and Email)
+   */
+  verifySingleOTPChallenge(
+    challengeId: string,
+    enteredOtp: string
+  ): { success: boolean; challenge?: SingleOTPChallenge; message: string } {
+    const challenge = this.singleOtpChallenges.get(challengeId);
+    if (!challenge) {
+      return {
+        success: false,
+        message: 'प्रमाणीकरण सत्र फेला परेन वा म्याद समाप्त भयो। कृपया पुनः सुरु गर्नुहोस्।'
+      };
+    }
+
+    if (Date.now() > challenge.expiresAt) {
+      this.singleOtpChallenges.delete(challengeId);
+      this.persistSingleChallenges();
+      return {
+        success: false,
+        message: 'OTP को ५ मिनेटको समय समाप्त भएको छ। कृपया नयाँ कोड माग्नुहोस्।'
+      };
+    }
+
+    if (challenge.attempts >= challenge.maxAttempts) {
+      this.singleOtpChallenges.delete(challengeId);
+      this.persistSingleChallenges();
+      return {
+        success: false,
+        message: 'धेरै पटक गलत OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरिएको छ।'
+      };
+    }
+
+    const cleanInput = String(enteredOtp || '').trim().replace(/\D/g, '');
+    if (cleanInput.length < 6) {
+      return {
+        success: false,
+        message: 'कृपया ६ अङ्कको पूरा सुरक्षा कोड प्रविष्ट गर्नुहोस्।'
+      };
+    }
+
+    const computedHash = hashOTP(cleanInput, challenge.salt);
+    if (computedHash !== challenge.otpHashed) {
+      challenge.attempts++;
+      this.persistSingleChallenges();
+      const remaining = challenge.maxAttempts - challenge.attempts;
+      if (remaining <= 0) {
+        this.singleOtpChallenges.delete(challengeId);
+        this.persistSingleChallenges();
+        return {
+          success: false,
+          message: 'धेरै पटक गलत OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरिएको छ।'
+        };
+      }
+      return {
+        success: false,
+        message: `गलत सुरक्षा कोड! कृपया पुनः जाँच्नुहोस्। (बाँकी प्रयास: ${remaining})`
+      };
+    }
+
+    // Success
+    challenge.verified = true;
+    this.persistSingleChallenges();
+    logAuthAudit('SINGLE_OTP_VERIFIED_SUCCESS', {
+      challengeId,
+      channel: challenge.channel,
+      destination: challenge.destinationMasked
+    });
+
+    return {
+      success: true,
+      challenge,
+      message: 'सुरक्षा कोड सफलतापूर्वक प्रमाणीकरण भयो!'
+    };
+  }
+
+  /**
+   * Resend Single OTP with 60s cooldown and max 3 resends
+   */
+  async resendSingleOTP(challengeId: string): Promise<{
+    success: boolean;
+    message: string;
+    remainingSeconds?: number;
+    resendCount?: number;
+  }> {
+    const challenge = this.singleOtpChallenges.get(challengeId);
+    if (!challenge) {
+      return { success: false, message: 'सत्र फेला परेन। कृपया पुनः सुरु गर्नुहोस्।' };
+    }
+
+    const now = Date.now();
+    if (challenge.resendCount >= MAX_RESEND_COUNT) {
+      return { success: false, message: 'अधिकतम पुनः पठाउने सीमा समाप्त भयो (३ पटक)। कृपया नयाँ अनुरोध गर्नुहोस्।' };
+    }
+
+    if (now - challenge.lastResendAt < RESEND_COOLDOWN_MS) {
+      const waitSeconds = Math.ceil((RESEND_COOLDOWN_MS - (now - challenge.lastResendAt)) / 1000);
+      return { success: false, message: `कृपया नयाँ कोड माग्न ${waitSeconds} सेकेन्ड पर्खनुहोस्।`, remainingSeconds: waitSeconds };
+    }
+
+    challenge.resendCount++;
+    challenge.expiresAt = now + CHALLENGE_EXPIRY_MS;
+    challenge.lastResendAt = now;
+    challenge.attempts = 0; // reset attempts for fresh code
+
+    const newSalt = crypto.randomBytes(16).toString('hex');
+    const newOtp = generateSecureOTP();
+    challenge.salt = newSalt;
+    challenge.otpHashed = hashOTP(newOtp, newSalt);
+    this.persistSingleChallenges();
+
+    if (challenge.channel === 'sms') {
+      await smsProviderService.sendSMS(challenge.destinationNormalized, newOtp);
+    } else if (challenge.channel === 'whatsapp') {
+      await whatsappProviderService.sendWhatsApp(challenge.destinationNormalized, newOtp, { fullName: challenge.fullName });
+    } else {
+      await emailProviderService.sendEmail(challenge.destinationNormalized, newOtp, { fullName: challenge.fullName });
+    }
+
+    logAuthAudit('SINGLE_OTP_RESENT', {
+      challengeId,
+      channel: challenge.channel,
+      destination: challenge.destinationMasked,
+      resendCount: challenge.resendCount
+    });
+
+    console.log(`[SERVER_DEV_OTP_RESEND] Channel: ${challenge.channel.toUpperCase()} | Dest: ${challenge.destination} | Code: ${newOtp}`);
+
+    return {
+      success: true,
+      message: 'नयाँ प्रमाणीकरण कोड पुनः पठाइएको छ।',
+      resendCount: challenge.resendCount,
+      remainingSeconds: 60
+    };
+  }
+
+  getSingleChallenge(challengeId: string): SingleOTPChallenge | undefined {
+    return this.singleOtpChallenges.get(challengeId);
+  }
+
+  consumeSingleChallenge(challengeId: string): void {
+    this.singleOtpChallenges.delete(challengeId);
+    this.persistSingleChallenges();
   }
 
   // Session validation middleware helper
