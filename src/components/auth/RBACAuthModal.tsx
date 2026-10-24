@@ -766,7 +766,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                       <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1.5 text-xs">
                         १. सुरक्षा कोड (OTP) प्राप्त गर्ने माध्यम छनोट गर्नुहोस्:
                       </label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => setSelectedChannel('sms')}
@@ -778,6 +778,18 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                         >
                           <Smartphone className="w-4 h-4 text-amber-600" />
                           <span className="text-[11px]">📱 SMS</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedChannel('firebase')}
+                          className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                            selectedChannel === 'firebase'
+                              ? 'border-orange-500 bg-orange-500/15 text-orange-900 dark:text-orange-200 font-bold ring-2 ring-orange-500/30'
+                              : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-orange-400'
+                          }`}
+                        >
+                          <ShieldCheck className="w-4 h-4 text-orange-600" />
+                          <span className="text-[11px]">🔥 Firebase</span>
                         </button>
                         <button
                           type="button"
@@ -831,6 +843,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                       </div>
                       <span className="text-[10px] text-stone-500 mt-1 block">
                         {selectedChannel === 'sms' && 'नेपाली मोबाइल नम्बरमा ६ अङ्कको SMS सुरक्षा कोड पठाइनेछ।'}
+                        {selectedChannel === 'firebase' && 'Google Firebase Phone Auth मार्फत तपाईंको मोबाइलमा आधिकारिक SMS कोड पठाइनेछ।'}
                         {selectedChannel === 'whatsapp' && 'तपाईंको WhatsApp नम्बरमा ६ अङ्कको आधिकारिक कोड पठाइनेछ।'}
                         {selectedChannel === 'email' && 'तपाईंको इमेल ठेगानामा ६ अङ्कको प्रमाणीकरण कोड पठाइनेछ।'}
                       </span>
@@ -1039,7 +1052,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                     <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1.5 text-xs">
                       २. OTP प्राप्त गर्ने माध्यम छनोट गर्नुहोस्:
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <button
                         type="button"
                         onClick={() => setSignupChannel('sms')}
@@ -1051,6 +1064,18 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                       >
                         <Smartphone className="w-4 h-4 text-amber-600" />
                         <span className="text-[11px]">📱 SMS</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignupChannel('firebase')}
+                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                          signupChannel === 'firebase'
+                            ? 'border-orange-500 bg-orange-500/15 text-orange-900 dark:text-orange-200 font-bold ring-2 ring-orange-500/30'
+                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-orange-400'
+                        }`}
+                      >
+                        <ShieldCheck className="w-4 h-4 text-orange-600" />
+                        <span className="text-[11px]">🔥 Firebase</span>
                       </button>
                       <button
                         type="button"
@@ -1105,6 +1130,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                     </div>
                     <span className="text-[10px] text-stone-500 mt-1 block">
                       {signupChannel === 'sms' && 'नेपाली मोबाइल नम्बरमा ६ अङ्कको SMS सुरक्षा कोड पठाइनेछ।'}
+                      {signupChannel === 'firebase' && 'Google Firebase Phone Auth मार्फत तपाईंको मोबाइलमा आधिकारिक SMS कोड पठाइनेछ।'}
                       {signupChannel === 'whatsapp' && 'WhatsApp नम्बरमा ६ अङ्कको आधिकारिक सुरक्षा कोड पठाइनेछ।'}
                       {signupChannel === 'email' && 'इमेल ठेगानामा ६ अङ्कको प्रमाणीकरण कोड पठाइनेछ।'}
                     </span>
