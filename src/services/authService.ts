@@ -1,6 +1,8 @@
 import { apiClient } from './apiClient';
 import { RBACSession, setRBACSession, clearRBACSession } from '../db/rbacStore';
-import { authenticateUnifiedUser } from '../db/unifiedSecurityBridge';
+import { authenticateUnifiedUser, syncUnifiedUserAccount } from '../db/unifiedSecurityBridge';
+import { getStoredClientLeads, saveClientLeads, ClientLead } from '../db/clientLeadStore';
+import { unifiedUserSyncService } from './unifiedUserSyncService';
 import { firebaseAuthService } from './firebaseAuthService';
 
 export type OTPChannel = 'sms' | 'whatsapp' | 'email' | 'firebase';
@@ -572,7 +574,7 @@ class AuthService {
       }
     }
 
-    // 2. Resilient Client Persistence (for Firebase Hosting CDN, GitHub Pages, or offline)
+    // 2. Resilient Client Persistence & Multi-Store Synchronization
     const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const customerId = `सदस्य-२०८३-${Math.floor(1000 + Math.random() * 9000)}`;
     const token = `tok_reg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -596,12 +598,70 @@ class AuthService {
       lastLoginISO: new Date().toISOString()
     };
 
-    // Save to unified local store
+    // A. Sync to Menu Control & RBAC Stores (Universal Security Bridge)
+    try {
+      syncUnifiedUserAccount({
+        id: userId,
+        mobile: cleanPhone,
+        fullName: cleanName,
+        loginId: cleanUsername,
+        email: cleanEmail,
+        passwordPlain: data.password,
+        status: 'active'
+      });
+    } catch {}
+
+    // B. Save to Client Leads so backend User Control Table displays it immediately
+    try {
+      const currentLeads = getStoredClientLeads();
+      const existingIdx = currentLeads.findIndex(l => l.mobile?.replace(/\D/g, '').slice(-10) === cleanPhone);
+      const leadItem: ClientLead = {
+        id: `LEAD-REG-${userId}`,
+        fullName: cleanName,
+        address: 'नेपाल',
+        mobile: cleanPhone,
+        email: cleanEmail,
+        whatsapp: cleanPhone,
+        deviceFingerprint: 'user-registered',
+        status: 'REGISTERED_USER',
+        planId: 'standard',
+        planNameNepali: 'दर्ता भएको ग्राहक (Registered User)',
+        planAmountNPR: 0,
+        paymentMethod: 'none',
+        submittedAtISO: new Date().toISOString(),
+        submittedAtBS: '२०८१',
+        clientNotes: 'अनलाइन फारमबाट नयाँ खाता दर्ता गरिएको'
+      };
+      if (existingIdx > -1) {
+        currentLeads[existingIdx] = { ...currentLeads[existingIdx], ...leadItem };
+        saveClientLeads(currentLeads);
+      } else {
+        saveClientLeads([leadItem, ...currentLeads]);
+      }
+    } catch {}
+
+    // C. Save to unified local store
     try {
       const existingUsersRaw = localStorage.getItem('balananda_unified_users_v1');
       const userList = existingUsersRaw ? JSON.parse(existingUsersRaw) : [];
       userList.unshift(userObj);
       localStorage.setItem('balananda_unified_users_v1', JSON.stringify(userList));
+    } catch {}
+
+    // D. Broadcast Realtime Sync Event across all tabs, backend, and cloud relay
+    try {
+      unifiedUserSyncService.pushEventToRealtimeRelay({
+        type: 'USER_SIGNUP',
+        user: userObj,
+        mobile: cleanPhone
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('unified-data-updated'));
+        window.dispatchEvent(new CustomEvent('user-registered', { detail: userObj }));
+        window.dispatchEvent(new CustomEvent('client-leads-updated'));
+        window.dispatchEvent(new CustomEvent('rbac-users-updated'));
+        window.dispatchEvent(new CustomEvent('client-policies-updated'));
+      }
     } catch {}
 
     const session: RBACSession = {
@@ -621,7 +681,7 @@ class AuthService {
 
     setRBACSession(session);
 
-    // Also queue for backend synchronization when server is contacted
+    // E. Also queue for backend disk persistence in server.ts (data/users.json)
     try {
       apiClient.post('/api/auth/register', {
         fullName: cleanName,
