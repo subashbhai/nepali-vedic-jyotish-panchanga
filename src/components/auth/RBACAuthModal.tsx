@@ -43,7 +43,7 @@ interface RBACAuthModalProps {
   onLoginSuccess: (session: RBACSession, createdProfile?: BirthDetails) => void;
 }
 
-type AuthModalMode = 'signin' | 'signup_3fields' | 'dual_otp' | 'profile_stage2';
+type AuthModalMode = 'signin' | 'signup_3fields' | 'dual_otp' | 'profile_stage2' | 'signup_credentials';
 
 export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
   isOpen,
@@ -70,18 +70,26 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
   const [maskedRecipientHint, setMaskedRecipientHint] = useState('');
   const [singleChallengeId, setSingleChallengeId] = useState<string | null>(null);
 
-  // Unified Single OTP Signup State
+  // Unified Single OTP Signup State (Clean Form: Name, Mobile, Email)
   const [fullName, setFullName] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
   const [signupChannel, setSignupChannel] = useState<OTPChannel>('sms');
   const [signupDestination, setSignupDestination] = useState('');
   const [isSignupOtpSent, setIsSignupOtpSent] = useState(false);
   const [signupChallengeId, setSignupChallengeId] = useState<string | null>(null);
   const [signupMaskedDestination, setSignupMaskedDestination] = useState('');
   const [signupOtpCode, setSignupOtpCode] = useState('');
+  const [signupDevOtpHint, setSignupDevOtpHint] = useState<string | null>(null);
+
+  // Step 2: Account Credentials State (Username & Password)
+  const [signupUsername, setSignupUsername] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
 
   // Legacy Dual OTP State (Preserved for compatibility)
-  const [signupPhone, setSignupPhone] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [phoneOtp, setPhoneOtp] = useState('');
   const [emailOtp, setEmailOtp] = useState('');
@@ -263,7 +271,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     }
   };
 
-  // 4. Single OTP Signup: Send OTP
+  // 4. Single OTP Signup: Send OTP (Clean Form: Name, Mobile, Email)
   const handleSendSignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -275,54 +283,51 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       return;
     }
 
-    const cleanDest = signupDestination.trim();
-    if (!cleanDest) {
-      setErrorMsg(signupChannel === 'email' ? 'कृपया इमेल ठेगाना प्रविष्ट गर्नुहोस्।' : 'कृपया मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
+    const cleanPhone = signupPhone.trim().replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      setErrorMsg('कृपया १० अङ्कको मान्य मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx)।');
       return;
     }
 
-    if (signupChannel === 'email') {
-      if (!cleanDest.includes('@') || !cleanDest.includes('.')) {
-        setErrorMsg('कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस्।');
-        return;
-      }
-    } else {
-      const digits = cleanDest.replace(/\D/g, '');
-      if (digits.length < 10) {
-        setErrorMsg('कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
-        return;
-      }
+    const cleanEmail = signupEmail.trim();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setErrorMsg('कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस् (उदा: yourname@gmail.com)।');
+      return;
     }
 
     setIsLoading(true);
     try {
-      const res = await authService.sendOTP(signupChannel, cleanDest, cleanName, 'signup');
+      const res = await authService.sendOTP('sms', cleanPhone, cleanName, 'signup');
       setIsLoading(false);
       if (res.success && res.challengeId) {
         setSignupChallengeId(res.challengeId);
         setIsSignupOtpSent(true);
-        setSignupMaskedDestination(res.maskedDestination || cleanDest);
+        setSignupMaskedDestination(cleanPhone);
+        if (res.code) {
+          setSignupDevOtpHint(res.code);
+        }
+        setSignupUsername(cleanPhone);
         setSignupOtpCode('');
         setResendCooldown(60);
         setCanResend(false);
-        setSuccessMsg(res.message);
+        setSuccessMsg(res.message || 'तपाईंको सम्पर्कमा ६ अङ्कको सुरक्षा कोड पठाइयो।');
       } else {
-        setErrorMsg(res.message);
+        setErrorMsg(res.message || 'सुरक्षा कोड पठाउन सकिएन।');
       }
     } catch {
       setIsLoading(false);
-      setErrorMsg('साइन अप सुरु गर्दा समस्या आयो।');
+      setErrorMsg('साइन अप सुरु गर्दा प्राविधिक समस्या आयो।');
     }
   };
 
-  // 5. Single OTP Signup: Verify code
+  // 5. Single OTP Signup: Verify code & Open Credentials Form
   const handleVerifySignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signupChallengeId) return;
 
     const cleanOtp = signupOtpCode.trim().replace(/\D/g, '');
     if (cleanOtp.length < 6) {
-      setErrorMsg('कृपया ६ अङ्कको सुरक्षा कोड प्रविष्ट गर्नुहोस्।');
+      setErrorMsg('कृपया ६ अङ्कको सुरक्षा कोड पूरा प्रविष्ट गर्नुहोस्।');
       return;
     }
 
@@ -332,20 +337,12 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       const res = await authService.verifySingleOTP(signupChallengeId, cleanOtp);
       setIsLoading(false);
 
-      if (res.success && res.session) {
-        setAuthenticatedSession(res.session);
-        if (signupChannel === 'email') {
-          setSignupEmail(signupDestination);
-          if (!signupPhone) setSignupPhone(res.session.phone || '९८xxxxxxxx');
-        } else {
-          setSignupPhone(signupDestination);
-          if (!signupEmail) setSignupEmail((res.session as any).email || `${signupDestination}@balanandajyotish.com.np`);
-        }
-        setSuccessMsg('प्रमाणीकरण सफल भयो! स्वागत छ।');
-        // Transition to Stage 2 Profile Completion
-        setMode('profile_stage2');
+      if (res.success) {
+        setSuccessMsg('सुरक्षा कोड प्रमाणित भयो! अब खाताको प्रयोगकर्ता नाम र पासवर्ड सेट गर्नुहोस्।');
+        // Transition to Step 2 Credentials Form (Username & Password)
+        setMode('signup_credentials');
       } else {
-        setErrorMsg(res.message);
+        setErrorMsg(res.message || 'गलत सुरक्षा कोड।');
       }
     } catch {
       setIsLoading(false);
@@ -353,7 +350,55 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     }
   };
 
-  // 6. Single OTP Signup: Resend code
+  // 6. Complete Signup with Username and Password
+  const handleFinalizeCredentialsSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const cleanUser = signupUsername.trim();
+    if (!cleanUser || cleanUser.length < 3) {
+      setErrorMsg('कृपया कम्तीमा ३ अक्षरको प्रयोगकर्ता नाम (Username) प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+
+    if (!signupPassword || signupPassword.length < 6) {
+      setErrorMsg('पासवर्ड कम्तीमा ६ अक्षर वा अङ्कको हुनुपर्छ।');
+      return;
+    }
+
+    if (signupPassword !== signupConfirmPassword) {
+      setErrorMsg('दुवै पासवर्ड मिलेनन्। कृपया पुनः जाँच्नुहोस्।');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await authService.registerWithCredentials({
+        fullName: fullName.trim(),
+        phone: signupPhone.trim(),
+        email: signupEmail.trim(),
+        username: cleanUser,
+        password: signupPassword
+      });
+      setIsLoading(false);
+
+      if (res.success && res.session) {
+        setSuccessMsg('बधाई छ! खाता सफलतापूर्वक सिर्जना भयो र तपाईं लगइन हुनुभयो।');
+        setTimeout(() => {
+          onLoginSuccess(res.session!);
+          onClose();
+        }, 700);
+      } else {
+        setErrorMsg(res.message || 'खाता सिर्जना गर्न सकिएन।');
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('खाता सुरक्षित गर्दा प्राविधिक समस्या आयो।');
+    }
+  };
+
+  // 7. Single OTP Signup: Resend code
   const handleResendSignupOTP = async () => {
     if (!signupChallengeId || !canResend) return;
     setIsLoading(true);
@@ -688,6 +733,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                   {mode === 'signin' && 'प्रयोगकर्ता लगइन'}
                   {mode === 'signup_3fields' && 'नयाँ सदस्यता दर्ता'}
                   {mode === 'dual_otp' && 'दोहोरो OTP प्रमाणीकरण'}
+                  {mode === 'signup_credentials' && 'नयाँ खाता: युजरनेम र पासवर्ड'}
                   {mode === 'profile_stage2' && 'दोस्रो चरण: विस्तृत विवरण'}
                 </span>
               </div>
@@ -1018,28 +1064,31 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
           {/* ─────────────────────────────────────────────────────────────
               VIEW 2: UNIFIED MEMBERSHIP SIGNUP (SINGLE OTP DELIVERY & SINGLE SHARED BOX)
               ───────────────────────────────────────────────────────────── */}
+          {/* ─────────────────────────────────────────────────────────────
+              VIEW 2: UNIFIED MEMBERSHIP SIGNUP (CLEAN FORM + OTP VERIFICATION)
+              ───────────────────────────────────────────────────────────── */}
           {(mode === 'signup_3fields' || mode === 'dual_otp') && (
             <div className="space-y-4 animate-in fade-in">
               {!isSignupOtpSent ? (
                 <form onSubmit={handleSendSignupOTP} className="space-y-3.5">
                   <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-900 dark:text-amber-200">
-                    <span className="font-bold block">पहिलो चरण: व्यक्तिगत विवरण र प्रमाणीकरण</span>
+                    <span className="font-bold block">नयाँ सदस्यता दर्ता</span>
                     <span className="text-[11px] text-stone-600 dark:text-stone-400">
-                      आफ्नो रोजेको माध्यममा ६ अङ्कको गोप्य OTP सुरक्षा कोड प्राप्त गर्नुहोस्।
+                      मोबाइल नम्बर र इमेल राखी ६ अङ्कको गोप्य OTP सुरक्षा कोड प्राप्त गर्नुहोस्।
                     </span>
                   </div>
 
                   {/* Field 1: Full Name */}
                   <div>
                     <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
-                      १. पूरा नाम (Full Name) *
+                      पूरा नाम (Full Name) *
                     </label>
                     <div className="relative">
                       <User className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
                       <input
                         type="text"
                         required
-                        placeholder="उदा: पं. सुवास शर्मा"
+                        placeholder="उदा: सुवास भण्डारी"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
@@ -1047,92 +1096,45 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Field 2: Delivery Channel Selection */}
-                  <div>
-                    <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1.5 text-xs">
-                      २. OTP प्राप्त गर्ने माध्यम छनोट गर्नुहोस्:
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSignupChannel('sms')}
-                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                          signupChannel === 'sms'
-                            ? 'border-amber-500 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/30'
-                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-amber-400'
-                        }`}
-                      >
-                        <Smartphone className="w-4 h-4 text-amber-600" />
-                        <span className="text-[11px]">📱 SMS</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSignupChannel('firebase')}
-                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                          signupChannel === 'firebase'
-                            ? 'border-orange-500 bg-orange-500/15 text-orange-900 dark:text-orange-200 font-bold ring-2 ring-orange-500/30'
-                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-orange-400'
-                        }`}
-                      >
-                        <ShieldCheck className="w-4 h-4 text-orange-600" />
-                        <span className="text-[11px]">🔥 Firebase</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSignupChannel('whatsapp')}
-                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                          signupChannel === 'whatsapp'
-                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold ring-2 ring-emerald-500/30'
-                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-emerald-400'
-                        }`}
-                      >
-                        <MessageSquare className="w-4 h-4 text-emerald-600" />
-                        <span className="text-[11px]">💬 WhatsApp</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSignupChannel('email')}
-                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                          signupChannel === 'email'
-                            ? 'border-blue-500 bg-blue-500/15 text-blue-900 dark:text-blue-200 font-bold ring-2 ring-blue-500/30'
-                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-blue-400'
-                        }`}
-                      >
-                        <Mail className="w-4 h-4 text-blue-600" />
-                        <span className="text-[11px]">✉️ Email</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Field 3: Mobile or Email Destination */}
+                  {/* Field 2: Mobile Number */}
                   <div>
                     <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
-                      ३. {signupChannel === 'email' ? 'इमेल ठेगाना *' : 'मोबाइल नम्बर *'}
+                      मोबाइल नम्बर (Mobile No) *
                     </label>
                     <div className="relative">
-                      {signupChannel === 'email' ? (
-                        <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                      ) : (
-                        <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                      )}
+                      <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
                       <input
-                        type={signupChannel === 'email' ? 'email' : 'tel'}
+                        type="tel"
                         required
-                        placeholder={
-                          signupChannel === 'email'
-                            ? 'example@gmail.com'
-                            : '९८xxxxxxxx / ९७xxxxxxxx'
-                        }
-                        value={signupDestination}
-                        onChange={(e) => setSignupDestination(e.target.value)}
+                        placeholder="९८xxxxxxxx / ९७xxxxxxxx"
+                        value={signupPhone}
+                        onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                         className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
                       />
                     </div>
                     <span className="text-[10px] text-stone-500 mt-1 block">
-                      {signupChannel === 'sms' && 'नेपाली मोबाइल नम्बरमा ६ अङ्कको SMS सुरक्षा कोड पठाइनेछ।'}
-                      {signupChannel === 'firebase' && 'Google Firebase Phone Auth मार्फत तपाईंको मोबाइलमा आधिकारिक SMS कोड पठाइनेछ।'}
-                      {signupChannel === 'whatsapp' && 'WhatsApp नम्बरमा ६ अङ्कको आधिकारिक सुरक्षा कोड पठाइनेछ।'}
-                      {signupChannel === 'email' && 'इमेल ठेगानामा ६ अङ्कको प्रमाणीकरण कोड पठाइनेछ।'}
+                      १० अङ्कको मान्य मोबाइल नम्बर प्रविष्ट गर्नुहोस्।
+                    </span>
+                  </div>
+
+                  {/* Field 3: Email Address */}
+                  <div>
+                    <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                      इमेल ठेगाना (Email Address) *
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="उदा: yourname@gmail.com"
+                        value={signupEmail}
+                        onChange={(e) => setSignupEmail(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                    <span className="text-[10px] text-stone-500 mt-1 block">
+                      सुरक्षा तथा कुण्डली प्रतिवेदनका लागि मान्य इमेल प्रविष्ट गर्नुहोस्।
                     </span>
                   </div>
 
@@ -1172,9 +1174,20 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                       <span>OTP कोड सफलतापूर्वक पठाइयो</span>
                     </div>
                     <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed font-mono">
-                      <strong>{signupMaskedDestination}</strong> मा {signupChannel === 'whatsapp' ? 'WhatsApp (ह्वाट्सएप)' : signupChannel === 'sms' ? 'मोबाइल SMS' : 'इमेल (Email)'} मार्फत ६ अङ्कको गोप्य कोड पठाइएको छ।
+                      <strong>{signupPhone}</strong> तथा <strong>{signupEmail}</strong> मा ६ अङ्कको सुरक्षा कोड पठाइएको छ।
                     </p>
                   </div>
+
+                  {signupDevOtpHint && (
+                    <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-center">
+                      <span className="text-[10px] text-emerald-800 dark:text-emerald-300 font-bold block mb-0.5">
+                        🔔 तपाईंको सुरक्षा कोड (OTP):
+                      </span>
+                      <span className="font-mono text-lg font-black tracking-widest text-emerald-700 dark:text-emerald-300">
+                        {signupDevOtpHint}
+                      </span>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-center text-stone-700 dark:text-stone-300 font-bold mb-2 text-xs">
@@ -1229,7 +1242,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                     </button>
                   </div>
 
-                  {/* Change Destination / Channel */}
+                  {/* Change Destination */}
                   <div className="text-center pt-1">
                     <button
                       type="button"
@@ -1240,12 +1253,126 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                       }}
                       className="text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 text-xs hover:underline cursor-pointer"
                     >
-                      ← विवरण वा माध्यम सच्याउनुहोस्
+                      ← मोबाइल तथा इमेल सच्याउनुहोस्
                     </button>
                   </div>
                 </form>
               )}
             </div>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              VIEW 3: STEP 2 CREDENTIALS SETUP (USERNAME & PASSWORD)
+              ───────────────────────────────────────────────────────────── */}
+          {mode === 'signup_credentials' && (
+            <form onSubmit={handleFinalizeCredentialsSignup} className="space-y-4 animate-in fade-in">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>OTP प्रमाणीकरण सफल भयो!</span>
+                </div>
+                <p className="text-[11px] text-stone-600 dark:text-stone-300">
+                  कृपया आफ्नो खाताको लागि प्रयोगकर्ता नाम (Username) र सुरक्षित पासवर्ड सेट गर्नुहोस्।
+                </p>
+              </div>
+
+              {/* Verified Contact Badges */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 bg-stone-100 dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800">
+                  <span className="text-[10px] text-stone-500 block">मोबाइल नम्बर:</span>
+                  <span className="font-bold font-mono text-emerald-700 dark:text-emerald-400 truncate block">
+                    {signupPhone} ✓
+                  </span>
+                </div>
+                <div className="p-2 bg-stone-100 dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800">
+                  <span className="text-[10px] text-stone-500 block">इमेल:</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400 truncate block">
+                    {signupEmail} ✓
+                  </span>
+                </div>
+              </div>
+
+              {/* Username Field */}
+              <div>
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                  प्रयोगकर्ताको नाम (Username) *
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="उदा: suvas98 वा suvas_bhandari"
+                    value={signupUsername}
+                    onChange={(e) => setSignupUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
+                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
+                  />
+                </div>
+                <span className="text-[10px] text-stone-500 mt-0.5 block">
+                  भविष्यमा लगइन गर्दा यो युजरनेम वा आफ्नो मोबाइल नम्बर प्रयोग गर्न सक्नुहुन्छ।
+                </span>
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                  नयाँ पासवर्ड (Password) *
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                  <input
+                    type={showSignupPassword ? 'text' : 'password'}
+                    required
+                    placeholder="कम्तीमा ६ अक्षर/अङ्कको पासवर्ड"
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
+                    className="w-full pl-9 pr-10 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSignupPassword(!showSignupPassword)}
+                    className="absolute right-3 top-3 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
+                  >
+                    {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password Field */}
+              <div>
+                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                  पासवर्ड पुनः पुष्टि गर्नुहोस् (Confirm Password) *
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                  <input
+                    type={showSignupConfirmPassword ? 'text' : 'password'}
+                    required
+                    placeholder="माथिको पासवर्ड पुनः दोहोर्याउनुहोस्"
+                    value={signupConfirmPassword}
+                    onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                    className="w-full pl-9 pr-10 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSignupConfirmPassword(!showSignupConfirmPassword)}
+                    className="absolute right-3 top-3 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
+                  >
+                    {showSignupConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit Final Account */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
+              >
+                <ShieldCheck className="w-4 h-4 text-amber-200" />
+                <span>{isLoading ? 'खाता सुरक्षित गरिँदैछ...' : 'खाता सुरक्षित गर्नुहोस् र लगइन गर्नुहोस् ✓'}</span>
+              </button>
+            </form>
           )}
 
           {/* ─────────────────────────────────────────────────────────────
