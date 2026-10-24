@@ -270,7 +270,7 @@ export const MobileAuthModal: React.FC<MobileAuthModalProps> = ({
                 सुरक्षा कोड पठाइयो
               </span>
               <p className="text-[11px] text-stone-300 leading-relaxed font-mono">
-                <strong>{maskedRecipient}</strong> मा {channel === 'whatsapp' ? 'WhatsApp (ह्वाट्सएप)' : channel === 'sms' ? 'SMS' : 'Email'} मार्फत ६ अङ्कको OTP कोड पठाइएको छ।
+                <strong>{maskedRecipient}</strong> मा {channel === 'whatsapp' ? 'WhatsApp (ह्वाट्सएप)' : channel === 'firebase' ? 'Firebase SMS' : channel === 'sms' ? 'SMS' : 'Email'} मार्फत ६ अङ्कको OTP कोड पठाइएको छ।
               </p>
             </div>
 
@@ -411,7 +411,7 @@ export const MobileAuthModal: React.FC<MobileAuthModalProps> = ({
                 {/* Delivery Channel Selector */}
                 <div>
                   <label className="block text-stone-400 mb-1.5 font-bold">OTP प्राप्त गर्ने माध्यम:</label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-4 gap-1.5">
                     <button
                       type="button"
                       onClick={() => setChannel('sms')}
@@ -423,6 +423,18 @@ export const MobileAuthModal: React.FC<MobileAuthModalProps> = ({
                     >
                       <Smartphone className="w-3.5 h-3.5 text-amber-400" />
                       <span className="text-[10px]">📱 SMS</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChannel('firebase')}
+                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                        channel === 'firebase'
+                          ? 'border-orange-500 bg-orange-500/20 text-orange-300 font-black ring-1 ring-orange-500'
+                          : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-orange-400" />
+                      <span className="text-[10px]">🔥 Firebase</span>
                     </button>
                     <button
                       type="button"

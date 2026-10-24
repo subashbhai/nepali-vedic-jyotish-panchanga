@@ -1,8 +1,9 @@
 import { apiClient } from './apiClient';
 import { RBACSession, setRBACSession, clearRBACSession } from '../db/rbacStore';
 import { authenticateUnifiedUser } from '../db/unifiedSecurityBridge';
+import { firebaseAuthService } from './firebaseAuthService';
 
-export type OTPChannel = 'sms' | 'whatsapp' | 'email';
+export type OTPChannel = 'sms' | 'whatsapp' | 'email' | 'firebase';
 
 export interface SendOTPResponse {
   success: boolean;
@@ -89,6 +90,26 @@ class AuthService {
   ): Promise<SendOTPResponse> {
     const cleanDest = destination.trim();
 
+    // Firebase Phone Authentication
+    if (channel === 'firebase') {
+      const fbRes = await firebaseAuthService.sendPhoneOTP(cleanDest);
+      if (fbRes.success) {
+        return {
+          success: true,
+          challengeId: `fb_phone_${Date.now()}`,
+          channel: 'firebase',
+          maskedDestination: cleanDest,
+          message: fbRes.message,
+          provider: 'firebase'
+        };
+      } else {
+        return {
+          success: false,
+          message: fbRes.message || 'Firebase OTP पठाउन सकिएन।'
+        };
+      }
+    }
+
     // 1. Try real server API if not static GitHub Pages
     if (!apiClient.isStaticHosting()) {
       try {
@@ -133,6 +154,25 @@ class AuthService {
    */
   async verifySingleOTP(challengeId: string, otp: string): Promise<VerifySingleOTPResponse> {
     const cleanOtp = otp.trim().replace(/\D/g, '');
+
+    // Firebase Phone Authentication Verification
+    if (challengeId.startsWith('fb_phone_')) {
+      const fbRes = await firebaseAuthService.verifyCode(cleanOtp);
+      if (fbRes.success && fbRes.session) {
+        return {
+          success: true,
+          session: fbRes.session,
+          user: fbRes.session,
+          token: fbRes.session.token,
+          message: fbRes.message
+        };
+      } else {
+        return {
+          success: false,
+          message: fbRes.message || 'Firebase OTP प्रमाणीकरण असफल भयो।'
+        };
+      }
+    }
 
     // If challenge was created client-side or static hosting
     if (challengeId.startsWith('client_sotp_') || apiClient.isStaticHosting()) {
