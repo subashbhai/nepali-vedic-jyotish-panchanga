@@ -261,6 +261,8 @@ export function syncSecurityAccount(account: {
   return { client: targetClient, rbacUser: targetRbacUser };
 }
 
+export const syncUnifiedUserAccount = syncSecurityAccount;
+
 /**
  * Permanently purge a user / customer account across ALL stores
  * and prevent any future resurrection or re-seeding.
