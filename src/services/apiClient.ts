@@ -78,11 +78,12 @@ class ApiClient {
         }
       } catch {}
 
-      // 3. GitHub Pages detection: GitHub Pages (*.github.io) is a static hosting platform.
-      // It has no Express backend and strictly rejects POST requests with HTTP 405.
-      // Default to http://localhost:3000 so local server development/testing works without 405!
+      // 3. GitHub Pages or Static Hosting Detection
+      // GitHub Pages (*.github.io) is a static hosting platform. If no remote backend URL is
+      // configured, do NOT attempt http://localhost:3000 from https://*.github.io because
+      // mobile browsers strictly block mixed-content HTTP requests, triggering "Failed to fetch"!
       if (window.location.hostname && (window.location.hostname.endsWith('github.io') || window.location.hostname.includes('github.io'))) {
-        return 'http://localhost:3000';
+        return '';
       }
 
       // 4. Standard window origin if not static github.io
@@ -97,6 +98,20 @@ class ApiClient {
     }
 
     return 'http://localhost:3000';
+  }
+
+  /**
+   * Check if running on static hosting without a connected backend
+   */
+  public isStaticHosting(): boolean {
+    if (typeof window === 'undefined') return false;
+    const isGH = Boolean(window.location.hostname && (window.location.hostname.endsWith('github.io') || window.location.hostname.includes('github.io')));
+    const hasConfiguredBackend = Boolean(
+      localStorage.getItem('balananda_backend_url') ||
+      localStorage.getItem('balananda_api_base_url') ||
+      (import.meta as any)?.env?.VITE_API_URL
+    );
+    return isGH && !hasConfiguredBackend;
   }
 
   /**
@@ -265,11 +280,18 @@ class ApiClient {
         }
 
         const isTimeout = err?.name === 'AbortError';
+        const isFetchFailed = err?.message?.includes('Failed to fetch') || err?.name === 'TypeError';
+        const friendlyError = isTimeout
+          ? 'सर्भरले समयमा प्रतिक्रिया दिएन (अनुरोध समय समाप्त)। कृपया पुनः प्रयास गर्नुहोस्।'
+          : isFetchFailed
+          ? 'ब्याकइन्ड सर्भरसँग सम्पर्क हुन सकेन। कृपया इन्टरनेट वा ब्याकइन्ड जडान जाँच गर्नुहोस्।'
+          : (err?.message || 'नेटवर्क जडानमा समस्या भयो। कृपया इन्टरनेट जाँच गर्नुहोस्।');
+
         return {
           success: false,
-          error: isTimeout
-            ? 'सर्भरले समयमा प्रतिक्रिया दिएन (अनुरोध समय समाप्त)। कृपया पुनः प्रयास गर्नुहोस्।'
-            : (err?.message || 'नेटवर्क जडानमा समस्या भयो। कृपया इन्टरनेट जाँच गर्नुहोस्।')
+          isNetworkError: true,
+          error: friendlyError,
+          message: friendlyError
         };
       }
     }

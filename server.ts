@@ -1472,6 +1472,264 @@ async function startServer() {
     return crypto.createHash("sha256").update(String(plain).trim()).digest("hex");
   };
 
+  // ── UNIFIED SINGLE-BOX OTP AUTHENTICATION & LOGIN (SMS, WHATSAPP, EMAIL) ──
+
+  // 1. POST /api/auth/otp/send (Send OTP strictly to chosen channel)
+  app.post("/api/auth/otp/send", async (req, res) => {
+    try {
+      const { channel, destination, countryCode, fullName, purpose } = req.body;
+      const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+
+      if (!channel || !destination) {
+        return res.status(400).json({
+          success: false,
+          message: "माध्यम (channel) र ठेगाना (destination) अनिवार्य छन्।"
+        });
+      }
+
+      const result = await authEngine.createSingleOTPChallenge({
+        channel,
+        destination,
+        countryCode,
+        fullName,
+        purpose: purpose || "login",
+        clientIp
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 2. POST /api/auth/otp/verify (Verify OTP from single shared input box & create session)
+  app.post("/api/auth/otp/verify", (req, res) => {
+    try {
+      const { challengeId, otp } = req.body;
+      if (!challengeId || !otp) {
+        return res.status(400).json({
+          success: false,
+          message: "सत्र ID र ६ अङ्कको OTP अनिवार्य छन्।"
+        });
+      }
+
+      const verifyRes = authEngine.verifySingleOTPChallenge(challengeId, otp);
+      if (!verifyRes.success || !verifyRes.challenge) {
+        return res.status(400).json(verifyRes);
+      }
+
+      const challenge = verifyRes.challenge;
+      const users = getUsers();
+      const cleanPhone = challenge.channel === "sms" || challenge.channel === "whatsapp" ? challenge.destination : "";
+      const cleanEmail = challenge.channel === "email" ? challenge.destination : "";
+
+      // Find existing user by phone or email
+      let user = users.find(u => {
+        const uPhone = String(u.phone || "").replace(/\D/g, "").slice(-10);
+        const uEmail = String(u.email || "").toLowerCase().trim();
+        return (cleanPhone && uPhone === cleanPhone) || (cleanEmail && uEmail === cleanEmail);
+      });
+
+      const now = new Date();
+
+      if (!user) {
+        // Auto-provision registered user account
+        const userId = `usr_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+        const displayName = challenge.fullName?.trim() ||
+          (cleanEmail ? cleanEmail.split("@")[0] : `यजमान-${cleanPhone.slice(-4)}`);
+
+        user = {
+          id: userId,
+          customerId: `सदस्य-२०८३-${Math.floor(1000 + Math.random() * 9000)}`,
+          username: cleanPhone || cleanEmail,
+          phone: cleanPhone || "",
+          email: cleanEmail || "",
+          fullName: displayName,
+          role: "CUSTOMER",
+          roleNameNepali: "यजमान / ग्राहक",
+          status: "active",
+          mobileVerified: Boolean(cleanPhone),
+          mobileVerifiedAtISO: cleanPhone ? now.toISOString() : undefined,
+          emailVerified: Boolean(cleanEmail),
+          emailVerifiedAtISO: cleanEmail ? now.toISOString() : undefined,
+          profileCompleted: false,
+          permissions: ["store.view", "kundali.view", "profile.edit", "yajaman.view"],
+          address: "",
+          gender: "other",
+          birthDetails: null,
+          createdAtISO: now.toISOString(),
+          updatedAtISO: now.toISOString(),
+          lastLoginISO: now.toISOString()
+        };
+
+        users.unshift(user);
+        saveUsers(users);
+
+        // Record client lead
+        const leads = getClientLeads();
+        leads.unshift({
+          id: `LEAD-${Date.now()}`,
+          fullName: user.fullName,
+          address: "नेपाल",
+          mobile: user.phone || "",
+          email: user.email || "",
+          whatsapp: user.phone || "",
+          deviceFingerprint: "otp-login-new-user",
+          status: "REGISTERED_USER",
+          planId: "standard",
+          planNameNepali: "OTP प्रमाणित ग्राहक",
+          planAmountNPR: 0,
+          paymentMethod: "none",
+          submittedAtISO: now.toISOString(),
+          submittedAtBS: "२०८३",
+          clientNotes: `OTP मार्फत खाता सिर्जना (${challenge.channel.toUpperCase()})`
+        });
+        saveClientLeads(leads);
+      } else {
+        // Update user status and verification flags
+        if (cleanPhone && !user.mobileVerified) {
+          user.mobileVerified = true;
+          user.mobileVerifiedAtISO = now.toISOString();
+        }
+        if (cleanEmail && !user.emailVerified) {
+          user.emailVerified = true;
+          user.emailVerifiedAtISO = now.toISOString();
+        }
+        user.lastLoginISO = now.toISOString();
+        saveUsers(users);
+      }
+
+      // Check if user is suspended
+      if (user.status === "suspended") {
+        return res.status(403).json({
+          success: false,
+          message: "यो खाता सुपरएडमिन द्वारा निलम्बन (Suspended) गरिएको छ।"
+        });
+      }
+
+      // Create session
+      const token = authEngine.createSession(user);
+      userSessions.set(token, {
+        userId: user.id,
+        role: user.role || "CUSTOMER",
+        phone: user.phone,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+      });
+
+      // Consume the challenge
+      authEngine.consumeSingleChallenge(challengeId);
+
+      broadcastRealtimeEvent("USER_LOGIN", { user, token });
+
+      return res.json({
+        success: true,
+        message: "प्रमाणीकरण सफल भयो! स्वागत छ।",
+        token,
+        user
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 3. POST /api/auth/otp/resend (Resend OTP with 60-second cooldown)
+  app.post("/api/auth/otp/resend", async (req, res) => {
+    try {
+      const { challengeId } = req.body;
+      if (!challengeId) {
+        return res.status(400).json({ success: false, message: "सत्र ID अनिवार्य छ।" });
+      }
+
+      const result = await authEngine.resendSingleOTP(challengeId);
+      if (!result.success) {
+        return res.status(429).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 4. POST /api/auth/firebase-verify (Client Firebase Phone Auth token exchange)
+  app.post("/api/auth/firebase-verify", async (req, res) => {
+    try {
+      const { idToken, phoneNumber } = req.body;
+      if (!idToken) {
+        return res.status(400).json({ success: false, message: "Firebase ID Token अनिवार्य छ।" });
+      }
+
+      // Extract phone number from token or body (base64 jwt payload inspection)
+      let phoneFromToken = phoneNumber || "";
+      try {
+        const parts = idToken.split(".");
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
+          if (payload.phone_number) {
+            phoneFromToken = payload.phone_number;
+          }
+        }
+      } catch {}
+
+      const clean10 = String(phoneFromToken).replace(/\D/g, "").slice(-10);
+      if (!clean10) {
+        return res.status(400).json({ success: false, message: "अमान्य फोन नम्बर।" });
+      }
+
+      const users = getUsers();
+      let user = users.find(u => String(u.phone || "").replace(/\D/g, "").slice(-10) === clean10);
+      const now = new Date();
+
+      if (!user) {
+        const userId = `usr_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+        user = {
+          id: userId,
+          customerId: `सदस्य-२०८३-${Math.floor(1000 + Math.random() * 9000)}`,
+          username: clean10,
+          phone: clean10,
+          email: "",
+          fullName: `यजमान-${clean10.slice(-4)}`,
+          role: "CUSTOMER",
+          roleNameNepali: "यजमान / ग्राहक",
+          status: "active",
+          mobileVerified: true,
+          mobileVerifiedAtISO: now.toISOString(),
+          emailVerified: false,
+          profileCompleted: false,
+          permissions: ["store.view", "kundali.view", "profile.edit", "yajaman.view"],
+          createdAtISO: now.toISOString(),
+          updatedAtISO: now.toISOString(),
+          lastLoginISO: now.toISOString()
+        };
+        users.unshift(user);
+        saveUsers(users);
+      } else {
+        user.mobileVerified = true;
+        user.lastLoginISO = now.toISOString();
+        saveUsers(users);
+      }
+
+      const token = authEngine.createSession(user);
+      userSessions.set(token, {
+        userId: user.id,
+        role: user.role || "CUSTOMER",
+        phone: user.phone,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+      });
+
+      return res.json({
+        success: true,
+        message: "Firebase फोन प्रमाणीकरण सफल भयो!",
+        token,
+        user
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   // ── DUAL-OTP REGISTRATION & AUTHENTICATION ENDPOINTS (PHASE 4, 5, 7, 8, 9) ──
 
   // 1. POST /api/auth/signup/start (Phase 4: Exactly 3 fields - Full Name, Mobile, Email)

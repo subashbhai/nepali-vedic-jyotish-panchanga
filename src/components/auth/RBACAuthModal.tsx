@@ -24,10 +24,11 @@ import {
   RefreshCw,
   Briefcase,
   Smartphone,
+  MessageSquare,
   ChevronRight
 } from 'lucide-react';
 import { SystemRole, RBACSession } from '../../db/rbacStore';
-import { authService } from '../../services/authService';
+import { authService, OTPChannel } from '../../services/authService';
 import { NEPAL_77_DISTRICTS } from '../../utils/geoLocationHelper';
 import { BirthDetails, Gender } from '../../types/astrology';
 import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
@@ -55,17 +56,32 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     isSuperAdminOnly ? 'signin' : initialMode === 'signup' ? 'signup_3fields' : 'signin'
   );
 
-  // Sign In State
+  // Sign In State (Password Flow)
   const [loginPhoneOrEmail, setLoginPhoneOrEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Phase 4: Exactly 3 fields for initial signup
+  // Single Shared OTP Login State (SMS, WhatsApp, Email)
+  const [signInMethod, setSignInMethod] = useState<'otp' | 'password'>('otp');
+  const [selectedChannel, setSelectedChannel] = useState<OTPChannel>('sms');
+  const [loginDestination, setLoginDestination] = useState('');
+  const [sharedOtpCode, setSharedOtpCode] = useState('');
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [maskedRecipientHint, setMaskedRecipientHint] = useState('');
+  const [singleChallengeId, setSingleChallengeId] = useState<string | null>(null);
+
+  // Unified Single OTP Signup State
   const [fullName, setFullName] = useState('');
+  const [signupChannel, setSignupChannel] = useState<OTPChannel>('sms');
+  const [signupDestination, setSignupDestination] = useState('');
+  const [isSignupOtpSent, setIsSignupOtpSent] = useState(false);
+  const [signupChallengeId, setSignupChallengeId] = useState<string | null>(null);
+  const [signupMaskedDestination, setSignupMaskedDestination] = useState('');
+  const [signupOtpCode, setSignupOtpCode] = useState('');
+
+  // Legacy Dual OTP State (Preserved for compatibility)
   const [signupPhone, setSignupPhone] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
-
-  // Phase 5: Dual OTP State
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [phoneOtp, setPhoneOtp] = useState('');
   const [emailOtp, setEmailOtp] = useState('');
@@ -110,6 +126,12 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     if (isOpen) {
       setErrorMsg(null);
       setSuccessMsg(null);
+      setIsOtpSent(false);
+      setIsSignupOtpSent(false);
+      setSharedOtpCode('');
+      setSignupOtpCode('');
+      setSingleChallengeId(null);
+      setSignupChallengeId(null);
       if (!isSuperAdminOnly) {
         setMode(initialMode === 'signup' ? 'signup_3fields' : 'signin');
       } else {
@@ -118,10 +140,10 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     }
   }, [isOpen, initialMode, isSuperAdminOnly]);
 
-  // Resend OTP Cooldown Timer
+  // Unified Resend OTP Cooldown Timer
   useEffect(() => {
     let timer: any;
-    if (mode === 'dual_otp' && resendCooldown > 0) {
+    if ((isOtpSent || isSignupOtpSent || mode === 'dual_otp') && resendCooldown > 0) {
       setCanResend(false);
       timer = setInterval(() => {
         setResendCooldown((prev) => {
@@ -134,15 +156,229 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [mode, resendCooldown]);
+  }, [isOtpSent, isSignupOtpSent, mode, resendCooldown]);
 
   if (!isOpen) return null;
 
   // ─────────────────────────────────────────────────────────────
-  // HANDLERS
+  // SINGLE SHARED-BOX OTP HANDLERS (SMS, WHATSAPP, EMAIL)
   // ─────────────────────────────────────────────────────────────
 
-  // 1. Sign In
+  // 1. Single OTP Login: Send OTP to selected channel
+  const handleSendLoginOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const cleanDest = loginDestination.trim();
+    if (!cleanDest) {
+      setErrorMsg(selectedChannel === 'email' ? 'कृपया इमेल ठेगाना प्रविष्ट गर्नुहोस्।' : 'कृपया मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+
+    if (selectedChannel === 'email') {
+      if (!cleanDest.includes('@') || !cleanDest.includes('.')) {
+        setErrorMsg('कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस् (उदा: yourname@gmail.com)।');
+        return;
+      }
+    } else {
+      const digits = cleanDest.replace(/\D/g, '');
+      if (digits.length < 10) {
+        setErrorMsg('कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx)।');
+        return;
+      }
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await authService.sendOTP(selectedChannel, cleanDest, undefined, 'login');
+      setIsLoading(false);
+      if (res.success && res.challengeId) {
+        setSingleChallengeId(res.challengeId);
+        setIsOtpSent(true);
+        setMaskedRecipientHint(res.maskedDestination || cleanDest);
+        setSharedOtpCode('');
+        setResendCooldown(60);
+        setCanResend(false);
+        setSuccessMsg(res.message);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('सुरक्षा कोड पठाउँदा प्राविधिक समस्या आयो।');
+    }
+  };
+
+  // 2. Single OTP Login: Verify code from single shared box
+  const handleVerifySingleOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!singleChallengeId) return;
+
+    const cleanOtp = sharedOtpCode.trim().replace(/\D/g, '');
+    if (cleanOtp.length < 6) {
+      setErrorMsg('कृपया ६ अङ्कको सुरक्षा कोड पूरा प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await authService.verifySingleOTP(singleChallengeId, cleanOtp);
+      setIsLoading(false);
+
+      if (res.success && res.session) {
+        setSuccessMsg('प्रमाणीकरण सफल भयो! स्वागत छ।');
+        setTimeout(() => {
+          onLoginSuccess(res.session!);
+          onClose();
+        }, 600);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('सुरक्षा कोड प्रमाणित गर्दा समस्या आयो।');
+    }
+  };
+
+  // 3. Single OTP Login: Resend code with cooldown
+  const handleResendLoginOTP = async () => {
+    if (!singleChallengeId || !canResend) return;
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await authService.resendSingleOTP(singleChallengeId);
+      setIsLoading(false);
+      if (res.success) {
+        setResendCooldown(res.remainingSeconds || 60);
+        setCanResend(false);
+        setSuccessMsg(res.message);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('नयाँ कोड पुनः पठाउन सकिएन।');
+    }
+  };
+
+  // 4. Single OTP Signup: Send OTP
+  const handleSendSignupOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const cleanName = fullName.trim();
+    if (!cleanName || cleanName.length < 2) {
+      setErrorMsg('कृपया आफ्नो पूरा नाम (कम्तीमा २ अक्षर) प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+
+    const cleanDest = signupDestination.trim();
+    if (!cleanDest) {
+      setErrorMsg(signupChannel === 'email' ? 'कृपया इमेल ठेगाना प्रविष्ट गर्नुहोस्।' : 'कृपया मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+
+    if (signupChannel === 'email') {
+      if (!cleanDest.includes('@') || !cleanDest.includes('.')) {
+        setErrorMsg('कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस्।');
+        return;
+      }
+    } else {
+      const digits = cleanDest.replace(/\D/g, '');
+      if (digits.length < 10) {
+        setErrorMsg('कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
+        return;
+      }
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await authService.sendOTP(signupChannel, cleanDest, cleanName, 'signup');
+      setIsLoading(false);
+      if (res.success && res.challengeId) {
+        setSignupChallengeId(res.challengeId);
+        setIsSignupOtpSent(true);
+        setSignupMaskedDestination(res.maskedDestination || cleanDest);
+        setSignupOtpCode('');
+        setResendCooldown(60);
+        setCanResend(false);
+        setSuccessMsg(res.message);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('साइन अप सुरु गर्दा समस्या आयो।');
+    }
+  };
+
+  // 5. Single OTP Signup: Verify code
+  const handleVerifySignupOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signupChallengeId) return;
+
+    const cleanOtp = signupOtpCode.trim().replace(/\D/g, '');
+    if (cleanOtp.length < 6) {
+      setErrorMsg('कृपया ६ अङ्कको सुरक्षा कोड प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await authService.verifySingleOTP(signupChallengeId, cleanOtp);
+      setIsLoading(false);
+
+      if (res.success && res.session) {
+        setAuthenticatedSession(res.session);
+        if (signupChannel === 'email') {
+          setSignupEmail(signupDestination);
+          if (!signupPhone) setSignupPhone(res.session.phone || '९८xxxxxxxx');
+        } else {
+          setSignupPhone(signupDestination);
+          if (!signupEmail) setSignupEmail((res.session as any).email || `${signupDestination}@balanandajyotish.com.np`);
+        }
+        setSuccessMsg('प्रमाणीकरण सफल भयो! स्वागत छ।');
+        // Transition to Stage 2 Profile Completion
+        setMode('profile_stage2');
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('सुरक्षा कोड प्रमाणित गर्दा समस्या आयो।');
+    }
+  };
+
+  // 6. Single OTP Signup: Resend code
+  const handleResendSignupOTP = async () => {
+    if (!signupChallengeId || !canResend) return;
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await authService.resendSingleOTP(signupChallengeId);
+      setIsLoading(false);
+      if (res.success) {
+        setResendCooldown(res.remainingSeconds || 60);
+        setCanResend(false);
+        setSuccessMsg(res.message);
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('नयाँ कोड पुनः पठाउन सकिएन।');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // PASSWORD & LEGACY HANDLERS
+  // ─────────────────────────────────────────────────────────────
+
+  // Sign In with Password
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -481,60 +717,272 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
           )}
 
           {/* ─────────────────────────────────────────────────────────────
-              VIEW 1: SIGN IN (LOGIN)
+              VIEW 1: SIGN IN (LOGIN) - OTP FIRST WITH PASSWORD TAB
               ───────────────────────────────────────────────────────────── */}
           {mode === 'signin' && (
-            <form onSubmit={handleSignIn} className="space-y-4 animate-in fade-in">
-              <div>
-                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
-                  मोबाइल नम्बर वा प्रयोगकर्ता नाम *
-                </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="९८xxxxxxxx / ९७xxxxxxxx"
-                    value={loginPhoneOrEmail}
-                    onChange={(e) => setLoginPhoneOrEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
-                  पासवर्ड *
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    placeholder="तपाईंको पासवर्ड"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full pl-9 pr-10 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
-                  />
+            <div className="space-y-4 animate-in fade-in">
+              {/* Method Switcher Tabs (OTP vs Password) */}
+              {!isSuperAdminOnly && (
+                <div className="flex bg-stone-100 dark:bg-stone-800 p-1 rounded-xl text-xs font-bold">
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-stone-400 hover:text-stone-600"
+                    onClick={() => {
+                      setSignInMethod('otp');
+                      setErrorMsg(null);
+                    }}
+                    className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      signInMethod === 'otp'
+                        ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                    }`}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>OTP कोड लगइन</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignInMethod('password');
+                      setErrorMsg(null);
+                    }}
+                    className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      signInMethod === 'password'
+                        ? 'bg-gradient-to-r from-stone-700 to-stone-900 text-white shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>पासवर्ड लगइन</span>
                   </button>
                 </div>
-              </div>
+              )}
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#7A1C1C] hover:from-[#8B2323] hover:to-[#6E1818] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
-              >
-                <LogIn className="w-4 h-4 text-amber-300" />
-                <span>{isLoading ? 'लगइन हुँदैछ...' : 'साइन इन / लगइन गर्नुहोस्'}</span>
-              </button>
+              {/* A. OTP LOGIN FLOW */}
+              {(signInMethod === 'otp' && !isSuperAdminOnly) ? (
+                !isOtpSent ? (
+                  // Step A1: Choose Delivery Channel and Enter Destination
+                  <form onSubmit={handleSendLoginOTP} className="space-y-3.5">
+                    <div>
+                      <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1.5 text-xs">
+                        १. सुरक्षा कोड (OTP) प्राप्त गर्ने माध्यम छनोट गर्नुहोस्:
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedChannel('sms')}
+                          className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                            selectedChannel === 'sms'
+                              ? 'border-amber-500 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/30'
+                              : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-amber-400'
+                          }`}
+                        >
+                          <Smartphone className="w-4 h-4 text-amber-600" />
+                          <span className="text-[11px]">📱 SMS</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedChannel('whatsapp')}
+                          className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                            selectedChannel === 'whatsapp'
+                              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold ring-2 ring-emerald-500/30'
+                              : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-emerald-400'
+                          }`}
+                        >
+                          <MessageSquare className="w-4 h-4 text-emerald-600" />
+                          <span className="text-[11px]">💬 WhatsApp</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedChannel('email')}
+                          className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                            selectedChannel === 'email'
+                              ? 'border-blue-500 bg-blue-500/15 text-blue-900 dark:text-blue-200 font-bold ring-2 ring-blue-500/30'
+                              : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-blue-400'
+                          }`}
+                        >
+                          <Mail className="w-4 h-4 text-blue-600" />
+                          <span className="text-[11px]">✉️ Email</span>
+                        </button>
+                      </div>
+                    </div>
 
+                    <div>
+                      <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                        {selectedChannel === 'email' ? 'इमेल ठेगाना *' : 'मोबाइल नम्बर *'}
+                      </label>
+                      <div className="relative">
+                        {selectedChannel === 'email' ? (
+                          <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                        ) : (
+                          <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                        )}
+                        <input
+                          type={selectedChannel === 'email' ? 'email' : 'tel'}
+                          required
+                          placeholder={
+                            selectedChannel === 'email'
+                              ? 'तपाईंको इमेल (उदा: user@gmail.com)'
+                              : '९८xxxxxxxx / ९७xxxxxxxx'
+                          }
+                          value={loginDestination}
+                          onChange={(e) => setLoginDestination(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
+                        />
+                      </div>
+                      <span className="text-[10px] text-stone-500 mt-1 block">
+                        {selectedChannel === 'sms' && 'नेपाली मोबाइल नम्बरमा ६ अङ्कको SMS सुरक्षा कोड पठाइनेछ।'}
+                        {selectedChannel === 'whatsapp' && 'तपाईंको WhatsApp नम्बरमा ६ अङ्कको आधिकारिक कोड पठाइनेछ।'}
+                        {selectedChannel === 'email' && 'तपाईंको इमेल ठेगानामा ६ अङ्कको प्रमाणीकरण कोड पठाइनेछ।'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-amber-200" />
+                      <span>{isLoading ? 'OTP कोड पठाइँदैछ...' : 'OTP सुरक्षा कोड प्राप्त गर्नुहोस् →'}</span>
+                    </button>
+                  </form>
+                ) : (
+                  // Step A2: Single Shared OTP Verification Box
+                  <form onSubmit={handleVerifySingleOTP} className="space-y-4">
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>OTP कोड सफलतापूर्वक पठाइयो</span>
+                      </div>
+                      <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed font-mono">
+                        <strong>{maskedRecipientHint}</strong> मा {selectedChannel === 'whatsapp' ? 'WhatsApp (ह्वाट्सएप)' : selectedChannel === 'sms' ? 'मोबाइल SMS' : 'इमेल (Email)'} मार्फत ६ अङ्कको गोप्य कोड पठाइएको छ।
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-center text-stone-700 dark:text-stone-300 font-bold mb-2 text-xs">
+                        प्राप्त ६ अङ्कको OTP कोड प्रविष्ट गर्नुहोस्:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        autoFocus
+                        required
+                        placeholder="• • • • • •"
+                        value={sharedOtpCode}
+                        onChange={(e) => setSharedOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        className="w-full text-center tracking-[0.6em] text-2xl font-mono py-3 font-black bg-white dark:bg-stone-900 border-2 border-amber-500 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 shadow-inner"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading || sharedOtpCode.length < 6}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                    >
+                      <Check className="w-4 h-4 stroke-[3]" />
+                      <span>{isLoading ? 'प्रमाणीकरण हुँदैछ...' : 'प्रमाणीकरण गरी लगइन गर्नुहोस्'}</span>
+                    </button>
+
+                    {/* Timer and Resend Controls */}
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-stone-200 dark:border-stone-800">
+                      <span className="text-stone-500 text-[11px]">
+                        {canResend ? (
+                          'कोड प्राप्त भएन?'
+                        ) : (
+                          <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400 font-mono font-medium">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>पुनः पठाउन बाँकी: {resendCooldown} सेकेन्ड</span>
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!canResend || isLoading}
+                        onClick={handleResendLoginOTP}
+                        className={`flex items-center gap-1 font-bold text-[11px] ${
+                          canResend
+                            ? 'text-amber-700 dark:text-amber-400 hover:underline cursor-pointer'
+                            : 'text-stone-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                        <span>पुनः कोड पठाउनुहोस्</span>
+                      </button>
+                    </div>
+
+                    {/* Change Destination / Channel */}
+                    <div className="text-center pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsOtpSent(false);
+                          setSharedOtpCode('');
+                          setErrorMsg(null);
+                        }}
+                        className="text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 text-xs hover:underline cursor-pointer"
+                      >
+                        ← माध्यम वा नम्बर सच्याउनुहोस्
+                      </button>
+                    </div>
+                  </form>
+                )
+              ) : (
+                // B. PASSWORD LOGIN FLOW
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div>
+                    <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                      मोबाइल नम्बर वा प्रयोगकर्ता नाम *
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="९८xxxxxxxx / ९७xxxxxxxx / superadmin"
+                        value={loginPhoneOrEmail}
+                        onChange={(e) => setLoginPhoneOrEmail(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                      पासवर्ड *
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        placeholder="तपाईंको पासवर्ड"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="w-full pl-9 pr-10 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-3 text-stone-400 hover:text-stone-600 cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#7A1C1C] hover:from-[#8B2323] hover:to-[#6E1818] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
+                  >
+                    <LogIn className="w-4 h-4 text-amber-300" />
+                    <span>{isLoading ? 'लगइन हुँदैछ...' : 'पासवर्ड मार्फत लगइन गर्नुहोस्'}</span>
+                  </button>
+                </form>
+              )}
+
+              {/* Bottom Registration Link */}
               <div className="pt-3 border-t border-stone-200 dark:border-stone-800 text-center">
                 <p className="text-xs text-stone-500">
                   नयाँ खाता खोल्न चाहनुहुन्छ?{' '}
@@ -551,297 +999,226 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                   </button>
                 </p>
               </div>
-            </form>
+            </div>
           )}
 
           {/* ─────────────────────────────────────────────────────────────
-              VIEW 2: PHASE 4 SIGNUP (EXACTLY THREE FIELDS)
+              VIEW 2: UNIFIED MEMBERSHIP SIGNUP (SINGLE OTP DELIVERY & SINGLE SHARED BOX)
               ───────────────────────────────────────────────────────────── */}
-          {mode === 'signup_3fields' && (
-            <form onSubmit={handleStartSignup} className="space-y-4 animate-in fade-in">
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-900 dark:text-amber-200">
-                <span className="font-bold block">पहिलो चरण: केवल ३ वटा विवरण</span>
-                <span className="text-[11px] text-stone-600 dark:text-stone-400">
-                  मोबाइल र इमेलमा एक-एक वटा ६ अङ्कको गोप्य OTP सुरक्षा कोड पठाइनेछ।
-                </span>
-              </div>
-
-              {/* Field 1: Full Name */}
-              <div>
-                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
-                  १. पूरा नाम (Full Name) *
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="उदा: पं. रामप्रसाद शर्मा"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Field 2: Mobile Number */}
-              <div>
-                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
-                  २. मोबाइल नम्बर (Mobile Number) *
-                </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                  <input
-                    type="tel"
-                    required
-                    placeholder="९८xxxxxxxx / ९७xxxxxxxx"
-                    value={signupPhone}
-                    onChange={(e) => setSignupPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
-                  />
-                </div>
-                <span className="text-[10px] text-stone-500 mt-0.5 block">
-                  SMS मार्फत ६ अङ्कको OTP कोड पठाइनेछ।
-                </span>
-              </div>
-
-              {/* Field 3: Email Address */}
-              <div>
-                <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1">
-                  ३. इमेल ठेगाना (Email Address) *
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="example@gmail.com"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-                <span className="text-[10px] text-stone-500 mt-0.5 block">
-                  इमेल प्रमाणीकरण कोड (OTP) पठाइनेछ।
-                </span>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
-              >
-                <ShieldCheck className="w-4 h-4 text-amber-200" />
-                <span>{isLoading ? 'OTP कोड पठाइँदैछ...' : 'सुरक्षा कोड (OTP) पठाउनुहोस् →'}</span>
-              </button>
-
-              <div className="pt-3 border-t border-stone-200 dark:border-stone-800 text-center">
-                <p className="text-xs text-stone-500">
-                  पहिले नै खाता दर्ता छ?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setErrorMsg(null);
-                      setSuccessMsg(null);
-                      setMode('signin');
-                    }}
-                    className="text-amber-700 dark:text-amber-400 font-bold hover:underline cursor-pointer"
-                  >
-                    साइन इन / Login गर्नुहोस् ↗
-                  </button>
-                </p>
-              </div>
-            </form>
-          )}
-
-          {/* ─────────────────────────────────────────────────────────────
-              VIEW 3: PHASE 5 DUAL OTP VERIFICATION SCREEN
-              ───────────────────────────────────────────────────────────── */}
-          {mode === 'dual_otp' && (
+          {(mode === 'signup_3fields' || mode === 'dual_otp') && (
             <div className="space-y-4 animate-in fade-in">
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-900 dark:text-amber-200 space-y-1">
-                <span className="font-bold block flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-600" />
-                  दोहोरो प्रमाणीकरण आवश्यक छ
-                </span>
-                <p className="text-[11px] leading-relaxed text-stone-600 dark:text-stone-300">
-                  तपाईंको मोबाइल <strong>{signupPhone}</strong> र इमेल <strong>{signupEmail}</strong> मा अलग-अलग ६ अङ्कको OTP पठाइएको छ। दुवै कोड प्रमाणीकरण गर्नुहोस्।
-                </p>
-              </div>
-
-              {/* Dev/Test Mode Banner with 1-Click Auto-Fill */}
-              {devHint && (
-                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400/60 dark:border-amber-600/40 rounded-2xl text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
-                      <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
-                      परीक्षण मोड (Simulation Mode)
+              {!isSignupOtpSent ? (
+                <form onSubmit={handleSendSignupOTP} className="space-y-3.5">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-900 dark:text-amber-200">
+                    <span className="font-bold block">पहिलो चरण: व्यक्तिगत विवरण र प्रमाणीकरण</span>
+                    <span className="text-[11px] text-stone-600 dark:text-stone-400">
+                      आफ्नो रोजेको माध्यममा ६ अङ्कको गोप्य OTP सुरक्षा कोड प्राप्त गर्नुहोस्।
                     </span>
+                  </div>
+
+                  {/* Field 1: Full Name */}
+                  <div>
+                    <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                      १. पूरा नाम (Full Name) *
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="उदा: पं. सुवास शर्मा"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Field 2: Delivery Channel Selection */}
+                  <div>
+                    <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1.5 text-xs">
+                      २. OTP प्राप्त गर्ने माध्यम छनोट गर्नुहोस्:
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSignupChannel('sms')}
+                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                          signupChannel === 'sms'
+                            ? 'border-amber-500 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/30'
+                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-amber-400'
+                        }`}
+                      >
+                        <Smartphone className="w-4 h-4 text-amber-600" />
+                        <span className="text-[11px]">📱 SMS</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignupChannel('whatsapp')}
+                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                          signupChannel === 'whatsapp'
+                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold ring-2 ring-emerald-500/30'
+                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-emerald-400'
+                        }`}
+                      >
+                        <MessageSquare className="w-4 h-4 text-emerald-600" />
+                        <span className="text-[11px]">💬 WhatsApp</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignupChannel('email')}
+                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                          signupChannel === 'email'
+                            ? 'border-blue-500 bg-blue-500/15 text-blue-900 dark:text-blue-200 font-bold ring-2 ring-blue-500/30'
+                            : 'border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 text-stone-600 dark:text-stone-400 hover:border-blue-400'
+                        }`}
+                      >
+                        <Mail className="w-4 h-4 text-blue-600" />
+                        <span className="text-[11px]">✉️ Email</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Field 3: Mobile or Email Destination */}
+                  <div>
+                    <label className="block text-stone-700 dark:text-stone-300 font-bold mb-1 text-xs">
+                      ३. {signupChannel === 'email' ? 'इमेल ठेगाना *' : 'मोबाइल नम्बर *'}
+                    </label>
+                    <div className="relative">
+                      {signupChannel === 'email' ? (
+                        <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                      ) : (
+                        <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
+                      )}
+                      <input
+                        type={signupChannel === 'email' ? 'email' : 'tel'}
+                        required
+                        placeholder={
+                          signupChannel === 'email'
+                            ? 'example@gmail.com'
+                            : '९८xxxxxxxx / ९७xxxxxxxx'
+                        }
+                        value={signupDestination}
+                        onChange={(e) => setSignupDestination(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                    <span className="text-[10px] text-stone-500 mt-1 block">
+                      {signupChannel === 'sms' && 'नेपाली मोबाइल नम्बरमा ६ अङ्कको SMS सुरक्षा कोड पठाइनेछ।'}
+                      {signupChannel === 'whatsapp' && 'WhatsApp नम्बरमा ६ अङ्कको आधिकारिक सुरक्षा कोड पठाइनेछ।'}
+                      {signupChannel === 'email' && 'इमेल ठेगानामा ६ अङ्कको प्रमाणीकरण कोड पठाइनेछ।'}
+                    </span>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-60"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-amber-200" />
+                    <span>{isLoading ? 'OTP कोड पठाइँदैछ...' : 'सुरक्षा कोड (OTP) प्राप्त गर्नुहोस् →'}</span>
+                  </button>
+
+                  <div className="pt-3 border-t border-stone-200 dark:border-stone-800 text-center">
+                    <p className="text-xs text-stone-500">
+                      पहिले नै खाता दर्ता छ?{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setErrorMsg(null);
+                          setSuccessMsg(null);
+                          setMode('signin');
+                        }}
+                        className="text-amber-700 dark:text-amber-400 font-bold hover:underline cursor-pointer"
+                      >
+                        साइन इन / Login गर्नुहोस् ↗
+                      </button>
+                    </p>
+                  </div>
+                </form>
+              ) : (
+                // Step 2: Single Shared OTP Verification Box for Signup
+                <form onSubmit={handleVerifySignupOTP} className="space-y-4">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>OTP कोड सफलतापूर्वक पठाइयो</span>
+                    </div>
+                    <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed font-mono">
+                      <strong>{signupMaskedDestination}</strong> मा {signupChannel === 'whatsapp' ? 'WhatsApp (ह्वाट्सएप)' : signupChannel === 'sms' ? 'मोबाइल SMS' : 'इमेल (Email)'} मार्फत ६ अङ्कको गोप्य कोड पठाइएको छ।
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-center text-stone-700 dark:text-stone-300 font-bold mb-2 text-xs">
+                      प्राप्त ६ अङ्कको OTP कोड प्रविष्ट गर्नुहोस्:
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoFocus
+                      required
+                      placeholder="• • • • • •"
+                      value={signupOtpCode}
+                      onChange={(e) => setSignupOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full text-center tracking-[0.6em] text-2xl font-mono py-3 font-black bg-white dark:bg-stone-900 border-2 border-amber-500 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 shadow-inner"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || signupOtpCode.length < 6}
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>{isLoading ? 'प्रमाणीकरण हुँदैछ...' : 'प्रमाणीकरण गरी अघि बढ्नुहोस् →'}</span>
+                  </button>
+
+                  {/* Timer and Resend Controls */}
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-stone-200 dark:border-stone-800">
+                    <span className="text-stone-500 text-[11px]">
+                      {canResend ? (
+                        'कोड प्राप्त भएन?'
+                      ) : (
+                        <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400 font-mono font-medium">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>पुनः पठाउन बाँकी: {resendCooldown} सेकेन्ड</span>
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!canResend || isLoading}
+                      onClick={handleResendSignupOTP}
+                      className={`flex items-center gap-1 font-bold text-[11px] ${
+                        canResend
+                          ? 'text-amber-700 dark:text-amber-400 hover:underline cursor-pointer'
+                          : 'text-stone-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                      <span>पुनः कोड पठाउनुहोस्</span>
+                    </button>
+                  </div>
+
+                  {/* Change Destination / Channel */}
+                  <div className="text-center pt-1">
                     <button
                       type="button"
                       onClick={() => {
-                        if (devHint.phoneOtp) setPhoneOtp(devHint.phoneOtp);
-                        if (devHint.emailOtp) setEmailOtp(devHint.emailOtp);
+                        setIsSignupOtpSent(false);
+                        setSignupOtpCode('');
+                        setErrorMsg(null);
                       }}
-                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg shadow-xs cursor-pointer transition-colors flex items-center gap-1"
+                      className="text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 text-xs hover:underline cursor-pointer"
                     >
-                      <span>परीक्षण कोड स्वतः भर्नुहोस्</span>
-                      <span>⚡</span>
+                      ← विवरण वा माध्यम सच्याउनुहोस्
                     </button>
                   </div>
-                  <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed">
-                    सर्भरमा प्रत्यक्ष SMS/Email गेटवे (.env मा SPARROW_SMS_TOKEN / RESEND_API_KEY) कन्फिगर नभएकोले परीक्षण कोड स्वतः प्रदान गरिएको हो:
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 font-mono font-bold text-center">
-                    <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-amber-300 dark:border-amber-700">
-                      <span className="text-[10px] text-stone-500 block">मोबाइल OTP (SMS):</span>
-                      <span className="text-amber-700 dark:text-amber-300 text-sm tracking-widest">{devHint.phoneOtp || '---'}</span>
-                    </div>
-                    <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-amber-300 dark:border-amber-700">
-                      <span className="text-[10px] text-stone-500 block">इमेल OTP (Email):</span>
-                      <span className="text-amber-700 dark:text-amber-300 text-sm tracking-widest">{devHint.emailOtp || '---'}</span>
-                    </div>
-                  </div>
-                </div>
+                </form>
               )}
-
-              {/* Channel Warnings if one failed */}
-              {deliveryStatus?.sms && !deliveryStatus.sms.success && (
-                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <span>SMS गेटवे चेतावनी: {deliveryStatus.sms.error || 'मोबाइलमा सन्देश पठाउन सकिएन।'}</span>
-                </div>
-              )}
-              {deliveryStatus?.email && !deliveryStatus.email.success && (
-                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <span>इमेल गेटवे चेतावनी: {deliveryStatus.email.error || 'इमेल पठाउन सकिएन।'}</span>
-                </div>
-              )}
-
-              {/* Channel 1: Mobile Phone OTP Block */}
-              <div className={`p-4 rounded-2xl border-2 transition-all ${isPhoneVerified ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200' : 'bg-stone-50 dark:bg-stone-900 border-stone-300 dark:border-stone-700'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-xs flex items-center gap-1.5">
-                    <Smartphone className="w-4 h-4 text-amber-600" />
-                    १. मोबाइल OTP (SMS)
-                  </span>
-                  {isPhoneVerified ? (
-                    <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Check className="w-3 h-3 stroke-[3]" />
-                      प्रमाणीकरण भयो
-                    </span>
-                  ) : (
-                    <span className="text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
-                      बाँकी छ
-                    </span>
-                  )}
-                </div>
-
-                {!isPhoneVerified ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      placeholder="६ अङ्कको कोड"
-                      value={phoneOtp}
-                      onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
-                      className="flex-1 px-3 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl font-mono text-center text-sm font-bold tracking-widest focus:border-amber-500 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      disabled={isVerifyingPhone || phoneOtp.length < 6}
-                      onClick={handleVerifyPhone}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {isVerifyingPhone ? 'जाँचिँदै...' : 'रुजु गर्नुहोस्'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>मोबाइल नम्बर ({signupPhone}) प्रमाणित भयो।</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Channel 2: Email OTP Block */}
-              <div className={`p-4 rounded-2xl border-2 transition-all ${isEmailVerified ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200' : 'bg-stone-50 dark:bg-stone-900 border-stone-300 dark:border-stone-700'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-xs flex items-center gap-1.5">
-                    <Mail className="w-4 h-4 text-amber-600" />
-                    २. इमेल OTP (Email)
-                  </span>
-                  {isEmailVerified ? (
-                    <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Check className="w-3 h-3 stroke-[3]" />
-                      प्रमाणीकरण भयो
-                    </span>
-                  ) : (
-                    <span className="text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
-                      बाँकी छ
-                    </span>
-                  )}
-                </div>
-
-                {!isEmailVerified ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      placeholder="६ अङ्कको कोड"
-                      value={emailOtp}
-                      onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ''))}
-                      className="flex-1 px-3 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl font-mono text-center text-sm font-bold tracking-widest focus:border-amber-500 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      disabled={isVerifyingEmail || emailOtp.length < 6}
-                      onClick={handleVerifyEmail}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {isVerifyingEmail ? 'जाँचिँदै...' : 'रुजु गर्नुहोस्'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>इमेल ठेगाना ({signupEmail}) प्रमाणित भयो।</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Resend OTP Bar */}
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="text-stone-500">
-                  {canResend ? 'कोड प्राप्त भएन?' : `पुनः पठाउन बाँकी: ${resendCooldown} सेकेन्ड`}
-                </span>
-                <button
-                  type="button"
-                  disabled={!canResend || isLoading}
-                  onClick={handleResend}
-                  className={`flex items-center gap-1 font-bold ${canResend ? 'text-amber-700 dark:text-amber-400 hover:underline cursor-pointer' : 'text-stone-400 cursor-not-allowed'}`}
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                  <span>नयाँ कोड पठाउनुहोस्</span>
-                </button>
-              </div>
-
-              {/* Back Link */}
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorMsg(null);
-                    setSuccessMsg(null);
-                    setMode('signup_3fields');
-                  }}
-                  className="text-xs text-stone-500 hover:underline cursor-pointer"
-                >
-                  ← फोन वा इमेल सच्याउनुहोस्
-                </button>
-              </div>
             </div>
           )}
 

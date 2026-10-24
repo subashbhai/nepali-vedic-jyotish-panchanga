@@ -501,3 +501,187 @@ export class EmailProviderService {
 
 export const smsProviderService = new SMSProviderService();
 export const emailProviderService = new EmailProviderService();
+
+export interface WhatsAppDeliveryResult {
+  success: boolean;
+  provider: string;
+  isMock: boolean;
+  channelStatus: 'gateway_delivered' | 'gateway_accepted' | 'gateway_rejected' | 'gateway_unconfigured' | 'mock_simulated';
+  messageId?: string;
+  error?: string;
+  notice?: string;
+  missingConfig?: string[];
+}
+
+/**
+ * WhatsApp Provider Adapter supporting Meta WhatsApp Cloud API, Twilio WhatsApp, and Dev Mock.
+ */
+export class WhatsAppProviderService {
+  private lastSentOTPs = new Map<string, string>();
+
+  public getActiveProvider(): string {
+    const explicit = (process.env.WHATSAPP_PROVIDER || '').trim().toLowerCase();
+    if (explicit) return explicit;
+    if (process.env.WHATSAPP_API_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) return 'meta_cloud';
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_WHATSAPP_NUMBER) return 'twilio_whatsapp';
+    return 'mock';
+  }
+
+  public get isProduction(): boolean {
+    return process.env.NODE_ENV === 'production';
+  }
+
+  getLastSentOTP(phone: string): string | undefined {
+    return this.lastSentOTPs.get(phone.replace(/\D/g, '').slice(-10)) || this.lastSentOTPs.get(phone);
+  }
+
+  async sendWhatsApp(toPhone: string, otpCode: string, templateContext?: { appName?: string; fullName?: string }): Promise<WhatsAppDeliveryResult> {
+    const provider = this.getActiveProvider();
+    const clean10 = toPhone.replace(/\D/g, '').slice(-10);
+    this.lastSentOTPs.set(clean10, otpCode);
+    this.lastSentOTPs.set(toPhone, otpCode);
+
+    const appName = templateContext?.appName || 'बालानन्द वैदिक ज्योतिष सेवा';
+    const messageText = `[${appName}] तपाईंको ह्वाट्सएप प्रमाणीकरण कोड (OTP): ${otpCode} हो। यो कोड ५ मिनेटका लागि मात्र मान्य छ। कसैसँग सेयर नगर्नुहोस्।`;
+
+    // 1. Meta WhatsApp Cloud API (Official Meta Graph API)
+    if (provider === 'meta_cloud') {
+      const token = process.env.WHATSAPP_API_TOKEN;
+      const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+      if (!token || !phoneId || token === 'your_whatsapp_token') {
+        return {
+          success: false,
+          provider: 'meta_cloud',
+          isMock: false,
+          channelStatus: 'gateway_unconfigured',
+          error: 'WhatsApp Cloud API टोकन (.env मा WHATSAPP_API_TOKEN / WHATSAPP_PHONE_NUMBER_ID) खाली छ।',
+          missingConfig: ['WHATSAPP_API_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID']
+        };
+      }
+
+      const cleanE164 = toPhone.startsWith('+') ? toPhone.replace(/\D/g, '') : `977${clean10}`;
+      try {
+        const res = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanE164,
+            type: 'text',
+            text: { preview_url: false, body: messageText }
+          })
+        });
+
+        const data: any = await res.json().catch(() => ({}));
+        if (res.ok && data.messages?.[0]?.id) {
+          return {
+            success: true,
+            provider: 'meta_cloud',
+            isMock: false,
+            channelStatus: 'gateway_accepted',
+            messageId: data.messages[0].id,
+            notice: 'WhatsApp Cloud API मा सन्देश सफलतापूर्वक स्वीकार भयो।'
+          };
+        }
+
+        return {
+          success: false,
+          provider: 'meta_cloud',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: data.error?.message || `WhatsApp सन्देश अस्वीकृत (${res.status})`
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'meta_cloud',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `WhatsApp नेटवर्क त्रुटि: ${err.message}`
+        };
+      }
+    }
+
+    // 2. Twilio WhatsApp API
+    if (provider === 'twilio_whatsapp') {
+      const sid = process.env.TWILIO_ACCOUNT_SID;
+      const auth = process.env.TWILIO_AUTH_TOKEN;
+      const from = process.env.TWILIO_WHATSAPP_NUMBER;
+
+      if (!sid || !auth || !from) {
+        return {
+          success: false,
+          provider: 'twilio_whatsapp',
+          isMock: false,
+          channelStatus: 'gateway_unconfigured',
+          error: 'Twilio WhatsApp विवरण (.env) अपूर्ण छ।',
+          missingConfig: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_NUMBER']
+        };
+      }
+
+      try {
+        const authHeader = Buffer.from(`${sid}:${auth}`).toString('base64');
+        const formattedTo = toPhone.startsWith('+') ? `whatsapp:${toPhone}` : `whatsapp:+977${clean10}`;
+        const formattedFrom = from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
+
+        const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${authHeader}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            To: formattedTo,
+            From: formattedFrom,
+            Body: messageText
+          })
+        });
+
+        const data: any = await res.json();
+        if (res.ok) {
+          return {
+            success: true,
+            provider: 'twilio_whatsapp',
+            isMock: false,
+            channelStatus: 'gateway_accepted',
+            messageId: data.sid,
+            notice: 'Twilio WhatsApp मा सन्देश स्वीकार भयो।'
+          };
+        }
+
+        return {
+          success: false,
+          provider: 'twilio_whatsapp',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: data.message || `Twilio WhatsApp त्रुटि (${res.status})`
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'twilio_whatsapp',
+          isMock: false,
+          channelStatus: 'gateway_rejected',
+          error: `Twilio WhatsApp नेटवर्क त्रुटि: ${err.message}`
+        };
+      }
+    }
+
+    // 3. Dev / Mock fallback
+    return {
+      success: true,
+      provider: 'dev-mock',
+      isMock: true,
+      channelStatus: 'mock_simulated',
+      messageId: `MOCK-WA-${Date.now()}`,
+      notice: 'परीक्षण सिम्युलेसन मोड: वास्तविक WhatsApp गेटवे (.env मा WHATSAPP_API_TOKEN) कन्फिगर नभएकोले परीक्षण कोड सर्भर कन्सोलमा सुरक्षित रूपमा दर्ता गरिएको छ।'
+    };
+  }
+}
+
+export const whatsappProviderService = new WhatsAppProviderService();
