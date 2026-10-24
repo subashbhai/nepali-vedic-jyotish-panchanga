@@ -19,7 +19,10 @@
     "desktop:build-mac": "vite build && electron-builder --mac",
     "desktop:pack": "vite build && electron-builder --dir",
     "mobile:sync": "vite build && powershell -Command \"Remove-Item -Path dist/downloads/*.apk, dist/downloads/*.exe -Force -ErrorAction SilentlyContinue\" && cap sync android && powershell -Command \"Remove-Item -Path android/app/src/main/assets/public/downloads -Recurse -Force -ErrorAction SilentlyContinue\"",
-    "mobile:build-apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build_apk.ps1"
+    "mobile:build-apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build_apk.ps1",
+    "firebase:login": "firebase login",
+    "firebase:deploy": "firebase deploy --only hosting",
+    "deploy:firebase": "vite build && firebase deploy --only hosting"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
