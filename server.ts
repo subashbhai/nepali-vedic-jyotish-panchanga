@@ -2249,6 +2249,7 @@ async function startServer() {
         phone,
         email,
         password,
+        username,
         role,
         address,
         gender,
@@ -2290,10 +2291,12 @@ async function startServer() {
       const customerId = `सदस्य-२०८१-${String(users.length + 1).padStart(4, "०")}`;
       const token = crypto.randomBytes(32).toString("hex");
 
+      const finalUsername = String(username || cleanPhone).trim();
+
       const newUser = {
         id: userId,
         customerId,
-        username: cleanPhone,
+        username: finalUsername,
         phone: cleanPhone,
         email: String(email || "").trim(),
         fullName: String(fullName).trim(),

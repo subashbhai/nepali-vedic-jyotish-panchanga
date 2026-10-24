@@ -78,15 +78,24 @@ class ApiClient {
         }
       } catch {}
 
-      // 3. GitHub Pages or Static Hosting Detection
-      // GitHub Pages (*.github.io) is a static hosting platform. If no remote backend URL is
-      // configured, do NOT attempt http://localhost:3000 from https://*.github.io because
-      // mobile browsers strictly block mixed-content HTTP requests, triggering "Failed to fetch"!
-      if (window.location.hostname && (window.location.hostname.endsWith('github.io') || window.location.hostname.includes('github.io'))) {
+      // 3. Static Hosting Detection (GitHub Pages, Firebase Hosting)
+      // Platforms like *.github.io, *.web.app, and *.firebaseapp.com are static CDN hosts.
+      // If no explicit remote backend URL is configured, do not attempt relative /api calls
+      // that fail with 404 or mixed-content browser rejections.
+      const host = window.location.hostname || '';
+      const isStaticHost = Boolean(
+        host.endsWith('github.io') ||
+        host.includes('github.io') ||
+        host.endsWith('web.app') ||
+        host.includes('web.app') ||
+        host.endsWith('firebaseapp.com') ||
+        host.includes('firebaseapp.com')
+      );
+      if (isStaticHost) {
         return '';
       }
 
-      // 4. Standard window origin if not static github.io
+      // 4. Standard window origin if not static CDN
       const origin = window.location.origin;
       if (origin && origin !== 'null' && origin.startsWith('http')) {
         return origin;
@@ -105,13 +114,21 @@ class ApiClient {
    */
   public isStaticHosting(): boolean {
     if (typeof window === 'undefined') return false;
-    const isGH = Boolean(window.location.hostname && (window.location.hostname.endsWith('github.io') || window.location.hostname.includes('github.io')));
+    const host = window.location.hostname || '';
+    const isStaticHost = Boolean(
+      host.endsWith('github.io') ||
+      host.includes('github.io') ||
+      host.endsWith('web.app') ||
+      host.includes('web.app') ||
+      host.endsWith('firebaseapp.com') ||
+      host.includes('firebaseapp.com')
+    );
     const hasConfiguredBackend = Boolean(
       localStorage.getItem('balananda_backend_url') ||
       localStorage.getItem('balananda_api_base_url') ||
       (import.meta as any)?.env?.VITE_API_URL
     );
-    return isGH && !hasConfiguredBackend;
+    return isStaticHost && !hasConfiguredBackend;
   }
 
   /**
