@@ -40,6 +40,7 @@ import { GlobalNepaliInputManager } from './components/common/GlobalNepaliInputM
 import { LicenseExpiryWarningBanner } from './components/common/LicenseExpiryWarningBanner';
 import { isLicenseExpired } from './utils/licenseExpiryEngine';
 import { unifiedUserSyncService } from './services/unifiedUserSyncService';
+import { authService } from './services/authService';
 
 const BalanandaMobileAppShell = lazy(() => import('./mobile/BalanandaMobileAppShell').then((m) => ({ default: m.BalanandaMobileAppShell })));
 const BalanandaWindowsAppShell = lazy(() => import('./windows/BalanandaWindowsAppShell').then((m) => ({ default: m.BalanandaWindowsAppShell })));
@@ -674,6 +675,16 @@ export default function App() {
       }
 
       if (hash === 'dashboard' || hash === 'user_dashboard' || hash === 'user-dashboard' || hash === 'my-dashboard' || hash === 'mydashboard' || hash === 'profile') {
+        const session = getActiveRBACSession();
+        const cat = session ? (session.role === 'SUPER_ADMIN' ? 'professional' : (localStorage.getItem('balananda_user_category') || (session as any).userCategory || 'visitor')) : 'visitor';
+        if (cat === 'visitor' && session?.role !== 'SUPER_ADMIN') {
+          setActiveModule('MAIN');
+          setActiveTab('home');
+          document.title = TAB_PAGE_TITLES.home;
+          setLockedFeatureName('व्यक्तिगत ड्यासबोर्ड (सदस्यता आवश्यक)');
+          setIsClientPurchaseLeadModalOpen(true);
+          return;
+        }
         setActiveModule('MAIN');
         setActiveTab('user_dashboard');
         document.title = TAB_PAGE_TITLES.user_dashboard;
@@ -683,12 +694,13 @@ export default function App() {
       if (hash === 'jyotish' || hash === 'jyotishi' || hash === 'aarje') {
         const session = getActiveRBACSession();
         const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
+        const cat = session ? (isSuper ? 'professional' : (localStorage.getItem('balananda_user_category') || (session as any).userCategory || 'visitor')) : 'visitor';
         const jAccess = checkServiceAccess('jyotish', session);
-        if (!isSuper && !jAccess.allowed) {
+        if (!isSuper && (cat === 'visitor' || cat === 'member' || !jAccess.allowed)) {
           setActiveModule('MAIN');
           setActiveTab('home');
           document.title = TAB_PAGE_TITLES.home;
-          setLockedFeatureName('ज्योतिष सेवा');
+          setLockedFeatureName('ज्योतिष सेवा (व्यावसायिक सदस्यता आवश्यक)');
           setIsClientPurchaseLeadModalOpen(true);
           return;
         }
@@ -701,12 +713,13 @@ export default function App() {
       if (hash === 'vastu') {
         const session = getActiveRBACSession();
         const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
+        const cat = session ? (isSuper ? 'professional' : (localStorage.getItem('balananda_user_category') || (session as any).userCategory || 'visitor')) : 'visitor';
         const vAccess = checkServiceAccess('vastu', session);
-        if (!isSuper && !vAccess.allowed) {
+        if (!isSuper && (cat === 'visitor' || cat === 'member' || !vAccess.allowed)) {
           setActiveModule('MAIN');
           setActiveTab('home');
           document.title = TAB_PAGE_TITLES.home;
-          setLockedFeatureName('वास्तु सेवा');
+          setLockedFeatureName('वास्तु सेवा (व्यावसायिक सदस्यता आवश्यक)');
           setIsClientPurchaseLeadModalOpen(true);
           return;
         }
@@ -952,6 +965,11 @@ export default function App() {
       }
     };
 
+    const handleSessionSynced = () => {
+      handleFullAccessUpdate();
+      handleTrialUpdate();
+    };
+
     window.addEventListener('software-full-access-updated', handleFullAccessUpdate);
     window.addEventListener('storage', handleFullAccessUpdate);
     window.addEventListener('software-trial-updated', handleTrialUpdate);
@@ -960,6 +978,13 @@ export default function App() {
     window.addEventListener('open-subscription-purchase-modal', handleOpenPurchase);
     window.addEventListener('user-force-logout', handleForceSignoutEvent);
     window.addEventListener('rbac-session-changed', handleSessionChangedEvent);
+    window.addEventListener('balananda_user_session_synced', handleSessionSynced);
+
+    // Initial server session sync to ensure user entitlements and license changes from Super Admin are active
+    authService.syncUserSessionFromServer().then(() => {
+      handleFullAccessUpdate();
+      handleTrialUpdate();
+    }).catch(() => {});
 
     return () => {
       window.removeEventListener('software-full-access-updated', handleFullAccessUpdate);
@@ -970,6 +995,7 @@ export default function App() {
       window.removeEventListener('open-subscription-purchase-modal', handleOpenPurchase);
       window.removeEventListener('user-force-logout', handleForceSignoutEvent);
       window.removeEventListener('rbac-session-changed', handleSessionChangedEvent);
+      window.removeEventListener('balananda_user_session_synced', handleSessionSynced);
     };
   }, []);
 
@@ -1284,6 +1310,32 @@ export default function App() {
     if (!rbacSession && !isPublic && !isAdminPortal) {
       setIsRBACAuthModalOpen(true);
       return;
+    }
+
+    // 3-Tier Access Control Enforcement
+    const userCategory = rbacSession
+      ? (rbacSession.role === 'SUPER_ADMIN' ? 'professional' : ((localStorage.getItem('balananda_user_category') || (rbacSession as any).userCategory || 'visitor') as string))
+      : 'visitor';
+
+    if (userCategory === 'visitor') {
+      if (resolved === 'jyotishi' || resolved === 'aarje' || resolved === 'vastu' || resolved === 'user_dashboard') {
+        setLockedFeatureName(
+          resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' :
+          resolved === 'vastu' ? 'वास्तु सेवा' : 'व्यक्तिगत ड्यासबोर्ड'
+        );
+        setIsClientPurchaseLeadModalOpen(true);
+        return;
+      }
+    }
+
+    if (userCategory === 'member') {
+      if (resolved === 'jyotishi' || resolved === 'aarje' || resolved === 'vastu') {
+        setLockedFeatureName(
+          resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' : 'वास्तु सेवा'
+        );
+        setIsClientPurchaseLeadModalOpen(true);
+        return;
+      }
     }
 
     if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolved)) {

@@ -1,0 +1,15 @@
+node_modules
+dist_electron
+downloads
+android
+.git
+.github
+.gemini
+.env
+.env.production
+.env.local
+credentials
+*.log
+data/backups
+data_backup_before_rebuild_2081
+scripts/*.ps1

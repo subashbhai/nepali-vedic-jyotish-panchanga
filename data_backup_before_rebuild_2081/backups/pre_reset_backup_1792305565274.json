@@ -1,0 +1,83 @@
+{
+  "timestampISO": "2026-10-18T06:39:25.275Z",
+  "users": [
+    {
+      "id": "usr_1792305565255_t13cd",
+      "customerId": "सदस्य-२०८१-०००1",
+      "username": "9841234567",
+      "phone": "9841234567",
+      "email": "ram@example.com",
+      "fullName": "राम चन्द्र ज्ञवाली",
+      "passwordHash": "b926e929192ee30e047ab90fc9d1e0d811a4ccc5f0411da2047abfccc8cd8f60",
+      "plainPasswordNotice": "hashed",
+      "role": "CUSTOMER",
+      "roleNameNepali": "यजमान / ग्राहक",
+      "status": "active",
+      "mobileVerified": true,
+      "emailVerified": false,
+      "address": "काठमाडौँ-१०, बानेश्वर",
+      "gender": "male",
+      "birthProfileId": "prof_1792305565256",
+      "birthDetails": null,
+      "photoUrl": "",
+      "permissions": [
+        "store.view",
+        "kundali.view",
+        "profile.edit",
+        "yajaman.view"
+      ],
+      "trial": {
+        "hasUsedTrial": false,
+        "isTrialActive": false,
+        "trialStartedAtISO": null,
+        "trialExpiresAtISO": null,
+        "trialExpiresAtTimestamp": null,
+        "trialPeriodHours": 24
+      },
+      "jyotishAccess": {
+        "unlocked": false,
+        "period": null,
+        "expiresAtTimestamp": null,
+        "expiresAtBS": null
+      },
+      "vastuAccess": {
+        "unlocked": false,
+        "period": null,
+        "expiresAtTimestamp": null,
+        "expiresAtBS": null
+      },
+      "favorites": {
+        "books": [],
+        "videos": [],
+        "audios": [],
+        "articles": [],
+        "mantras": []
+      },
+      "createdAtISO": "2026-10-18T06:39:25.255Z",
+      "createdAtBS": "२०८३ कात्तिक १",
+      "lastLoginISO": "2026-10-18T06:39:25.255Z"
+    }
+  ],
+  "leads": [
+    {
+      "id": "LEAD-1792305565261",
+      "fullName": "राम चन्द्र ज्ञवाली",
+      "address": "काठमाडौँ-१०, बानेश्वर",
+      "mobile": "9841234567",
+      "email": "ram@example.com",
+      "whatsapp": "9841234567",
+      "deviceFingerprint": "user-registered",
+      "status": "REGISTERED_USER",
+      "planId": "standard",
+      "planNameNepali": "दर्ता भएको ग्राहक (Registered User)",
+      "planAmountNPR": 0,
+      "paymentMethod": "none",
+      "submittedAtISO": "2026-10-18T06:39:25.255Z",
+      "submittedAtBS": "२०८३ कात्तिक १",
+      "clientNotes": "अनलाइन फारमबाट नयाँ खाता दर्ता गरिएको"
+    }
+  ],
+  "licenses": [],
+  "purchaseRequests": [],
+  "trialRegistry": {}
+}

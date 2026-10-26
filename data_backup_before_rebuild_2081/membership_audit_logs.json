@@ -1,0 +1,218 @@
+[
+  {
+    "id": "audit_1792750963723_34dc3b",
+    "membershipId": "mem_1792750963663_ad4e8f",
+    "userId": "usr_1792750963532_0xen8",
+    "action": "EXTEND",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T10:22:43.723Z",
+    "details": "1_month थप - विशेष अनुग्रह म्याद थप"
+  },
+  {
+    "id": "audit_1792750963710_60ef42",
+    "membershipId": "mem_1792750963663_ad4e8f",
+    "userId": "usr_1792750963532_0xen8",
+    "action": "RENEW",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T10:22:43.710Z",
+    "details": "1_year थप - नियमित वार्षिक नवीकरण"
+  },
+  {
+    "id": "audit_1792750963690_f2ac77",
+    "membershipId": "mem_1792750963663_ad4e8f",
+    "userId": "usr_1792750963532_0xen8",
+    "action": "SERVICES_UPDATED",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T10:22:43.690Z",
+    "details": "jyotish, panchanga"
+  },
+  {
+    "id": "audit_1792750963666_64025f",
+    "membershipId": "mem_1792750963663_ad4e8f",
+    "userId": "usr_1792750963532_0xen8",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T10:22:43.666Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (केन्द्रीय कार्यालय काउन्टरमा नगद प्राप्त)"
+  },
+  {
+    "id": "audit_1792748694494_d86e7e",
+    "membershipId": "mem_1792748694478_313ea5",
+    "userId": "user_expiring_test",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T09:44:54.494Z",
+    "details": "सक्रिय: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792748694489_bea950",
+    "membershipId": "mem_1792748694478_313ea5",
+    "userId": "user_expiring_test",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "परीक्षण प्रयोगकर्ता",
+    "timestampISO": "2026-10-23T09:44:54.489Z",
+    "details": "योजना: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792748694475_becce2",
+    "membershipId": "mem_1792748694465_165b52",
+    "userId": "usr_1792748694458_e0aca3",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T09:44:54.475Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792748694468_ceefdb",
+    "membershipId": "mem_1792748694465_165b52",
+    "userId": "usr_1792748694458_e0aca3",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "सीता देवी सुवेदी",
+    "timestampISO": "2026-10-23T09:44:54.468Z",
+    "details": "योजना: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792748618346_c2434b",
+    "membershipId": "mem_1792748618293_e9b11a",
+    "userId": "usr_1792748618185_37hqo",
+    "action": "EXTEND",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:43:38.346Z",
+    "details": "1_month थप - विशेष अनुग्रह म्याद थप"
+  },
+  {
+    "id": "audit_1792748618334_386063",
+    "membershipId": "mem_1792748618293_e9b11a",
+    "userId": "usr_1792748618185_37hqo",
+    "action": "RENEW",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:43:38.334Z",
+    "details": "1_year थप - नियमित वार्षिक नवीकरण"
+  },
+  {
+    "id": "audit_1792748618316_9d65a4",
+    "membershipId": "mem_1792748618293_e9b11a",
+    "userId": "usr_1792748618185_37hqo",
+    "action": "SERVICES_UPDATED",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:43:38.316Z",
+    "details": "jyotish, panchanga"
+  },
+  {
+    "id": "audit_1792748618296_25ba3a",
+    "membershipId": "mem_1792748618293_e9b11a",
+    "userId": "usr_1792748618185_37hqo",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:43:38.296Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (केन्द्रीय कार्यालय काउन्टरमा नगद प्राप्त)"
+  },
+  {
+    "id": "audit_1792748488999_8c1a1d",
+    "membershipId": "mem_1792748488942_a5e739",
+    "userId": "usr_1792748488821_k6jnm",
+    "action": "EXTEND",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:41:28.999Z",
+    "details": "1_month थप - विशेष अनुग्रह म्याद थप"
+  },
+  {
+    "id": "audit_1792748488986_c3714d",
+    "membershipId": "mem_1792748488942_a5e739",
+    "userId": "usr_1792748488821_k6jnm",
+    "action": "RENEW",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:41:28.986Z",
+    "details": "1_year थप - नियमित वार्षिक नवीकरण"
+  },
+  {
+    "id": "audit_1792748488968_6db9f6",
+    "membershipId": "mem_1792748488942_a5e739",
+    "userId": "usr_1792748488821_k6jnm",
+    "action": "SERVICES_UPDATED",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:41:28.968Z",
+    "details": "jyotish, panchanga"
+  },
+  {
+    "id": "audit_1792748488945_9e7c80",
+    "membershipId": "mem_1792748488942_a5e739",
+    "userId": "usr_1792748488821_k6jnm",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-23T09:41:28.945Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (केन्द्रीय कार्यालय काउन्टरमा नगद प्राप्त)"
+  },
+  {
+    "id": "audit_1792745561235_fc416f",
+    "membershipId": "mem_1792745561228_15e7fb",
+    "userId": "user_expiring_test",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:52:41.236Z",
+    "details": "सक्रिय: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745561231_6883e4",
+    "membershipId": "mem_1792745561228_15e7fb",
+    "userId": "user_expiring_test",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "परीक्षण प्रयोगकर्ता",
+    "timestampISO": "2026-10-23T08:52:41.231Z",
+    "details": "योजना: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745561224_e260a0",
+    "membershipId": "mem_1792745561216_afee57",
+    "userId": "usr_1792745561208_41a884",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:52:41.225Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745561218_3b2ff3",
+    "membershipId": "mem_1792745561216_afee57",
+    "userId": "usr_1792745561208_41a884",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "सीता देवी सुवेदी",
+    "timestampISO": "2026-10-23T08:52:41.218Z",
+    "details": "योजना: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475423_164271",
+    "membershipId": "mem_1792745475415_756cf6",
+    "userId": "user_expiring_test",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:51:15.423Z",
+    "details": "सक्रिय: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475418_b9db0d",
+    "membershipId": "mem_1792745475415_756cf6",
+    "userId": "user_expiring_test",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "परीक्षण प्रयोगकर्ता",
+    "timestampISO": "2026-10-23T08:51:15.418Z",
+    "details": "योजना: मोबाइल मात्र (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475412_3a91b0",
+    "membershipId": "mem_1792745475403_6e287e",
+    "userId": "usr_1792745475398_e9616c",
+    "action": "MEMBERSHIP_APPROVED",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-23T08:51:15.412Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  },
+  {
+    "id": "audit_1792745475406_938b9d",
+    "membershipId": "mem_1792745475403_6e287e",
+    "userId": "usr_1792745475398_e9616c",
+    "action": "PURCHASE_SUBMITTED",
+    "performedBy": "सीता देवी सुवेदी",
+    "timestampISO": "2026-10-23T08:51:15.406Z",
+    "details": "योजना: मोबाइल + कम्प्युटर दुवै (१ वर्ष)"
+  }
+]

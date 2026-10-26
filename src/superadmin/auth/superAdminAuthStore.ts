@@ -52,6 +52,8 @@ export function setSuperAdminSession(session: SuperAdminSessionState): void {
   try {
     localStorage.setItem(STORAGE_KEY_SUPERADMIN_SESSION, JSON.stringify(session));
     localStorage.setItem(STORAGE_KEY_SUPERADMIN_TOKEN, session.token);
+    localStorage.setItem('superadmin_token', session.token);
+    localStorage.setItem('balananda_superadmin_auth_token', session.token);
     // Dispatch custom event for state reactivity across tabs
     window.dispatchEvent(new CustomEvent('superadmin-session-changed', { detail: session }));
   } catch (err) {
@@ -64,6 +66,8 @@ export function clearSuperAdminSession(): void {
   try {
     localStorage.removeItem(STORAGE_KEY_SUPERADMIN_SESSION);
     localStorage.removeItem(STORAGE_KEY_SUPERADMIN_TOKEN);
+    localStorage.removeItem('superadmin_token');
+    localStorage.removeItem('balananda_superadmin_auth_token');
     window.dispatchEvent(new CustomEvent('superadmin-session-changed', { detail: null }));
   } catch (err) {
     console.error('Failed to clear Super Admin session:', err);

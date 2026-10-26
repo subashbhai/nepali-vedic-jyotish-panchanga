@@ -1,5 +1,77 @@
 [
   {
+    "id": "audit_1793002464213_86f8c1",
+    "membershipId": "mem_1793002464210_9f1372",
+    "userId": "usr_1793002463978_kg61l",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-26T08:14:24.213Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (सुपरएडमिन द्वारा प्रत्यक्ष सदस्यता सक्रिय गरिएको)"
+  },
+  {
+    "id": "audit_1793002446309_8e8098",
+    "membershipId": "mem_1793002446306_9e5cc6",
+    "userId": "usr_1793002445960_xbjrk",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-26T08:14:06.309Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (Super Admin activated yearly access)"
+  },
+  {
+    "id": "audit_1793000965467_31f744",
+    "membershipId": "mem_1793000965464_0aeb61",
+    "userId": "usr_1793000965257_n1pmq",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-26T07:49:25.467Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (सुपरएडमिन द्वारा प्रत्यक्ष सदस्यता सक्रिय गरिएको)"
+  },
+  {
+    "id": "audit_1793000947956_88bd8e",
+    "membershipId": "mem_1793000947953_46b962",
+    "userId": "usr_1793000947619_r45cb",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-26T07:49:07.956Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (Super Admin activated yearly access)"
+  },
+  {
+    "id": "audit_1792930660838_ce4ff1",
+    "membershipId": "mem_1792930660830_847184",
+    "userId": "usr_1792930660311_5om0j",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-25T12:17:40.838Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (सुपरएडमिन द्वारा प्रत्यक्ष सदस्यता सक्रिय गरिएको)"
+  },
+  {
+    "id": "audit_1792930530839_bd05e0",
+    "membershipId": "mem_1792930530832_ce0f58",
+    "userId": "usr_1792930529116_4yoh5",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "admin",
+    "timestampISO": "2026-10-25T12:15:30.839Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (Super Admin activated yearly access)"
+  },
+  {
+    "id": "audit_1792928149436_5c208d",
+    "membershipId": "mem_1792928149433_4d04ed",
+    "userId": "usr_1792928149258_d037z",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-25T11:35:49.436Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (सुपरएडमिन द्वारा प्रत्यक्ष सदस्यता सक्रिय गरिएको)"
+  },
+  {
+    "id": "audit_1792928029536_358b82",
+    "membershipId": "mem_1792928029534_a74e5f",
+    "userId": "usr_1792928029271_qvfoc",
+    "action": "MANUAL_ACTIVATION",
+    "performedBy": "superadmin",
+    "timestampISO": "2026-10-25T11:33:49.536Z",
+    "details": "सक्रिय: मोबाइल + कम्प्युटर दुवै (१ वर्ष) (सुपरएडमिन द्वारा प्रत्यक्ष सदस्यता सक्रिय गरिएको)"
+  },
+  {
     "id": "audit_1792750963723_34dc3b",
     "membershipId": "mem_1792750963663_ad4e8f",
     "userId": "usr_1792750963532_0xen8",

@@ -1,5 +1,6 @@
 import { convertADToBS } from '../utils/nepaliCalendar';
 import { isLicenseExpired } from '../utils/licenseExpiryEngine';
+import { apiClient } from '../services/apiClient';
 
 export type ClientLeadStatus = 
   | 'REGISTERED_USER'
@@ -403,9 +404,9 @@ export async function start24HourTrialAsync(leadData: {
 }
 
 /**
- * Submit Software Purchase Application (Pending SuperAdmin Approval)
+ * Submit Software Purchase Application asynchronously with authoritative server persistence check
  */
-export function submitPurchaseApplication(data: {
+export async function submitPurchaseApplicationAsync(data: {
   fullName: string;
   address: string;
   mobile: string;
@@ -416,7 +417,7 @@ export function submitPurchaseApplication(data: {
   planAmountNPR: number;
   paymentMethod: 'esewa' | 'khalti' | 'bank';
   transactionId: string;
-}): { success: boolean; messageNepali: string; leadId: string } {
+}): Promise<{ success: boolean; messageNepali: string; leadId: string }> {
   if (typeof window === 'undefined') return { success: false, messageNepali: 'अमान्य वातावरण', leadId: '' };
 
   const deviceFp = getDeviceFingerprint();
@@ -443,30 +444,60 @@ export function submitPurchaseApplication(data: {
     submittedAtBS: todayBS,
   };
 
-  const leads = getStoredClientLeads();
-  saveClientLeads([newLead, ...leads]);
-
-  // Sync to unified cross-device sync service (GitHub Pages + Local)
   try {
-    import('../services/unifiedUserSyncService').then(({ unifiedUserSyncService }) => {
-      unifiedUserSyncService.recordPurchaseRequest(newLead);
-    }).catch(() => {});
-  } catch {}
+    const res = await apiClient.post<any>('/api/client-leads/submit', newLead);
+    if (res.success || res.lead) {
+      const persistedLead = res.lead || newLead;
+      const leads = getStoredClientLeads();
+      saveClientLeads([persistedLead, ...leads.filter(l => l.id !== persistedLead.id)]);
 
-  // Sync to central server
-  try {
-    if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
-      fetch('/api/client-leads/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newLead)
-      }).catch((e) => console.warn('[clientLeadStore] Server sync failed for purchase lead:', e));
+      try {
+        const { unifiedUserSyncService } = await import('../services/unifiedUserSyncService');
+        unifiedUserSyncService.recordPurchaseRequest(persistedLead);
+      } catch {}
+
+      return {
+        success: true,
+        messageNepali: 'तपाईंको खरिद आवेदन केन्द्रीय सर्भरमा सफलतापूर्वक दर्ता भएको छ! सुपरएडमिनले रकम प्रमाणित तथा स्वीकृत (Approve) गरेपछि तपाईंको सफ्टवेयर स्वतः सक्रिय हुनेछ।',
+        leadId: persistedLead.id,
+      };
+    } else {
+      return {
+        success: false,
+        messageNepali: res.error || 'सर्भरमा आवेदन दर्ता हुन सकेन। कृपया पुनः प्रयास गर्नुहोस्।',
+        leadId: '',
+      };
     }
-  } catch {}
+  } catch (err: any) {
+    console.error('[clientLeadStore] submitPurchaseApplicationAsync error:', err);
+    return {
+      success: false,
+      messageNepali: 'केन्द्रीय सर्भरसँग सम्पर्क हुन सकेन। कृपया इन्टरनेट वा सर्भर जडान जाँच गरी पुनः प्रयास गर्नुहोस्।',
+      leadId: '',
+    };
+  }
+}
 
+/**
+ * Submit Software Purchase Application (Sync wrapper)
+ */
+export function submitPurchaseApplication(data: {
+  fullName: string;
+  address: string;
+  mobile: string;
+  email: string;
+  whatsapp: string;
+  planId: 'yearly_mobile' | 'yearly_desktop' | 'yearly_both' | 'lifetime_mobile' | 'lifetime_desktop' | 'lifetime_both';
+  planNameNepali: string;
+  planAmountNPR: number;
+  paymentMethod: 'esewa' | 'khalti' | 'bank';
+  transactionId: string;
+}): { success: boolean; messageNepali: string; leadId: string } {
+  submitPurchaseApplicationAsync(data).catch(() => {});
+  const leadId = `LEAD-${Date.now()}`;
   return {
     success: true,
-    messageNepali: 'तपाईंको खरिद आवेदन सफलतापूर्वक दर्ता भएको छ! सुपरएडमिनले रकम प्रमाणित तथा स्वीकृत (Approve) गरेपछि तपाईंको सफ्टवेयर स्वतः सक्रिय हुनेछ।',
+    messageNepali: 'तपाईंको खरिद आवेदन दर्ता प्रक्रिया सुरु भयो।',
     leadId,
   };
 }

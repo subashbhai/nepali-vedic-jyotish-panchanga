@@ -537,6 +537,9 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
             {/* User Personal Details */}
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-stone-950 uppercase tracking-wide">
+                  खण्ड 'क' (Section A): व्यक्तिगत प्रोफाइल
+                </span>
                 <h1 className="text-2xl sm:text-3xl font-black font-serif text-amber-100 tracking-tight">
                   {profileState.name}
                 </h1>
@@ -628,42 +631,42 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       {/* ── 2. QUICK PERSONAL LUCKY METRICS BAR (UNIFIED ZERO-DISCREPANCY CHAIN) ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">आजको शुभ रङ्ग</span>
+          <span className="text-[10px] text-amber-700 dark:text-amber-400 block font-bold">खण्ड 'ञ' (Sec J): शुभ रङ्ग</span>
           <strong className="text-amber-800 dark:text-amber-300 text-sm block mt-1 font-serif">
             {unifiedPrediction.luckyColor}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">आजको शुभ अङ्क</span>
+          <span className="text-[10px] text-amber-700 dark:text-amber-400 block font-bold">खण्ड 'ञ' (Sec J): शुभ अङ्क</span>
           <strong className="text-stone-900 dark:text-stone-100 text-sm block mt-1 font-serif">
             {unifiedPrediction.luckyNumber}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">शुभ दिशा</span>
+          <span className="text-[10px] text-blue-700 dark:text-blue-400 block font-bold">खण्ड 'ज' (Sec H): शुभ दिशा</span>
           <strong className="text-stone-900 dark:text-stone-100 text-sm block mt-1 font-serif">
             {unifiedPrediction.luckyDirection}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">अनुकूल राम्रो समय</span>
+          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block font-bold">खण्ड 'ज' (Sec H): अनुकूल समय</span>
           <strong className="text-emerald-700 dark:text-emerald-400 text-xs block mt-1 truncate">
             {unifiedPrediction.favorableTime.split('र')[0]}
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">चन्द्रबल स्थिति</span>
+          <span className="text-[10px] text-purple-700 dark:text-purple-400 block font-bold">खण्ड 'ङ' (Sec E): चन्द्रबल स्थिति</span>
           <strong className="text-amber-700 dark:text-amber-300 text-xs block mt-1">
             {unifiedPrediction.chandrabala.houseNepali} ({unifiedPrediction.chandrabala.auspiciousLevel})
           </strong>
         </div>
 
         <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-amber-200/80 dark:border-stone-800 text-center shadow-xs">
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 block font-bold">समग्र दिनको फल</span>
+          <span className="text-[10px] text-stone-500 dark:text-stone-400 block font-bold">खण्ड 'घ' (Sec D): समग्र फल</span>
           <strong className="text-emerald-700 dark:text-emerald-400 text-xs block mt-1">
             {unifiedPrediction.overallVerdict}
           </strong>
@@ -740,68 +743,57 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Comprehensive Daily Facets Grid (8 Areas) */}
+          {/* Comprehensive Daily Facets Grid (Sections K, L, M, N, I) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 1. कार्यक्षेत्र तथा व्यवसाय */}
+            {/* खण्ड 'ट' (Sec K): कार्यक्षेत्र तथा व्यवसाय */}
             <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 space-y-1.5 shadow-xs">
               <div className="flex items-center gap-2 text-xs font-bold text-amber-950 dark:text-amber-300">
                 <Briefcase className="w-4 h-4 text-amber-600" />
-                <span>कार्यक्षेत्र तथा व्यवसाय (Career):</span>
+                <span>खण्ड 'ट' (Section K): कार्यक्षेत्र तथा व्यवसाय (Career):</span>
               </div>
               <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300 text-justify">
                 {dailyResult.item.career}
               </p>
             </div>
 
-            {/* 2. आर्थिक अवस्था र धनसम्बन्धी सम्भावना */}
+            {/* खण्ड 'ठ' (Sec L): आर्थिक अवस्था र धन सम्भावना */}
             <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 space-y-1.5 shadow-xs">
               <div className="flex items-center gap-2 text-xs font-bold text-amber-950 dark:text-amber-300">
                 <Coins className="w-4 h-4 text-emerald-600" />
-                <span>आर्थिक अवस्था र धन सम्भावना (Finance):</span>
+                <span>खण्ड 'ठ' (Section L): आर्थिक अवस्था र धन सम्भावना (Finance):</span>
               </div>
               <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300 text-justify">
                 {dailyResult.item.finance}
               </p>
             </div>
 
-            {/* 3. प्रेम, दाम्पत्य तथा पारिवारिक सम्बन्ध */}
+            {/* खण्ड 'ड' (Sec M): प्रेम, दाम्पत्य तथा पारिवारिक सम्बन्ध */}
             <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 space-y-1.5 shadow-xs">
               <div className="flex items-center gap-2 text-xs font-bold text-amber-950 dark:text-amber-300">
                 <Heart className="w-4 h-4 text-rose-500" />
-                <span>प्रेम, दाम्पत्य तथा पारिवारिक सम्बन्ध (Family & Relationship):</span>
+                <span>खण्ड 'ड' (Section M): प्रेम, दाम्पत्य तथा पारिवारिक सम्बन्ध (Family):</span>
               </div>
               <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300 text-justify">
                 {dailyResult.item.loveAndFamily}
               </p>
             </div>
 
-            {/* 4. अध्ययन तथा बौद्धिक कार्य */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 space-y-1.5 shadow-xs">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-950 dark:text-amber-300">
-                <GraduationCap className="w-4 h-4 text-indigo-500" />
-                <span>अध्ययन, परीक्षा तथा बौद्धिक कार्य (Education):</span>
-              </div>
-              <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300 text-justify">
-                {dailyResult.item.education}
-              </p>
-            </div>
-
-            {/* 5. स्वास्थ्य तथा दिनचर्याका सामान्य सुझाव */}
+            {/* खण्ड 'ढ' (Sec N): स्वास्थ्य तथा दिनचर्या */}
             <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 space-y-1.5 shadow-xs">
               <div className="flex items-center gap-2 text-xs font-bold text-amber-950 dark:text-amber-300">
                 <Activity className="w-4 h-4 text-cyan-600" />
-                <span>स्वास्थ्य तथा दिनचर्या (Health):</span>
+                <span>खण्ड 'ढ' (Section N): स्वास्थ्य तथा दिनचर्या (Health & Routine):</span>
               </div>
               <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300 text-justify">
                 {dailyResult.item.health}
               </p>
             </div>
 
-            {/* 6. सावधानी अपनाउनुपर्ने समय/नराम्रो पक्ष */}
-            <div className="p-4 rounded-2xl bg-rose-50/70 dark:bg-stone-900 border border-rose-200 dark:border-rose-900/40 space-y-1.5 shadow-xs">
+            {/* खण्ड 'झ' (Sec I): सावधानी अपनाउनुपर्ने समय/अशुभ समय तथा राहुकाल */}
+            <div className="p-4 rounded-2xl bg-rose-50/70 dark:bg-stone-900 border border-rose-200 dark:border-rose-900/40 space-y-1.5 shadow-xs md:col-span-2">
               <div className="flex items-center gap-2 text-xs font-bold text-rose-900 dark:text-rose-300">
                 <AlertTriangle className="w-4 h-4 text-rose-600" />
-                <span>नराम्रो/सावधानी अपनाउनुपर्ने समय (Caution Timing):</span>
+                <span>खण्ड 'झ' (Section I): सावधानी अपनाउनुपर्ने समय/अशुभ समय तथा राहुकाल:</span>
               </div>
               <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300 text-justify">
                 {dailyResult.item.cautionTime}
@@ -809,16 +801,16 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Spiritual Remedies & Mantra Box */}
+          {/* Spiritual Remedies & Mantra Box (Sections O & P) */}
           <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/50 to-amber-50 dark:from-stone-900 dark:via-stone-900 dark:to-stone-900 border-2 border-amber-300/80 dark:border-stone-800 space-y-3">
             <div className="flex items-center gap-2 text-sm font-bold text-amber-950 dark:text-amber-300">
               <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>आजका वैदिक उपायहरू तथा मन्त्र जप (Vedic Remedies):</span>
+              <span>आजका वैदिक उपायहरू तथा मन्त्र जप (Sections O & P):</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
               <div className="bg-white dark:bg-stone-800/80 p-4 rounded-xl border border-amber-200 dark:border-stone-700 shadow-xs">
-                <span className="text-[10px] text-stone-500 dark:text-stone-400 font-bold block mb-1">
-                  दैनिक वैदिक मन्त्र जप:
+                <span className="text-[10px] text-amber-800 dark:text-amber-400 font-bold block mb-1">
+                  खण्ड 'ण' (Section O): दैनिक वैदिक मन्त्र जप तथा शान्ति:
                 </span>
                 <p className="font-serif font-bold text-amber-950 dark:text-amber-200 text-sm">
                   {dailyResult.item.mantra}
@@ -826,8 +818,8 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
               </div>
 
               <div className="bg-white dark:bg-stone-800/80 p-4 rounded-xl border border-amber-200 dark:border-stone-700 shadow-xs">
-                <span className="text-[10px] text-stone-500 dark:text-stone-400 font-bold block mb-1">
-                  सत्कर्म, दान तथा शान्ति उपाय:
+                <span className="text-[10px] text-emerald-800 dark:text-emerald-400 font-bold block mb-1">
+                  खण्ड 'त' (Section P): दान तथा सत्कर्म उपाय (Remedies & Charity):
                 </span>
                 <p className="text-stone-800 dark:text-stone-200 text-xs leading-relaxed">
                   {dailyResult.item.remedy}
@@ -835,12 +827,12 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
               </div>
             </div>
 
-            {/* Classical Shastric Shlokas & Evidence Section (फलदीपिका, बृहत् पराशर होरा शास्त्र, मुहूर्तचिन्तामणि) */}
+            {/* Classical Shastric Shlokas & Evidence Section Q */}
             <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-stone-900 dark:to-stone-950 border border-amber-300/80 dark:border-amber-800/80 rounded-2xl space-y-3.5 shadow-xs">
               <div className="flex items-center justify-between border-b border-amber-200 dark:border-stone-800 pb-2.5">
                 <div className="flex items-center gap-2 text-xs font-bold text-[#7A1C1C] dark:text-amber-400 font-serif">
                   <BookOpen className="w-4 h-4" />
-                  <span>शास्त्रीय प्रमाण एवं श्लोक आधार (फलदीपिका, बृहत् पराशर होरा शास्त्र, मुहूर्तचिन्तामणि):</span>
+                  <span>खण्ड 'थ' (Section Q): शास्त्रीय प्रमाण एवं श्लोक आधार (फलदीपिका, होरा शास्त्र, मुहूर्तचिन्तामणि):</span>
                 </div>
                 <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono">
                   अविभाज्य शृङ्खला (0.1% सटीकता)
@@ -940,6 +932,20 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       <div className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 border border-amber-200/80 dark:border-stone-800 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800 gap-3">
           <div>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-500 text-stone-950">
+                खण्ड 'ख' (Sec B): जन्म कुण्डली
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-blue-500 text-white">
+                खण्ड 'ग' (Sec C): पञ्चाङ्ग
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-purple-500 text-white">
+                खण्ड 'च' (Sec F): विंशोत्तरी दशा
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-600 text-white">
+                खण्ड 'छ' (Sec G): गोचर ग्रह
+              </span>
+            </div>
             <h3 className="font-extrabold text-base sm:text-lg text-[#7A1C1C] dark:text-amber-400 flex items-center gap-2">
               <Compass className="w-5 h-5 text-amber-600" />
               <span>व्यक्तिगत कुण्डली, विंशोत्तरी दशा तथा शुभ योग विश्लेषण</span>

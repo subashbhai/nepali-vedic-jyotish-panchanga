@@ -1,0 +1,198 @@
+[
+  {
+    "id": "audit_1792930680348_k2sm",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792930679343_qrr9u",
+    "targetUsername": "testuser_mvnsmtzx",
+    "previousValue": "member",
+    "newValue": "professional",
+    "reason": "ज्योतिष तथा वास्तु लाइसेन्स",
+    "timestampISO": "2026-10-25T12:18:00.348Z"
+  },
+  {
+    "id": "audit_1792930680307_yr88",
+    "actorUsername": "SuperAdmin",
+    "action": "OFFLINE_PAYMENT_RECORDED",
+    "targetUserId": "usr_1792930679343_qrr9u",
+    "targetUsername": "testuser_mvnsmtzx",
+    "newValue": {
+      "plan": "वार्षिक पूर्ण सदस्य योजना",
+      "amountNPR": 2500,
+      "category": "member",
+      "durationDays": 365
+    },
+    "reason": "कार्यालयमा नगद भुक्तानी प्राप्त",
+    "timestampISO": "2026-10-25T12:18:00.297Z"
+  },
+  {
+    "id": "audit_1792930680067_j6da",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792930679343_qrr9u",
+    "targetUsername": "testuser_mvnsmtzx",
+    "previousValue": "visitor",
+    "newValue": "member",
+    "reason": "सदस्यता अनुमोदन",
+    "timestampISO": "2026-10-25T12:18:00.067Z"
+  },
+  {
+    "id": "audit_1792928159476_676v",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792928159181_wucm1",
+    "targetUsername": "testuser_mvnr4tjs",
+    "previousValue": "member",
+    "newValue": "professional",
+    "reason": "ज्योतिष तथा वास्तु लाइसेन्स",
+    "timestampISO": "2026-10-25T11:35:59.476Z"
+  },
+  {
+    "id": "audit_1792928159467_uqor",
+    "actorUsername": "SuperAdmin",
+    "action": "OFFLINE_PAYMENT_RECORDED",
+    "targetUserId": "usr_1792928159181_wucm1",
+    "targetUsername": "testuser_mvnr4tjs",
+    "newValue": {
+      "plan": "वार्षिक पूर्ण सदस्य योजना",
+      "amountNPR": 2500,
+      "category": "member",
+      "durationDays": 365
+    },
+    "reason": "कार्यालयमा नगद भुक्तानी प्राप्त",
+    "timestampISO": "2026-10-25T11:35:59.463Z"
+  },
+  {
+    "id": "audit_1792928159380_a11q",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792928159181_wucm1",
+    "targetUsername": "testuser_mvnr4tjs",
+    "previousValue": "visitor",
+    "newValue": "member",
+    "reason": "सदस्यता अनुमोदन",
+    "timestampISO": "2026-10-25T11:35:59.380Z"
+  },
+  {
+    "id": "audit_1792923916752_4xi1",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792923916463_riuv2",
+    "targetUsername": "testuser_mvnolvud",
+    "previousValue": "member",
+    "newValue": "professional",
+    "reason": "ज्योतिष तथा वास्तु लाइसेन्स",
+    "timestampISO": "2026-10-25T10:25:16.752Z"
+  },
+  {
+    "id": "audit_1792923916742_7b8q",
+    "actorUsername": "SuperAdmin",
+    "action": "OFFLINE_PAYMENT_RECORDED",
+    "targetUserId": "usr_1792923916463_riuv2",
+    "targetUsername": "testuser_mvnolvud",
+    "newValue": {
+      "plan": "वार्षिक पूर्ण सदस्य योजना",
+      "amountNPR": 2500,
+      "category": "member",
+      "durationDays": 365
+    },
+    "reason": "कार्यालयमा नगद भुक्तानी प्राप्त",
+    "timestampISO": "2026-10-25T10:25:16.738Z"
+  },
+  {
+    "id": "audit_1792923916674_v59o",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792923916463_riuv2",
+    "targetUsername": "testuser_mvnolvud",
+    "previousValue": "visitor",
+    "newValue": "member",
+    "reason": "सदस्यता अनुमोदन",
+    "timestampISO": "2026-10-25T10:25:16.674Z"
+  },
+  {
+    "id": "audit_1792921617587_0otd",
+    "actorUsername": "superadmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792921617550_imyam",
+    "targetUsername": "ram_1792921617423",
+    "previousValue": "visitor",
+    "newValue": "professional",
+    "reason": "परीक्षण अनुमति",
+    "timestampISO": "2026-10-25T09:46:57.587Z"
+  },
+  {
+    "id": "audit_1792921292194_82uh",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792921291916_e3uus",
+    "targetUsername": "testuser_mvnn1mqc",
+    "previousValue": "member",
+    "newValue": "professional",
+    "reason": "ज्योतिष तथा वास्तु लाइसेन्स",
+    "timestampISO": "2026-10-25T09:41:32.194Z"
+  },
+  {
+    "id": "audit_1792921292185_xuzb",
+    "actorUsername": "SuperAdmin",
+    "action": "OFFLINE_PAYMENT_RECORDED",
+    "targetUserId": "usr_1792921291916_e3uus",
+    "targetUsername": "testuser_mvnn1mqc",
+    "newValue": {
+      "plan": "वार्षिक पूर्ण सदस्य योजना",
+      "amountNPR": 2500,
+      "category": "member",
+      "durationDays": 365
+    },
+    "reason": "कार्यालयमा नगद भुक्तानी प्राप्त",
+    "timestampISO": "2026-10-25T09:41:32.182Z"
+  },
+  {
+    "id": "audit_1792921292116_ep6i",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792921291916_e3uus",
+    "targetUsername": "testuser_mvnn1mqc",
+    "previousValue": "visitor",
+    "newValue": "member",
+    "reason": "सदस्यता अनुमोदन",
+    "timestampISO": "2026-10-25T09:41:32.116Z"
+  },
+  {
+    "id": "audit_1792921206144_0qh3",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792921206098_iwcx8",
+    "targetUsername": "testuser_mvnmzsil",
+    "previousValue": "member",
+    "newValue": "professional",
+    "reason": "ज्योतिष तथा वास्तु लाइसेन्स",
+    "timestampISO": "2026-10-25T09:40:06.144Z"
+  },
+  {
+    "id": "audit_1792921206135_349w",
+    "actorUsername": "SuperAdmin",
+    "action": "OFFLINE_PAYMENT_RECORDED",
+    "targetUserId": "usr_1792921206098_iwcx8",
+    "targetUsername": "testuser_mvnmzsil",
+    "newValue": {
+      "plan": "वार्षिक पूर्ण सदस्य योजना",
+      "amountNPR": 2500,
+      "category": "member",
+      "durationDays": 365
+    },
+    "reason": "कार्यालयमा नगद भुक्तानी प्राप्त",
+    "timestampISO": "2026-10-25T09:40:06.130Z"
+  },
+  {
+    "id": "audit_1792921206120_ovjs",
+    "actorUsername": "SuperAdmin",
+    "action": "USER_CATEGORY_CHANGED",
+    "targetUserId": "usr_1792921206098_iwcx8",
+    "targetUsername": "testuser_mvnmzsil",
+    "previousValue": "visitor",
+    "newValue": "member",
+    "reason": "सदस्यता अनुमोदन",
+    "timestampISO": "2026-10-25T09:40:06.120Z"
+  }
+]

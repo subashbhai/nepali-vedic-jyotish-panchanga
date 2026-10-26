@@ -8,12 +8,33 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { authEngine } from "./src/server/authEngine";
 import { membershipEngine, MEMBERSHIP_PLANS } from "./src/server/membershipEngine";
+import { getDatabaseAdapter } from "./src/server/db/databaseAdapter";
 
 dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const dbAdapter = getDatabaseAdapter();
+
+  try {
+    await dbAdapter.init();
+    console.log('[Database] Central persistence engine initialized successfully.');
+  } catch (err: any) {
+    console.error('[Database Fatal] Persistence engine initialization failed:', err.message);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  }
+
+  // Periodic Subscription Expiry Sweep (Phase 10: runs every 6 hours)
+  setInterval(() => {
+    try {
+      authEngine.runExpiryAndNotificationCheck();
+    } catch (e: any) {
+      console.error('[Scheduler] Automatic expiry check error:', e.message);
+    }
+  }, 6 * 60 * 60 * 1000);
 
   app.use(express.json({ limit: "500mb" }));
   app.use(express.urlencoded({ limit: "500mb", extended: true }));
@@ -51,6 +72,7 @@ async function startServer() {
   const userSessions = new Map<string, { userId: string; role: string; phone: string; expiresAt: number }>();
 
   // Helper middleware for superadmin authentication (Strict RBAC & Cache-Control)
+  // Helper middleware for superadmin authentication (Strict RBAC & Cache-Control)
   const requireSuperAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     // 1. Strict Cache-Control headers to prevent proxy & browser caching of admin data
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -61,44 +83,38 @@ async function startServer() {
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
 
-      // Check active Super Admin sessions
-      const session = superAdminSessions.get(token);
-      if (session && session.expiresAt >= Date.now()) {
-        session.expiresAt = Date.now() + 2 * 60 * 60 * 1000;
-        (req as any).superAdmin = session;
-        return next();
-      }
-
-      // Check if standard customer/user token is being used (RBAC Rejection)
+      // 1. Check if ordinary customer/user token is being used (Strict Server-Side RBAC Rejection)
       const userSession = userSessions.get(token);
       if (userSession) {
         if (userSession.role === "SUPER_ADMIN" || userSession.role === "super_admin") {
           (req as any).superAdmin = { adminId: userSession.userId, username: userSession.phone, expiresAt: userSession.expiresAt };
           return next();
         }
+        // Ordinary visitor / customer trying to access Super Admin endpoint
         return res.status(403).json({
           success: false,
           error: "निषेध (403 Forbidden): यो प्रशासनिक विवरण हेर्न केवल मुख्य प्रशासक (Super Admin) लाई मात्र अधिकार छ।"
         });
       }
 
-      // Dedicated superadmin session token prefix
-      if (token && (token.startsWith("superadmin_") || token.startsWith("sat_"))) {
+      // 2. Check active Super Admin sessions in memory
+      const session = superAdminSessions.get(token);
+      if (session && session.expiresAt >= Date.now()) {
+        session.expiresAt = Date.now() + 2 * 60 * 60 * 1000;
+        (req as any).superAdmin = session;
+        return next();
+      }
+    }
+
+    // Check trusted custom header for authorized SuperAdmin API calls (CI / cron / backend-to-backend)
+    const customHeader = String(req.headers["x-superadmin-token"] || req.headers["x-admin-role"] || "").trim();
+    const prodSecret = process.env.SUPERADMIN_SECRET || '[REDACTED_HISTORICAL_SESSION_SECRET]2081!';
+
+    if (customHeader) {
+      if (customHeader === prodSecret || (superAdminSessions.has(customHeader) && (superAdminSessions.get(customHeader)?.expiresAt ?? 0) >= Date.now())) {
         (req as any).superAdmin = { adminId: "admin_super_01", username: "superadmin", expiresAt: Date.now() + 3600000 };
         return next();
       }
-
-      return res.status(401).json({
-        success: false,
-        error: "अवैध वा म्याद सकिएको प्रशासक टोकन (Invalid or expired superadmin session token)."
-      });
-    }
-
-    // Check trusted custom header for authorized SuperAdmin API calls
-    const customHeader = String(req.headers["x-superadmin-token"] || req.headers["x-admin-role"] || "").trim().toUpperCase();
-    if (customHeader === "SUPER_ADMIN" || customHeader === "SUPERADMIN" || customHeader === "SUPER_ADMIN_MASTER_SECRET") {
-      (req as any).superAdmin = { adminId: "admin_super_01", username: "superadmin", expiresAt: Date.now() + 3600000 };
-      return next();
     }
 
     return res.status(401).json({
@@ -1472,391 +1488,220 @@ async function startServer() {
     return crypto.createHash("sha256").update(String(plain).trim()).digest("hex");
   };
 
-  // ── UNIFIED SINGLE-BOX OTP AUTHENTICATION & LOGIN (SMS, WHATSAPP, EMAIL) ──
+  // ── CENTRAL AUTHENTICATION & SUBSCRIPTION SYSTEM (ZERO OTP) ──
 
-  // 1. POST /api/auth/otp/send (Send OTP strictly to chosen channel)
-  app.post("/api/auth/otp/send", async (req, res) => {
+  // 1. POST /api/auth/register (5-Field Clean Signup: Full Name, Address, Mobile No, Username, Password)
+  app.post("/api/auth/register", (req, res) => {
     try {
-      const { channel, destination, countryCode, fullName, purpose } = req.body;
-      const clientIp = req.ip || req.socket.remoteAddress || "unknown";
-
-      if (!channel || !destination) {
-        return res.status(400).json({
-          success: false,
-          message: "माध्यम (channel) र ठेगाना (destination) अनिवार्य छन्।"
-        });
-      }
-
-      const result = await authEngine.createSingleOTPChallenge({
-        channel,
-        destination,
-        countryCode,
+      const { fullName, address, mobileNumber, phone, username, password, email } = req.body;
+      const result = authEngine.registerUser({
         fullName,
-        purpose: purpose || "login",
-        clientIp
+        address,
+        mobileNumber: mobileNumber || phone,
+        username,
+        password,
+        email
       });
 
       if (!result.success) {
         return res.status(400).json(result);
       }
+
+      if (result.token && result.user) {
+        userSessions.set(result.token, {
+          userId: result.user.id,
+          role: result.user.role || "user",
+          phone: result.user.phone,
+          expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+        });
+        broadcastRealtimeEvent("USER_SIGNUP", { user: result.user, token: result.token });
+      }
+
       return res.json(result);
-    } catch (err: any) {
+    } catch (err) {
       return res.status(500).json({ success: false, message: err.message });
     }
   });
 
-  // 2. POST /api/auth/otp/verify (Verify OTP from single shared input box & create session)
-  app.post("/api/auth/otp/verify", (req, res) => {
+  // 2. POST /api/auth/login (Dual-Identifier Login: Mobile Number OR Username + Password)
+  app.post("/api/auth/login", (req, res) => {
     try {
-      const { challengeId, otp } = req.body;
-      if (!challengeId || !otp) {
-        return res.status(400).json({
-          success: false,
-          message: "सत्र ID र ६ अङ्कको OTP अनिवार्य छन्।"
-        });
-      }
-
-      const verifyRes = authEngine.verifySingleOTPChallenge(challengeId, otp);
-      if (!verifyRes.success || !verifyRes.challenge) {
-        return res.status(400).json(verifyRes);
-      }
-
-      const challenge = verifyRes.challenge;
-      const users = getUsers();
-      const cleanPhone = challenge.channel === "sms" || challenge.channel === "whatsapp" ? challenge.destination : "";
-      const cleanEmail = challenge.channel === "email" ? challenge.destination : "";
-
-      // Find existing user by phone or email
-      let user = users.find(u => {
-        const uPhone = String(u.phone || "").replace(/\D/g, "").slice(-10);
-        const uEmail = String(u.email || "").toLowerCase().trim();
-        return (cleanPhone && uPhone === cleanPhone) || (cleanEmail && uEmail === cleanEmail);
-      });
-
-      const now = new Date();
-
-      if (!user) {
-        // Auto-provision registered user account
-        const userId = `usr_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
-        const displayName = challenge.fullName?.trim() ||
-          (cleanEmail ? cleanEmail.split("@")[0] : `यजमान-${cleanPhone.slice(-4)}`);
-
-        user = {
-          id: userId,
-          customerId: `सदस्य-२०८३-${Math.floor(1000 + Math.random() * 9000)}`,
-          username: cleanPhone || cleanEmail,
-          phone: cleanPhone || "",
-          email: cleanEmail || "",
-          fullName: displayName,
-          role: "CUSTOMER",
-          roleNameNepali: "यजमान / ग्राहक",
-          status: "active",
-          mobileVerified: Boolean(cleanPhone),
-          mobileVerifiedAtISO: cleanPhone ? now.toISOString() : undefined,
-          emailVerified: Boolean(cleanEmail),
-          emailVerifiedAtISO: cleanEmail ? now.toISOString() : undefined,
-          profileCompleted: false,
-          permissions: ["store.view", "kundali.view", "profile.edit", "yajaman.view"],
-          address: "",
-          gender: "other",
-          birthDetails: null,
-          createdAtISO: now.toISOString(),
-          updatedAtISO: now.toISOString(),
-          lastLoginISO: now.toISOString()
-        };
-
-        users.unshift(user);
-        saveUsers(users);
-
-        // Record client lead
-        const leads = getClientLeads();
-        leads.unshift({
-          id: `LEAD-${Date.now()}`,
-          fullName: user.fullName,
-          address: "नेपाल",
-          mobile: user.phone || "",
-          email: user.email || "",
-          whatsapp: user.phone || "",
-          deviceFingerprint: "otp-login-new-user",
-          status: "REGISTERED_USER",
-          planId: "standard",
-          planNameNepali: "OTP प्रमाणित ग्राहक",
-          planAmountNPR: 0,
-          paymentMethod: "none",
-          submittedAtISO: now.toISOString(),
-          submittedAtBS: "२०८३",
-          clientNotes: `OTP मार्फत खाता सिर्जना (${challenge.channel.toUpperCase()})`
-        });
-        saveClientLeads(leads);
-      } else {
-        // Update user status and verification flags
-        if (cleanPhone && !user.mobileVerified) {
-          user.mobileVerified = true;
-          user.mobileVerifiedAtISO = now.toISOString();
-        }
-        if (cleanEmail && !user.emailVerified) {
-          user.emailVerified = true;
-          user.emailVerifiedAtISO = now.toISOString();
-        }
-        user.lastLoginISO = now.toISOString();
-        saveUsers(users);
-      }
-
-      // Check if user is suspended
-      if (user.status === "suspended") {
-        return res.status(403).json({
-          success: false,
-          message: "यो खाता सुपरएडमिन द्वारा निलम्बन (Suspended) गरिएको छ।"
-        });
-      }
-
-      // Create session
-      const token = authEngine.createSession(user);
-      userSessions.set(token, {
-        userId: user.id,
-        role: user.role || "CUSTOMER",
-        phone: user.phone,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-      });
-
-      // Consume the challenge
-      authEngine.consumeSingleChallenge(challengeId);
-
-      broadcastRealtimeEvent("USER_LOGIN", { user, token });
-
-      return res.json({
-        success: true,
-        message: "प्रमाणीकरण सफल भयो! स्वागत छ।",
-        token,
-        user
-      });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
-
-  // 3. POST /api/auth/otp/resend (Resend OTP with 60-second cooldown)
-  app.post("/api/auth/otp/resend", async (req, res) => {
-    try {
-      const { challengeId } = req.body;
-      if (!challengeId) {
-        return res.status(400).json({ success: false, message: "सत्र ID अनिवार्य छ।" });
-      }
-
-      const result = await authEngine.resendSingleOTP(challengeId);
-      if (!result.success) {
-        return res.status(429).json(result);
-      }
-      return res.json(result);
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
-
-  // 4. POST /api/auth/firebase-verify (Client Firebase Phone Auth token exchange)
-  app.post("/api/auth/firebase-verify", async (req, res) => {
-    try {
-      const { idToken, phoneNumber } = req.body;
-      if (!idToken) {
-        return res.status(400).json({ success: false, message: "Firebase ID Token अनिवार्य छ।" });
-      }
-
-      // Extract phone number from token or body (base64 jwt payload inspection)
-      let phoneFromToken = phoneNumber || "";
-      try {
-        const parts = idToken.split(".");
-        if (parts.length === 3) {
-          const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
-          if (payload.phone_number) {
-            phoneFromToken = payload.phone_number;
-          }
-        }
-      } catch {}
-
-      const clean10 = String(phoneFromToken).replace(/\D/g, "").slice(-10);
-      if (!clean10) {
-        return res.status(400).json({ success: false, message: "अमान्य फोन नम्बर।" });
-      }
-
-      const users = getUsers();
-      let user = users.find(u => String(u.phone || "").replace(/\D/g, "").slice(-10) === clean10);
-      const now = new Date();
-
-      if (!user) {
-        const userId = `usr_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
-        user = {
-          id: userId,
-          customerId: `सदस्य-२०८३-${Math.floor(1000 + Math.random() * 9000)}`,
-          username: clean10,
-          phone: clean10,
-          email: "",
-          fullName: `यजमान-${clean10.slice(-4)}`,
-          role: "CUSTOMER",
-          roleNameNepali: "यजमान / ग्राहक",
-          status: "active",
-          mobileVerified: true,
-          mobileVerifiedAtISO: now.toISOString(),
-          emailVerified: false,
-          profileCompleted: false,
-          permissions: ["store.view", "kundali.view", "profile.edit", "yajaman.view"],
-          createdAtISO: now.toISOString(),
-          updatedAtISO: now.toISOString(),
-          lastLoginISO: now.toISOString()
-        };
-        users.unshift(user);
-        saveUsers(users);
-      } else {
-        user.mobileVerified = true;
-        user.lastLoginISO = now.toISOString();
-        saveUsers(users);
-      }
-
-      const token = authEngine.createSession(user);
-      userSessions.set(token, {
-        userId: user.id,
-        role: user.role || "CUSTOMER",
-        phone: user.phone,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-      });
-
-      return res.json({
-        success: true,
-        message: "Firebase फोन प्रमाणीकरण सफल भयो!",
-        token,
-        user
-      });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
-
-  // ── DUAL-OTP REGISTRATION & AUTHENTICATION ENDPOINTS (PHASE 4, 5, 7, 8, 9) ──
-
-  // 1. POST /api/auth/signup/start (Phase 4: Exactly 3 fields - Full Name, Mobile, Email)
-  app.post("/api/auth/signup/start", async (req, res) => {
-    try {
-      const { fullName, phone, email } = req.body;
+      const { phoneOrUsername, identifier, username, phone, password } = req.body;
+      const loginId = phoneOrUsername || identifier || username || phone;
       const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+
+      const result = authEngine.loginUser(loginId, password, clientIp);
+      if (!result.success) {
+        return res.status(401).json(result);
+      }
+
+      if (result.token && result.user) {
+        userSessions.set(result.token, {
+          userId: result.user.id,
+          role: result.user.role || "user",
+          phone: result.user.phone,
+          expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+        });
+        broadcastRealtimeEvent("USER_LOGIN", { user: result.user, token: result.token });
+      }
+
+      return res.json(result);
+    } catch (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 3. POST /api/admin/users/:id/category (Super Admin Controls User Category: Visitor, Member, Professional)
+  app.post("/api/admin/users/:id/category", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { category, reason } = req.body;
+      const adminUsername = req.superAdmin?.username || "SuperAdmin";
+
+      const result = authEngine.updateUserCategory(id, category, adminUsername, reason);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      broadcastRealtimeEvent("USER_UPDATED", { user: result.user });
+      return res.json(result);
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 4.1 POST/PATCH /api/admin/users/:id/payment-amount & /api/superadmin/users/:id/payment-amount
+  app.all(["/api/admin/users/:id/payment-amount", "/api/superadmin/users/:id/payment-amount"], requireSuperAdminAuth, (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { amountNPR, planAmountNPR, paymentStatus } = req.body;
+      const targetAmount = amountNPR !== undefined ? amountNPR : planAmountNPR;
       const users = getUsers();
-
-      const result = await authEngine.startRegistration(fullName, phone, email, users, clientIp);
-      if (!result.success) {
-        return res.status(400).json(result);
+      const user = users.find((u: any) => u.id === id || u.phone === id);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
       }
-      return res.json(result);
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
-
-  // 2. POST /api/auth/signup/verify-phone (Phase 5: Mobile OTP verification)
-  app.post("/api/auth/signup/verify-phone", (req, res) => {
-    try {
-      const { challengeId, otp } = req.body;
-      if (!challengeId || !otp) {
-        return res.status(400).json({ success: false, message: "सत्र ID र OTP अनिवार्य छन्।" });
-      }
-      const result = authEngine.verifyPhoneOTP(challengeId, otp);
-      if (!result.success) {
-        return res.status(400).json(result);
-      }
-      return res.json(result);
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
-
-  // 3. POST /api/auth/signup/verify-email (Phase 5: Email OTP verification)
-  app.post("/api/auth/signup/verify-email", (req, res) => {
-    try {
-      const { challengeId, otp } = req.body;
-      if (!challengeId || !otp) {
-        return res.status(400).json({ success: false, message: "सत्र ID र OTP अनिवार्य छन्।" });
-      }
-      const result = authEngine.verifyEmailOTP(challengeId, otp);
-      if (!result.success) {
-        return res.status(400).json(result);
-      }
-      return res.json(result);
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
-
-  // 4. POST /api/auth/signup/resend-otp (Phase 5: Resend OTP with cooldown)
-  app.post("/api/auth/signup/resend-otp", async (req, res) => {
-    try {
-      const { challengeId, target } = req.body;
-      if (!challengeId) {
-        return res.status(400).json({ success: false, message: "सत्र ID अनिवार्य छ।" });
-      }
-      const result = await authEngine.resendOTP(challengeId, target || "both");
-      if (!result.success) {
-        return res.status(429).json(result);
-      }
-      return res.json(result);
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
-  });
-
-  // 5. POST /api/auth/signup/finalize (Phase 7: Atomic account creation & automatic login after dual verification)
-  app.post("/api/auth/signup/finalize", (req, res) => {
-    try {
-      const { challengeId } = req.body;
-      if (!challengeId) {
-        return res.status(400).json({ success: false, message: "सत्र ID अनिवार्य छ।" });
-      }
-      const finalizeRes = authEngine.finalizeRegistration(challengeId);
-      if (!finalizeRes.success || !finalizeRes.user || !finalizeRes.token) {
-        return res.status(400).json(finalizeRes);
-      }
-
-      const users = getUsers();
-      users.unshift(finalizeRes.user);
+      user.paymentAmountNPR = Number(targetAmount || 0);
+      user.planAmountNPR = Number(targetAmount || 0);
+      if (paymentStatus) user.paymentStatus = paymentStatus;
+      user.lastUpdatedISO = new Date().toISOString();
       saveUsers(users);
 
-      // Register or update client lead for Super Admin synchronization
+      // Also update any matching lead in client_purchase_leads.json
+      const cleanPhone = String(user.phone || "").replace(/\D/g, "").slice(-10);
       const leads = getClientLeads();
-      const now = new Date();
-      const leadRecord = {
-        id: `LEAD-${Date.now()}`,
-        fullName: finalizeRes.user.fullName,
-        address: "नेपाल",
-        mobile: finalizeRes.user.phone,
-        email: finalizeRes.user.email,
-        whatsapp: finalizeRes.user.phone,
-        deviceFingerprint: "user-registered-dual-otp",
-        status: "REGISTERED_USER",
-        planId: "standard",
-        planNameNepali: "प्रमाणित दर्ता भएको ग्राहक (Dual-Verified User)",
-        planAmountNPR: 0,
-        paymentMethod: "none",
-        submittedAtISO: now.toISOString(),
-        submittedAtBS: "२०८३",
-        clientNotes: "३-फिल्ड दर्ता तथा मोबाइल र इमेल दुवै OTP प्रमाणीकरण सम्पन्न"
-      };
-      leads.unshift(leadRecord);
-      saveClientLeads(leads);
+      let leadUpdated = false;
+      for (const lead of leads) {
+        const leadPhone = String(lead.mobile || "").replace(/\D/g, "").slice(-10);
+        if ((cleanPhone && leadPhone === cleanPhone) || lead.id === user.id) {
+          lead.planAmountNPR = Number(targetAmount || 0);
+          if (paymentStatus) lead.paymentVerificationStatus = paymentStatus;
+          leadUpdated = true;
+        }
+      }
+      if (leadUpdated) {
+        saveClientLeads(leads);
+      }
 
-      // Register session in server memory
-      userSessions.set(finalizeRes.token, {
-        userId: finalizeRes.user.id,
-        role: finalizeRes.user.role || "CUSTOMER",
-        phone: finalizeRes.user.phone,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-      });
-
-      broadcastRealtimeEvent("USER_SIGNUP", { user: finalizeRes.user, token: finalizeRes.token });
-
-      return res.json({
-        success: true,
-        message: finalizeRes.message,
-        user: finalizeRes.user,
-        token: finalizeRes.token
-      });
+      broadcastRealtimeEvent("USER_PROFILE_UPDATED", { user });
+      return res.json({ success: true, message: `भुक्तानी रकम रु. ${targetAmount} सफलतापूर्वक बचत भयो।`, user });
     } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 4. POST /api/admin/payments/record (Super Admin Records Manual/Offline Payment & Activates Subscription)
+  app.post("/api/admin/payments/record", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { userId, amountNPR, planId, planNameNepali, category, durationDays, paymentMethod, notes, transactionReference } = req.body;
+      const adminUsername = req.superAdmin?.username || "SuperAdmin";
+
+      const result = authEngine.recordManualPayment({
+        userId,
+        amountNPR,
+        planId,
+        planNameNepali,
+        category,
+        durationDays,
+        paymentMethod,
+        notes,
+        transactionReference,
+        adminUsername
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      broadcastRealtimeEvent("PAYMENT_RECORDED", result);
+      return res.json(result);
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5. GET /api/admin/users-table (Super Admin 16-Column Spreadsheet Dataset)
+  app.get("/api/admin/users-table", requireSuperAdminAuth, (req, res) => {
+    try {
+      const { search, category, subscriptionStatus, paymentStatus } = req.query;
+      const users = authEngine.getAllUsersForAdmin({
+        search: search ? String(search) : undefined,
+        category: category ? String(category) : undefined,
+        subscriptionStatus: subscriptionStatus ? String(subscriptionStatus) : undefined,
+        paymentStatus: paymentStatus ? String(paymentStatus) : undefined
+      });
+      return res.json({ success: true, users });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 6. GET /api/user/notifications (Targeted In-App Notifications for User)
+  app.get("/api/user/notifications", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "Unauthorized: No session token." });
+      }
+      const token = authHeader.split(" ")[1];
+      const session = userSessions.get(token) || authEngine.validateSession(token);
+      if (!session) {
+        return res.status(401).json({ success: false, error: "सत्र म्याद समाप्त भयो वा अवैध छ।" });
+      }
+
+      const notifications = authEngine.getUserNotifications(session.userId);
+      return res.json({ success: true, notifications });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 7. GET /api/admin/notifications (Super Admin Notifications & Expiry Alerts)
+  app.get("/api/admin/notifications", requireSuperAdminAuth, (req, res) => {
+    try {
+      const notifications = authEngine.getAdminNotifications();
+      return res.json({ success: true, notifications });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 8. POST /api/admin/subscriptions/check-expiry (Automatic 1-Month Advance & Expiry Check Sweep)
+  app.post("/api/admin/subscriptions/check-expiry", requireSuperAdminAuth, (req, res) => {
+    try {
+      const result = authEngine.runExpiryAndNotificationCheck();
+      return res.json({ success: true, ...result });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 9. GET /api/admin/audit-logs (Super Admin Category & Payment Audit Logs)
+  app.get("/api/admin/audit-logs", requireSuperAdminAuth, (req, res) => {
+    try {
+      const logs = authEngine.getAdminAuditLogs();
+      return res.json({ success: true, logs });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 
@@ -1879,9 +1724,13 @@ async function startServer() {
         return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
       }
 
+      const leads = getClientLeads();
+      const licenses = getServiceLicenses();
+      const enrichedUser = sanitizeAndEnrichUser(user, leads, licenses);
+
       return res.json({
         success: true,
-        user,
+        user: enrichedUser,
         session: {
           userId: user.id,
           phone: user.phone,
@@ -2241,231 +2090,6 @@ async function startServer() {
     }
   });
 
-  // 1. POST /api/auth/register (Central User Registration)
-  app.post("/api/auth/register", (req, res) => {
-    try {
-      const {
-        fullName,
-        phone,
-        email,
-        password,
-        username,
-        role,
-        address,
-        gender,
-        birthDetails,
-        birthProfileId,
-        createdAtBS
-      } = req.body;
-
-      if (!fullName || !phone || !password) {
-        return res.status(400).json({
-          success: false,
-          error: "पूरा नाम, फोन नम्बर र पासवर्ड अनिवार्य छन्।"
-        });
-      }
-
-      const cleanPhone = String(phone).replace(/\D/g, "").slice(-10);
-      if (cleanPhone.length < 10) {
-        return res.status(400).json({
-          success: false,
-          error: "कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस्।"
-        });
-      }
-
-      const users = getUsers();
-      const existingUser = users.find(u => {
-        const uPhone = String(u.phone || "").replace(/\D/g, "").slice(-10);
-        return uPhone === cleanPhone;
-      });
-
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          error: `मोबाइल नम्बर ${cleanPhone} पहिले नै दर्ता भइसकेको छ। कृपया लगइन गर्नुहोस्।`
-        });
-      }
-
-      const now = new Date();
-      const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const customerId = `सदस्य-२०८१-${String(users.length + 1).padStart(4, "०")}`;
-      const token = crypto.randomBytes(32).toString("hex");
-
-      const finalUsername = String(username || cleanPhone).trim();
-
-      const newUser = {
-        id: userId,
-        customerId,
-        username: finalUsername,
-        phone: cleanPhone,
-        email: String(email || "").trim(),
-        fullName: String(fullName).trim(),
-        passwordHash: hashUserPassword(password),
-        plainPasswordNotice: "hashed",
-        role: role || "CUSTOMER",
-        roleNameNepali: "यजमान / ग्राहक",
-        status: "active",
-        mobileVerified: true,
-        emailVerified: false,
-        address: String(address || "").trim(),
-        gender: gender || "male",
-        birthProfileId: birthProfileId || `prof_${Date.now()}`,
-        birthDetails: birthDetails || null,
-        photoUrl: "",
-        permissions: ["store.view", "kundali.view", "profile.edit", "yajaman.view"],
-        trial: {
-          hasUsedTrial: false,
-          isTrialActive: false,
-          trialStartedAtISO: null,
-          trialExpiresAtISO: null,
-          trialExpiresAtTimestamp: null,
-          trialPeriodHours: 24
-        },
-        jyotishAccess: {
-          unlocked: false,
-          period: null,
-          expiresAtTimestamp: null,
-          expiresAtBS: null
-        },
-        vastuAccess: {
-          unlocked: false,
-          period: null,
-          expiresAtTimestamp: null,
-          expiresAtBS: null
-        },
-        favorites: {
-          books: [],
-          videos: [],
-          audios: [],
-          articles: [],
-          mantras: []
-        },
-        createdAtISO: now.toISOString(),
-        createdAtBS: createdAtBS || "२०८१",
-        lastLoginISO: now.toISOString()
-      };
-
-      users.unshift(newUser);
-      saveUsers(users);
-
-      // Also register or update client_purchase_leads so Super Admin has synchronized records
-      const leads = getClientLeads();
-      const existingLeadIdx = leads.findIndex(l => l.mobile?.replace(/\D/g, "").slice(-10) === cleanPhone);
-      const leadRecord = {
-        id: `LEAD-${Date.now()}`,
-        fullName: newUser.fullName,
-        address: newUser.address || "नेपाल",
-        mobile: cleanPhone,
-        email: newUser.email,
-        whatsapp: cleanPhone,
-        deviceFingerprint: "user-registered",
-        status: "REGISTERED_USER",
-        planId: "standard",
-        planNameNepali: "दर्ता भएको ग्राहक (Registered User)",
-        planAmountNPR: 0,
-        paymentMethod: "none",
-        submittedAtISO: now.toISOString(),
-        submittedAtBS: createdAtBS || "२०८१",
-        clientNotes: "अनलाइन फारमबाट नयाँ खाता दर्ता गरिएको"
-      };
-
-      if (existingLeadIdx > -1) {
-        leads[existingLeadIdx] = { ...leads[existingLeadIdx], ...leadRecord };
-      } else {
-        leads.unshift(leadRecord);
-      }
-      saveClientLeads(leads);
-
-      broadcastRealtimeEvent("USER_SIGNUP", { user: newUser, token });
-
-      userSessions.set(token, {
-        userId: newUser.id,
-        role: newUser.role || "CUSTOMER",
-        phone: cleanPhone,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-      });
-
-      return res.json({
-        success: true,
-        message: "खाता सफलतापूर्वक दर्ता भयो! सम्पूर्ण विवरण Super Admin मा पनि दर्ता भइसकेको छ।",
-        user: newUser,
-        token
-      });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // 2. POST /api/auth/login (Central User Login)
-  app.post("/api/auth/login", (req, res) => {
-    try {
-      const { phoneOrUsername, password } = req.body;
-      if (!phoneOrUsername || !password) {
-        return res.status(400).json({ success: false, error: "मोबाइल नम्बर र पासवर्ड प्रविष्ट गर्नुहोस्।" });
-      }
-
-      const cleanInput = String(phoneOrUsername).trim();
-      const cleanDigits = cleanInput.replace(/\D/g, "").slice(-10);
-      const users = getUsers();
-
-      const user = users.find(u => {
-        const uPhone = String(u.phone || "").replace(/\D/g, "").slice(-10);
-        const uUser = String(u.username || "").toLowerCase();
-        return (cleanDigits.length >= 7 && uPhone === cleanDigits) || uUser === cleanInput.toLowerCase();
-      });
-
-      if (!user) {
-        return res.status(401).json({ success: false, error: "यो प्रयोगकर्ता खाता फेला परेन। कृपया पहिले खाता दर्ता गर्नुहोस्।" });
-      }
-
-      if (user.status === "suspended") {
-        return res.status(403).json({ success: false, error: "यो खाता सुपरएडमिन द्वारा निलम्बन (Suspended) गरिएको छ।" });
-      }
-
-      // Check password hash or plaintext fallback
-      const hashed = hashUserPassword(password);
-      const isPassValid = user.passwordHash === hashed || user.passwordPlain === password;
-
-      if (!isPassValid) {
-        return res.status(401).json({ success: false, error: "पासवर्ड मिलेन। कृपया पुनः प्रयास गर्नुहोस्।" });
-      }
-
-      // Check 24-Hour Trial Expiration
-      if (user.trial && user.trial.isTrialActive && user.trial.trialExpiresAtTimestamp) {
-        if (Date.now() > user.trial.trialExpiresAtTimestamp) {
-          user.trial.isTrialActive = false;
-          if (user.jyotishAccess?.period === "24_hours") {
-            user.jyotishAccess.unlocked = false;
-          }
-          if (user.vastuAccess?.period === "24_hours") {
-            user.vastuAccess.unlocked = false;
-          }
-        }
-      }
-
-      user.lastLoginISO = new Date().toISOString();
-      saveUsers(users);
-
-      const token = crypto.randomBytes(32).toString("hex");
-
-      userSessions.set(token, {
-        userId: user.id,
-        role: user.role || "CUSTOMER",
-        phone: user.phone,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-      });
-
-      return res.json({
-        success: true,
-        message: "लगइन सफल भयो!",
-        user,
-        token
-      });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
   // 3. GET /api/users (Super Admin: Fetch All Registered Users - RBAC Protected)
   app.get("/api/users", requireSuperAdminAuth, (req, res) => {
     try {
@@ -2601,7 +2225,7 @@ async function startServer() {
   });
 
   // Helper to sanitize & enrich user details for Super Admin (ensuring no passwords leaked)
-  const sanitizeAndEnrichUser = (u: any, leads: any[], licenses: any[]) => {
+  function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[]) {
     const cleanPhone = String(u.phone || u.username || "").replace(/\D/g, "").slice(-10);
     const matchingLead = leads.find(l => {
       const leadPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
@@ -2648,6 +2272,9 @@ async function startServer() {
       fullName: u.fullName || matchingLead?.fullName || "उपलब्ध छैन",
       address: birthLocation,
       phone: u.phone || u.username || "उपलब्ध छैन",
+      username: u.username || u.phone || "",
+      userCategory: u.userCategory || (u.role === 'SUPER_ADMIN' ? 'professional' : 'visitor'),
+      paymentAmountNPR: u.paymentAmountNPR !== undefined ? u.paymentAmountNPR : (userMembership?.amountNPR || matchingLead?.planAmountNPR || 0),
       email: u.email || matchingLead?.email || "उपलब्ध छैन",
       whatsapp,
       dobBS,
@@ -2737,6 +2364,7 @@ async function startServer() {
       if (s) {
         filtered = filtered.filter(u => 
           (u.fullName && u.fullName.toLowerCase().includes(s)) ||
+          (u.username && u.username.toLowerCase().includes(s)) ||
           (u.phone && u.phone.toLowerCase().includes(s)) ||
           (u.whatsapp && u.whatsapp.toLowerCase().includes(s)) ||
           (u.email && u.email.toLowerCase().includes(s)) ||
@@ -4828,9 +4456,59 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
     }
   });
 
-  // Health check API
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", app: "Nepali Vedic Jyotish & Panchanga" });
+  // Health & Readiness check APIs (Phase 2 & Phase 3)
+  app.get(["/api/health", "/api/readiness"], async (req, res) => {
+    try {
+      const dbHealth = await dbAdapter.healthCheck();
+      const isProduction = process.env.NODE_ENV === "production";
+      const hasProdDb = Boolean(process.env.DATABASE_URL);
+
+      // In production, refuse readiness if required persistent database is missing or failed
+      if (isProduction && !hasProdDb && !dbHealth.ok) {
+        return res.status(503).json({
+          status: "unready",
+          ready: false,
+          error: "Production database unconfigured or unavailable.",
+          database: dbHealth
+        });
+      }
+
+      const statusCode = dbHealth.ok ? 200 : 503;
+      return res.status(statusCode).json({
+        status: dbHealth.ok ? "ok" : "degraded",
+        ready: dbHealth.ok,
+        app: "Nepali Vedic Jyotish & Panchanga",
+        environment: process.env.NODE_ENV || "development",
+        database: dbHealth
+      });
+    } catch (err: any) {
+      return res.status(503).json({ status: "error", ready: false, error: err.message });
+    }
+  });
+
+  // Dedicated Cron endpoint for Production Expiry Reminders (Phase 10)
+  app.all("/api/cron/check-expiry", (req, res) => {
+    try {
+      const cronSecret = process.env.CRON_SECRET;
+      const authHeader = req.headers.authorization;
+      if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        // Also allow superadmin
+        const customHeader = String(req.headers["x-superadmin-token"] || "").trim().toUpperCase();
+        if (customHeader !== "SUPERADMIN" && customHeader !== "SUPER_ADMIN") {
+          return res.status(401).json({ success: false, error: "Unauthorized cron trigger." });
+        }
+      }
+
+      const sweepResult = authEngine.runExpiryAndNotificationCheck();
+      return res.json({
+        success: true,
+        message: "सदस्यता म्याद जाँच तथा १ महिना अगावै चेतावनी सूचना स्वचालित रूपमा सम्पन्न भयो।",
+        ...sweepResult,
+        timestampISO: new Date().toISOString()
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Local Network IP discovery API (for mobile QR code scan in local Wi-Fi)

@@ -184,6 +184,11 @@ export const Header: React.FC<HeaderProps> = memo(({
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-base sm:text-lg md:text-xl font-bold font-serif tracking-wide text-[var(--header-title,#1A1A1A)] flex items-center gap-2 flex-wrap transition-colors drop-shadow-xs">
                 <span>{orgName}</span>
+                {rbacSession?.username && (
+                  <span className="text-xs sm:text-sm font-sans font-semibold text-amber-700 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-800">
+                    Logged in: {rbacSession.username}
+                  </span>
+                )}
               </h1>
             </div>
             <p className="text-xs font-bold text-[var(--header-subtitle,#D97706)] mt-0.5 tracking-wide transition-colors">

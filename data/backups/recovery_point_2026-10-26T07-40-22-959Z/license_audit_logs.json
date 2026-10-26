@@ -1,0 +1,68 @@
+[
+  {
+    "id": "audit_reset_1792320129052",
+    "timestampISO": "2026-10-18T10:42:09.064Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792320129052.json"
+  },
+  {
+    "id": "audit_reset_1792320017694",
+    "timestampISO": "2026-10-18T10:40:17.705Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792320017694.json"
+  },
+  {
+    "id": "audit_reset_1792310582507",
+    "timestampISO": "2026-10-18T08:03:02.524Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792310582507.json"
+  },
+  {
+    "id": "audit_reset_1792306403423",
+    "timestampISO": "2026-10-18T06:53:23.441Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792306403423.json"
+  },
+  {
+    "id": "audit_reset_1792305597770",
+    "timestampISO": "2026-10-18T06:39:57.801Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792305597770.json"
+  },
+  {
+    "id": "audit_reset_1792305565274",
+    "timestampISO": "2026-10-18T06:39:25.307Z",
+    "timestampBS": "२०८१",
+    "performedBy": "superadmin",
+    "action": "CONTROLLED_USER_DATA_RESET",
+    "targetUserId": "ALL_USERS",
+    "targetUsername": "ALL_USERS",
+    "serviceKey": "all",
+    "details": "प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_1792305565274.json"
+  }
+]

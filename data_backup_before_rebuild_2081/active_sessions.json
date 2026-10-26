@@ -1,0 +1,74 @@
+{
+  "cf5d956f12d5922622f497647b335d462f8accec0e06c802741725fcf6caa511": {
+    "userId": "usr_1792748694458_e0aca3",
+    "phone": "9851223344",
+    "email": "sita.suvedi@example.com",
+    "fullName": "सीता देवी सुवेदी",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795340694458
+  },
+  "3312a94bf77a7a56cd07e5ca0c0ea10c0e6b6ed8162994ff7c467e158eb5fc48": {
+    "userId": "usr_1792753797756_70eff1",
+    "phone": "9808615255",
+    "email": "test.vedic.1792753797495@example.com",
+    "fullName": "पं. अच्युत शर्मा",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795345797756
+  },
+  "19a519350bf225428be62f01f53ca8299c3a2219cde13e17820e3e887ab66b9b": {
+    "userId": "usr_1792753840552_ca8727",
+    "phone": "9804837330",
+    "email": "test.vedic.1792753840349@example.com",
+    "fullName": "पं. अच्युत शर्मा",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795345840552
+  },
+  "3a17bdf2fc33f49a03d47b8bfd5493856df1d425bcd6646ae98edcb04615facc": {
+    "userId": "usr_1792754561615_81f36c",
+    "phone": "9764400533",
+    "email": "anteemakash@gmail.com",
+    "fullName": "सुवास भण्डारी",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795346561615
+  },
+  "b331fe7a678a0d1a7020420d5b19e28deaba802d9045292d303fdb5566156adb": {
+    "userId": "usr_1792760157978_844af5",
+    "phone": "9852624135",
+    "email": "subashdaibhai@gmail.com",
+    "fullName": "सुवास भाण्डारी",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795352157978
+  },
+  "856e23bde1397577ac446b420fd7d72498549533820fd3edf187028bd39bd077": {
+    "userId": "usr_1792760506194_a6542c",
+    "phone": "9764400532",
+    "email": "anteemakaesh@gmail.com",
+    "fullName": "antim akash",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795352506194
+  },
+  "ff3c18020593c59a96c77bb63a9e151bb8a31ca5cba46646f77ee9bc8d33b43d": {
+    "userId": "usr_1792760855383_7c82a8",
+    "phone": "9854563434",
+    "email": "anteemafkash@gmail.com",
+    "fullName": "antim akash",
+    "role": "CUSTOMER",
+    "profileCompleted": false,
+    "expiresAt": 1795352855383
+  },
+  "c19ecb6cc8bcb7ee220f258b10de24ff329e646a27dd3375b8668c78b17a2c3d": {
+    "userId": "usr_1792754561615_81f36c",
+    "phone": "9764400533",
+    "email": "anteemakash@gmail.com",
+    "fullName": "सुवास भण्डारी",
+    "role": "CUSTOMER",
+    "profileCompleted": true,
+    "expiresAt": 1795412664919
+  }
+}

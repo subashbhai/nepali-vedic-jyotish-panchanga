@@ -6,9 +6,10 @@
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
-import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult, Auth } from 'firebase/auth';
+import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult, Auth, UserCredential } from 'firebase/auth';
 import { apiClient } from './apiClient';
 import { RBACSession, setRBACSession } from '../db/rbacStore';
+import { fromDevanagariNumerals } from '../utils/nepaliCalendar';
 
 export interface FirebaseClientConfig {
   apiKey: string;
@@ -35,6 +36,66 @@ export const BALANANDA_FIREBASE_CONFIG: FirebaseClientConfig = {
 let firebaseAppInstance: FirebaseApp | null = null;
 let firebaseAuthInstance: Auth | null = null;
 let firebaseAnalyticsInstance: Analytics | null = null;
+
+/**
+ * Normalizes and validates Nepal mobile phone numbers.
+ * Supports:
+ * - 98XXXXXXXX, 97XXXXXXXX, 96XXXXXXXX (10 digits)
+ * - +97798XXXXXXXX / 97798XXXXXXXX
+ * - 098XXXXXXXX
+ * - Spaces, dashes, parentheses and Devanagari numerals
+ */
+export function formatNepalPhoneNumber(rawPhone: string): {
+  isValid: boolean;
+  e164: string;
+  local10: string;
+  error?: string;
+} {
+  if (!rawPhone || !rawPhone.trim()) {
+    return {
+      isValid: false,
+      e164: '',
+      local10: '',
+      error: 'कृपया मोबाइल नम्बर प्रविष्ट गर्नुहोस्।'
+    };
+  }
+
+  // Convert any Devanagari numerals to Latin (९८... -> 98...)
+  const latinized = fromDevanagariNumerals(rawPhone.trim());
+  const cleanDigits = latinized.replace(/\D/g, '');
+
+  let local10 = '';
+  if (cleanDigits.startsWith('977') && cleanDigits.length === 13) {
+    local10 = cleanDigits.slice(3);
+  } else if (cleanDigits.startsWith('0') && cleanDigits.length === 11) {
+    local10 = cleanDigits.slice(1);
+  } else if (cleanDigits.length === 10) {
+    local10 = cleanDigits;
+  } else {
+    return {
+      isValid: false,
+      e164: '',
+      local10: '',
+      error: 'कृपया १० अङ्कको मान्य नेपाली मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx)।'
+    };
+  }
+
+  // Validate Nepal Telecom / Ncell / SmartCell mobile prefixes: 98, 97, 96
+  if (!/^(9[78]\d{8}|96\d{8})$/.test(local10)) {
+    return {
+      isValid: false,
+      e164: '',
+      local10,
+      error: 'नेपाली मोबाइल नम्बर ९८, ९७ वा ९६ बाट सुरु हुनुपर्छ (उदा: ९८४१२३४५६७)।'
+    };
+  }
+
+  return {
+    isValid: true,
+    e164: `+977${local10}`,
+    local10
+  };
+}
 
 /**
  * Initialize or retrieve Firebase App Singleton
@@ -87,12 +148,85 @@ if (typeof window !== 'undefined') {
 
 class FirebaseAuthService {
   private confirmationResult: ConfirmationResult | null = null;
+  private lastPhoneNumber: string = '';
+  private lastFormattedPhone: string = '';
+  private lastSentTimestamp: number = 0;
+  private lastVerifiedUid: string = '';
+  private lastVerifiedPhone: string = '';
 
   public isConfigured(): boolean {
     return Boolean(
       BALANANDA_FIREBASE_CONFIG.apiKey &&
-      BALANANDA_FIREBASE_CONFIG.apiKey.startsWith('AIza')
+      BALANANDA_FIREBASE_CONFIG.apiKey.startsWith('AIza') &&
+      BALANANDA_FIREBASE_CONFIG.projectId
     );
+  }
+
+  public getLastVerifiedUid(): string {
+    return this.lastVerifiedUid;
+  }
+
+  public getLastVerifiedPhone(): string {
+    return this.lastVerifiedPhone;
+  }
+
+  /**
+   * Safely clears any active reCAPTCHA verifier instance to prevent duplication errors
+   */
+  public clearRecaptcha(): void {
+    if (typeof window !== 'undefined' && (window as any).recaptchaVerifier) {
+      try {
+        (window as any).recaptchaVerifier.clear();
+      } catch (e) {
+        console.warn('[Firebase] Recaptcha clear notice:', e);
+      }
+      (window as any).recaptchaVerifier = null;
+    }
+  }
+
+  /**
+   * Ensures the reCAPTCHA container exists in the DOM and is visible for challenge prompts
+   */
+  private ensureContainer(containerId: string): HTMLElement {
+    if (typeof document === 'undefined') {
+      throw new Error('Browser environment required');
+    }
+    let container = document.getElementById(containerId);
+    if (!container) {
+      container = document.createElement('div');
+      container.id = containerId;
+      container.style.position = 'fixed';
+      container.style.bottom = '12px';
+      container.style.right = '12px';
+      container.style.zIndex = '999999';
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+
+  /**
+   * Initialize or retrieve a fresh RecaptchaVerifier
+   */
+  private getOrCreateRecaptchaVerifier(containerId: string): RecaptchaVerifier {
+    this.ensureContainer(containerId);
+
+    if ((window as any).recaptchaVerifier) {
+      return (window as any).recaptchaVerifier;
+    }
+
+    const auth = getFirebaseAuth();
+    const verifier = new RecaptchaVerifier(auth, containerId, {
+      size: 'invisible',
+      callback: () => {
+        // reCAPTCHA solved
+      },
+      'expired-callback': () => {
+        this.clearRecaptcha();
+      }
+    });
+
+    (window as any).recaptchaVerifier = verifier;
+    return verifier;
   }
 
   /**
@@ -100,81 +234,75 @@ class FirebaseAuthService {
    */
   async sendPhoneOTP(phoneNumber: string, containerId: string = 'recaptcha-container'): Promise<{
     success: boolean;
+    challengeId?: string;
+    formattedPhone?: string;
+    localPhone?: string;
     message: string;
-    needsRecaptcha?: boolean;
     error?: string;
   }> {
     if (!this.isConfigured()) {
       return {
         success: false,
-        message: 'Firebase कन्फिगरेसन अधुरो छ।'
+        message: 'Firebase कन्फिगरेसन अधुरो छ। कृपया Firebase API Key र Project ID जाँच गर्नुहोस्।'
       };
     }
 
+    // Validate Nepal phone number
+    const validation = formatNepalPhoneNumber(phoneNumber);
+    if (!validation.isValid) {
+      return {
+        success: false,
+        message: validation.error || 'कृपया मान्य १० अङ्कको नेपाली मोबाइल नम्बर प्रविष्ट गर्नुहोस्।'
+      };
+    }
+
+    const formattedPhone = validation.e164;
+
     try {
       const auth = getFirebaseAuth();
+      this.clearRecaptcha();
+      const verifier = this.getOrCreateRecaptchaVerifier(containerId);
 
-      // Ensure container exists in DOM
-      if (typeof document !== 'undefined' && !document.getElementById(containerId)) {
-        const div = document.createElement('div');
-        div.id = containerId;
-        div.style.display = 'none';
-        document.body.appendChild(div);
-      }
+      this.lastPhoneNumber = phoneNumber;
+      this.lastFormattedPhone = formattedPhone;
+      this.confirmationResult = null;
 
-      if (!(window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-          size: 'invisible',
-          callback: () => {
-            // reCAPTCHA solved
-          },
-          'expired-callback': () => {
-            if ((window as any).recaptchaVerifier) {
-              (window as any).recaptchaVerifier.clear();
-              (window as any).recaptchaVerifier = null;
-            }
-          }
-        });
-      }
-
-      const rawDigits = phoneNumber.replace(/\D/g, '');
-      const formattedPhone = phoneNumber.startsWith('+')
-        ? phoneNumber
-        : rawDigits.length === 10
-        ? `+977${rawDigits}`
-        : `+${rawDigits}`;
-
-      const confirmation = await signInWithPhoneNumber(
-        auth,
-        formattedPhone,
-        (window as any).recaptchaVerifier
-      );
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       this.confirmationResult = confirmation;
+      this.lastSentTimestamp = Date.now();
+
+      const challengeId = `fb_phone_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
       return {
         success: true,
-        message: `Firebase SMS मार्फत ${formattedPhone} मा सुरक्षा कोड पठाइयो।`
+        challengeId,
+        formattedPhone,
+        localPhone: validation.local10,
+        message: `Firebase आधिकारिक SMS मार्फत ${formattedPhone} मा ६-अङ्कको सुरक्षा कोड पठाइयो।`
       };
     } catch (err: any) {
       console.error('[Firebase Phone Auth] Send Error:', err);
-
-      // Reset reCAPTCHA on failure
-      if ((window as any).recaptchaVerifier) {
-        try {
-          (window as any).recaptchaVerifier.clear();
-          (window as any).recaptchaVerifier = null;
-        } catch {}
-      }
+      this.clearRecaptcha();
 
       let errorMsg = 'सुरक्षा कोड पठाउन सकिएन।';
       if (err.code === 'auth/invalid-phone-number') {
-        errorMsg = 'अमान्य मोबाइल नम्बर। कृपया १० अङ्कको सही नम्बर लेख्नुहोस्।';
+        errorMsg = 'अमान्य मोबाइल नम्बर। कृपया १० अङ्कको सही नेपाली नम्बर लेख्नुहोस्।';
+      } else if (err.code === 'auth/missing-phone-number') {
+        errorMsg = 'कृपया मोबाइल नम्बर प्रविष्ट गर्नुहोस्।';
       } else if (err.code === 'auth/too-many-requests') {
-        errorMsg = 'धेरै पटक प्रयास गरियो। सुरक्षाको लागि केही समय पर्खनुहोस्।';
+        errorMsg = 'धेरै पटक प्रयास गरियो। सुरक्षाको लागि केही समय (१-२ मिनेट) पर्खनुहोस्।';
       } else if (err.code === 'auth/quota-exceeded') {
-        errorMsg = 'दैनिक SMS कोटा समाप्त भयो। कृपया WhatsApp वा Email छनोट गर्नुहोस्।';
+        errorMsg = 'Firebase SMS दैनिक कोटा समाप्त भयो। कृपया Firebase Console मा Blaze (Pay-as-you-go) योजना सक्रिय गर्नुहोस्।';
+      } else if (err.code === 'auth/operation-not-allowed') {
+        errorMsg = 'Firebase मा Phone Provider सक्रिय (Enable) गरिएको छैन। कृपया Firebase Console > Authentication > Sign-in method मा Phone सक्रिय गर्नुहोस्।';
+      } else if (err.code === 'auth/captcha-check-failed') {
+        errorMsg = 'reCAPTCHA सुरक्षा प्रमाणीकरण असफल भयो। कृपया पृष्ठ रिफ्रेस गरी पुनः प्रयास गर्नुहोस्।';
+      } else if (err.code === 'auth/app-not-authorized') {
+        errorMsg = 'यो डोमेन Firebase मा आधिकारिक छैन। कृपया Firebase Console > Authentication > Settings > Authorized Domains मा यो डोमेन थप्नुहोस्।';
+      } else if (err.code === 'auth/network-request-failed') {
+        errorMsg = 'इन्टरनेट कनेक्सनमा समस्या आयो। कृपया इन्टरनेट जाँच गरी पुनः प्रयास गर्नुहोस्।';
       } else if (err.message) {
-        errorMsg = err.message;
+        errorMsg = `Firebase त्रुटि: ${err.message}`;
       }
 
       return {
@@ -186,27 +314,94 @@ class FirebaseAuthService {
   }
 
   /**
-   * Verify confirmation code entered by the user
+   * Resend Phone OTP via Firebase Phone Auth with 60-second cooldown protection
    */
-  async verifyCode(code: string): Promise<{
+  async resendPhoneOTP(containerId: string = 'recaptcha-container'): Promise<{
+    success: boolean;
+    remainingSeconds?: number;
+    message: string;
+  }> {
+    const now = Date.now();
+    const elapsed = Math.floor((now - this.lastSentTimestamp) / 1000);
+    if (elapsed < 60) {
+      const wait = 60 - elapsed;
+      return {
+        success: false,
+        remainingSeconds: wait,
+        message: `कृपया नयाँ सुरक्षा कोड पुनः माग्न ${wait} सेकेन्ड पर्खनुहोस्।`
+      };
+    }
+
+    if (!this.lastFormattedPhone && !this.lastPhoneNumber) {
+      return {
+        success: false,
+        message: 'पहिले मोबाइल नम्बर प्रविष्ट गरी कोड पठाउनुहोस्।'
+      };
+    }
+
+    const targetPhone = this.lastFormattedPhone || this.lastPhoneNumber;
+    const res = await this.sendPhoneOTP(targetPhone, containerId);
+    return {
+      success: res.success,
+      remainingSeconds: 60,
+      message: res.message
+    };
+  }
+
+  /**
+   * Verify confirmation code entered by the user.
+   * If purpose is 'signup', verifies telephone ownership and prepares for credentials step.
+   * If purpose is 'login', issues session and completes sign-in.
+   */
+  async verifyCode(
+    code: string,
+    purpose: 'login' | 'signup' = 'signup',
+    userDetails?: { fullName?: string }
+  ): Promise<{
     success: boolean;
     session?: RBACSession;
+    firebaseUid?: string;
+    phoneNumber?: string;
     message: string;
   }> {
     if (!this.confirmationResult) {
       return {
         success: false,
-        message: 'सक्रिय Firebase प्रमाणीकरण सत्र फेला परेन। कृपया कोड पुनः पठाउनुहोस्।'
+        message: 'सक्रिय Firebase प्रमाणीकरण सत्र फेला परेन। कृपया "नयाँ कोड पठाउनुहोस्" मा क्लिक गर्नुहोस्।'
+      };
+    }
+
+    const cleanCode = code.trim().replace(/\D/g, '');
+    if (cleanCode.length !== 6) {
+      return {
+        success: false,
+        message: 'कृपया ६ अङ्कको सुरक्षा कोड पूरा प्रविष्ट गर्नुहोस्।'
       };
     }
 
     try {
-      const userCredential = await this.confirmationResult.confirm(code.trim());
-      const idToken = await userCredential.user.getIdToken();
-      const phone = userCredential.user.phoneNumber || '९८xxxxxxxx';
+      const userCredential: UserCredential = await this.confirmationResult.confirm(cleanCode);
+      const user = userCredential.user;
+      const phone = user.phoneNumber || this.lastFormattedPhone || '९८xxxxxxxx';
+      const cleanMob = phone.replace(/^\+977/, '').replace(/^\+/, '');
 
+      this.lastVerifiedUid = user.uid;
+      this.lastVerifiedPhone = phone;
+
+      // For registration: verify phone ownership, but let user set username and password in Step 2
+      if (purpose === 'signup') {
+        return {
+          success: true,
+          firebaseUid: user.uid,
+          phoneNumber: phone,
+          message: 'मोबाइल नम्बर सफलतापूर्वक प्रमाणित भयो! अब आफ्नो प्रयोगकर्ता नाम र पासवर्ड सेट गर्नुहोस्।'
+        };
+      }
+
+      // For login: issue active session immediately
       // 1. Try exchanging with backend server if available
       try {
+        const idToken = await user.getIdToken();
         const res = await apiClient.post<any>('/api/auth/firebase-verify', {
           idToken,
           phoneNumber: phone
@@ -214,19 +409,19 @@ class FirebaseAuthService {
 
         const payload = (res.data || res) as any;
         if (res.success && payload?.token && payload?.user) {
-          const user = payload.user;
+          const u = payload.user;
           const session: RBACSession = {
             token: payload.token,
-            userId: user.id,
-            username: user.phone || user.username,
-            fullName: user.fullName,
-            role: user.role || 'CUSTOMER',
-            roleNameNepali: user.roleNameNepali || 'यजमान / ग्राहक',
+            userId: u.id,
+            username: u.phone || u.username,
+            fullName: u.fullName || userDetails?.fullName || 'वैदिक साधक',
+            role: u.role || 'CUSTOMER',
+            roleNameNepali: u.roleNameNepali || 'यजमान / ग्राहक',
             status: 'active',
-            permissions: user.permissions || ['store.view', 'kundali.view', 'profile.edit', 'yajaman.view'],
-            customerId: user.customerId,
-            phone: user.phone,
-            createdAtISO: user.createdAtISO || new Date().toISOString(),
+            permissions: u.permissions || ['store.view', 'kundali.view', 'profile.edit', 'yajaman.view'],
+            customerId: u.customerId,
+            phone: u.phone,
+            createdAtISO: u.createdAtISO || new Date().toISOString(),
             lastActivityISO: new Date().toISOString()
           };
 
@@ -234,23 +429,24 @@ class FirebaseAuthService {
           return {
             success: true,
             session,
+            firebaseUid: user.uid,
+            phoneNumber: phone,
             message: 'Firebase फोन प्रमाणीकरण सफल भयो! स्वागत छ।'
           };
         }
       } catch {
-        // Backend offline -> proceed with local session issuance
+        // Backend offline -> proceed with resilient local session
       }
 
-      // 2. Resilient local session issuance (for GitHub Pages / Offline)
-      const cleanMob = phone.replace(/^\+977/, '').replace(/^\+/, '');
-      const userId = `usr_fb_${userCredential.user.uid.slice(0, 8)}`;
+      // 2. Resilient local session issuance (for Firebase Hosting / Static / Offline)
+      const userId = `usr_fb_${user.uid.slice(0, 8)}`;
       const token = `tok_fb_${Date.now()}`;
 
       const session: RBACSession = {
         token,
         userId,
         username: cleanMob,
-        fullName: 'वैदिक साधक (Firebase प्रमाणित)',
+        fullName: userDetails?.fullName || 'वैदिक साधक',
         role: 'CUSTOMER',
         roleNameNepali: 'यजमान / ग्राहक',
         status: 'active',
@@ -265,15 +461,21 @@ class FirebaseAuthService {
       return {
         success: true,
         session,
+        firebaseUid: user.uid,
+        phoneNumber: phone,
         message: 'Firebase फोन प्रमाणीकरण सफल भयो! स्वागत छ।'
       };
     } catch (err: any) {
       console.error('[Firebase Phone Auth] Confirm Error:', err);
-      let errorMsg = 'गलत वा अमान्य OTP कोड।';
+      let errorMsg = 'गलत वा अमान्य सुरक्षा कोड।';
       if (err.code === 'auth/invalid-verification-code') {
-        errorMsg = 'गलत सुरक्षा कोड! कृपया पुनः जाँच्नुहोस्।';
+        errorMsg = 'तपाईंले प्रविष्ट गर्नुभएको ६-अङ्कको सुरक्षा कोड गलत छ। कृपया एसएमएसमा आएको कोड पुनः जाँच्नुहोस्।';
       } else if (err.code === 'auth/code-expired') {
-        errorMsg = 'सुरक्षा कोडको म्याद समाप्त भयो। कृपया नयाँ कोड माग्नुहोस्।';
+        errorMsg = 'सुरक्षा कोडको म्याद समाप्त भएको छ। कृपया "नयाँ कोड पठाउनुहोस्" मा क्लिक गर्नुहोस्।';
+      } else if (err.code === 'auth/session-expired') {
+        errorMsg = 'प्रमाणीकरण सत्र समाप्त भयो। कृपया कोड पुनः पठाउनुहोस्।';
+      } else if (err.message) {
+        errorMsg = err.message;
       }
       return {
         success: false,

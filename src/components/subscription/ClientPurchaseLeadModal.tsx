@@ -23,6 +23,7 @@ import {
 import {
   start24HourTrialAsync,
   submitPurchaseApplication,
+  submitPurchaseApplicationAsync,
   is24HourTrialActive,
   isDeviceTrialExpired,
   getTrialRemainingSeconds,
@@ -226,7 +227,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   };
 
   // Handler: Submit Purchase Application (Only after user confirmed plan and submits)
-  const handleSubmitPurchase = (e: React.FormEvent) => {
+  const handleSubmitPurchase = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -243,8 +244,8 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     const finalTx = transactionCode.trim() || 'भुक्तानी रुजु बाँकी (Pending eSewa)';
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const res = submitPurchaseApplication({
+    try {
+      const res = await submitPurchaseApplicationAsync({
         fullName: fullName.trim(),
         address: address.trim(),
         mobile: mobile.trim(),
@@ -263,7 +264,10 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
       } else {
         setErrorMsg(res.messageNepali);
       }
-    }, 400);
+    } catch {
+      setIsSubmitting(false);
+      setErrorMsg('खरिद आवेदन पठाउँदा समस्या भयो। कृपया पुनः प्रयास गर्नुहोस्।');
+    }
   };
 
   return (

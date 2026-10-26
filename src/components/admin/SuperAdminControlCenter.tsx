@@ -47,7 +47,8 @@ import {
   ArrowLeft,
   Smartphone,
   Server,
-  Download
+  Download,
+  Mail
 } from 'lucide-react';
 
 import {

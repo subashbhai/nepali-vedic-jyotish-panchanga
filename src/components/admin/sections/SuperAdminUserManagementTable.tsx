@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { unifiedUserSyncService, REALTIME_SSE_URL, getRealtimeSSEUrl, isLocalhostEnvironment } from '../../../services/unifiedUserSyncService';
+import { apiClient } from '../../../services/apiClient';
 import { ClientLead, getStoredClientLeads, saveClientLeads } from '../../../db/clientLeadStore';
 import { getStoredRBACUsers, saveRBACUsers } from '../../../db/rbacStore';
 import { isPermanentlyDeleted } from '../../../db/securityBlacklist';
@@ -134,28 +135,28 @@ export interface UserStats {
 
 function getSuperAdminAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   };
   try {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('balananda_superadmin_auth_token');
-      if (token) {
+      const token = localStorage.getItem('balananda_superadmin_jwt_v2') ||
+                    localStorage.getItem('balananda_superadmin_auth_token') ||
+                    localStorage.getItem('superadmin_token');
+      if (token && token !== 'SUPERADMIN' && token !== 'SUPER_ADMIN') {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      const adminRaw = localStorage.getItem('balananda_admin_active_session_v1');
-      if (adminRaw) {
-        const admin = JSON.parse(adminRaw);
-        if (admin?.role === 'super_admin' || admin?.role === 'SUPER_ADMIN') {
-          headers['x-superadmin-token'] = 'SUPER_ADMIN';
-        }
-      } else {
-        // Fallback master secret for development / admin session
-        headers['x-superadmin-token'] = 'SUPER_ADMIN';
+      const adminRaw = localStorage.getItem('balananda_superadmin_secure_session_v2');
+      if (adminRaw && !headers['Authorization']) {
+        try {
+          const admin = JSON.parse(adminRaw);
+          if (admin?.token && admin.token !== 'SUPERADMIN') {
+            headers['Authorization'] = `Bearer ${admin.token}`;
+          }
+        } catch {}
       }
     }
-  } catch {
-    headers['x-superadmin-token'] = 'SUPER_ADMIN';
-  }
+  } catch {}
   return headers;
 }
 
@@ -334,34 +335,33 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
       const purList = unifiedUserSyncService.getPurchasedUsers();
       setPurchasedUsers(purList);
 
-      // 2. Try Node.js Express server if available (/api/superadmin/users) on localhost
+      // 2. Try Node.js Express server (/api/superadmin/users)
       let serverUsers: SuperAdminUser[] = [];
       let serverStats: UserStats | null = null;
-      if (isLocalhostEnvironment()) {
-        try {
-          const params = new URLSearchParams({
-            search: debouncedSearch,
-            filter: filterType,
-            sort: sortBy,
-            page: String(currentPage),
-            limit: String(pageSize)
-          });
+      try {
+        const params = new URLSearchParams({
+          search: debouncedSearch,
+          filter: filterType,
+          sort: sortBy,
+          page: String(currentPage),
+          limit: String(pageSize)
+        });
 
-          const res = await fetch(`/api/superadmin/users?${params.toString()}`, {
-            headers: getSuperAdminAuthHeaders()
-          });
+        const targetUrl = apiClient.resolveUrl(`/api/superadmin/users?${params.toString()}`);
+        const res = await fetch(targetUrl, {
+          headers: getSuperAdminAuthHeaders()
+        });
 
-          const ct = res.headers.get('content-type') || '';
-          if (res.ok && ct.includes('application/json')) {
-            const data = await res.json();
-            if (data.success && Array.isArray(data.users)) {
-              serverUsers = data.users;
-              if (data.stats) serverStats = data.stats;
-            }
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.users)) {
+            serverUsers = data.users;
+            if (data.stats) serverStats = data.stats;
           }
-        } catch {
-          // Expected on GitHub Pages static deployment
         }
+      } catch (err) {
+        console.warn('[SuperAdminUserManagementTable] Server users fetch error:', err);
       }
 
       // 3. Build unified SuperAdminUser list
@@ -811,7 +811,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   const handleSaveEdit = async () => {
     if (!editModalUser) return;
     try {
-      const res = await fetch(`/api/superadmin/users/${editModalUser.id}`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${editModalUser.id}`), {
         method: 'PATCH',
         headers: getSuperAdminAuthHeaders(),
         body: JSON.stringify(editForm)
@@ -844,7 +844,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
       }
 
       // 2. Also send to Express API if running in background
-      fetch(`/api/superadmin/users/${targetUser.id}/status`, {
+      fetch(apiClient.resolveUrl(`/api/superadmin/users/${targetUser.id}/status`), {
         method: 'POST',
         headers: getSuperAdminAuthHeaders(),
         body: JSON.stringify({
@@ -876,7 +876,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   // Toggle Service Access (Jyotish / Vastu)
   const handleToggleService = async (user: SuperAdminUser, serviceKey: 'jyotish' | 'vastu', action: 'unlock' | 'lock', duration = '1_year') => {
     try {
-      const res = await fetch(`/api/users/${user.id}/permissions`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/users/${user.id}/permissions`), {
         method: 'POST',
         headers: getSuperAdminAuthHeaders(),
         body: JSON.stringify({
@@ -901,7 +901,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   // Reset or Activate Trial
   const handleTrialAction = async (user: SuperAdminUser, action: 'reset' | 'activate') => {
     try {
-      const res = await fetch(`/api/superadmin/users/${user.id}/trial`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${user.id}/trial`), {
         method: 'POST',
         headers: getSuperAdminAuthHeaders(),
         body: JSON.stringify({ action })
@@ -922,7 +922,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
   const handleAddNote = async () => {
     if (!adminNoteModalUser || !noteContent.trim()) return;
     try {
-      const res = await fetch(`/api/superadmin/users/${adminNoteModalUser.id}/notes`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${adminNoteModalUser.id}/notes`), {
         method: 'POST',
         headers: getSuperAdminAuthHeaders(),
         body: JSON.stringify({ note: noteContent })

@@ -11,6 +11,9 @@
       "**/*.pkg",
       "**/*.deb",
       "**/*.zip",
+      "**/*.cjs",
+      "**/*.cjs.map",
+      "server.*",
       "downloads/**"
     ],
     "rewrites": [

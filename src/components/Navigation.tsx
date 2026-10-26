@@ -71,10 +71,22 @@ import { ChangePasswordModal } from './auth/ChangePasswordModal';
 import { mobileHybridSync } from '../services/mobileHybridSync';
 
 // Public menus visible on the first screen before login (Jyotish & Vastu require active trial or purchase license)
+export const VISITOR_ALLOWED_TABS = new Set<NavTab>([
+  'faladesh',
+  'home',
+  'panchanga',
+  'membership',
+  'kharedi',
+  'vivah',
+  'yajaman',
+  'samachar',
+  'org_profile'
+]);
+
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
+  'faladesh',
   'home',
   'dashboard',
-  'user_dashboard',
   'panchanga',
   'membership',
   'sewa',
@@ -265,17 +277,18 @@ export const MAIN_NAV_ITEMS: Array<{
   highlight?: boolean;
   hasSubmenu?: boolean;
 }> = [
+  { id: 'faladesh', labelNepali: 'फलादेश', icon: Sparkles },
   { id: 'home', labelNepali: 'गृहपृष्ठ', icon: Home },
-  { id: 'user_dashboard', labelNepali: 'ड्यासबोर्ड', icon: LayoutDashboard },
   { id: 'panchanga', labelNepali: 'पञ्चाङ्ग', icon: Clock },
   { id: 'membership', labelNepali: 'सदस्यता', icon: Crown, highlight: true },
-  { id: 'jyotishi', labelNepali: 'ज्योतिष सेवा', icon: Sparkles, isJyotishWorkspace: true, highlight: true },
-  { id: 'vastu', labelNepali: 'वास्तु सेवा', icon: Compass, highlight: true },
   { id: 'vivah', labelNepali: 'विवाह', icon: HeartHandshake },
   { id: 'yajaman', labelNepali: 'यजमान', icon: Users },
   { id: 'samachar', labelNepali: 'समाचार', icon: Newspaper },
-  { id: 'kharedi', labelNepali: 'पसल', icon: ShoppingBag },
   { id: 'org_profile', labelNepali: 'संस्था', icon: Building2 },
+  { id: 'user_dashboard', labelNepali: 'ड्यासबोर्ड', icon: LayoutDashboard },
+  { id: 'jyotishi', labelNepali: 'ज्योतिष सेवा', icon: Sparkles, isJyotishWorkspace: true, highlight: true },
+  { id: 'vastu', labelNepali: 'वास्तु सेवा', icon: Compass, highlight: true },
+  { id: 'kharedi', labelNepali: 'पसल', icon: ShoppingBag },
 ];
 
 export const ANYA_FALADESH_ITEMS: Array<{
@@ -414,13 +427,28 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     };
   }, [rbacSession]);
 
-  const isJyotishUnlocked = useMemo(() => {
-    return checkServiceAccess('jyotish', rbacSession).allowed;
+  const userCategory = useMemo<'visitor' | 'member' | 'professional'>(() => {
+    if (!rbacSession) return 'visitor';
+    if (rbacSession.role === 'SUPER_ADMIN') return 'professional';
+    const localCat = (localStorage.getItem('balananda_user_category') || (rbacSession as any).userCategory || 'visitor') as any;
+    if (localCat === 'professional' || (rbacSession as any).userCategory === 'professional') return 'professional';
+    if (localCat === 'member' || (rbacSession as any).userCategory === 'member') return 'member';
+    return 'visitor';
   }, [rbacSession, licenseRevision]);
 
+  const isJyotishUnlocked = useMemo(() => {
+    if (userCategory === 'visitor' || userCategory === 'member') return false;
+    if (rbacSession?.role === 'SUPER_ADMIN') return true;
+    if (userCategory === 'professional') return true;
+    return checkServiceAccess('jyotish', rbacSession).allowed;
+  }, [rbacSession, licenseRevision, userCategory]);
+
   const isVastuUnlocked = useMemo(() => {
+    if (userCategory === 'visitor' || userCategory === 'member') return false;
+    if (rbacSession?.role === 'SUPER_ADMIN') return true;
+    if (userCategory === 'professional') return true;
     return checkServiceAccess('vastu', rbacSession).allowed;
-  }, [rbacSession, licenseRevision]);
+  }, [rbacSession, licenseRevision, userCategory]);
 
   const [isSewaMenuOpen, setIsSewaMenuOpen] = useState(false);
   const [sewaDropdownPosition, setSewaDropdownPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -623,13 +651,30 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   }, [rbacSession]);
 
   const visibleNavItems = useMemo(() => {
+    if (userCategory === 'visitor') {
+      // Phase 5: Exactly 8 visitor menus: Faladesh, Home, Panchanga, Membership, Bibaha, Yajaman, Samachar, Institution
+      // Jyotish, Vastu, and personal dashboard are strictly hidden!
+      return baseNavItems.filter((item) => {
+        if (item.id === 'jyotishi' || item.id === 'vastu' || item.id === 'user_dashboard') return false;
+        return VISITOR_ALLOWED_TABS.has(item.id);
+      });
+    }
+
+    if (userCategory === 'member') {
+      // Phase 7: Member User has visitor menus PLUS member dashboard. Jyotish & Vastu remain hidden!
+      return baseNavItems.filter((item) => {
+        if (item.id === 'jyotishi' || item.id === 'vastu') return false;
+        return isTabVisibleInNavigation(item.id).visible;
+      });
+    }
+
+    // Professional User: All legitimately available software features unlocked!
     return baseNavItems.filter((item) => {
-      // Strictly hide Jyotish and Vastu until purchased / active license
-      if (item.id === 'jyotishi' && !isJyotishUnlocked) return false;
-      if (item.id === 'vastu' && !isVastuUnlocked) return false;
+      if (item.id === 'jyotishi' && !isJyotishUnlocked && rbacSession?.role !== 'SUPER_ADMIN') return false;
+      if (item.id === 'vastu' && !isVastuUnlocked && rbacSession?.role !== 'SUPER_ADMIN') return false;
       return isTabVisibleInNavigation(item.id).visible;
     });
-  }, [baseNavItems, pageServiceCfg, navVersion, isJyotishUnlocked, isVastuUnlocked]);
+  }, [baseNavItems, pageServiceCfg, navVersion, isJyotishUnlocked, isVastuUnlocked, userCategory]);
 
   return (
     <nav className="text-[#2D241E] dark:text-stone-100 transition-colors">
@@ -814,6 +859,19 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             const handleTabClick = () => {
               if (isClosed) {
                 alert(featureAccess.reasonNepali || 'यो मेनु मुख्य प्रशासक (Super Admin) द्वारा बन्द गरिएको छ।');
+                return;
+              }
+
+              // 3-Tier Access Control Enforcement
+              if (userCategory === 'visitor' && (isJyotishi || isVastu || item.id === 'user_dashboard')) {
+                alert('यो सुविधा प्रयोग गर्न कृपया सदस्यता लिनुहोस् वा नवीकरण गर्नुहोस्।');
+                onTabChange('membership');
+                return;
+              }
+
+              if (userCategory === 'member' && (isJyotishi || isVastu)) {
+                alert('ज्योतिष तथा वास्तु सम्बन्धी सम्पूर्ण व्यावसायिक सुविधाहरू प्रयोग गर्न व्यावसायिक सदस्यता (Professional Plan) मा अपग्रेड गर्नुहोस्।');
+                onTabChange('membership');
                 return;
               }
 

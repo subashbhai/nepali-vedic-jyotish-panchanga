@@ -42,6 +42,26 @@ import {
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unifiedUserSyncService';
+import { authService } from '../../../services/authService';
+import { apiClient } from '../../../services/apiClient';
+
+const getAdminHeaders = (): Record<string, string> => {
+  const token = typeof localStorage !== 'undefined'
+    ? localStorage.getItem('balananda_superadmin_jwt_v2') ||
+      localStorage.getItem('balananda_superadmin_auth_token') ||
+      localStorage.getItem('superadmin_token') ||
+      sessionStorage.getItem('superadmin_token')
+    : null;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (token && token !== 'SUPERADMIN' && token !== 'SUPER_ADMIN') {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 export interface UnifiedUserRecord {
   id: string;
@@ -49,6 +69,9 @@ export interface UnifiedUserRecord {
   fullName: string;
   address: string;
   phone: string;
+  username?: string;
+  userCategory?: 'visitor' | 'member' | 'professional';
+  paymentAmountNPR?: number;
   email: string;
   whatsapp: string;
   dobBS: string;
@@ -221,6 +244,51 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     setTimeout(() => setToastMessage(null), 4500);
   };
 
+  // ── 16-COLUMN SPREADSHEET INLINE ACTIONS ──
+  const [editingPaymentAmounts, setEditingPaymentAmounts] = useState<Record<string, number | string>>({});
+  const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
+  const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null);
+
+  const handleUpdatePaymentAmount = async (userId: string, currentVal: number | string) => {
+    const val = editingPaymentAmounts[userId] !== undefined ? Number(editingPaymentAmounts[userId]) : Number(currentVal);
+    setSavingPaymentId(userId);
+    try {
+      const res = await fetch(apiClient.resolveUrl(`/api/admin/users/${userId}/payment-amount`), {
+        method: 'POST',
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ amountNPR: val })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('भुक्तानी रकम सफलतापूर्वक बचत भयो!', 'success');
+        fetchUsers(true);
+      } else {
+        showToast(data.error || 'बचत गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setSavingPaymentId(null);
+    }
+  };
+
+  const handleChangeCategoryDirect = async (userId: string, newCat: 'visitor' | 'member' | 'professional') => {
+    setSavingCategoryId(userId);
+    try {
+      const res = await authService.updateUserCategory(userId, newCat);
+      if (res.success) {
+        showToast(`प्रयोगकर्ताको वर्ग '${newCat}' मा परिवर्तन भयो।`, 'success');
+        fetchUsers(true);
+      } else {
+        showToast(res.message || 'वर्ग परिवर्तन असफल भयो।', 'error');
+      }
+    } catch {
+      showToast('त्रुटि भयो।', 'error');
+    } finally {
+      setSavingCategoryId(null);
+    }
+  };
+
   // 1. Fetch Users with Real Filters
   const fetchUsers = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -228,7 +296,6 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     setError(null);
 
     try {
-      const token = localStorage.getItem('superadmin_token') || sessionStorage.getItem('superadmin_token') || 'superadmin-session-active';
       const params = new URLSearchParams({
         filter: activeFilter,
         search: searchQuery.trim(),
@@ -237,10 +304,8 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
         limit: String(pageSize)
       });
 
-      const res = await fetch(`/api/superadmin/users?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users?${params.toString()}`), {
+        headers: getAdminHeaders()
       });
 
       if (!res.ok) {
@@ -402,13 +467,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     if (!selectedUser) return;
     setSavingProfile(true);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/users/${selectedUser.id}`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}`), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           fullName: editFullName,
           phone: editPhone,
@@ -446,13 +507,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
 
     setSavingStatus(true);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/users/${selectedUser.id}/status`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}/status`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           status: targetStatus,
           reason: statusReason.trim()
@@ -479,13 +536,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
   const handleTrialAction = async (action: 'activate' | 'reset') => {
     if (!selectedUser) return;
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/users/${selectedUser.id}/trial`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}/trial`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ action })
       });
       const data = await res.json();
@@ -506,13 +559,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     if (!selectedUser || !newAdminNote.trim()) return;
     setSavingNote(true);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/users/${selectedUser.id}/notes`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}/notes`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ note: newAdminNote.trim() })
       });
       const data = await res.json();
@@ -535,13 +584,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     if (!selectedUser) return;
     setSavingMutation(true);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/users/${selectedUser.id}/toggle-service`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}/toggle-service`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           services: selectedServices,
           reason: mutationReason.trim() || 'सेवा पहुँच अद्यावधिक'
@@ -572,13 +617,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
 
     setSavingMutation(true);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/users/${selectedUser.id}/membership-status`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}/membership-status`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           action,
           duration: action === 'renew' ? renewDuration : extendPeriod,
@@ -629,13 +670,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
 
     setActivatingMembership(true);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/users/${selectedUser.id}/activate-membership`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}/activate-membership`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           planId: actPlanId,
           paymentMethod: actPaymentMethod,
@@ -673,13 +710,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
 
     setProcessingPurchaseId(purchase.id);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/memberships/${purchase.id}/approve`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/memberships/${purchase.id}/approve`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           cashVerified: purchase.paymentMethod === 'cash' ? cashApprovalChecked : true,
           verifiedAmount: purchase.planAmountNPR || purchase.amountNPR,
@@ -712,13 +745,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
 
     setProcessingPurchaseId(purchase.id);
     try {
-      const token = localStorage.getItem('superadmin_token') || 'superadmin-session-active';
-      const res = await fetch(`/api/superadmin/memberships/${purchase.id}/reject`, {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/memberships/${purchase.id}/reject`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           reason: purchaseActionReason.trim()
         })
@@ -964,26 +993,36 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[1700px]">
               <thead>
                 <tr className="bg-stone-950/90 border-b border-stone-800 text-[11px] text-stone-400 uppercase tracking-wider select-none">
-                  <th className="py-3.5 px-4 font-bold">प्रयोगकर्ता / ID</th>
-                  <th className="py-3.5 px-4 font-bold">सम्पर्क विवरण</th>
-                  <th className="py-3.5 px-4 font-bold">सदस्यता स्थिति</th>
-                  <th className="py-3.5 px-4 font-bold">योजना / प्लान</th>
-                  <th className="py-3.5 px-4 font-bold">भुक्तानी स्थिति</th>
-                  <th className="py-3.5 px-4 font-bold">सुरु र समाप्ति मिति</th>
-                  <th className="py-3.5 px-4 font-bold">बाँकी दिन</th>
-                  <th className="py-3.5 px-4 font-bold">खुल्ला सेवाहरू</th>
-                  <th className="py-3.5 px-4 font-bold text-right">कार्य (Action)</th>
+                  <th className="py-3 px-3 font-bold text-center w-12">१. क्र.सं.</th>
+                  <th className="py-3 px-3 font-bold min-w-[160px]">२. पूरा नाम</th>
+                  <th className="py-3 px-3 font-bold min-w-[130px]">३. ठेगाना</th>
+                  <th className="py-3 px-3 font-bold min-w-[120px]">४. मोबाइल नं.</th>
+                  <th className="py-3 px-3 font-bold min-w-[110px]">५. युजरनेम</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">६. दर्ता मिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[90px]">७. खाता स्थिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[160px]">८. प्रयोगकर्ता वर्ग</th>
+                  <th className="py-3 px-3 font-bold min-w-[140px]">९. सदस्यता योजना</th>
+                  <th className="py-3 px-3 font-bold min-w-[150px]">१०. भुक्तानी रकम (रु.)</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">११. भुक्तानी स्थिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">१२. सुरु मिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">१३. समाप्ति मिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">१४. बाँकी दिन</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">१५. अद्यावधिक</th>
+                  <th className="py-3 px-3 font-bold text-right min-w-[120px]">१६. कार्य (Action)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-800/60 font-sans">
-                {users.map((u) => {
+                {users.map((u, idx) => {
                   const isSuspended = u.status === 'suspended' || u.status === 'inactive';
                   const isActiveMember = u.membershipStatus === 'ACTIVE';
                   const isPendingPayment = u.membershipStatus === 'PENDING_PAYMENT' || u.purchaseHistory?.some(p => p.status === 'PURCHASE_PENDING');
                   const isExpired = u.membershipStatus === 'EXPIRED';
+                  const serialNum = (currentPage - 1) * pageSize + idx + 1;
+                  const currentCategory = u.userCategory || (u.role === 'SUPER_ADMIN' ? 'professional' : (u.membershipStatus === 'ACTIVE' ? 'member' : 'visitor'));
+                  const currentPaymentAmt = editingPaymentAmounts[u.id] !== undefined ? editingPaymentAmounts[u.id] : (u.paymentAmountNPR !== undefined ? u.paymentAmountNPR : (u.membership?.amountNPR || 0));
 
                   return (
                     <tr
@@ -992,212 +1031,166 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         isSuspended ? 'opacity-70 bg-stone-950/40' : ''
                       }`}
                     >
-                      {/* Column 1: User & Customer ID */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-stone-800 to-stone-900 border border-stone-700 flex items-center justify-center font-bold text-amber-400 shrink-0 text-xs">
+                      {/* Column 1: Serial Number */}
+                      <td className="py-3 px-3 text-center font-mono font-bold text-stone-400">
+                        {toDevanagariNumerals(serialNum)}
+                      </td>
+
+                      {/* Column 2: Full Name */}
+                      <td className="py-3 px-3 font-bold text-stone-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-stone-800 border border-stone-700 flex items-center justify-center font-bold text-amber-400 shrink-0 text-xs">
                             {u.fullName ? u.fullName.slice(0, 1) : 'U'}
                           </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-stone-100 truncate flex items-center gap-1.5">
-                              <span>{u.fullName || 'अज्ञात प्रयोगकर्ता'}</span>
-                              {u.status === 'suspended' && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-950 text-red-400 border border-red-800">
-                                  निलम्बित
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-stone-500 font-mono mt-0.5 flex items-center gap-1">
-                              <span>{u.customerId || u.id}</span>
-                              <span className="text-stone-700">•</span>
-                              <span className="text-amber-500/80">{u.roleNameNepali || 'सामान्य'}</span>
-                            </div>
-                          </div>
+                          <span className="truncate max-w-[140px]" title={u.fullName}>
+                            {u.fullName || 'अज्ञात'}
+                          </span>
                         </div>
                       </td>
 
-                      {/* Column 2: Contact Details with Verified Checks */}
-                      <td className="py-3 px-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                            <Phone className="w-3 h-3 text-stone-500" />
-                            <span className="text-stone-200">{u.phone || '-'}</span>
-                            {u.mobileVerified ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" title="मोबाइल प्रमाणित" />
-                            ) : (
-                              <span className="text-[9px] text-amber-500 font-sans" title="अप्रमाणित">(पेन्डिङ)</span>
-                            )}
-                          </div>
-                          {u.email && (
-                            <div className="flex items-center gap-1.5 text-[10px] text-stone-400 max-w-[160px] truncate">
-                              <Mail className="w-3 h-3 text-stone-500 shrink-0" />
-                              <span className="truncate">{u.email}</span>
-                              {u.emailVerified && (
-                                <CheckCircle2 className="w-3 h-3 text-cyan-400 shrink-0" title="ईमेल प्रमाणित" />
-                              )}
-                            </div>
+                      {/* Column 3: Address */}
+                      <td className="py-3 px-3 text-stone-300 text-[11px] truncate max-w-[130px]" title={u.address}>
+                        {u.address || 'नेपाल'}
+                      </td>
+
+                      {/* Column 4: Mobile Number */}
+                      <td className="py-3 px-3 font-mono text-[11px] text-stone-200">
+                        <div className="flex items-center gap-1">
+                          <span>{u.phone || '-'}</span>
+                          {u.mobileVerified && (
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" title="प्रमाणित" />
                           )}
                         </div>
                       </td>
 
-                      {/* Column 3: Membership Status */}
-                      <td className="py-3 px-4">
-                        {isActiveMember ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                            <span>सक्रिय सदस्य</span>
-                          </span>
-                        ) : isPendingPayment ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800/80 animate-pulse">
-                            <Clock className="w-3 h-3 text-amber-400" />
-                            <span>भुक्तानी पेन्डिङ</span>
-                          </span>
-                        ) : isExpired ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-950/80 text-red-300 border border-red-800/80">
-                            <XCircle className="w-3 h-3 text-red-400" />
-                            <span>म्याद सकियो</span>
-                          </span>
-                        ) : u.trial?.isTrialActive ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/80">
-                            <Clock className="w-3 h-3 text-purple-400" />
-                            <span>Trial (परीक्षण)</span>
+                      {/* Column 5: Username */}
+                      <td className="py-3 px-3 font-mono text-[11px] text-amber-300/90 truncate max-w-[110px]" title={u.username || u.phone}>
+                        {u.username || u.phone || '-'}
+                      </td>
+
+                      {/* Column 6: Registration Date */}
+                      <td className="py-3 px-3 font-mono text-[10.5px] text-stone-400">
+                        {u.createdAtBS || u.createdAtISO?.split('T')[0] || '-'}
+                      </td>
+
+                      {/* Column 7: Account Status */}
+                      <td className="py-3 px-3">
+                        {u.status === 'active' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            सक्रिय
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-stone-800 text-stone-400">
-                            <span>कुनै योजना छैन</span>
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-red-950 text-red-300 border border-red-800">
+                            निलम्बित
                           </span>
                         )}
                       </td>
 
-                      {/* Column 4: Plan / Device */}
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-stone-200 text-[11px]">
-                          {u.purchasedPlan || 'निःशुल्क'}
-                        </div>
-                        <div className="text-[10px] text-stone-500 flex items-center gap-1 mt-0.5">
-                          {u.membership?.devices === 'both' ? (
-                            <span className="flex items-center gap-1 text-amber-400/90 font-medium">
-                              <Laptop className="w-3 h-3" />
-                              <span>मोबाइल + कम्प्युटर</span>
-                            </span>
-                          ) : u.membership?.devices === 'computer_only' ? (
-                            <span className="flex items-center gap-1 text-cyan-400/90 font-medium">
-                              <Monitor className="w-3 h-3" />
-                              <span>कम्प्युटर मात्र</span>
-                            </span>
-                          ) : u.membership?.devices === 'mobile_only' ? (
-                            <span className="flex items-center gap-1 text-emerald-400/90 font-medium">
-                              <Smartphone className="w-3 h-3" />
-                              <span>मोबाइल मात्र</span>
-                            </span>
-                          ) : (
-                            <span>खुल्ला पहुँच</span>
-                          )}
-                        </div>
+                      {/* Column 8: User Category (Direct Selection Dropdown) */}
+                      <td className="py-3 px-3">
+                        <select
+                          value={currentCategory}
+                          disabled={savingCategoryId === u.id}
+                          onChange={(e) => handleChangeCategoryDirect(u.id, e.target.value as any)}
+                          className="px-2 py-1 bg-stone-900 border border-stone-700 rounded-lg text-[10.5px] font-bold text-amber-300 focus:border-amber-500 outline-none cursor-pointer"
+                        >
+                          <option value="visitor">साधारण (Visitor)</option>
+                          <option value="member">सदस्य (Member)</option>
+                          <option value="professional">व्यावसायिक (Professional)</option>
+                        </select>
                       </td>
 
-                      {/* Column 5: Payment Status */}
-                      <td className="py-3 px-4">
+                      {/* Column 9: Subscription Plan */}
+                      <td className="py-3 px-3 text-[11px] font-semibold text-stone-200">
+                        {u.purchasedPlan || 'निःशुल्क'}
+                      </td>
+
+                      {/* Column 10: Payment Amount (NPR) [Editable Field with Save Button] */}
+                      <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5">
-                          {u.paymentStatus === 'VERIFIED' ? (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
-                              प्रमाणित
-                            </span>
-                          ) : u.paymentStatus === 'PENDING' ? (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
-                              पर्खिरहेको
-                            </span>
-                          ) : u.paymentStatus === 'REJECTED' ? (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-950 text-red-300 border border-red-800">
-                              अस्वीकृत
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-stone-800 text-stone-400">
-                              अशूल्क
-                            </span>
-                          )}
-                          {u.membership?.amountNPR ? (
-                            <span className="font-mono text-[10px] text-stone-300">
-                              रु. {toDevanagariNumerals(u.membership.amountNPR)}
-                            </span>
-                          ) : null}
+                          <span className="text-[10px] text-stone-400 font-mono">रु.</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="50"
+                            value={currentPaymentAmt}
+                            onChange={(e) => setEditingPaymentAmounts(prev => ({ ...prev, [u.id]: e.target.value }))}
+                            className="w-20 px-2 py-1 bg-stone-950 border border-stone-700 focus:border-amber-400 rounded-lg text-[11px] font-mono text-stone-100 outline-none text-right"
+                          />
+                          <button
+                            type="button"
+                            disabled={savingPaymentId === u.id}
+                            onClick={() => handleUpdatePaymentAmount(u.id, currentPaymentAmt)}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg cursor-pointer transition-colors"
+                            title="रकम बचत गर्नुहोस्"
+                          >
+                            {savingPaymentId === u.id ? '...' : 'बचत'}
+                          </button>
                         </div>
                       </td>
 
-                      {/* Column 6: Start & Expiry Dates */}
-                      <td className="py-3 px-4">
-                        <div className="text-[11px] text-stone-300 font-mono">
-                          सुरु: {u.activationDateBS || u.createdAtBS || '-'}
-                        </div>
-                        <div className="text-[10px] text-stone-400 font-mono mt-0.5">
-                          समाप्त: <span className={u.showWarning30Days ? 'text-amber-400 font-bold' : ''}>{u.expiryDateBS || 'असीमित'}</span>
-                        </div>
+                      {/* Column 11: Payment Status */}
+                      <td className="py-3 px-3">
+                        {u.paymentStatus === 'VERIFIED' ? (
+                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
+                            प्रमाणित
+                          </span>
+                        ) : u.paymentStatus === 'PENDING' ? (
+                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
+                            पर्खिरहेको
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[9.5px] font-medium bg-stone-800 text-stone-400">
+                            निःशुल्क
+                          </span>
+                        )}
                       </td>
 
-                      {/* Column 7: Remaining Days */}
-                      <td className="py-3 px-4">
+                      {/* Column 12: Start Date */}
+                      <td className="py-3 px-3 font-mono text-[10px] text-stone-300">
+                        {u.activationDateBS || u.createdAtBS || '-'}
+                      </td>
+
+                      {/* Column 13: Expiry Date */}
+                      <td className="py-3 px-3 font-mono text-[10px] text-stone-300">
+                        <span className={u.showWarning30Days ? 'text-amber-400 font-bold' : ''}>
+                          {u.expiryDateBS || 'असीमित'}
+                        </span>
+                      </td>
+
+                      {/* Column 14: Remaining Days */}
+                      <td className="py-3 px-3">
                         {u.remainingDays === 9999 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
-                            आजीवन (Lifetime)
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            आजीवन
                           </span>
                         ) : u.remainingDays > 0 ? (
-                          <div className="space-y-0.5">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono inline-block ${
-                                u.showWarning30Days
-                                  ? 'bg-amber-950 text-amber-300 border border-amber-700 animate-pulse'
-                                  : 'bg-stone-800 text-stone-200'
-                              }`}
-                            >
-                              {toDevanagariNumerals(u.remainingDays)} दिन बाँकी
-                            </span>
-                            {u.showWarning30Days && (
-                              <div className="text-[9px] text-amber-400 font-bold flex items-center gap-1">
-                                <AlertTriangle className="w-2.5 h-2.5" />
-                                <span>३० दिन चेतावनी!</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-800 text-stone-400">
-                            सकिएको / छैन
+                          <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold font-mono ${
+                            u.showWarning30Days
+                              ? 'bg-amber-950 text-amber-300 border border-amber-700 animate-pulse'
+                              : 'bg-stone-800 text-stone-200'
+                          }`}>
+                            {toDevanagariNumerals(u.remainingDays)} दिन
                           </span>
+                        ) : (
+                          <span className="text-[9.5px] text-stone-500 font-medium">सकियो / छैन</span>
                         )}
                       </td>
 
-                      {/* Column 8: Available Services */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1 flex-wrap max-w-[120px]">
-                          {u.availableServices?.includes('jyotish') && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950 text-amber-300 border border-amber-800" title="ज्योतिष">
-                              ज्यो
-                            </span>
-                          )}
-                          {u.availableServices?.includes('vastu') && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800" title="वास्तु">
-                              वास्तु
-                            </span>
-                          )}
-                          {u.availableServices?.includes('karmakanda') && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-950 text-purple-300 border border-purple-800" title="कर्मकाण्ड">
-                              कर्म
-                            </span>
-                          )}
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-stone-800 text-stone-300" title="पञ्चाङ्ग">
-                            पञ्चाङ्ग
-                          </span>
-                        </div>
+                      {/* Column 15: Last Updated */}
+                      <td className="py-3 px-3 font-mono text-[10px] text-stone-400">
+                        {u.statusUpdatedAtISO ? u.statusUpdatedAtISO.split('T')[0] : (u.createdAtBS || '-')}
                       </td>
 
-                      {/* Column 9: Action Button */}
-                      <td className="py-3 px-4 text-right">
+                      {/* Column 16: Actions */}
+                      <td className="py-3 px-3 text-right">
                         <button
                           type="button"
                           onClick={() => handleOpenUserModal(u, 'info')}
-                          className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-450 text-stone-950 text-xs font-black shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ml-auto"
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-[10.5px] font-black shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>नियन्त्रण / विवरण</span>
+                          <Edit3 className="w-3 h-3" />
+                          <span>नियन्त्रण</span>
                         </button>
                       </td>
                     </tr>

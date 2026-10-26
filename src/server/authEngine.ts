@@ -1,1067 +1,631 @@
+/**
+ * Balananda Vaidik Sewa — Central Authentication, Access Control & Subscription Engine
+ * 
+ * Rebuilt to completely eliminate obsolete OTP infrastructure:
+ * - 5-Field Signup: Full Name, Address, Mobile Number, Username, Password
+ * - Dual-Identifier Login: Mobile Number OR Username + Password
+ * - Scrypt Cryptographic Salted Password Hashing & Timing-Safe Verification
+ * - 3-Tier Access Control: Visitor (default), Member User, Professional User
+ * - Offline/Manual Payment Tracking & Subscription Lifecycle
+ * - 1-Month Advance Automatic Expiry Scheduler & Notifications
+ * - Super Admin 16-Column User Management Dataset
+ */
+
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import {
-  generateSecureOTP,
-  hashOTP,
-  normalizePhoneNumber,
-  normalizeEmail,
-  smsProviderService,
-  emailProviderService,
-  whatsappProviderService
-} from './otpProviderService';
 
-export type OTPChannel = 'sms' | 'whatsapp' | 'email';
+export type UserCategory = 'visitor' | 'member' | 'professional';
+export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
+export type SubscriptionStatus = 'active' | 'expired' | 'pending' | 'cancelled';
+export type AccountStatus = 'active' | 'suspended' | 'inactive';
 
-export interface SingleOTPChallenge {
-  challengeId: string;
-  channel: OTPChannel;
-  destination: string; // standard 10 digits for phone or normalized email
-  destinationNormalized: string; // +977... or email
-  destinationMasked: string; // e.g. ९८****०५३३ or s***h@gmail.com
-  countryCode?: string;
-  otpHashed: string;
-  salt: string;
-  attempts: number;
-  maxAttempts: number;
-  createdAt: number;
-  expiresAt: number;
-  lastResendAt: number;
-  resendCount: number;
-  verified: boolean;
-  purpose: 'login' | 'signup' | 'verification';
-  fullName?: string;
+export interface UserAccount {
+  id: string;
+  customerId: string;
+  username: string;
+  phone: string;
+  fullName: string;
+  address: string;
+  passwordHash: string;
+  role: string; // 'user' | 'CUSTOMER' | 'SUPER_ADMIN'
+  roleNameNepali: string;
+  userCategory: UserCategory;
+  accountStatus: AccountStatus;
+  status?: AccountStatus; // Backward compatibility
+  statusReason?: string | null;
+  mobileVerified: boolean;
+  emailVerified: boolean;
+  email?: string;
+  createdAtISO: string;
+  createdAtBS: string;
+  lastLoginISO?: string | null;
+  subscriptionPlan?: string;
+  subscriptionStartAt?: string | null;
+  subscriptionExpiresAt?: string | null;
+  paymentAmountNPR?: number;
+  paymentStatus?: PaymentStatus;
+  remainingDays?: number;
+  lastUpdatedISO?: string;
+  permissions?: string[];
+  birthDetails?: any;
+  birthProfileId?: string;
+  [key: string]: any;
 }
 
-export interface RegistrationChallenge {
-  challengeId: string;
-  fullName: string;
-  phone: string; // standard 10 digits
-  phoneNormalized: string; // +977...
-  email: string;
-  phoneOtpHashed: string;
-  emailOtpHashed: string;
-  salt: string;
-  phoneVerified: boolean;
-  emailVerified: boolean;
-  phoneAttempts: number;
-  emailAttempts: number;
-  createdAt: number;
-  expiresAt: number;
-  lastPhoneResendAt: number;
-  lastEmailResendAt: number;
-  resendCount: number;
+export interface UserSubscription {
+  id: string;
+  userId: string;
+  username: string;
+  phone: string;
+  planId: string;
+  planNameNepali: string;
+  category: UserCategory;
+  startAt: string;
+  expiresAt: string;
+  status: SubscriptionStatus;
+  paymentAmountNPR: number;
+  paymentStatus: PaymentStatus;
+  recordedBy: string;
+  createdAtISO: string;
+  updatedAtISO: string;
+  renewalCount?: number;
+}
+
+export interface PaymentRecord {
+  id: string;
+  userId: string;
+  subscriptionId?: string;
+  amountNPR: number;
+  currency: string;
+  paymentMethod: string;
+  paymentStatus: PaymentStatus;
+  transactionReference?: string;
+  recordedBy: string;
+  notes?: string;
+  createdAtISO: string;
+}
+
+export interface SystemNotification {
+  id: string;
+  userId: string; // Specific user ID or 'all' or 'superadmin'
+  subscriptionId?: string;
+  type: string;
+  title: string;
+  message: string;
+  stage?: '30_days' | '15_days' | '7_days' | '3_days' | '1_day' | 'today' | 'expired' | 'general';
+  status: 'pending' | 'delivered' | 'read';
+  scheduledAt: string;
+  sentAt?: string;
+  createdAtISO: string;
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  actorUsername: string;
+  action: string;
+  targetUserId: string;
+  targetUsername?: string;
+  previousValue?: any;
+  newValue?: any;
+  reason?: string;
+  timestampISO: string;
 }
 
 export interface UserSessionData {
   userId: string;
+  username: string;
   phone: string;
-  email?: string;
   fullName: string;
   role: string;
-  profileCompleted: boolean;
+  userCategory: UserCategory;
   expiresAt: number;
 }
 
-const CHALLENGE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-const RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
-const MAX_VERIFICATION_ATTEMPTS = 5;
-const MAX_RESEND_COUNT = 3;
-
 const DATA_DIR = path.resolve(process.cwd(), 'data');
-const CHALLENGES_FILE = path.join(DATA_DIR, 'otp_challenges.json');
-const SINGLE_CHALLENGES_FILE = path.join(DATA_DIR, 'otp_single_challenges.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'active_sessions.json');
+const SUBSCRIPTIONS_FILE = path.join(DATA_DIR, 'subscriptions.json');
+const PAYMENTS_FILE = path.join(DATA_DIR, 'payments.json');
+const NOTIFICATIONS_FILE = path.join(DATA_DIR, 'notifications.json');
+const AUDIT_LOGS_FILE = path.join(DATA_DIR, 'admin_audit_logs.json');
+const CLIENT_LEADS_FILE = path.join(DATA_DIR, 'client_purchase_leads.json');
 
-function writeJsonAtomic(filePath: string, data: any) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const tmp = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
-  try {
-    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
-    fs.renameSync(tmp, filePath);
-  } catch {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-  }
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 /**
- * Diagnostic Masking Utilities (Complies with Zero Secret Leakage security standards)
+ * Robust, memory-hard Scrypt password hashing with cryptographic salt
  */
-export function maskPhoneNumber(phone: string): string {
-  const digits = (phone || '').replace(/\D/g, '');
-  if (digits.length <= 4) return '****';
-  return digits.slice(0, 2) + '****' + digits.slice(-4);
+export function hashUserPassword(plain: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derivedKey = crypto.scryptSync(plain, salt, 64).toString('hex');
+  return `scrypt:${salt}:${derivedKey}`;
 }
 
-export function maskEmailAddress(email: string): string {
-  if (!email || !email.includes('@')) return '***@***';
-  const [local, domain] = email.split('@');
-  const maskedLocal = local.length <= 2 ? local[0] + '***' : local[0] + '***' + local[local.length - 1];
-  return `${maskedLocal}@${domain}`;
+/**
+ * Timing-safe password verification with legacy fallback support
+ */
+export function verifyUserPassword(plain: string, storedHash: string): boolean {
+  if (!plain || !storedHash) return false;
+
+  const cleanPlain = String(plain).trim();
+  const cleanStored = String(storedHash).trim();
+
+  // Modern Scrypt verification
+  if (cleanStored.startsWith('scrypt:')) {
+    const parts = cleanStored.split(':');
+    if (parts.length === 3) {
+      const [, salt, expectedKey] = parts;
+      const derived = crypto.scryptSync(cleanPlain, salt, 64);
+      const expectedBuf = Buffer.from(expectedKey, 'hex');
+      return derived.length === expectedBuf.length && crypto.timingSafeEqual(derived, expectedBuf);
+    }
+  }
+
+  // Legacy SHA-256 fallback (hex)
+  const legacySha = crypto.createHash('sha256').update(cleanPlain).digest('hex');
+  if (cleanStored === legacySha || cleanStored === `sha256:${legacySha}`) {
+    return true;
+  }
+
+  // Raw plain match if any legacy dev user exists
+  if (cleanStored === cleanPlain) {
+    return true;
+  }
+
+  return false;
 }
 
-export function logAuthAudit(event: string, meta: Record<string, any>) {
-  const timestamp = new Date().toISOString();
-  const entry = {
-    timestamp,
-    event,
-    ...meta
-  };
-  console.log(`[AUTH_AUDIT] ${timestamp} [${event}]`, JSON.stringify(entry));
-  try {
-    const dataDir = path.resolve(process.cwd(), 'data');
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    fs.appendFileSync(path.join(dataDir, 'otp_audit.log'), JSON.stringify(entry) + '\n');
-  } catch {}
+/**
+ * Normalizes Nepal mobile phone number to standard 10 digits
+ */
+export function normalizeMobileNumber(raw: string): string {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.startsWith('977') && digits.length === 13) {
+    return digits.slice(3);
+  }
+  if (digits.startsWith('0') && digits.length === 11) {
+    return digits.slice(1);
+  }
+  return digits.slice(-10);
 }
 
-class AuthEngine {
-  private registrationChallenges = new Map<string, RegistrationChallenge>();
-  private singleOtpChallenges = new Map<string, SingleOTPChallenge>();
-  private activeSessions = new Map<string, UserSessionData>();
-  private ipRateLimits = new Map<string, { count: number; resetAt: number }>();
+export class AuthEngine {
+  private users: UserAccount[] = [];
+  private activeSessions: Map<string, UserSessionData> = new Map();
+  private subscriptions: UserSubscription[] = [];
+  private payments: PaymentRecord[] = [];
+  private notifications: SystemNotification[] = [];
+  private auditLogs: AdminAuditEntry[] = [];
+  private loginAttempts: Map<string, { count: number; lockedUntil: number }> = new Map();
 
   constructor() {
     this.loadFromDisk();
+    this.runExpiryAndNotificationCheck();
   }
 
   public loadFromDisk(): void {
     try {
-      if (fs.existsSync(CHALLENGES_FILE)) {
-        const raw = JSON.parse(fs.readFileSync(CHALLENGES_FILE, 'utf-8'));
-        if (Array.isArray(raw)) {
-          const now = Date.now();
-          raw.forEach((c: RegistrationChallenge) => {
-            if (c && c.expiresAt > now) {
-              this.registrationChallenges.set(c.challengeId, c);
-            }
-          });
-        }
+      if (fs.existsSync(USERS_FILE)) {
+        this.users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
       }
-      if (fs.existsSync(SINGLE_CHALLENGES_FILE)) {
-        const raw = JSON.parse(fs.readFileSync(SINGLE_CHALLENGES_FILE, 'utf-8'));
-        if (Array.isArray(raw)) {
-          const now = Date.now();
-          raw.forEach((c: SingleOTPChallenge) => {
-            if (c && c.expiresAt > now) {
-              this.singleOtpChallenges.set(c.challengeId, c);
-            }
-          });
-        }
-      }
+    } catch (e) {
+      console.error('Failed to load users.json:', e);
+      this.users = [];
+    }
+
+    try {
       if (fs.existsSync(SESSIONS_FILE)) {
         const raw = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'));
-        if (typeof raw === 'object' && raw !== null) {
-          const now = Date.now();
-          Object.entries(raw).forEach(([token, sess]: [string, any]) => {
-            if (sess && sess.expiresAt > now) {
-              this.activeSessions.set(token, sess);
-            }
-          });
-        }
+        this.activeSessions = new Map(Object.entries(raw));
       }
-    } catch (err) {
-      console.warn('[AuthEngine] Error loading state from disk:', err);
+    } catch {
+      this.activeSessions = new Map();
+    }
+
+    try {
+      if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
+        this.subscriptions = JSON.parse(fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8'));
+      }
+    } catch {
+      this.subscriptions = [];
+    }
+
+    try {
+      if (fs.existsSync(PAYMENTS_FILE)) {
+        this.payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, 'utf-8'));
+      }
+    } catch {
+      this.payments = [];
+    }
+
+    try {
+      if (fs.existsSync(NOTIFICATIONS_FILE)) {
+        this.notifications = JSON.parse(fs.readFileSync(NOTIFICATIONS_FILE, 'utf-8'));
+      }
+    } catch {
+      this.notifications = [];
+    }
+
+    try {
+      if (fs.existsSync(AUDIT_LOGS_FILE)) {
+        this.auditLogs = JSON.parse(fs.readFileSync(AUDIT_LOGS_FILE, 'utf-8'));
+      }
+    } catch {
+      this.auditLogs = [];
     }
   }
 
-  private persistChallenges(): void {
-    const list = Array.from(this.registrationChallenges.values());
-    writeJsonAtomic(CHALLENGES_FILE, list);
-  }
-
-  private persistSingleChallenges(): void {
-    const list = Array.from(this.singleOtpChallenges.values());
-    writeJsonAtomic(SINGLE_CHALLENGES_FILE, list);
+  private persistUsers(): void {
+    try {
+      fs.writeFileSync(USERS_FILE, JSON.stringify(this.users, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to persist users.json:', e);
+    }
   }
 
   private persistSessions(): void {
-    const obj: Record<string, UserSessionData> = {};
-    this.activeSessions.forEach((val, key) => {
-      obj[key] = val;
-    });
-    writeJsonAtomic(SESSIONS_FILE, obj);
+    try {
+      const obj = Object.fromEntries(this.activeSessions.entries());
+      fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to persist sessions:', e);
+    }
   }
 
-  // Helper: check rate limit per IP
-  checkRateLimit(ip: string, maxRequests: number = 20, windowMs: number = 60000): { allowed: boolean; remaining: number } {
-    const now = Date.now();
-    const record = this.ipRateLimits.get(ip);
-    if (!record || now > record.resetAt) {
-      this.ipRateLimits.set(ip, { count: 1, resetAt: now + windowMs });
-      return { allowed: true, remaining: maxRequests - 1 };
+  private persistSubscriptions(): void {
+    try {
+      fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(this.subscriptions, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to persist subscriptions.json:', e);
     }
-    if (record.count >= maxRequests) {
-      return { allowed: false, remaining: 0 };
-    }
-    record.count++;
-    return { allowed: true, remaining: maxRequests - record.count };
   }
 
-  /**
-   * Phase 4 & 5: Initiates registration with exactly 3 fields.
-   * Full Name, Mobile Number, Email Address.
-   */
-  async startRegistration(
-    fullNameRaw: string,
-    phoneRaw: string,
-    emailRaw: string,
-    existingUsers: Array<{ phone?: string; email?: string }>,
-    clientIp: string = 'unknown'
-  ): Promise<{
-    success: boolean;
-    challengeId?: string;
-    message: string;
-    deliveryStatus?: any;
-    devHint?: { phoneOtp: string; emailOtp: string };
-    isDevMock?: boolean;
-    partialDelivery?: boolean;
-    error?: string;
-  }> {
-    logAuthAudit('SIGNUP_REQUEST_RECEIVED', {
-      phone: maskPhoneNumber(phoneRaw),
-      email: maskEmailAddress(emailRaw),
-      clientIp
-    });
-
-    // 1. Rate limiting
-    if (!this.checkRateLimit(clientIp, 10, 60000).allowed) {
-      logAuthAudit('SIGNUP_RATE_LIMITED', { clientIp });
-      return {
-        success: false,
-        message: 'धेरै पटक प्रयास भयो। कृपया १ मिनेटपछि पुनः प्रयास गर्नुहोस्।'
-      };
+  private persistPayments(): void {
+    try {
+      fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(this.payments, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to persist payments.json:', e);
     }
+  }
 
-    // 2. Validate Full Name
-    const fullName = String(fullNameRaw || '').trim();
-    if (!fullName || fullName.length < 2 || fullName.length > 70) {
-      logAuthAudit('SIGNUP_VALIDATION_FAILED', { reason: 'invalid_full_name' });
-      return {
-        success: false,
-        message: 'कृपया पूरा नाम (२ देखि ७० अक्षरभित्र) अनिवार्य रूपमा प्रविष्ट गर्नुहोस्।'
-      };
+  private persistNotifications(): void {
+    try {
+      fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify(this.notifications, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to persist notifications.json:', e);
     }
+  }
 
-    // 3. Validate Phone Number
-    const phoneNorm = normalizePhoneNumber(phoneRaw);
-    if (!phoneNorm.valid) {
-      logAuthAudit('SIGNUP_VALIDATION_FAILED', { reason: 'invalid_phone_number' });
-      return {
-        success: false,
-        message: 'कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx वा ९७xxxxxxxx)।'
-      };
+  private persistAuditLogs(): void {
+    try {
+      fs.writeFileSync(AUDIT_LOGS_FILE, JSON.stringify(this.auditLogs, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to persist admin_audit_logs.json:', e);
     }
+  }
 
-    // 4. Validate Email
-    const emailNorm = normalizeEmail(emailRaw);
-    if (!emailNorm.valid) {
-      logAuthAudit('SIGNUP_VALIDATION_FAILED', { reason: 'invalid_email' });
-      return {
-        success: false,
-        message: 'कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस् (उदा: yourname@gmail.com)।'
-      };
-    }
-
-    // 5. Uniqueness validation: Check against existing accounts
-    const clean10Digits = phoneNorm.display;
-    const cleanEmail = emailNorm.normalized;
-
-    const duplicateUser = existingUsers.find(u => {
-      const uPhone = (u.phone || '').replace(/\D/g, '').slice(-10);
-      const uEmail = (u.email || '').toLowerCase().trim();
-      return (uPhone && uPhone === clean10Digits) || (uEmail && uEmail === cleanEmail);
-    });
-
-    if (duplicateUser) {
-      logAuthAudit('SIGNUP_DUPLICATE_ACCOUNT', {
-        phone: maskPhoneNumber(clean10Digits),
-        email: maskEmailAddress(cleanEmail)
-      });
-      return {
-        success: false,
-        message: 'यो मोबाइल नम्बर वा इमेल पहिले नै दर्ता भएको खातासँग आबद्ध छ। कृपया लगइन वा खाता पुनःप्राप्ति गर्नुहोस्।'
-      };
-    }
-
-    // 6. Generate secure 6-digit OTPs and unique cryptographic salt
-    const phoneOtp = generateSecureOTP();
-    const emailOtp = generateSecureOTP();
-    const salt = crypto.randomBytes(16).toString('hex');
-
-    const phoneOtpHashed = hashOTP(phoneOtp, salt);
-    const emailOtpHashed = hashOTP(emailOtp, salt);
-
-    const now = Date.now();
-    const challengeId = `ch_${now}_${crypto.randomBytes(6).toString('hex')}`;
-
-    const challenge: RegistrationChallenge = {
-      challengeId,
-      fullName,
-      phone: clean10Digits,
-      phoneNormalized: phoneNorm.normalized,
-      email: cleanEmail,
-      phoneOtpHashed,
-      emailOtpHashed,
-      salt,
-      phoneVerified: false,
-      emailVerified: false,
-      phoneAttempts: 0,
-      emailAttempts: 0,
-      createdAt: now,
-      expiresAt: now + CHALLENGE_EXPIRY_MS,
-      lastPhoneResendAt: now,
-      lastEmailResendAt: now,
-      resendCount: 0
-    };
-
-    // Store in persistent state
-    this.registrationChallenges.set(challengeId, challenge);
-    this.persistChallenges();
-
-    logAuthAudit('CHALLENGE_CREATED', {
-      challengeId,
-      phone: maskPhoneNumber(challenge.phoneNormalized),
-      email: maskEmailAddress(challenge.email),
-      expiresAt: new Date(challenge.expiresAt).toISOString()
-    });
-
-    // 7. Dispatch SMS and Email via real provider adapters concurrently
-    const [smsResult, emailResult] = await Promise.all([
-      smsProviderService.sendSMS(challenge.phoneNormalized, phoneOtp, {
-        appName: 'बालानन्द वैदिक ज्योतिष सेवा'
-      }),
-      emailProviderService.sendEmail(challenge.email, emailOtp, {
-        fullName: challenge.fullName,
-        appName: 'बालानन्द वैदिक ज्योतिष सेवा'
-      })
-    ]);
-
-    logAuthAudit('OTP_DISPATCH_RESULTS', {
-      challengeId,
-      sms: {
-        provider: smsResult.provider,
-        channelStatus: smsResult.channelStatus,
-        isMock: smsResult.isMock,
-        success: smsResult.success,
-        error: smsResult.error
-      },
-      email: {
-        provider: emailResult.provider,
-        channelStatus: emailResult.channelStatus,
-        isMock: emailResult.isMock,
-        success: emailResult.success,
-        error: emailResult.error
+  private syncLeadRecord(user: UserAccount): void {
+    try {
+      let leads: any[] = [];
+      if (fs.existsSync(CLIENT_LEADS_FILE)) {
+        leads = JSON.parse(fs.readFileSync(CLIENT_LEADS_FILE, 'utf-8'));
       }
-    });
-
-    const isProduction = process.env.NODE_ENV === 'production';
-    const bothMock = smsResult.isMock && emailResult.isMock;
-
-    // Case 1: Both in simulation/mock mode
-    if (bothMock) {
-      console.log(`[SERVER_DEV_OTP_SIGNUP] Phone OTP: ${phoneOtp} | Email OTP: ${emailOtp}`);
-      return {
-        success: true,
-        challengeId,
-        isDevMock: true,
-        deliveryStatus: {
-          sms: { success: true, provider: smsResult.provider, isMock: true, status: smsResult.channelStatus },
-          email: { success: true, provider: emailResult.provider, isMock: true, status: emailResult.channelStatus },
-          isMock: true
-        },
-        message: 'तपाईंको मोबाइल र इमेलमा ६ अङ्कको सुरक्षा कोड पठाइएको छ।'
+      const existingIdx = leads.findIndex(l => normalizeMobileNumber(l.mobile) === user.phone);
+      const leadItem = {
+        id: `LEAD-${Date.now()}`,
+        fullName: user.fullName,
+        address: user.address || 'नेपाल',
+        mobile: user.phone,
+        email: user.email || '',
+        whatsapp: user.phone,
+        deviceFingerprint: 'user-registered',
+        status: user.userCategory === 'professional' ? 'APPROVED' : user.userCategory === 'member' ? 'MEMBER_ACTIVE' : 'REGISTERED_USER',
+        planId: user.subscriptionPlan || 'standard',
+        planNameNepali: user.subscriptionPlan ? (user.userCategory === 'professional' ? 'व्यावसायिक योजना' : 'सदस्य योजना') : 'दर्ता भएको प्रयोगकर्ता (Visitor)',
+        planAmountNPR: user.paymentAmountNPR || 0,
+        paymentMethod: user.paymentStatus === 'paid' ? 'offline_verified' : 'none',
+        submittedAtISO: user.createdAtISO,
+        submittedAtBS: user.createdAtBS || '२०८१',
+        clientNotes: `प्रयोगकर्ता श्रेणी: ${user.userCategory}`
       };
-    }
 
-    // Case 2: Both real gateways succeeded
-    if (smsResult.success && emailResult.success) {
-      return {
-        success: true,
-        challengeId,
-        isDevMock: false,
-        deliveryStatus: {
-          sms: { success: true, provider: smsResult.provider, isMock: false, status: smsResult.channelStatus },
-          email: { success: true, provider: emailResult.provider, isMock: false, status: emailResult.channelStatus },
-          isMock: false
-        },
-        message: 'तपाईंको मोबाइल र इमेल दुवैमा ६ अङ्कको गोप्य सुरक्षा कोड (OTP) पठाइएको छ।'
-      };
-    }
-
-    // Case 3: Mobile SMS succeeded, but Email failed
-    if (smsResult.success && !emailResult.success) {
-      return {
-        success: true,
-        challengeId,
-        partialDelivery: true,
-        deliveryStatus: {
-          sms: { success: true, provider: smsResult.provider, isMock: smsResult.isMock, status: smsResult.channelStatus },
-          email: { success: false, provider: emailResult.provider, error: emailResult.error, status: emailResult.channelStatus }
-        },
-        message: `मोबाइलमा SMS OTP पठाइयो। तर इमेल पठाउन सकिएन (${emailResult.error || 'इमेल गेटवे समस्या'})। तपाईं मोबाइल कोडबाट प्रमाणीकरण अघि बढाउन सक्नुहुन्छ।`
-      };
-    }
-
-    // Case 4: Email succeeded, but Mobile SMS failed
-    if (!smsResult.success && emailResult.success) {
-      return {
-        success: true,
-        challengeId,
-        partialDelivery: true,
-        deliveryStatus: {
-          sms: { success: false, provider: smsResult.provider, error: smsResult.error, status: smsResult.channelStatus },
-          email: { success: true, provider: emailResult.provider, isMock: emailResult.isMock, status: emailResult.channelStatus }
-        },
-        message: `इमेलमा OTP पठाइयो। तर मोबाइलमा SMS पठाउन सकिएन (${smsResult.error || 'SMS गेटवे समस्या'})। कृपया इमेलबाट प्राप्त कोड प्रविष्ट गर्नुहोस्।`
-      };
-    }
-
-    // Case 5: Both failed
-    this.registrationChallenges.delete(challengeId);
-    this.persistChallenges();
-    return {
-      success: false,
-      deliveryStatus: {
-        sms: { success: false, provider: smsResult.provider, error: smsResult.error },
-        email: { success: false, provider: emailResult.provider, error: emailResult.error }
-      },
-      message: `OTP पठाउन सकिएन। SMS: ${smsResult.error || 'अज्ञात समस्या'}, Email: ${emailResult.error || 'अज्ञात समस्या'}`
-    };
-  }
-
-  /**
-   * Phase 5: Verify Mobile OTP
-   */
-  verifyPhoneOTP(
-    challengeId: string,
-    enteredOtp: string
-  ): { success: boolean; phoneVerified: boolean; emailVerified: boolean; isBothVerified: boolean; message: string } {
-    const challenge = this.registrationChallenges.get(challengeId);
-    if (!challenge) {
-      return {
-        success: false,
-        phoneVerified: false,
-        emailVerified: false,
-        isBothVerified: false,
-        message: 'दर्ता सत्र (Session) फेला परेन वा म्याद समाप्त भयो। कृपया पुनः सुरु गर्नुहोस्।'
-      };
-    }
-
-    if (Date.now() > challenge.expiresAt) {
-      this.registrationChallenges.delete(challengeId);
-      this.persistChallenges();
-      return {
-        success: false,
-        phoneVerified: false,
-        emailVerified: false,
-        isBothVerified: false,
-        message: 'OTP को ५ मिनेटको समय समाप्त भएको छ। कृपया नयाँ कोड माग्नुहोस्।'
-      };
-    }
-
-    if (challenge.phoneAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-      this.registrationChallenges.delete(challengeId);
-      this.persistChallenges();
-      return {
-        success: false,
-        phoneVerified: false,
-        emailVerified: false,
-        isBothVerified: false,
-        message: 'धेरै पटक गलत OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरियो।'
-      };
-    }
-
-    const cleanInput = String(enteredOtp || '').trim();
-    const computedHash = hashOTP(cleanInput, challenge.salt);
-
-    if (computedHash !== challenge.phoneOtpHashed) {
-      challenge.phoneAttempts++;
-      if (challenge.phoneAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-        this.registrationChallenges.delete(challengeId);
-        this.persistChallenges();
-        return {
-          success: false,
-          phoneVerified: false,
-          emailVerified: false,
-          isBothVerified: false,
-          message: 'धेरै पटक गलत OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरियो।'
-        };
+      if (existingIdx > -1) {
+        leads[existingIdx] = { ...leads[existingIdx], ...leadItem };
+      } else {
+        leads.unshift(leadItem);
       }
-      this.persistChallenges();
-      const remaining = MAX_VERIFICATION_ATTEMPTS - challenge.phoneAttempts;
-      return {
-        success: false,
-        phoneVerified: false,
-        emailVerified: challenge.emailVerified,
-        isBothVerified: false,
-        message: `गलत मोबाइल OTP कोड! बाँकी प्रयास: ${remaining}`
-      };
+      fs.writeFileSync(CLIENT_LEADS_FILE, JSON.stringify(leads, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to sync client_purchase_leads:', e);
     }
-
-    // Success
-    challenge.phoneVerified = true;
-    this.persistChallenges();
-    const isBothVerified = challenge.phoneVerified && challenge.emailVerified;
-
-    return {
-      success: true,
-      phoneVerified: true,
-      emailVerified: challenge.emailVerified,
-      isBothVerified,
-      message: 'मोबाइल नम्बर सफलतापूर्वक प्रमाणीकरण भयो!'
-    };
   }
 
-  /**
-   * Phase 5: Verify Email OTP
-   */
-  verifyEmailOTP(
-    challengeId: string,
-    enteredOtp: string
-  ): { success: boolean; phoneVerified: boolean; emailVerified: boolean; isBothVerified: boolean; message: string } {
-    const challenge = this.registrationChallenges.get(challengeId);
-    if (!challenge) {
+  // =========================================================================
+  // 1. PHASE 3: NEW 5-FIELD SIGNUP (NO OTP)
+  // =========================================================================
+  public registerUser(params: {
+    fullName: string;
+    address: string;
+    mobileNumber: string;
+    username: string;
+    password: string;
+    email?: string;
+  }): { success: boolean; message: string; user?: any; token?: string; error?: string } {
+    this.loadFromDisk();
+
+    const fullName = String(params.fullName || '').trim();
+    const address = String(params.address || '').trim();
+    const mobileRaw = String(params.mobileNumber || '').trim();
+    const usernameRaw = String(params.username || '').trim();
+    const password = String(params.password || '').trim();
+    const email = String(params.email || '').trim();
+
+    // 1. Validate all 5 required fields
+    if (!fullName) {
+      return { success: false, message: 'कृपया पूरा नाम प्रविष्ट गर्नुहोस्।' };
+    }
+    if (!address) {
+      return { success: false, message: 'कृपया ठेगाना प्रविष्ट गर्नुहोस्।' };
+    }
+    if (!mobileRaw) {
+      return { success: false, message: 'कृपया मोबाइल नम्बर प्रविष्ट गर्नुहोस्।' };
+    }
+    if (!usernameRaw) {
+      return { success: false, message: 'कृपया प्रयोगकर्ता नाम (Username) प्रविष्ट गर्नुहोस्।' };
+    }
+    if (!password || password.length < 6) {
+      return { success: false, message: 'पासवर्ड कम्तिमा ६ अक्षर वा अङ्कको हुनुपर्दछ।' };
+    }
+
+    // 2. Validate and normalize mobile number (Nepal 10-digit mobile)
+    const phone = normalizeMobileNumber(mobileRaw);
+    if (phone.length !== 10 || !['98', '97', '96'].some(p => phone.startsWith(p))) {
       return {
         success: false,
-        phoneVerified: false,
-        emailVerified: false,
-        isBothVerified: false,
-        message: 'दर्ता सत्र (Session) फेला परेन वा म्याद समाप्त भयो। कृपया पुनः सुरु गर्नुहोस्।'
+        message: 'कृपया मान्य १० अङ्कको नेपाल मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: 98XXXXXXXX वा 97XXXXXXXX)।'
       };
     }
 
-    if (Date.now() > challenge.expiresAt) {
-      this.registrationChallenges.delete(challengeId);
-      this.persistChallenges();
+    // 3. Normalize username (lowercase, trim) and check alphanumeric format
+    const username = usernameRaw.toLowerCase();
+    if (!/^[a-z0-9_.-]{3,30}$/.test(username)) {
       return {
         success: false,
-        phoneVerified: false,
-        emailVerified: false,
-        isBothVerified: false,
-        message: 'OTP को ५ मिनेटको समय समाप्त भएको छ। कृपया नयाँ कोड माग्नुहोस्।'
+        message: 'प्रयोगकर्ता नाम ३ देखि ३० अक्षरको, अङ्क, अंग्रेजी अक्षर र _ वा - मात्र प्रयोग गर्न मिल्छ।'
       };
     }
 
-    if (challenge.emailAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-      this.registrationChallenges.delete(challengeId);
-      this.persistChallenges();
+    // 4. Prevent duplicate usernames
+    const existingUserByName = this.users.find(u => String(u.username || '').toLowerCase() === username);
+    if (existingUserByName) {
       return {
         success: false,
-        phoneVerified: false,
-        emailVerified: false,
-        isBothVerified: false,
-        message: 'धेरै पटक गलत इमेल OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरियो।'
+        message: `प्रयोगकर्ता नाम '${username}' पहिले नै दर्ता भइसकेको छ। कृपया अर्को नाम छान्नुहोस्।`
       };
     }
 
-    const cleanInput = String(enteredOtp || '').trim();
-    const computedHash = hashOTP(cleanInput, challenge.salt);
-
-    if (computedHash !== challenge.emailOtpHashed) {
-      challenge.emailAttempts++;
-      if (challenge.emailAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-        this.registrationChallenges.delete(challengeId);
-        this.persistChallenges();
-        return {
-          success: false,
-          phoneVerified: false,
-          emailVerified: false,
-          isBothVerified: false,
-          message: 'धेरै पटक गलत इमेल OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरियो।'
-        };
-      }
-      this.persistChallenges();
-      const remaining = MAX_VERIFICATION_ATTEMPTS - challenge.emailAttempts;
+    // 5. Prevent duplicate mobile numbers
+    const existingUserByPhone = this.users.find(u => normalizeMobileNumber(u.phone) === phone);
+    if (existingUserByPhone) {
       return {
         success: false,
-        phoneVerified: challenge.phoneVerified,
-        emailVerified: false,
-        isBothVerified: false,
-        message: `गलत इमेल OTP कोड! बाँकी प्रयास: ${remaining}`
+        message: `मोबाइल नम्बर ${phone} पहिले नै दर्ता भइसकेको छ। कृपया लगइन गर्नुहोस्।`
       };
     }
 
-    // Success
-    challenge.emailVerified = true;
-    this.persistChallenges();
-    const isBothVerified = challenge.phoneVerified && challenge.emailVerified;
-
-    return {
-      success: true,
-      phoneVerified: challenge.phoneVerified,
-      emailVerified: true,
-      isBothVerified,
-      message: 'इमेल ठेगाना सफलतापूर्वक प्रमाणीकरण भयो!'
-    };
-  }
-
-  /**
-   * Resend OTP with 60-second cooldown and maximum limits
-   */
-  async resendOTP(
-    challengeId: string,
-    target: 'phone' | 'email' | 'both'
-  ): Promise<{ success: boolean; message: string; devHint?: { phoneOtp?: string; emailOtp?: string } }> {
-    const challenge = this.registrationChallenges.get(challengeId);
-    if (!challenge) {
-      return { success: false, message: 'सत्र फेला परेन। कृपया पुनः सुरु गर्नुहोस्।' };
-    }
-
-    const now = Date.now();
-    if (challenge.resendCount >= MAX_RESEND_COUNT) {
-      return { success: false, message: 'अधिकतम पुनः पठाउने सीमा समाप्त भयो। कृपया नयाँ दर्ता फारम भर्नुहोस्।' };
-    }
-
-    const lastResend = Math.max(challenge.lastPhoneResendAt, challenge.lastEmailResendAt);
-    if (now - lastResend < RESEND_COOLDOWN_MS) {
-      const waitSeconds = Math.ceil((RESEND_COOLDOWN_MS - (now - lastResend)) / 1000);
-      return { success: false, message: `कृपया नयाँ OTP माग्न ${waitSeconds} सेकेन्ड पर्खनुहोस्।` };
-    }
-
-    challenge.resendCount++;
-    challenge.expiresAt = now + CHALLENGE_EXPIRY_MS; // Extend expiry
-
-    const newSalt = crypto.randomBytes(16).toString('hex');
-    challenge.salt = newSalt;
-
-    let newPhoneOtp = '';
-    let newEmailOtp = '';
-    const promises: Promise<any>[] = [];
-
-    if (target === 'phone' || target === 'both') {
-      newPhoneOtp = generateSecureOTP();
-      challenge.phoneOtpHashed = hashOTP(newPhoneOtp, newSalt);
-      challenge.phoneAttempts = 0;
-      challenge.lastPhoneResendAt = now;
-      promises.push(smsProviderService.sendSMS(challenge.phoneNormalized, newPhoneOtp));
-    }
-
-    if (target === 'email' || target === 'both') {
-      newEmailOtp = generateSecureOTP();
-      challenge.emailOtpHashed = hashOTP(newEmailOtp, newSalt);
-      challenge.emailAttempts = 0;
-      challenge.lastEmailResendAt = now;
-      promises.push(emailProviderService.sendEmail(challenge.email, newEmailOtp, { fullName: challenge.fullName }));
-    }
-
-    this.persistChallenges();
-    await Promise.all(promises);
-
-    logAuthAudit('OTP_RESEND_DISPATCHED', {
-      challengeId,
-      target,
-      phone: maskPhoneNumber(challenge.phoneNormalized),
-      email: maskEmailAddress(challenge.email),
-      resendCount: challenge.resendCount
-    });
-
-    if (newPhoneOtp || newEmailOtp) {
-      console.log(`[SERVER_DEV_OTP_RESEND] Phone OTP: ${newPhoneOtp || '---'} | Email OTP: ${newEmailOtp || '---'}`);
-    }
-
-    return {
-      success: true,
-      message: 'नयाँ प्रमाणीकरण कोड (OTP) पुनः पठाइएको छ।'
-    };
-  }
-
-  /**
-   * Phase 7: Atomically finalize account creation after BOTH OTPs are verified.
-   */
-  finalizeRegistration(challengeId: string): {
-    success: boolean;
-    user?: any;
-    token?: string;
-    message: string;
-  } {
-    const challenge = this.registrationChallenges.get(challengeId);
-    if (!challenge) {
-      return { success: false, message: 'दर्ता सत्र समाप्त भएको छ।' };
-    }
-
-    if (!challenge.phoneVerified || !challenge.emailVerified) {
-      return {
-        success: false,
-        message: 'मोबाइल र इमेल दुवै अनिवार्य प्रमाणीकरण भएको हुनुपर्छ।'
-      };
-    }
-
-    // Challenge consumed
-    this.registrationChallenges.delete(challengeId);
-    this.persistChallenges();
-
+    // 6. Cryptographically hash password using salted Scrypt
+    const passwordHash = hashUserPassword(password);
     const now = new Date();
-    const userId = `usr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-    const token = crypto.randomBytes(32).toString('hex');
+    const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const customerId = `सदस्य-२०८१-${String(this.users.length + 1).padStart(4, '०')}`;
 
-    const newUser = {
+    // 7. Create user with default role 'user' and userCategory 'visitor'
+    const newUser: UserAccount = {
       id: userId,
-      customerId: `सदस्य-२०८३-${Math.floor(1000 + Math.random() * 9000)}`,
-      username: challenge.phone,
-      phone: challenge.phone,
-      email: challenge.email,
-      fullName: challenge.fullName,
-      role: 'CUSTOMER',
-      roleNameNepali: 'यजमान / ग्राहक',
+      customerId,
+      username,
+      phone,
+      fullName,
+      address,
+      email: email || '',
+      passwordHash,
+      role: 'user',
+      roleNameNepali: 'साधारण प्रयोगकर्ता (विजिटर)',
+      userCategory: 'visitor', // Non-negotiable: All signups default to visitor!
+      accountStatus: 'active',
       status: 'active',
       mobileVerified: true,
-      mobileVerifiedAtISO: now.toISOString(),
-      emailVerified: true,
-      emailVerifiedAtISO: now.toISOString(),
-      profileCompleted: false, // Second stage profile completion pending
-      permissions: ['store.view', 'kundali.view', 'profile.edit', 'yajaman.view'],
-      address: '',
-      gender: 'other',
-      birthDetails: null,
+      emailVerified: false,
+      subscriptionPlan: 'निःशुल्क (Visitor Plan)',
+      subscriptionStartAt: null,
+      subscriptionExpiresAt: null,
+      paymentAmountNPR: 0,
+      paymentStatus: 'pending',
+      remainingDays: 0,
+      permissions: ['visitor.view', 'faladesh.view', 'panchanga.view', 'samachar.view', 'membership.view', 'vivah.view', 'yajaman.view', 'org.view'],
       createdAtISO: now.toISOString(),
-      updatedAtISO: now.toISOString(),
-      lastLoginISO: now.toISOString()
+      createdAtBS: '२०८१',
+      lastLoginISO: now.toISOString(),
+      lastUpdatedISO: now.toISOString()
     };
 
-    // Store active session (30 days validity)
-    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    this.users.unshift(newUser);
+    this.persistUsers();
+
+    // Sync with client purchase leads for Super Admin
+    this.syncLeadRecord(newUser);
+
+    // Create session token
+    const token = crypto.randomBytes(32).toString('hex');
     this.activeSessions.set(token, {
       userId: newUser.id,
+      username: newUser.username,
       phone: newUser.phone,
-      email: newUser.email,
       fullName: newUser.fullName,
       role: newUser.role,
-      profileCompleted: false,
-      expiresAt
+      userCategory: newUser.userCategory,
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
     });
     this.persistSessions();
 
+    // Sanitize user for response
+    const sanitized = { ...newUser };
+    delete (sanitized as any).passwordHash;
+
     return {
       success: true,
-      user: newUser,
-      token,
-      message: 'साइन अप सफल भयो! स्वागत छ।'
+      message: 'खाता सफलतापूर्वक दर्ता भयो! तपाईंको भ्रमण (विजिटर) खाता सक्रिय भएको छ।',
+      user: sanitized,
+      token
     };
   }
 
-  /**
-   * Unified Single OTP Challenge Creation (SMS, WhatsApp, Email)
-   * Sends OTP strictly to the ONE selected channel only.
-   * Zero secret leakage: plain OTP is NEVER sent to the client.
-   */
-  async createSingleOTPChallenge(params: {
-    channel: OTPChannel;
-    destination: string;
-    countryCode?: string;
-    fullName?: string;
-    purpose?: 'login' | 'signup' | 'verification';
-    clientIp?: string;
-  }): Promise<{
+  // =========================================================================
+  // 2. PHASE 4: NORMAL LOGIN (MOBILE NUMBER OR USERNAME + PASSWORD)
+  // =========================================================================
+  public loginUser(
+    identifierOrOptions: string | {
+      identifier?: string;
+      phoneOrUsername?: string;
+      username?: string;
+      phone?: string;
+      mobile?: string;
+      password?: string;
+      clientIp?: string;
+    },
+    passwordPlain?: string,
+    clientIp = 'unknown'
+  ): {
     success: boolean;
-    challengeId?: string;
-    channel?: OTPChannel;
-    maskedDestination?: string;
     message: string;
-    isMock?: boolean;
-    provider?: string;
-    channelStatus?: string;
+    user?: any;
+    token?: string;
+    session?: UserSessionData;
     error?: string;
-  }> {
-    const clientIp = params.clientIp || 'unknown';
-    logAuthAudit('SINGLE_OTP_REQUEST_RECEIVED', {
-      channel: params.channel,
-      destination: params.channel === 'email' ? maskEmailAddress(params.destination) : maskPhoneNumber(params.destination),
-      purpose: params.purpose,
-      clientIp
+  } {
+    this.loadFromDisk();
+
+    let cleanInput = '';
+    let cleanPassword = '';
+    let effectiveIp = clientIp;
+
+    if (typeof identifierOrOptions === 'object' && identifierOrOptions !== null) {
+      cleanInput = String(
+        identifierOrOptions.identifier ||
+        identifierOrOptions.phoneOrUsername ||
+        identifierOrOptions.username ||
+        identifierOrOptions.phone ||
+        identifierOrOptions.mobile ||
+        ''
+      ).trim();
+      cleanPassword = String(identifierOrOptions.password || passwordPlain || '').trim();
+      if (identifierOrOptions.clientIp) {
+        effectiveIp = identifierOrOptions.clientIp;
+      }
+    } else {
+      cleanInput = String(identifierOrOptions || '').trim();
+      cleanPassword = String(passwordPlain || '').trim();
+    }
+
+    if (!cleanInput || !cleanPassword) {
+      return { success: false, message: 'कृपया मोबाइल नम्बर वा प्रयोगकर्ता नाम र पासवर्ड प्रविष्ट गर्नुहोस्।' };
+    }
+
+    // Rate limiting: max 10 failed attempts per IP per 10 minutes
+    const attempt = this.loginAttempts.get(effectiveIp);
+    if (attempt && attempt.lockedUntil > Date.now()) {
+      const remainingMin = Math.ceil((attempt.lockedUntil - Date.now()) / 60000);
+      return {
+        success: false,
+        message: `धेरै पटक गलत प्रयास गरियो। सुरक्षाका लागि यो IP ${remainingMin} मिनेटका लागि रोक्का गरिएको छ।`
+      };
+    }
+
+    const cleanDigits = normalizeMobileNumber(cleanInput);
+    const cleanUsername = cleanInput.toLowerCase();
+
+    // Find user by either mobile number or username
+    const user = this.users.find(u => {
+      const uPhone = normalizeMobileNumber(u.phone);
+      const uUser = String(u.username || '').toLowerCase();
+      return (cleanDigits.length === 10 && uPhone === cleanDigits) || uUser === cleanUsername;
     });
 
-    // 1. IP Rate Limiting: 10 requests per minute
-    if (!this.checkRateLimit(clientIp, 10, 60000).allowed) {
-      logAuthAudit('SINGLE_OTP_RATE_LIMITED', { clientIp });
+    if (!user) {
+      const currentCount = (attempt?.count || 0) + 1;
+      const lockedUntil = currentCount >= 10 ? Date.now() + 10 * 60 * 1000 : 0;
+      this.loginAttempts.set(effectiveIp, { count: currentCount, lockedUntil });
       return {
         success: false,
-        message: 'धेरै पटक प्रयास भयो। कृपया १ मिनेटपछि पुनः प्रयास गर्नुहोस्।'
+        message: 'यो प्रयोगकर्ता खाता फेला परेन। कृपया मोबाइल नम्बर वा युजरनेम जाँच्नुहोस् वा नयाँ खाता दर्ता गर्नुहोस्।'
       };
     }
 
-    // 2. Validate channel
-    const validChannels: OTPChannel[] = ['sms', 'whatsapp', 'email'];
-    if (!validChannels.includes(params.channel)) {
+    // Check account status
+    if (user.accountStatus === 'suspended' || user.status === 'suspended') {
       return {
         success: false,
-        message: 'अवैध प्रमाणीकरण माध्यम छनोट गरियो। कृपया SMS, WhatsApp वा Email रोज्नुहोस्।'
+        message: 'यो खाता सुपरएडमिन द्वारा निलम्बन (Suspended) गरिएको छ। सहयोगका लागि प्रशासनमा सम्पर्क गर्नुहोस्।'
       };
     }
 
-    // 3. Normalize & validate destination
-    let cleanDestination = '';
-    let normalizedDestination = '';
-    let maskedDestination = '';
-
-    if (params.channel === 'sms' || params.channel === 'whatsapp') {
-      const phoneNorm = normalizePhoneNumber(params.destination);
-      if (!phoneNorm.valid) {
-        return {
-          success: false,
-          message: 'कृपया मान्य १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस् (उदा: ९८xxxxxxxx वा ९७xxxxxxxx)।'
-        };
-      }
-      cleanDestination = phoneNorm.display;
-      normalizedDestination = phoneNorm.normalized;
-      maskedDestination = maskPhoneNumber(phoneNorm.display);
-    } else {
-      const emailNorm = normalizeEmail(params.destination);
-      if (!emailNorm.valid) {
-        return {
-          success: false,
-          message: 'कृपया मान्य इमेल ठेगाना प्रविष्ट गर्नुहोस् (उदा: yourname@gmail.com)।'
-        };
-      }
-      cleanDestination = emailNorm.normalized;
-      normalizedDestination = emailNorm.normalized;
-      maskedDestination = maskEmailAddress(emailNorm.normalized);
+    // Verify password securely
+    const isPassValid = verifyUserPassword(cleanPassword, user.passwordHash);
+    if (!isPassValid) {
+      const currentCount = (attempt?.count || 0) + 1;
+      const lockedUntil = currentCount >= 10 ? Date.now() + 10 * 60 * 1000 : 0;
+      this.loginAttempts.set(effectiveIp, { count: currentCount, lockedUntil });
+      return {
+        success: false,
+        message: 'पासवर्ड मिलेन। कृपया सही पासवर्ड प्रविष्ट गर्नुहोस्।'
+      };
     }
 
-    // 4. Generate cryptographically strong 6-digit OTP and unique salt
-    const otp = generateSecureOTP();
-    const salt = crypto.randomBytes(16).toString('hex');
-    const otpHashed = hashOTP(otp, salt);
+    // Reset login attempts on success
+    this.loginAttempts.delete(effectiveIp);
 
-    const now = Date.now();
-    const challengeId = `sotp_${now}_${crypto.randomBytes(6).toString('hex')}`;
+    // Update last login
+    user.lastLoginISO = new Date().toISOString();
+    this.persistUsers();
 
-    const challenge: SingleOTPChallenge = {
-      challengeId,
-      channel: params.channel,
-      destination: cleanDestination,
-      destinationNormalized: normalizedDestination,
-      destinationMasked: maskedDestination,
-      countryCode: params.countryCode || '+977',
-      otpHashed,
-      salt,
-      attempts: 0,
-      maxAttempts: MAX_VERIFICATION_ATTEMPTS,
-      createdAt: now,
-      expiresAt: now + CHALLENGE_EXPIRY_MS,
-      lastResendAt: now,
-      resendCount: 0,
-      verified: false,
-      purpose: params.purpose || 'login',
-      fullName: params.fullName
+    // Generate authenticated session
+    const token = crypto.randomBytes(32).toString('hex');
+    const sessionData: UserSessionData = {
+      userId: user.id,
+      username: user.username,
+      phone: user.phone,
+      fullName: user.fullName,
+      role: user.role,
+      userCategory: user.userCategory || 'visitor',
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
     };
+    this.activeSessions.set(token, sessionData);
+    this.persistSessions();
 
-    this.singleOtpChallenges.set(challengeId, challenge);
-    this.persistSingleChallenges();
-
-    // 5. Dispatch strictly to the ONE selected channel
-    let dispatchResult: any;
-    if (params.channel === 'sms') {
-      dispatchResult = await smsProviderService.sendSMS(normalizedDestination, otp, {
-        appName: 'बालानन्द वैदिक ज्योतिष सेवा'
-      });
-    } else if (params.channel === 'whatsapp') {
-      dispatchResult = await whatsappProviderService.sendWhatsApp(normalizedDestination, otp, {
-        appName: 'बालानन्द वैदिक ज्योतिष सेवा',
-        fullName: params.fullName
-      });
-    } else {
-      dispatchResult = await emailProviderService.sendEmail(normalizedDestination, otp, {
-        appName: 'बालानन्द वैदिक ज्योतिष सेवा',
-        fullName: params.fullName || 'आदरणीय सदस्य'
-      });
-    }
-
-    logAuthAudit('SINGLE_OTP_DISPATCH_RESULT', {
-      challengeId,
-      channel: params.channel,
-      destination: maskedDestination,
-      provider: dispatchResult.provider,
-      isMock: dispatchResult.isMock,
-      success: dispatchResult.success
-    });
-
-    // In dev simulation mode, log in server terminal for developer testing (NEVER sent to client)
-    if (dispatchResult.isMock) {
-      console.log(`[SERVER_DEV_OTP] Channel: ${params.channel.toUpperCase()} | Dest: ${cleanDestination} | Code: ${otp}`);
-    }
-
-    // If dispatch failed completely (and not mock)
-    if (!dispatchResult.success && !dispatchResult.isMock) {
-      this.singleOtpChallenges.delete(challengeId);
-      this.persistSingleChallenges();
-      return {
-        success: false,
-        message: `सुरक्षा कोड पठाउन सकिएन (${dispatchResult.error || 'गेटवे समस्या'})। कृपया पुनः प्रयास गर्नुहोस्।`,
-        error: dispatchResult.error
-      };
-    }
-
-    const channelNamesNepali: Record<OTPChannel, string> = {
-      sms: 'मोबाइल SMS',
-      whatsapp: 'WhatsApp',
-      email: 'इमेल'
-    };
+    const sanitized = { ...user };
+    delete (sanitized as any).passwordHash;
 
     return {
       success: true,
-      challengeId,
-      channel: params.channel,
-      maskedDestination,
-      provider: dispatchResult.provider,
-      isMock: dispatchResult.isMock,
-      channelStatus: dispatchResult.channelStatus,
-      message: `${channelNamesNepali[params.channel]} (${maskedDestination}) मा ६ अङ्कको गोप्य सुरक्षा कोड पठाइएको छ।`
+      message: 'लगइन सफल भयो!',
+      user: sanitized,
+      token,
+      session: sessionData
     };
   }
 
-  /**
-   * Unified Single OTP Verification (Works for SMS, WhatsApp, and Email)
-   */
-  verifySingleOTPChallenge(
-    challengeId: string,
-    enteredOtp: string
-  ): { success: boolean; challenge?: SingleOTPChallenge; message: string } {
-    const challenge = this.singleOtpChallenges.get(challengeId);
-    if (!challenge) {
-      return {
-        success: false,
-        message: 'प्रमाणीकरण सत्र फेला परेन वा म्याद समाप्त भयो। कृपया पुनः सुरु गर्नुहोस्।'
-      };
-    }
-
-    if (Date.now() > challenge.expiresAt) {
-      this.singleOtpChallenges.delete(challengeId);
-      this.persistSingleChallenges();
-      return {
-        success: false,
-        message: 'OTP को ५ मिनेटको समय समाप्त भएको छ। कृपया नयाँ कोड माग्नुहोस्।'
-      };
-    }
-
-    if (challenge.attempts >= challenge.maxAttempts) {
-      this.singleOtpChallenges.delete(challengeId);
-      this.persistSingleChallenges();
-      return {
-        success: false,
-        message: 'धेरै पटक गलत OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरिएको छ।'
-      };
-    }
-
-    const cleanInput = String(enteredOtp || '').trim().replace(/\D/g, '');
-    if (cleanInput.length < 6) {
-      return {
-        success: false,
-        message: 'कृपया ६ अङ्कको पूरा सुरक्षा कोड प्रविष्ट गर्नुहोस्।'
-      };
-    }
-
-    const computedHash = hashOTP(cleanInput, challenge.salt);
-    if (computedHash !== challenge.otpHashed) {
-      challenge.attempts++;
-      this.persistSingleChallenges();
-      const remaining = challenge.maxAttempts - challenge.attempts;
-      if (remaining <= 0) {
-        this.singleOtpChallenges.delete(challengeId);
-        this.persistSingleChallenges();
-        return {
-          success: false,
-          message: 'धेरै पटक गलत OTP प्रविष्ट गरियो। सुरक्षाका लागि यो सत्र रद्द गरिएको छ।'
-        };
-      }
-      return {
-        success: false,
-        message: `गलत सुरक्षा कोड! कृपया पुनः जाँच्नुहोस्। (बाँकी प्रयास: ${remaining})`
-      };
-    }
-
-    // Success
-    challenge.verified = true;
-    this.persistSingleChallenges();
-    logAuthAudit('SINGLE_OTP_VERIFIED_SUCCESS', {
-      challengeId,
-      channel: challenge.channel,
-      destination: challenge.destinationMasked
-    });
-
-    return {
-      success: true,
-      challenge,
-      message: 'सुरक्षा कोड सफलतापूर्वक प्रमाणीकरण भयो!'
-    };
-  }
-
-  /**
-   * Resend Single OTP with 60s cooldown and max 3 resends
-   */
-  async resendSingleOTP(challengeId: string): Promise<{
-    success: boolean;
-    message: string;
-    remainingSeconds?: number;
-    resendCount?: number;
-  }> {
-    const challenge = this.singleOtpChallenges.get(challengeId);
-    if (!challenge) {
-      return { success: false, message: 'सत्र फेला परेन। कृपया पुनः सुरु गर्नुहोस्।' };
-    }
-
-    const now = Date.now();
-    if (challenge.resendCount >= MAX_RESEND_COUNT) {
-      return { success: false, message: 'अधिकतम पुनः पठाउने सीमा समाप्त भयो (३ पटक)। कृपया नयाँ अनुरोध गर्नुहोस्।' };
-    }
-
-    if (now - challenge.lastResendAt < RESEND_COOLDOWN_MS) {
-      const waitSeconds = Math.ceil((RESEND_COOLDOWN_MS - (now - challenge.lastResendAt)) / 1000);
-      return { success: false, message: `कृपया नयाँ कोड माग्न ${waitSeconds} सेकेन्ड पर्खनुहोस्।`, remainingSeconds: waitSeconds };
-    }
-
-    challenge.resendCount++;
-    challenge.expiresAt = now + CHALLENGE_EXPIRY_MS;
-    challenge.lastResendAt = now;
-    challenge.attempts = 0; // reset attempts for fresh code
-
-    const newSalt = crypto.randomBytes(16).toString('hex');
-    const newOtp = generateSecureOTP();
-    challenge.salt = newSalt;
-    challenge.otpHashed = hashOTP(newOtp, newSalt);
-    this.persistSingleChallenges();
-
-    if (challenge.channel === 'sms') {
-      await smsProviderService.sendSMS(challenge.destinationNormalized, newOtp);
-    } else if (challenge.channel === 'whatsapp') {
-      await whatsappProviderService.sendWhatsApp(challenge.destinationNormalized, newOtp, { fullName: challenge.fullName });
-    } else {
-      await emailProviderService.sendEmail(challenge.destinationNormalized, newOtp, { fullName: challenge.fullName });
-    }
-
-    logAuthAudit('SINGLE_OTP_RESENT', {
-      challengeId,
-      channel: challenge.channel,
-      destination: challenge.destinationMasked,
-      resendCount: challenge.resendCount
-    });
-
-    console.log(`[SERVER_DEV_OTP_RESEND] Channel: ${challenge.channel.toUpperCase()} | Dest: ${challenge.destination} | Code: ${newOtp}`);
-
-    return {
-      success: true,
-      message: 'नयाँ प्रमाणीकरण कोड पुनः पठाइएको छ।',
-      resendCount: challenge.resendCount,
-      remainingSeconds: 60
-    };
-  }
-
-  getSingleChallenge(challengeId: string): SingleOTPChallenge | undefined {
-    return this.singleOtpChallenges.get(challengeId);
-  }
-
-  consumeSingleChallenge(challengeId: string): void {
-    this.singleOtpChallenges.delete(challengeId);
-    this.persistSingleChallenges();
-  }
-
-  // Session validation middleware helper
-  validateSession(token: string): UserSessionData | null {
+  // =========================================================================
+  // 3. SESSION MANAGEMENT
+  // =========================================================================
+  public validateSession(token: string): UserSessionData | null {
     if (!token) return null;
     const session = this.activeSessions.get(token);
     if (!session) return null;
-    if (Date.now() > session.expiresAt) {
+    if (session.expiresAt < Date.now()) {
       this.activeSessions.delete(token);
       this.persistSessions();
       return null;
@@ -1069,38 +633,462 @@ class AuthEngine {
     return session;
   }
 
-  revokeSession(token: string): void {
-    if (token) {
+  public revokeSession(token: string): boolean {
+    if (this.activeSessions.has(token)) {
       this.activeSessions.delete(token);
       this.persistSessions();
+      return true;
     }
+    return false;
   }
 
-  createSession(user: { id: string; phone: string; email?: string; fullName: string; role: string; profileCompleted?: boolean }): string {
+  public createSession(user: { id: string; username?: string; phone?: string; fullName?: string; role?: string; userCategory?: UserCategory }): string {
     const token = crypto.randomBytes(32).toString('hex');
     this.activeSessions.set(token, {
       userId: user.id,
-      phone: user.phone,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      profileCompleted: Boolean(user.profileCompleted),
+      username: user.username || user.phone || 'user',
+      phone: user.phone || '',
+      fullName: user.fullName || 'प्रयोगकर्ता',
+      role: user.role || 'user',
+      userCategory: user.userCategory || 'visitor',
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
     });
     this.persistSessions();
     return token;
   }
 
-  getChallenge(challengeId: string): RegistrationChallenge | undefined {
-    return this.registrationChallenges.get(challengeId);
+  // =========================================================================
+  // 4. SUPER ADMIN USER CATEGORY MANAGEMENT (VISITOR / MEMBER / PROFESSIONAL)
+  // =========================================================================
+  public updateUserCategory(
+    userId: string,
+    category: UserCategory,
+    adminUsername = 'SuperAdmin',
+    reason = 'सुपर एडमिन द्वारा वर्ग परिवर्तन'
+  ): { success: boolean; message: string; user?: any } {
+    this.loadFromDisk();
+
+    const user = this.users.find(u => u.id === userId);
+    if (!user) {
+      return { success: false, message: 'प्रयोगकर्ता फेला परेन।' };
+    }
+
+    const prevCategory = user.userCategory || 'visitor';
+    user.userCategory = category;
+    user.lastUpdatedISO = new Date().toISOString();
+
+    // Update role display
+    if (category === 'professional') {
+      user.roleNameNepali = 'व्यावसायिक प्रयोगकर्ता (Professional)';
+    } else if (category === 'member') {
+      user.roleNameNepali = 'सदस्य प्रयोगकर्ता (Member)';
+    } else {
+      user.roleNameNepali = 'साधारण प्रयोगकर्ता (विजिटर)';
+    }
+
+    this.persistUsers();
+    this.syncLeadRecord(user);
+
+    // Record audit log
+    const audit: AdminAuditEntry = {
+      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      actorUsername: adminUsername,
+      action: 'USER_CATEGORY_CHANGED',
+      targetUserId: user.id,
+      targetUsername: user.username,
+      previousValue: prevCategory,
+      newValue: category,
+      reason,
+      timestampISO: new Date().toISOString()
+    };
+    this.auditLogs.unshift(audit);
+    this.persistAuditLogs();
+
+    // Send in-app notification to user
+    const notif: SystemNotification = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId: user.id,
+      type: 'CATEGORY_CHANGED',
+      title: 'प्रयोगकर्ता श्रेणी अद्यावधिक',
+      message: `तपाईंको खाता श्रेणी '${category === 'professional' ? 'व्यावसायिक' : category === 'member' ? 'सदस्य' : 'विजिटर'}' मा अद्यावधिक गरिएको छ।`,
+      status: 'pending',
+      scheduledAt: new Date().toISOString(),
+      createdAtISO: new Date().toISOString()
+    };
+    this.notifications.unshift(notif);
+    this.persistNotifications();
+
+    const sanitized = { ...user };
+    delete (sanitized as any).passwordHash;
+
+    return {
+      success: true,
+      message: `प्रयोगकर्ताको वर्ग सफलतापूर्वक '${category}' मा परिवर्तन गरियो।`,
+      user: sanitized
+    };
   }
 
-  resetForTesting(): void {
-    this.registrationChallenges.clear();
-    this.activeSessions.clear();
-    this.ipRateLimits.clear();
-    this.persistChallenges();
-    this.persistSessions();
+  // =========================================================================
+  // 5. PHASE 11: PAYMENT & SUBSCRIPTION MANAGEMENT (OFFLINE / MANUAL & RECORDING)
+  // =========================================================================
+  public recordManualPayment(params: {
+    userId: string;
+    amountNPR: number;
+    planId: string;
+    planNameNepali: string;
+    category: UserCategory;
+    durationDays: number;
+    paymentMethod?: string;
+    transactionReference?: string;
+    adminUsername: string;
+    notes?: string;
+  }): { success: boolean; message: string; subscription?: UserSubscription; payment?: PaymentRecord } {
+    this.loadFromDisk();
+
+    const user = this.users.find(u => u.id === params.userId);
+    if (!user) {
+      return { success: false, message: 'प्रयोगकर्ता फेला परेन।' };
+    }
+
+    const now = new Date();
+    const durationDays = Math.max(1, Number(params.durationDays || 30));
+    const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    const subscriptionId = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newSubscription: UserSubscription = {
+      id: subscriptionId,
+      userId: user.id,
+      username: user.username,
+      phone: user.phone,
+      planId: params.planId,
+      planNameNepali: params.planNameNepali,
+      category: params.category,
+      startAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      status: 'active',
+      paymentAmountNPR: Number(params.amountNPR || 0),
+      paymentStatus: 'paid',
+      recordedBy: params.adminUsername,
+      createdAtISO: now.toISOString(),
+      updatedAtISO: now.toISOString()
+    };
+
+    this.subscriptions.unshift(newSubscription);
+    this.persistSubscriptions();
+
+    const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newPayment: PaymentRecord = {
+      id: paymentId,
+      userId: user.id,
+      subscriptionId,
+      amountNPR: Number(params.amountNPR || 0),
+      currency: 'NPR',
+      paymentMethod: params.paymentMethod || 'offline_manual',
+      paymentStatus: 'paid',
+      transactionReference: params.transactionReference || `TXN-${Date.now()}`,
+      recordedBy: params.adminUsername,
+      notes: params.notes || 'काउन्टर वा बैंक मार्फत अफलाइन भुक्तानी प्राप्त',
+      createdAtISO: now.toISOString()
+    };
+
+    this.payments.unshift(newPayment);
+    this.persistPayments();
+
+    // Update user profile with active subscription details & permissions
+    user.userCategory = params.category;
+    user.subscriptionPlan = params.planNameNepali;
+    user.subscriptionStartAt = newSubscription.startAt;
+    user.subscriptionExpiresAt = newSubscription.expiresAt;
+    user.paymentAmountNPR = newPayment.amountNPR;
+    user.paymentStatus = 'paid';
+    user.remainingDays = durationDays;
+    user.lastUpdatedISO = now.toISOString();
+
+    if (params.category === 'professional') {
+      user.roleNameNepali = 'व्यावसायिक प्रयोगकर्ता (Professional)';
+      user.permissions = ['*'];
+    } else {
+      user.roleNameNepali = 'सदस्य प्रयोगकर्ता (Member)';
+      user.permissions = ['member.view', 'member.dashboard', 'rashifal.personal', 'panchanga.view', 'faladesh.view'];
+    }
+
+    this.persistUsers();
+    this.syncLeadRecord(user);
+
+    // Audit log
+    const audit: AdminAuditEntry = {
+      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      actorUsername: params.adminUsername,
+      action: 'OFFLINE_PAYMENT_RECORDED',
+      targetUserId: user.id,
+      targetUsername: user.username,
+      newValue: {
+        plan: params.planNameNepali,
+        amountNPR: params.amountNPR,
+        category: params.category,
+        durationDays
+      },
+      reason: params.notes || 'अफलाइन भुक्तानी दर्ता',
+      timestampISO: now.toISOString()
+    };
+    this.auditLogs.unshift(audit);
+    this.persistAuditLogs();
+
+    return {
+      success: true,
+      message: `भुक्तानी रु. ${params.amountNPR} र सदस्यता '${params.planNameNepali}' सफलतापूर्वक सक्रिय भयो।`,
+      subscription: newSubscription,
+      payment: newPayment
+    };
+  }
+
+  // =========================================================================
+  // 6. PHASE 12 & 13: AUTOMATIC SUBSCRIPTION EXPIRY & ADVANCE REMINDERS (1 MONTH)
+  // =========================================================================
+  public runExpiryAndNotificationCheck(): { expiredCount: number; remindersCount: number } {
+    this.loadFromDisk();
+
+    const now = Date.now();
+    let expiredCount = 0;
+    let remindersCount = 0;
+
+    for (const sub of this.subscriptions) {
+      if (sub.status !== 'active') continue;
+
+      const expTime = new Date(sub.expiresAt).getTime();
+      const remainingMs = expTime - now;
+      const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+
+      // 1. Check if expired
+      if (remainingMs <= 0) {
+        sub.status = 'expired';
+        sub.updatedAtISO = new Date().toISOString();
+        expiredCount++;
+
+        // Revoke user privileges and downgrade to visitor
+        const user = this.users.find(u => u.id === sub.userId);
+        if (user) {
+          user.userCategory = 'visitor';
+          user.roleNameNepali = 'साधारण प्रयोगकर्ता (विजिटर)';
+          user.remainingDays = 0;
+          user.lastUpdatedISO = new Date().toISOString();
+
+          // Send expiry notification to user
+          this.notifications.unshift({
+            id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            userId: user.id,
+            subscriptionId: sub.id,
+            type: 'SUBSCRIPTION_EXPIRED',
+            title: 'सदस्यता म्याद समाप्त भयो',
+            message: `तपाईंको '${sub.planNameNepali}' सदस्यता म्याद समाप्त भएको छ। सेवाहरू निरन्तर उपभोग गर्न कृपया तुरुन्त नवीकरण गर्नुहोस्।`,
+            stage: 'expired',
+            status: 'pending',
+            scheduledAt: new Date().toISOString(),
+            createdAtISO: new Date().toISOString()
+          });
+
+          // Send expiry alert to Super Admin
+          this.notifications.unshift({
+            id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            userId: 'superadmin',
+            subscriptionId: sub.id,
+            type: 'SUBSCRIPTION_EXPIRED',
+            title: 'सदस्यता म्याद समाप्त सूचना (Super Admin)',
+            message: `प्रयोगकर्ता: ${user.username} (${user.fullName}) — योजना: ${sub.planNameNepali} — म्याद समाप्त भयो।`,
+            stage: 'expired',
+            status: 'pending',
+            scheduledAt: new Date().toISOString(),
+            createdAtISO: new Date().toISOString()
+          });
+        }
+        continue;
+      }
+
+      // 2. Schedule Advance Expiry Reminders (~1 month = 30 days, 15 days, 7 days, 3 days, 1 day, today)
+      let targetStage: SystemNotification['stage'] | null = null;
+      let stageNepali = '';
+
+      if (remainingDays >= 25 && remainingDays <= 30) {
+        targetStage = '30_days';
+        stageNepali = '१ महिना (३० दिन)';
+      } else if (remainingDays >= 12 && remainingDays <= 15) {
+        targetStage = '15_days';
+        stageNepali = '१५ दिन';
+      } else if (remainingDays >= 5 && remainingDays <= 7) {
+        targetStage = '7_days';
+        stageNepali = '७ दिन';
+      } else if (remainingDays >= 2 && remainingDays <= 3) {
+        targetStage = '3_days';
+        stageNepali = '३ दिन';
+      } else if (remainingDays === 1) {
+        targetStage = '1_day';
+        stageNepali = '१ दिन (भोलि)';
+      } else if (remainingDays === 0) {
+        targetStage = 'today';
+        stageNepali = 'आज';
+      }
+
+      if (targetStage) {
+        // Prevent duplicate reminder for the same subscription and stage
+        const existing = this.notifications.find(
+          n => n.subscriptionId === sub.id && n.stage === targetStage
+        );
+
+        if (!existing) {
+          remindersCount++;
+          const expDateFormatted = new Date(sub.expiresAt).toLocaleDateString('ne-NP');
+
+          // User Notification
+          this.notifications.unshift({
+            id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            userId: sub.userId,
+            subscriptionId: sub.id,
+            type: `EXPIRY_REMINDER_${targetStage.toUpperCase()}`,
+            title: `सदस्यता म्याद चेतावनी (${stageNepali} बाँकी)`,
+            message: `तपाईंको '${sub.planNameNepali}' सदस्यता आगामी ${sub.expiresAt.split('T')[0]} मा समाप्त हुँदैछ। सेवाहरू सुचारु राख्न कृपया समयमै नवीकरण गर्नुहोस्।`,
+            stage: targetStage,
+            status: 'pending',
+            scheduledAt: new Date().toISOString(),
+            createdAtISO: new Date().toISOString()
+          });
+
+          // Super Admin Alert
+          this.notifications.unshift({
+            id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            userId: 'superadmin',
+            subscriptionId: sub.id,
+            type: `EXPIRY_REMINDER_${targetStage.toUpperCase()}`,
+            title: `सदस्यता म्याद चेतावनी: ${sub.username}`,
+            message: `प्रयोगकर्ता: ${sub.username} (${sub.phone}) — योजना: ${sub.planNameNepali} — म्याद सकिन ${stageNepali} बाँकी।`,
+            stage: targetStage,
+            status: 'pending',
+            scheduledAt: new Date().toISOString(),
+            createdAtISO: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    if (expiredCount > 0 || remindersCount > 0) {
+      this.persistUsers();
+      this.persistSubscriptions();
+      this.persistNotifications();
+    }
+
+    return { expiredCount, remindersCount };
+  }
+
+  // =========================================================================
+  // 7. PHASE 9: SUPER ADMIN 16-COLUMN USER DATASET
+  // =========================================================================
+  public getAllUsersForAdmin(params: {
+    search?: string;
+    category?: string;
+    subscriptionStatus?: string;
+    paymentStatus?: string;
+  }): any[] {
+    this.loadFromDisk();
+    this.runExpiryAndNotificationCheck();
+
+    const search = (params.search || '').trim().toLowerCase();
+    const categoryFilter = (params.category || 'all').toLowerCase();
+    const subStatusFilter = (params.subscriptionStatus || 'all').toLowerCase();
+    const payStatusFilter = (params.paymentStatus || 'all').toLowerCase();
+    const now = Date.now();
+
+    return this.users
+      .map((u, idx) => {
+        // Find latest active subscription
+        const activeSub = this.subscriptions.find(s => s.userId === u.id && s.status === 'active');
+        const latestSub = activeSub || this.subscriptions.find(s => s.userId === u.id);
+
+        let remainingDays = 0;
+        let subStatus: SubscriptionStatus = 'pending';
+        let subPlan = u.subscriptionPlan || 'निःशुल्क (Visitor)';
+        let startDate = u.subscriptionStartAt || null;
+        let expiryDate = u.subscriptionExpiresAt || null;
+
+        if (latestSub) {
+          subPlan = latestSub.planNameNepali;
+          startDate = latestSub.startAt;
+          expiryDate = latestSub.expiresAt;
+          subStatus = latestSub.status;
+          if (latestSub.status === 'active') {
+            const expMs = new Date(latestSub.expiresAt).getTime();
+            remainingDays = Math.max(0, Math.ceil((expMs - now) / (24 * 60 * 60 * 1000)));
+          }
+        }
+
+        const paymentAmount = u.paymentAmountNPR || latestSub?.paymentAmountNPR || 0;
+        const paymentStatus = u.paymentStatus || latestSub?.paymentStatus || (paymentAmount > 0 ? 'paid' : 'pending');
+
+        return {
+          serialNumber: idx + 1, // Column 1
+          id: u.id,
+          fullName: u.fullName || 'अज्ञात', // Column 2
+          address: u.address || 'नेपाल', // Column 3
+          mobileNumber: u.phone || '', // Column 4
+          username: u.username || '', // Column 5
+          registrationDate: u.createdAtISO || new Date().toISOString(), // Column 6
+          accountStatus: u.accountStatus || u.status || 'active', // Column 7
+          userCategory: u.userCategory || 'visitor', // Column 8
+          subscriptionPlan: subPlan, // Column 9
+          paymentAmountNPR: paymentAmount, // Column 10 (Editable by Super Admin!)
+          paymentStatus: paymentStatus, // Column 11
+          subscriptionStartDate: startDate, // Column 12
+          subscriptionExpiryDate: expiryDate, // Column 13
+          remainingDays: remainingDays, // Column 14
+          lastUpdated: u.lastUpdatedISO || u.createdAtISO || new Date().toISOString(), // Column 15
+          actions: ['edit', 'change_category', 'record_payment', 'toggle_status', 'extend'] // Column 16
+        };
+      })
+      .filter(u => {
+        // Search filter
+        if (search) {
+          const matched =
+            u.fullName.toLowerCase().includes(search) ||
+            u.mobileNumber.toLowerCase().includes(search) ||
+            u.username.toLowerCase().includes(search) ||
+            u.address.toLowerCase().includes(search);
+          if (!matched) return false;
+        }
+
+        // Category filter
+        if (categoryFilter !== 'all' && u.userCategory.toLowerCase() !== categoryFilter) {
+          return false;
+        }
+
+        // Subscription status filter
+        if (subStatusFilter !== 'all') {
+          if (subStatusFilter === 'active' && u.remainingDays <= 0) return false;
+          if (subStatusFilter === 'expired' && u.remainingDays > 0) return false;
+        }
+
+        // Payment status filter
+        if (payStatusFilter !== 'all' && u.paymentStatus.toLowerCase() !== payStatusFilter) {
+          return false;
+        }
+
+        return true;
+      });
+  }
+
+  // =========================================================================
+  // 8. NOTIFICATIONS & AUDIT QUERY METHODS
+  // =========================================================================
+  public getUserNotifications(userId: string): SystemNotification[] {
+    this.loadFromDisk();
+    return this.notifications.filter(n => n.userId === userId || n.userId === 'all');
+  }
+
+  public getAdminNotifications(): SystemNotification[] {
+    this.loadFromDisk();
+    return this.notifications.filter(n => n.userId === 'superadmin' || n.userId === 'all');
+  }
+
+  public getAdminAuditLogs(): AdminAuditEntry[] {
+    this.loadFromDisk();
+    return this.auditLogs;
   }
 }
 
