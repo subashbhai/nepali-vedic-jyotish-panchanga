@@ -23,6 +23,32 @@ export interface DatabaseHealth {
   tableCounts?: Record<string, number>;
 }
 
+export interface TableCounts {
+  users: number;
+  leads: number;
+  memberships: number;
+  licenses: number;
+  payments: number;
+  sessions: number;
+  notifications: number;
+  auditLogs: number;
+}
+
+export interface BackupSnapshot {
+  timestampISO: string;
+  backupFile: string;
+  counts: TableCounts;
+  snapshot: Record<string, any[]>;
+}
+
+export interface ResetUserDataResult {
+  success: boolean;
+  backupFile: string;
+  beforeCounts: TableCounts;
+  afterCounts: TableCounts;
+  message: string;
+}
+
 export interface IDatabaseAdapter {
   init(): Promise<void>;
   healthCheck(): Promise<DatabaseHealth>;
@@ -68,6 +94,11 @@ export interface IDatabaseAdapter {
   // Audit Logs
   getAuditLogs(): Promise<any[]>;
   createAuditLog(log: any): Promise<any>;
+
+  // Maintenance & System Reset
+  getTableCounts(): Promise<TableCounts>;
+  createBackupSnapshot(): Promise<BackupSnapshot>;
+  resetAllUserData(): Promise<ResetUserDataResult>;
 }
 
 // ============================================================================
@@ -394,6 +425,93 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     this.atomicWriteSync(this.auditFile, logs);
     return log;
   }
+
+  private readSessionsSync(): Record<string, any> {
+    try {
+      if (!fs.existsSync(this.sessionsFile)) return {};
+      return JSON.parse(fs.readFileSync(this.sessionsFile, 'utf-8'));
+    } catch {
+      return {};
+    }
+  }
+
+  // --- Maintenance & System Reset ---
+  public async getTableCounts(): Promise<TableCounts> {
+    const users = await this.getUsers();
+    const leads = await this.getClientLeads();
+    const memberships = await this.getMemberships();
+    const licenses = await this.getServiceLicenses();
+    const payments = await this.getPayments();
+    const sessions = this.readSessionsSync();
+    const notifications = await this.getNotifications();
+    const auditLogs = await this.getAuditLogs();
+    return {
+      users: users.length,
+      leads: leads.length,
+      memberships: memberships.length,
+      licenses: licenses.length,
+      payments: payments.length,
+      sessions: Object.keys(sessions).length,
+      notifications: notifications.length,
+      auditLogs: auditLogs.length
+    };
+  }
+
+  public async createBackupSnapshot(): Promise<BackupSnapshot> {
+    const counts = await this.getTableCounts();
+    const backupsDir = path.join(this.dataDir, 'backups');
+    if (!fs.existsSync(backupsDir)) {
+      fs.mkdirSync(backupsDir, { recursive: true });
+    }
+    const timestampISO = new Date().toISOString();
+    const filename = `pre_cleanup_disk_${Date.now()}.json`;
+    const fullBackupPath = path.join(backupsDir, filename);
+
+    const snapshot = {
+      users: await this.getUsers(),
+      leads: await this.getClientLeads(),
+      memberships: await this.getMemberships(),
+      licenses: await this.getServiceLicenses(),
+      payments: await this.getPayments(),
+      sessions: this.readSessionsSync(),
+      notifications: await this.getNotifications(),
+      auditLogs: await this.getAuditLogs()
+    };
+
+    fs.writeFileSync(fullBackupPath, JSON.stringify({ timestampISO, counts, snapshot }, null, 2), 'utf-8');
+    return { timestampISO, backupFile: filename, counts, snapshot };
+  }
+
+  public async resetAllUserData(): Promise<ResetUserDataResult> {
+    const beforeCounts = await this.getTableCounts();
+    const backup = await this.createBackupSnapshot();
+
+    this.atomicWriteSync(this.usersFile, []);
+    this.atomicWriteSync(this.leadsFile, []);
+    this.atomicWriteSync(this.membershipsFile, []);
+    this.atomicWriteSync(this.licensesFile, []);
+    this.atomicWriteSync(this.paymentsFile, []);
+    this.atomicWriteSync(this.notificationsFile, []);
+
+    // Filter sessions: keep only SUPER_ADMIN
+    const sessions = this.readSessionsSync();
+    const cleanSessions: Record<string, any> = {};
+    for (const [k, v] of Object.entries(sessions)) {
+      if ((v as any)?.role === 'SUPER_ADMIN') {
+        cleanSessions[k] = v;
+      }
+    }
+    this.atomicWriteSync(this.sessionsFile, cleanSessions);
+
+    const afterCounts = await this.getTableCounts();
+    return {
+      success: true,
+      backupFile: backup.backupFile,
+      beforeCounts,
+      afterCounts,
+      message: 'All local disk test user data wiped successfully.'
+    };
+  }
 }
 
 // ============================================================================
@@ -592,11 +710,13 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
     const start = Date.now();
     try {
       const res = await this.pool.query('SELECT NOW() as current_time');
+      const counts = await this.getTableCounts();
       return {
         ok: true,
         type: 'postgres',
         message: 'PostgreSQL connection operational',
-        latencyMs: Date.now() - start
+        latencyMs: Date.now() - start,
+        tableCounts: counts as any
       };
     } catch (err: any) {
       return {
@@ -1137,6 +1257,144 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       log.details || ''
     ]);
     return log;
+  }
+
+  // --- Maintenance & System Reset ---
+  public async getTableCounts(): Promise<TableCounts> {
+    const defaultCounts: TableCounts = {
+      users: 0,
+      leads: 0,
+      memberships: 0,
+      licenses: 0,
+      payments: 0,
+      sessions: 0,
+      notifications: 0,
+      auditLogs: 0
+    };
+    if (!this.pool) return defaultCounts;
+    try {
+      const q = `
+        SELECT 
+          (SELECT COUNT(*) FROM users) as users,
+          (SELECT COUNT(*) FROM client_purchase_leads) as leads,
+          (SELECT COUNT(*) FROM memberships) as memberships,
+          (SELECT COUNT(*) FROM service_licenses) as licenses,
+          (SELECT COUNT(*) FROM payments) as payments,
+          (SELECT COUNT(*) FROM active_sessions) as sessions,
+          (SELECT COUNT(*) FROM notifications) as notifications,
+          (SELECT COUNT(*) FROM audit_logs) as audit_logs;
+      `;
+      const res = await this.pool.query(q);
+      const r = res.rows[0];
+      return {
+        users: parseInt(r.users || '0', 10),
+        leads: parseInt(r.leads || '0', 10),
+        memberships: parseInt(r.memberships || '0', 10),
+        licenses: parseInt(r.licenses || '0', 10),
+        payments: parseInt(r.payments || '0', 10),
+        sessions: parseInt(r.sessions || '0', 10),
+        notifications: parseInt(r.notifications || '0', 10),
+        auditLogs: parseInt(r.audit_logs || '0', 10)
+      };
+    } catch (err: any) {
+      console.warn('[PostgresDatabaseAdapter] getTableCounts notice:', err.message);
+      return defaultCounts;
+    }
+  }
+
+  public async createBackupSnapshot(): Promise<BackupSnapshot> {
+    const counts = await this.getTableCounts();
+    const [
+      usersRes,
+      leadsRes,
+      memsRes,
+      licensesRes,
+      paymentsRes,
+      sessionsRes,
+      notifsRes,
+      auditRes
+    ] = await Promise.all([
+      this.pool.query('SELECT * FROM users'),
+      this.pool.query('SELECT * FROM client_purchase_leads'),
+      this.pool.query('SELECT * FROM memberships'),
+      this.pool.query('SELECT * FROM service_licenses'),
+      this.pool.query('SELECT * FROM payments'),
+      this.pool.query('SELECT * FROM active_sessions'),
+      this.pool.query('SELECT * FROM notifications'),
+      this.pool.query('SELECT * FROM audit_logs')
+    ]);
+
+    const snapshot = {
+      users: usersRes.rows,
+      leads: leadsRes.rows,
+      memberships: memsRes.rows,
+      licenses: licensesRes.rows,
+      payments: paymentsRes.rows,
+      sessions: sessionsRes.rows,
+      notifications: notifsRes.rows,
+      auditLogs: auditRes.rows
+    };
+
+    const backupsDir = path.join(process.cwd(), 'data', 'backups');
+    if (!fs.existsSync(backupsDir)) {
+      fs.mkdirSync(backupsDir, { recursive: true });
+    }
+    const timestampISO = new Date().toISOString();
+    const filename = `production_pre_cleanup_${Date.now()}.json`;
+    const fullBackupPath = path.join(backupsDir, filename);
+
+    fs.writeFileSync(fullBackupPath, JSON.stringify({
+      timestampISO,
+      counts,
+      snapshot
+    }, null, 2), 'utf-8');
+
+    return {
+      timestampISO,
+      backupFile: filename,
+      counts,
+      snapshot
+    };
+  }
+
+  public async resetAllUserData(): Promise<ResetUserDataResult> {
+    const beforeCounts = await this.getTableCounts();
+    const backup = await this.createBackupSnapshot();
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`
+        TRUNCATE TABLE payments, notifications, service_licenses, memberships, client_purchase_leads, users CASCADE;
+      `);
+      await client.query(`
+        DELETE FROM active_sessions WHERE role != 'SUPER_ADMIN';
+      `);
+      await client.query(`
+        INSERT INTO audit_logs (id, action, performed_by, details, timestamp_iso)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP);
+      `, [
+        `audit_reset_${Date.now()}`,
+        'DATA_RESET',
+        'SUPER_ADMIN',
+        `Complete test user data reset executed. Backup: ${backup.backupFile}`
+      ]);
+      await client.query('COMMIT');
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      throw new Error(`Transactional PostgreSQL reset failed: ${err.message}`);
+    } finally {
+      client.release();
+    }
+
+    const afterCounts = await this.getTableCounts();
+    return {
+      success: true,
+      backupFile: backup.backupFile,
+      beforeCounts,
+      afterCounts,
+      message: 'All PostgreSQL test user records wiped successfully.'
+    };
   }
 }
 

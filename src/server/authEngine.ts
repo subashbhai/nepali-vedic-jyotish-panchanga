@@ -266,34 +266,51 @@ export class AuthEngine {
   public async syncWithDatabase(adapter: IDatabaseAdapter): Promise<void> {
     try {
       const dbUsers = await adapter.getUsers();
-      if (Array.isArray(dbUsers) && dbUsers.length > 0) {
-        const userMap = new Map<string, UserAccount>();
-        // Add existing disk users first
-        this.users.forEach(u => userMap.set(u.id, u));
-        // Authoritative DB users override
-        dbUsers.forEach((u: any) => {
-          userMap.set(u.id, {
-            ...userMap.get(u.id),
+      if (Array.isArray(dbUsers)) {
+        if (dbUsers.length > 0) {
+          this.users = dbUsers.map((u: any) => ({
             ...u,
             mobileVerified: u.mobileVerified !== false,
             emailVerified: Boolean(u.emailVerified)
-          });
-        });
-        this.users = Array.from(userMap.values());
-        this.persistUsers();
-        console.log(`[authEngine] Synced ${this.users.length} users with authoritative central database.`);
-      } else if (this.users.length > 0) {
-        // Authoritative DB has no users yet — seed it from initial dataset
-        console.log(`[authEngine] Seeding central database with ${this.users.length} existing users...`);
-        for (const u of this.users) {
-          try {
-            await adapter.createUser(u);
-          } catch {}
+          }));
+          this.persistUsers();
+          console.log(`[authEngine] Synced ${this.users.length} users from authoritative central database.`);
+        } else {
+          // Authoritative DB is empty (e.g. after authorized system reset)
+          this.users = [];
+          this.persistUsers();
+          console.log('[authEngine] Authoritative central database is empty. Local user cache cleared.');
         }
       }
     } catch (err: any) {
       console.warn('[authEngine] syncWithDatabase notice:', err.message);
     }
+  }
+
+  /**
+   * Reset all user-specific data in memory and disk (SuperAdmin authorized reset)
+   */
+  public resetAllUserData(): void {
+    this.users = [];
+    this.subscriptions = [];
+    this.payments = [];
+    this.notifications = [];
+    
+    // Retain only Super Admin active sessions
+    const preservedSessions = new Map<string, any>();
+    for (const [token, sess] of this.activeSessions.entries()) {
+      if (sess.role === 'SUPER_ADMIN' || sess.username === 'admin') {
+        preservedSessions.set(token, sess);
+      }
+    }
+    this.activeSessions = preservedSessions;
+
+    this.persistUsers();
+    this.persistSubscriptions();
+    this.persistPayments();
+    this.persistNotifications();
+    this.persistSessions();
+    console.log('[authEngine] Reset all user data in memory and disk.');
   }
 
   private persistUsers(): void {

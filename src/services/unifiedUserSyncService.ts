@@ -1179,8 +1179,12 @@ class UnifiedUserSyncService {
       await apiClient.post('/api/superadmin/data-reset/execute', { confirmationCode: 'CONFIRM_PURGE_2081' });
     } catch {
       try {
-        await apiClient.post('/api/superadmin/system-reset', {});
-      } catch {}
+        await apiClient.post('/api/superadmin/maintenance/reset-all-test-data', {});
+      } catch {
+        try {
+          await apiClient.post('/api/superadmin/system-reset', {});
+        } catch {}
+      }
     }
 
     this.pushEventToRealtimeRelay({

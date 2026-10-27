@@ -2169,17 +2169,16 @@ async function startServer() {
   app.get("/api/users", requireSuperAdminAuth, async (req, res) => {
     try {
       let users: any[] = [];
+      let dbSuccess = false;
       try {
         users = await dbAdapter.getUsers();
-      } catch {
+        dbSuccess = true;
+      } catch (dbErr: any) {
+        console.warn("[Users] DB query notice:", dbErr.message);
         users = getUsers();
       }
-      if (!users || users.length === 0) {
+      if (!dbSuccess) {
         users = getUsers();
-      }
-      const dbIds = new Set(users.map(u => u.id));
-      for (const du of getUsers()) {
-        if (!dbIds.has(du.id)) users.push(du);
       }
       return res.json({ success: true, users });
     } catch (err: any) {
@@ -2419,34 +2418,37 @@ async function startServer() {
       const { search = "", filter = "all", sort = "newest", page = "1", limit = "20" } = req.query;
       
       let users: any[] = [];
+      let dbUsersSuccess = false;
       try {
         users = await dbAdapter.getUsers();
+        dbUsersSuccess = true;
       } catch (dbErr: any) {
         console.warn("[SuperAdmin Users] DB query notice:", dbErr.message);
         users = getUsers();
       }
-      if (!users || users.length === 0) {
+      if (!dbUsersSuccess) {
         users = getUsers();
       }
-      // Merge with disk users ensuring no missing users
-      const dbIds = new Set(users.map(u => u.id));
-      const diskUsers = getUsers();
-      for (const du of diskUsers) {
-        if (!dbIds.has(du.id)) users.push(du);
+
+      let leads: any[] = [];
+      let dbLeadsSuccess = false;
+      try {
+        leads = await dbAdapter.getClientLeads();
+        dbLeadsSuccess = true;
+      } catch (dbLeadsErr: any) {
+        console.warn("[SuperAdmin Leads] DB query notice:", dbLeadsErr.message);
+        leads = getClientLeads();
+      }
+      if (!dbLeadsSuccess) {
+        leads = getClientLeads();
       }
 
-      let leads = getClientLeads();
+      let licenses: any[] = [];
       try {
-        const dbLeads = await dbAdapter.getClientLeads();
-        if (dbLeads && dbLeads.length > 0) {
-          const leadIds = new Set(leads.map(l => l.id));
-          for (const dl of dbLeads) {
-            if (!leadIds.has(dl.id)) leads.push(dl);
-          }
-        }
-      } catch {}
-
-      const licenses = getServiceLicenses();
+        licenses = await dbAdapter.getServiceLicenses();
+      } catch {
+        licenses = getServiceLicenses();
+      }
 
       const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses));
 
@@ -3072,25 +3074,79 @@ async function startServer() {
     }
   });
 
-  // 5.7.1 POST /api/superadmin/data-reset/preview (Preview Controlled User-Data Reset Scope)
-  app.post("/api/superadmin/data-reset/preview", requireSuperAdminAuth, (req, res) => {
+  // 5.7.0 Centralized Full System Data Reset Engine
+  const executeFullSystemDataReset = async (performedBy: string = "SUPER_ADMIN") => {
+    // 1. Authoritative Database Reset (PostgreSQL Transactional Truncate or Atomic Disk Wipe)
+    const dbResetResult = await dbAdapter.resetAllUserData();
+
+    // 2. AuthEngine In-Memory and Cache Reset
+    authEngine.resetAllUserData();
+
+    // 3. MembershipEngine In-Memory and Cache Reset
+    membershipEngine.resetAllData();
+
+    // 4. Wipe Server Legacy Disk Stores
+    saveUsers([]);
+    saveClientLeads([]);
+    saveServiceLicenses([]);
+    saveTrialRegistry({});
     try {
-      const users = getUsers();
-      const leads = getClientLeads();
-      const licenses = getServiceLicenses();
-      const purchaseReqs = getPurchaseRequests();
-      const registry = getTrialRegistry();
+      if (fs.existsSync(PURCHASE_REQUESTS_FILE)) {
+        writeJsonAtomic(PURCHASE_REQUESTS_FILE, []);
+      }
+    } catch {}
+
+    const timestamp = Date.now();
+
+    // 5. Append Audit Record
+    appendLicenseAudit({
+      id: `audit_reset_${timestamp}`,
+      timestampISO: new Date().toISOString(),
+      timestampBS: "२०८१",
+      performedBy,
+      action: "COMPLETE_USER_DATA_RESET",
+      targetUserId: "ALL_USERS",
+      targetUsername: "ALL_USERS",
+      serviceKey: "all",
+      details: `प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: ${dbResetResult.backupFile}`
+    });
+
+    // 6. Broadcast Realtime Reset Event over Native SSE Stream
+    broadcastRealtimeEvent("SYSTEM_RESET", {
+      timestamp,
+      scope: "USER_DATA_ONLY"
+    });
+
+    // 7. Verify Post-Reset Table Counts from Authoritative Database
+    const postResetCounts = await dbAdapter.getTableCounts();
+
+    return {
+      success: true,
+      backupFile: dbResetResult.backupFile,
+      beforeCounts: dbResetResult.beforeCounts,
+      afterCounts: postResetCounts,
+      message: "प्रणालीको सम्पूर्ण प्रयोगकर्ता डेटा सफलतापूर्वक रिसेट गरियो। सुरक्षा ब्याकअप सुरक्षित गरिएको छ।"
+    };
+  };
+
+  // 5.7.1 POST /api/superadmin/data-reset/preview (Preview Controlled User-Data Reset Scope)
+  app.post("/api/superadmin/data-reset/preview", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const counts = await dbAdapter.getTableCounts();
+      const dbHealth = await dbAdapter.healthCheck();
 
       return res.json({
         success: true,
         scope: "USER_DATA_ONLY",
-        targetDatabase: "Authoritative JSON Disk DB (data/)",
+        targetDatabase: dbHealth.type === "postgres" ? "Managed PostgreSQL (balananda-db)" : "Authoritative JSON Disk DB (data/)",
+        databaseType: dbHealth.type,
         estimates: {
-          registeredUsers: users.length,
-          clientLeads: leads.length,
-          serviceLicenses: licenses.length,
-          purchaseRequests: purchaseReqs.length,
-          trialRegistrations: Object.keys(registry).length
+          registeredUsers: counts.users,
+          clientLeads: counts.leads,
+          memberships: counts.memberships,
+          serviceLicenses: counts.licenses,
+          payments: counts.payments,
+          sessions: counts.sessions
         },
         preserved: [
           "SuperAdmin Administrative Master Account & Sessions",
@@ -3109,7 +3165,7 @@ async function startServer() {
   });
 
   // 5.7.2 POST /api/superadmin/data-reset/execute (Controlled User-Data Reset with Confirmation)
-  app.post("/api/superadmin/data-reset/execute", requireSuperAdminAuth, (req, res) => {
+  app.post("/api/superadmin/data-reset/execute", requireSuperAdminAuth, async (req, res) => {
     try {
       const { confirmationCode } = req.body;
       if (confirmationCode !== "CONFIRM_PURGE_2081") {
@@ -3119,85 +3175,49 @@ async function startServer() {
         });
       }
 
-      // 1. Create timestamped safety backup in data/backups/
-      const backupsDir = path.join(DATA_DIR, "backups");
-      if (!fs.existsSync(backupsDir)) {
-        fs.mkdirSync(backupsDir, { recursive: true });
-      }
-      const timestamp = Date.now();
-      const backupPath = path.join(backupsDir, `pre_reset_backup_${timestamp}.json`);
-      const backupData = {
-        timestampISO: new Date().toISOString(),
-        users: getUsers(),
-        leads: getClientLeads(),
-        licenses: getServiceLicenses(),
-        purchaseRequests: getPurchaseRequests(),
-        trialRegistry: getTrialRegistry()
-      };
-      writeJsonAtomic(backupPath, backupData);
-
-      // 2. Perform Atomic User Data Wipe
-      saveUsers([]);
-      saveClientLeads([]);
-      saveServiceLicenses([]);
-      saveTrialRegistry({});
-      try {
-        if (fs.existsSync(PURCHASE_REQUESTS_FILE)) {
-          writeJsonAtomic(PURCHASE_REQUESTS_FILE, []);
-        }
-      } catch {}
-
-      // 3. Record Audit Log
       const adminSession = (req as any).superAdmin;
-      appendLicenseAudit({
-        id: `audit_reset_${timestamp}`,
-        timestampISO: new Date().toISOString(),
-        timestampBS: "२०८१",
-        performedBy: adminSession?.username || "superadmin",
-        action: "CONTROLLED_USER_DATA_RESET",
-        targetUserId: "ALL_USERS",
-        targetUsername: "ALL_USERS",
-        serviceKey: "all",
-        details: `प्रयोगकर्ता डेटा पूर्ण रूपमा रिसेट गरियो। ब्याकअप सुरक्षित: pre_reset_backup_${timestamp}.json`
-      });
-
-      // 4. Broadcast Realtime Reset Event over native SSE stream
-      broadcastRealtimeEvent("SYSTEM_RESET", {
-        timestamp,
-        scope: "USER_DATA_ONLY"
-      });
-
-      return res.json({
-        success: true,
-        message: "प्रयोगकर्ता डेटा सफलतापूर्वक नियन्त्रित रूपमा रिसेट गरियो। सुरक्षा ब्याकअप फाइल सुरक्षित गरिएको छ।",
-        backupFile: `pre_reset_backup_${timestamp}.json`
-      });
+      const result = await executeFullSystemDataReset(adminSession?.username || "superadmin");
+      return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
 
   // 5.7.3 POST /api/superadmin/system-reset (Fast Shortcut)
-  app.post("/api/superadmin/system-reset", requireSuperAdminAuth, (req, res) => {
+  app.post("/api/superadmin/system-reset", requireSuperAdminAuth, async (req, res) => {
     try {
-      saveUsers([]);
-      saveClientLeads([]);
-      saveServiceLicenses([]);
-      saveTrialRegistry({});
-      try {
-        if (fs.existsSync(PURCHASE_REQUESTS_FILE)) {
-          writeJsonAtomic(PURCHASE_REQUESTS_FILE, []);
-        }
-      } catch {}
+      const adminSession = (req as any).superAdmin;
+      const result = await executeFullSystemDataReset(adminSession?.username || "superadmin");
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
 
-      broadcastRealtimeEvent("SYSTEM_RESET", {
-        timestamp: Date.now(),
-        scope: "USER_DATA_ONLY"
-      });
+  // 5.7.4 POST /api/superadmin/maintenance/reset-all-test-data (Explicit Authorized Production Reset)
+  app.post("/api/superadmin/maintenance/reset-all-test-data", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const adminSession = (req as any).superAdmin;
+      console.log(`[Maintenance] Starting full system user data reset requested by ${adminSession?.username || "SUPER_ADMIN"}...`);
+      const result = await executeFullSystemDataReset(adminSession?.username || "SUPER_ADMIN");
+      console.log("[Maintenance] Full system user data reset completed successfully.");
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Maintenance] Full system data reset failed:", err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
 
+  // 5.7.5 GET /api/superadmin/maintenance/table-counts (Live Table & Store Counts)
+  app.get("/api/superadmin/maintenance/table-counts", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const counts = await dbAdapter.getTableCounts();
+      const health = await dbAdapter.healthCheck();
       return res.json({
         success: true,
-        message: "प्रणालीको सम्पूर्ण डेटा सफलतापूर्वक रिसेट गरियो। अब नयाँ दर्ता र खरिद परीक्षण गर्नुहोस्।"
+        databaseType: health.type,
+        tableCounts: counts,
+        timestampISO: new Date().toISOString()
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });

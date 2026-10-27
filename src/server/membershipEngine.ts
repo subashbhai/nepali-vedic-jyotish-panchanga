@@ -845,6 +845,17 @@ class MembershipEngine {
     const memIds = new Set(userMems.map(m => m.id));
     return this.auditLogs.filter(a => a.userId === userId || memIds.has(a.membershipId));
   }
+
+  /**
+   * Reset all memberships and audit logs in memory and disk (SuperAdmin authorized reset)
+   */
+  public resetAllData(): void {
+    this.memberships = [];
+    this.auditLogs = [];
+    this.persistMemberships();
+    this.persistAuditLogs();
+    console.log('[MembershipEngine] Reset all memberships and audit logs in memory and disk.');
+  }
 }
 
 export const membershipEngine = new MembershipEngine();
