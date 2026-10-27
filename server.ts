@@ -3559,6 +3559,24 @@ async function startServer() {
         };
         saveUsers(users);
 
+        // Also register active trial membership into membershipEngine for central service access
+        try {
+          membershipEngine.activateManualMembership({
+            userId: user.id,
+            phone: cleanPhone,
+            fullName: user.fullName || "निःशुल्क परीक्षण प्रयोगकर्ता",
+            planId: "trial_24h",
+            duration: "trial",
+            customExpiresAtTimestamp: expiresAtTimestamp,
+            includedServices: ["jyotish", "vastu", "panchanga"],
+            adminId: "system_trial",
+            adminNotes: "२४ घण्टा निःशुल्क परीक्षण",
+            cashVerified: true
+          });
+        } catch (e: any) {
+          console.warn("[Trial] MembershipEngine activation notice:", e.message);
+        }
+
         // Crucial: Persist into PostgreSQL so cross-device login and server reboots retain trial state!
         try {
           dbAdapter.updateUser(user.id, {

@@ -149,6 +149,14 @@ export const MEMBERSHIP_PLANS: Record<string, {
     duration: 'lifetime',
     priceNPR: 3000,
     services: ['jyotish', 'vastu', 'karmakanda', 'panchanga']
+  },
+  trial_24h: {
+    planId: 'trial_24h',
+    nameNepali: '२४ घण्टा निःशुल्क परीक्षण',
+    devices: 'both',
+    duration: 'trial',
+    priceNPR: 0,
+    services: ['jyotish', 'vastu', 'panchanga']
   }
 };
 
@@ -414,8 +422,8 @@ class MembershipEngine {
         isLifetime: false,
         remainingDays: 0,
         showWarning30Days: false,
-        planNameNepali: 'कुनै योजना छैन',
-        membershipStatus: 'PENDING_PAYMENT',
+        planNameNepali: 'साधारण खाता (योजना छैन)',
+        membershipStatus: 'NONE',
         messageNepali: 'यो सेवा प्रयोग गर्न कृपया सदस्यता लिनुहोस्।',
         unlockedServices: []
       };
