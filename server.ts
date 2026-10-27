@@ -1264,7 +1264,7 @@ async function startServer() {
   });
 
   // POST /api/client-leads & /api/client-leads/submit (Submit new or updated purchase lead or trial)
-  app.post(["/api/client-leads", "/api/client-leads/submit"], (req, res) => {
+  app.post(["/api/client-leads", "/api/client-leads/submit"], async (req, res) => {
     try {
       const leadData = req.body;
       if (!leadData || !leadData.fullName || !leadData.mobile) {
@@ -1309,6 +1309,12 @@ async function startServer() {
       }
 
       saveClientLeads(leads);
+      try {
+        await dbAdapter.createLead(record);
+      } catch (dbErr: any) {
+        console.warn("[ClientLeads DB Commit Notice]:", dbErr.message);
+      }
+
       broadcastRealtimeEvent("PURCHASE_REQUEST", { lead: record });
       return res.json({ success: true, lead: record, message: "आवेदन सफलतापूर्वक सुरक्षित भयो।" });
     } catch (err: any) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   ShieldCheck,
@@ -74,25 +74,35 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   const remainingTrialSeconds = getTrialRemainingSeconds();
 
   const activeSession = getActiveRBACSession();
+  const prevIsOpenRef = useRef(false);
 
+  // 1. Initialise form and plan state ONLY when modal transitions from closed to open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setErrorMsg(null);
       setSuccessMsg(null);
       setShowPurchasePlans(initialMode === 'purchase_only');
       setIsPlanConfirmed(false);
-      if (activeSession) {
-        if (activeSession.fullName && !fullName) setFullName(activeSession.fullName);
-        if ((activeSession.phone || activeSession.username) && !mobile) {
-          const ph = activeSession.phone || activeSession.username;
+      setIsSubmitting(false);
+
+      const session = getActiveRBACSession();
+      if (session) {
+        if (session.fullName && !fullName) setFullName(session.fullName);
+        if ((session.phone || session.username) && !mobile) {
+          const ph = session.phone || session.username;
           setMobile(ph);
           if (!whatsapp) setWhatsapp(ph);
         }
-        if ((activeSession as any).email && !email) setEmail((activeSession as any).email);
+        if ((session as any).email && !email) setEmail((session as any).email);
       }
     }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialMode]);
 
-    // Strictly handle license unlocks only when approved
+  // 2. Window event listener for software unlock
+  useEffect(() => {
+    if (!isOpen) return;
+
     const handleFullAccessUnlocked = (e: any) => {
       if (e?.detail?.hasFullAccess === true && isClientPurchaseApproved()) {
         onUnlockSuccess();
@@ -103,7 +113,7 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     return () => {
       window.removeEventListener('software-full-access-updated', handleFullAccessUnlocked);
     };
-  }, [isOpen, activeSession, onUnlockSuccess, onClose, initialMode]);
+  }, [isOpen, onUnlockSuccess, onClose]);
 
   if (!isOpen) return null;
 
@@ -175,7 +185,11 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   };
 
   // Handler: Start 24-Hour Free Trial
-  const handleActivateTrial = async () => {
+  const handleActivateTrial = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setErrorMsg(null);
     if (!isFormValid) {
       setErrorMsg('कृपया नाम, ठेगाना, मोबाइल नं., इमेल र ह्वाट्सएप नम्बर सबै अनिवार्य रूपमा भर्नुहोस्।');
@@ -196,7 +210,6 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         email: email.trim(),
         whatsapp: whatsapp.trim(),
       });
-      setIsSubmitting(false);
 
       if (res.success) {
         setSuccessMsg(res.messageNepali);
@@ -208,20 +221,29 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         setErrorMsg(res.messageNepali);
       }
     } catch {
-      setIsSubmitting(false);
       setErrorMsg('परीक्षण सुरु गर्दा समस्या भयो। कृपया पुनः प्रयास गर्नुहोस्।');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Handler: Open purchase plans selection view (Strictly NO premature submission)
-  const handleProceedToPurchasePlans = () => {
+  const handleProceedToPurchasePlans = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setErrorMsg(null);
     setShowPurchasePlans(true);
     setIsPlanConfirmed(false);
   };
 
   // Handler: Explicit OK confirmation for chosen plan
-  const handleConfirmPlan = () => {
+  const handleConfirmPlan = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setIsPlanConfirmed(true);
     setErrorMsg(null);
   };
@@ -257,7 +279,6 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         paymentMethod: selectedGateway,
         transactionId: finalTx,
       });
-      setIsSubmitting(false);
 
       if (res.success) {
         setSuccessMsg(`तपाईंको '${currentPlan.label}' (${currentPlan.formatted}) खरिद आवेदन दर्ता भयो! सुपरएडमिनले रकम रुजु गरी स्वीकृत गरेपछि तपाईंको सफ्टवेयर सक्रिय हुनेछ।`);
@@ -265,8 +286,9 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         setErrorMsg(res.messageNepali);
       }
     } catch {
-      setIsSubmitting(false);
       setErrorMsg('खरिद आवेदन पठाउँदा समस्या भयो। कृपया पुनः प्रयास गर्नुहोस्।');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
