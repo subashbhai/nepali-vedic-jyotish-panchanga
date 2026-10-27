@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { calculateMembershipDateSchedule, getNepaliBSDate } from './membershipDateEngine';
 
 export type PlanDuration = '1_year' | 'lifetime' | 'trial' | '1_month' | '3_months';
 export type DeviceType = 'mobile_only' | 'computer_only' | 'both';
@@ -37,6 +38,7 @@ export interface MembershipRecord {
   approvedAtISO?: string;
   approvedAtBS?: string;
   activatedAtISO?: string;
+  activatedAtBS?: string;
   expiresAtTimestamp?: number | null; // null for lifetime
   expiresAtISO?: string | null;
   expiresAtBS?: string;
@@ -241,7 +243,7 @@ class MembershipEngine {
       membershipStatus: 'PENDING_PAYMENT',
       transactionId: params.transactionId,
       submittedAtISO: now.toISOString(),
-      submittedAtBS: params.submittedAtBS || '२०८१',
+      submittedAtBS: params.submittedAtBS || getNepaliBSDate(now),
       includedServices: plan.services,
       renewalCount: 0,
       history: []
@@ -307,35 +309,18 @@ class MembershipEngine {
 
     const now = new Date();
     const duration = options?.customDuration || membership.duration;
-    let expiresAtTimestamp: number | null = null;
-    let expiresAtBS = '२०८२';
-
-    if (duration === 'lifetime') {
-      expiresAtTimestamp = null;
-      expiresAtBS = 'आजीवन (Lifetime)';
-    } else if (duration === '1_year') {
-      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
-      expiresAtBS = '२०८२';
-    } else if (duration === 'trial') {
-      expiresAtTimestamp = now.getTime() + 24 * 60 * 60 * 1000;
-      expiresAtBS = '२४ घण्टा परीक्षण';
-    } else if (duration === '1_month') {
-      expiresAtTimestamp = now.getTime() + 30 * 24 * 60 * 60 * 1000;
-      expiresAtBS = '१ महिना';
-    } else {
-      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
-      expiresAtBS = '२०८२';
-    }
+    const schedule = calculateMembershipDateSchedule(now, duration);
 
     membership.paymentStatus = 'VERIFIED';
     membership.membershipStatus = 'ACTIVE';
     membership.approvedBy = adminId;
     membership.approvedAtISO = now.toISOString();
-    membership.approvedAtBS = options?.approvedAtBS || '२०८१';
-    membership.activatedAtISO = now.toISOString();
-    membership.expiresAtTimestamp = expiresAtTimestamp;
-    membership.expiresAtISO = expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : null;
-    membership.expiresAtBS = expiresAtBS;
+    membership.approvedAtBS = options?.approvedAtBS || schedule.activatedAtBS;
+    membership.activatedAtISO = schedule.activatedAtISO;
+    membership.activatedAtBS = schedule.activatedAtBS;
+    membership.expiresAtTimestamp = schedule.expiresAtTimestamp;
+    membership.expiresAtISO = schedule.expiresAtISO;
+    membership.expiresAtBS = schedule.expiresAtBS;
 
     if (membership.paymentMethod === 'cash') {
       membership.cashVerified = true;
@@ -604,30 +589,15 @@ class MembershipEngine {
 
     const duration = params.duration || plan.duration;
     const now = new Date();
-    let expiresAtTimestamp: number | null = null;
-    let expiresAtBS = '२०८२';
+    const schedule = calculateMembershipDateSchedule(now, duration);
+    let expiresAtTimestamp: number | null = schedule.expiresAtTimestamp;
+    let expiresAtISO: string | null = schedule.expiresAtISO;
+    let expiresAtBS: string = schedule.expiresAtBS;
 
     if (params.customExpiresAtTimestamp !== undefined) {
       expiresAtTimestamp = params.customExpiresAtTimestamp;
-      expiresAtBS = 'अनुकूलित (Custom)';
-    } else if (duration === 'lifetime') {
-      expiresAtTimestamp = null;
-      expiresAtBS = 'आजीवन (Lifetime)';
-    } else if (duration === '1_year') {
-      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
-      expiresAtBS = '२०८२';
-    } else if (duration === 'trial') {
-      expiresAtTimestamp = now.getTime() + 24 * 60 * 60 * 1000;
-      expiresAtBS = '२४ घण्टा परीक्षण';
-    } else if (duration === '1_month') {
-      expiresAtTimestamp = now.getTime() + 30 * 24 * 60 * 60 * 1000;
-      expiresAtBS = '१ महिना';
-    } else if (duration === '3_months') {
-      expiresAtTimestamp = now.getTime() + 90 * 24 * 60 * 60 * 1000;
-      expiresAtBS = '३ महिना';
-    } else {
-      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
-      expiresAtBS = '२०८२';
+      expiresAtISO = expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : null;
+      expiresAtBS = expiresAtTimestamp ? getNepaliBSDate(expiresAtTimestamp) : 'आजीवन (Lifetime)';
     }
 
     let membership = this.getMembershipByPhoneOrId(params.userId) || this.getMembershipByPhoneOrId(cleanPhone);
@@ -647,10 +617,11 @@ class MembershipEngine {
       membership.cashVerifiedAtISO = method === 'cash' ? now.toISOString() : membership.cashVerifiedAtISO;
       membership.approvedBy = params.adminId;
       membership.approvedAtISO = now.toISOString();
-      membership.approvedAtBS = params.approvedAtBS || '२०८१';
-      membership.activatedAtISO = now.toISOString();
+      membership.approvedAtBS = params.approvedAtBS || schedule.activatedAtBS;
+      membership.activatedAtISO = schedule.activatedAtISO;
+      membership.activatedAtBS = schedule.activatedAtBS;
       membership.expiresAtTimestamp = expiresAtTimestamp;
-      membership.expiresAtISO = expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : null;
+      membership.expiresAtISO = expiresAtISO;
       membership.expiresAtBS = expiresAtBS;
       membership.includedServices = params.includedServices || plan.services;
       membership.adminNotes = params.adminNotes || membership.adminNotes;
@@ -675,13 +646,14 @@ class MembershipEngine {
         cashVerifiedAtISO: method === 'cash' ? now.toISOString() : undefined,
         transactionId: params.transactionId,
         submittedAtISO: now.toISOString(),
-        submittedAtBS: params.approvedAtBS || '२०८१',
+        submittedAtBS: params.approvedAtBS || schedule.activatedAtBS,
         approvedBy: params.adminId,
         approvedAtISO: now.toISOString(),
-        approvedAtBS: params.approvedAtBS || '२०८१',
-        activatedAtISO: now.toISOString(),
+        approvedAtBS: params.approvedAtBS || schedule.activatedAtBS,
+        activatedAtISO: schedule.activatedAtISO,
+        activatedAtBS: schedule.activatedAtBS,
         expiresAtTimestamp,
-        expiresAtISO: expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : null,
+        expiresAtISO,
         expiresAtBS,
         includedServices: params.includedServices || plan.services,
         adminNotes: params.adminNotes,

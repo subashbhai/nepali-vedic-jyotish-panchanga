@@ -15,6 +15,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { getDatabaseAdapter, IDatabaseAdapter } from './db/databaseAdapter';
+import { getNepaliBSDate } from './membershipDateEngine';
 
 export type UserCategory = 'visitor' | 'member' | 'professional';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
@@ -383,7 +384,7 @@ export class AuthEngine {
         planAmountNPR: user.paymentAmountNPR || 0,
         paymentMethod: user.paymentStatus === 'paid' ? 'offline_verified' : 'none',
         submittedAtISO: user.createdAtISO,
-        submittedAtBS: user.createdAtBS || '२०८१',
+        submittedAtBS: user.createdAtBS || getNepaliBSDate(user.createdAtISO),
         clientNotes: `प्रयोगकर्ता श्रेणी: ${user.userCategory}`
       };
 
@@ -474,8 +475,11 @@ export class AuthEngine {
     // 6. Cryptographically hash password using salted Scrypt
     const passwordHash = hashUserPassword(password);
     const now = new Date();
+    const createdAtISO = now.toISOString();
+    const createdAtBS = getNepaliBSDate(now);
+    const bsYearOnly = createdAtBS.split(' ')[0] || '२०८३';
     const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const customerId = `सदस्य-२०८१-${String(this.users.length + 1).padStart(4, '०')}`;
+    const customerId = `सदस्य-${bsYearOnly}-${String(this.users.length + 1).padStart(4, '०')}`;
 
     // 7. Create user with default role 'user' and userCategory 'visitor'
     const newUser: UserAccount = {
@@ -494,24 +498,24 @@ export class AuthEngine {
       status: 'active',
       mobileVerified: true,
       emailVerified: false,
-      subscriptionPlan: 'निःशुल्क (Visitor Plan)',
+      subscriptionPlan: 'साधारण खाता (योजना छैन)',
       subscriptionStartAt: null,
       subscriptionExpiresAt: null,
       paymentAmountNPR: 0,
       paymentStatus: 'pending',
       remainingDays: 0,
       permissions: ['visitor.view', 'faladesh.view', 'panchanga.view', 'samachar.view', 'membership.view', 'vivah.view', 'yajaman.view', 'org.view'],
-      createdAtISO: now.toISOString(),
-      createdAtBS: '२०८१',
-      lastLoginISO: now.toISOString(),
-      lastUpdatedISO: now.toISOString()
+      createdAtISO,
+      createdAtBS,
+      lastLoginISO: createdAtISO,
+      lastUpdatedISO: createdAtISO
     };
 
     this.users.unshift(newUser);
     this.persistUsers();
 
-    // Sync with client purchase leads for Super Admin
-    this.syncLeadRecord(newUser);
+    // Note: Do NOT call this.syncLeadRecord(newUser) on basic registration.
+    // An ordinary visitor registration must NOT create a dummy purchase lead.
 
     // Sync with central database adapter
     try {

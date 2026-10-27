@@ -1718,7 +1718,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                       {/* 9. दर्ता मिति तथा अन्तिम लगइन */}
                       <td className="py-3 px-3">
                         <div className="space-y-0.5">
-                          <p className="text-stone-200 font-medium">{user.createdAtBS || '२०८१'}</p>
+                          <p className="text-stone-200 font-medium">{user.createdAtBS || '-'}</p>
                           <p className="text-[10px] text-stone-500 font-mono">
                             दर्ता: {new Date(user.createdAtISO).toLocaleDateString('en-CA')}
                           </p>
@@ -1757,7 +1757,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                                     {pCheck.lead.planNameNepali || '१ वर्षको सदस्यता'} • {pCheck.lead.paymentMethod?.toUpperCase()} • रू. {toDevanagariNumerals(pCheck.lead.planAmountNPR || 0)}
                                   </div>
                                   <div className="text-[9px] text-emerald-400/80">
-                                    मिति: {pCheck.lead.submittedAtBS || '२०८१'}
+                                    मिति: {pCheck.lead.submittedAtBS || '-'}
                                   </div>
                                 </div>
                               </button>
@@ -1797,7 +1797,7 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                           }
                           return (
                             <span className="px-2 py-0.5 rounded-full text-[10px] text-stone-400 bg-stone-800/60 border border-stone-700/60">
-                              ⚪ निःशुल्क / डेमो
+                              ⚪ साधारण खाता (योजना छैन)
                             </span>
                           );
                         })()}

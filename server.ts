@@ -8,6 +8,7 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { authEngine } from "./src/server/authEngine";
 import { membershipEngine, MEMBERSHIP_PLANS } from "./src/server/membershipEngine";
+import { calculateMembershipDateSchedule, getNepaliBSDate } from "./src/server/membershipDateEngine";
 import { getDatabaseAdapter } from "./src/server/db/databaseAdapter";
 
 dotenv.config();
@@ -839,7 +840,7 @@ async function startServer() {
           status: "unlocked",
           duration: duration || "1_year",
           startsAtISO: now.toISOString(),
-          startsAtBS: req.body.startsAtBS || "२०८१",
+          startsAtBS: req.body.startsAtBS || getNepaliBSDate(now),
           expiresAtISO: expiresAtISO || undefined,
           expiresAtBS: expiresAtBS || (duration === "lifetime" ? "आजीवन (Lifetime)" : undefined),
           expiresAtTimestamp: expiresAtTimestamp || (duration === "lifetime" ? undefined : Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -862,7 +863,7 @@ async function startServer() {
           status: "locked",
           duration: existing?.duration || "1_year",
           startsAtISO: existing?.startsAtISO || new Date().toISOString(),
-          startsAtBS: existing?.startsAtBS || "२०८१",
+          startsAtBS: existing?.startsAtBS || getNepaliBSDate(now),
           notes: notes || "Superadmin द्वारा लक गरियो",
           updatedAtISO: new Date().toISOString()
         };
@@ -896,7 +897,7 @@ async function startServer() {
       appendLicenseAudit({
         id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         timestampISO: new Date().toISOString(),
-        timestampBS: req.body.startsAtBS || "२०८१",
+        timestampBS: req.body.startsAtBS || getNepaliBSDate(new Date()),
         performedBy,
         action: action === "unlock" ? "UNLOCK" : "LOCK",
         targetUserId: userId,
@@ -955,7 +956,7 @@ async function startServer() {
         requestStatus: "pending",
         userMessage: (userMessage || "").trim(),
         createdAtISO: new Date().toISOString(),
-        createdAtBS: createdAtBS || "२०८१"
+        createdAtBS: createdAtBS || getNepaliBSDate(new Date())
       };
 
       requests.unshift(newReq);
@@ -1023,7 +1024,7 @@ async function startServer() {
           status: "unlocked",
           duration: planDur,
           startsAtISO: now.toISOString(),
-          startsAtBS: req.body.startsAtBS || targetReq.createdAtBS || "२०८१",
+          startsAtBS: req.body.startsAtBS || targetReq.createdAtBS || getNepaliBSDate(now),
           expiresAtISO: expiresAtISO || undefined,
           expiresAtBS: expiresAtBS || (planDur === "lifetime" ? "आजीवन (Lifetime)" : undefined),
           expiresAtTimestamp: expiresAtTimestamp || (planDur === "lifetime" ? undefined : Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -1052,7 +1053,7 @@ async function startServer() {
         appendLicenseAudit({
           id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           timestampISO: new Date().toISOString(),
-          timestampBS: targetReq.createdAtBS || "२०८१",
+          timestampBS: targetReq.createdAtBS || getNepaliBSDate(now),
           performedBy,
           action: "APPROVE_PURCHASE",
           targetUserId,
@@ -1078,7 +1079,7 @@ async function startServer() {
         appendLicenseAudit({
           id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           timestampISO: new Date().toISOString(),
-          timestampBS: targetReq.createdAtBS || "२०८१",
+          timestampBS: targetReq.createdAtBS || getNepaliBSDate(now),
           performedBy,
           action: "REJECT_PURCHASE",
           targetUserId: targetReq.userId || targetReq.phone,
@@ -1121,16 +1122,21 @@ async function startServer() {
       planDuration?: string;
     }
   ) => {
+    const now = new Date();
+    const cleanPhone = String(target.mobile || target.whatsapp || "").replace(/\D/g, "").slice(-10);
+    const planDur = options?.planDuration || (String(target.planId || "").startsWith("lifetime") ? "lifetime" : "1_year");
+    const schedule = calculateMembershipDateSchedule(now, planDur);
+
     target.status = "PURCHASE_APPROVED";
     target.paymentVerificationStatus = "VERIFIED";
     target.approvedBy = approvedBy || "SuperAdmin";
-    target.approvedAtISO = new Date().toISOString();
-    target.approvedAtBS = approvedAtBS || "२०८१";
+    target.approvedAtISO = now.toISOString();
+    target.approvedAtBS = approvedAtBS || schedule.activatedAtBS;
 
     if (target.paymentMethod === "cash") {
       target.cashVerified = true;
       target.cashVerifiedBy = approvedBy || "SuperAdmin";
-      target.cashVerifiedAtISO = new Date().toISOString();
+      target.cashVerifiedAtISO = now.toISOString();
     }
     if (options?.verifiedAmount) {
       target.verifiedAmount = Number(options.verifiedAmount);
@@ -1139,40 +1145,12 @@ async function startServer() {
       target.adminNotes = String(options.adminNotes);
     }
 
-    const cleanPhone = String(target.mobile || target.whatsapp || "").replace(/\D/g, "").slice(-10);
-    const planDur = options?.planDuration || (String(target.planId || "").startsWith("lifetime") ? "lifetime" : "1_year");
-    const now = new Date();
-
-    let expiresAtTimestamp: number | undefined = undefined;
-    let expiresAtBS = "२०८२";
-    if (planDur === "trial") {
-      expiresAtTimestamp = now.getTime() + 24 * 60 * 60 * 1000;
-      expiresAtBS = "२४ घण्टा परीक्षण";
-    } else if (planDur === "1_month") {
-      expiresAtTimestamp = now.getTime() + 30 * 24 * 60 * 60 * 1000;
-      expiresAtBS = "१ महिना";
-    } else if (planDur === "3_months") {
-      expiresAtTimestamp = now.getTime() + 90 * 24 * 60 * 60 * 1000;
-      expiresAtBS = "३ महिना";
-    } else if (planDur === "6_months") {
-      expiresAtTimestamp = now.getTime() + 180 * 24 * 60 * 60 * 1000;
-      expiresAtBS = "६ महिना";
-    } else if (planDur === "2_years") {
-      expiresAtTimestamp = now.getTime() + 730 * 24 * 60 * 60 * 1000;
-      expiresAtBS = "२०८३";
-    } else if (planDur === "5_years") {
-      expiresAtTimestamp = now.getTime() + 1825 * 24 * 60 * 60 * 1000;
-      expiresAtBS = "२०८६";
-    } else if (planDur === "lifetime") {
-      expiresAtTimestamp = undefined;
-      expiresAtBS = "आजीवन (Lifetime)";
-    } else {
-      expiresAtTimestamp = now.getTime() + 365 * 24 * 60 * 60 * 1000;
-      expiresAtBS = "२०८२";
-    }
+    const expiresAtTimestamp = schedule.expiresAtTimestamp ?? undefined;
+    const expiresAtISO = schedule.expiresAtISO ?? undefined;
+    const expiresAtBS = schedule.expiresAtBS;
 
     target.expiresAtTimestamp = expiresAtTimestamp;
-    target.expiresAtISO = expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : undefined;
+    target.expiresAtISO = expiresAtISO;
     target.expiresAtBS = expiresAtBS;
 
     const planId = String(target.planId || "").toLowerCase();
@@ -1207,10 +1185,10 @@ async function startServer() {
         transactionId: target.transactionId || "",
         status: "unlocked",
         duration: planDur,
-        startsAtISO: now.toISOString(),
-        startsAtBS: "२०८१",
+        startsAtISO: schedule.activatedAtISO,
+        startsAtBS: schedule.activatedAtBS,
         expiresAtTimestamp,
-        expiresAtISO: expiresAtTimestamp ? new Date(expiresAtTimestamp).toISOString() : undefined,
+        expiresAtISO,
         expiresAtBS,
         unlockedBy: approvedBy || "SuperAdmin",
         unlockedAtISO: now.toISOString(),
@@ -1248,7 +1226,22 @@ async function startServer() {
             approvedAtISO: now.toISOString()
           };
         }
+        users[uIdx].subscriptionPlan = target.planNameNepali || "सदस्यता योजना";
+        users[uIdx].subscriptionStartAt = schedule.activatedAtISO;
+        users[uIdx].subscriptionExpiresAt = schedule.expiresAtISO;
         saveUsers(users);
+
+        try {
+          dbAdapter.updateUser(users[uIdx].id, {
+            subscriptionPlan: users[uIdx].subscriptionPlan,
+            subscriptionStartAt: users[uIdx].subscriptionStartAt,
+            subscriptionExpiresAt: users[uIdx].subscriptionExpiresAt,
+            jyotishAccess: users[uIdx].jyotishAccess,
+            vastuAccess: users[uIdx].vastuAccess,
+            paymentStatus: "paid",
+            paymentAmountNPR: target.verifiedAmount || target.planAmountNPR || 0
+          }).catch(e => console.warn('[applyLeadApproval] Central DB update notice:', e.message));
+        } catch {}
       }
     }
   };
@@ -1292,7 +1285,7 @@ async function startServer() {
         paymentMethod: leadData.paymentMethod || "esewa",
         transactionId: String(leadData.transactionId || "").trim(),
         submittedAtISO: leadData.submittedAtISO || new Date().toISOString(),
-        submittedAtBS: leadData.submittedAtBS || "२०८१",
+        submittedAtBS: leadData.submittedAtBS || getNepaliBSDate(new Date()),
         trialStartedAtISO: leadData.trialStartedAtISO,
         trialExpiresAtISO: leadData.trialExpiresAtISO,
         approvedAtISO: leadData.approvedAtISO,
@@ -1386,7 +1379,7 @@ async function startServer() {
         });
       }
 
-      applyLeadApproval(target, approvedBy, "२०८१", serviceKey, {
+      applyLeadApproval(target, approvedBy, getNepaliBSDate(new Date()), serviceKey, {
         cashVerified,
         verifiedAmount,
         adminNotes,
@@ -2044,7 +2037,7 @@ async function startServer() {
           transactionId: transactionId || "",
           paymentVerificationStatus: "PENDING",
           submittedAtISO: new Date().toISOString(),
-          submittedAtBS: submittedAtBS || "२०८१"
+          submittedAtBS: submittedAtBS || getNepaliBSDate(new Date())
         });
       }
       saveClientLeads(leads);
@@ -2329,20 +2322,82 @@ async function startServer() {
       return (cleanPhone && lPhone === cleanPhone) || (u.email && l.email && u.email.toLowerCase() === l.email.toLowerCase());
     });
 
-    const isMemberActive = memAccess.hasAccess || (u.jyotishAccess && u.jyotishAccess.unlocked) || userMembership?.membershipStatus === 'ACTIVE';
-    const isMemberExpired = memAccess.isExpired || userMembership?.membershipStatus === 'EXPIRED';
-    const isPendingPayment = userMembership?.membershipStatus === 'PENDING_PAYMENT' || matchingLead?.status === 'PURCHASE_PENDING';
+    const nowMs = Date.now();
+    const trialExpMs = u.trial?.trialExpiresAtISO ? new Date(u.trial.trialExpiresAtISO).getTime() : (u.trial?.trialExpiresAtTimestamp || 0);
+    const isTrialActive = Boolean(u.trial?.isTrialActive && trialExpMs > nowMs);
+    const isTrialExpired = Boolean(u.trial?.hasUsedTrial && trialExpMs > 0 && trialExpMs <= nowMs);
+
+    const isMemberActive = (userMembership?.membershipStatus === 'ACTIVE' && (!userMembership.expiresAtTimestamp || userMembership.expiresAtTimestamp > nowMs)) || isTrialActive;
+    const isMemberExpired = userMembership?.membershipStatus === 'EXPIRED' || (userMembership?.expiresAtTimestamp && userMembership.expiresAtTimestamp <= nowMs) || isTrialExpired;
+    const isPendingPayment = !isMemberActive && (userMembership?.membershipStatus === 'PENDING_PAYMENT' || matchingLead?.status === 'PURCHASE_PENDING');
 
     const membershipStatus: string = isMemberActive ? 'ACTIVE' : isMemberExpired ? 'EXPIRED' : isPendingPayment ? 'PENDING_PAYMENT' : 'NONE';
-    const purchasedPlanName: string = userMembership?.planNameNepali || (isMemberActive ? memAccess.planNameNepali : (matchingLead?.planNameNepali || 'कुनै छैन'));
-    const paymentStatus: string = userMembership?.paymentStatus || matchingLead?.paymentVerificationStatus || 'NONE';
 
-    const remainingDays: number = memAccess.remainingDays;
-    const showWarning30Days: boolean = memAccess.showWarning30Days;
-    const activationDateISO: string | null = userMembership?.activatedAtISO || matchingLead?.approvedAtISO || null;
-    const activationDateBS: string | null = userMembership?.approvedAtBS || matchingLead?.approvedAtBS || null;
-    const expiryDateISO: string | null = userMembership?.expiresAtISO || matchingLead?.expiresAtISO || (u.jyotishAccess?.expiresAtTimestamp ? new Date(u.jyotishAccess.expiresAtTimestamp).toISOString() : null);
-    const expiryDateBS: string | null = userMembership?.expiresAtBS || matchingLead?.expiresAtBS || u.jyotishAccess?.expiresAtBS || null;
+    let purchasedPlanName: string = 'साधारण खाता (योजना छैन)';
+    if (userMembership) {
+      purchasedPlanName = userMembership.planNameNepali;
+    } else if (isTrialActive) {
+      purchasedPlanName = '२४ घण्टा निःशुल्क परीक्षण (सक्रिय)';
+    } else if (isTrialExpired) {
+      purchasedPlanName = '२४ घण्टा परीक्षण (समाप्त)';
+    } else if (matchingLead?.status === 'PURCHASE_PENDING') {
+      purchasedPlanName = matchingLead.planNameNepali || 'खरिद अनुरोध पेन्डिङ';
+    }
+
+    const paymentStatus: string = userMembership?.paymentStatus || matchingLead?.paymentVerificationStatus || (isMemberActive ? 'VERIFIED' : 'NONE');
+
+    let activationDateISO: string | null = null;
+    let activationDateBS: string | null = null;
+    if (userMembership?.activatedAtISO) {
+      activationDateISO = userMembership.activatedAtISO;
+      activationDateBS = userMembership.approvedAtBS || userMembership.activatedAtBS || getNepaliBSDate(activationDateISO);
+    } else if (u.trial?.trialStartedAtISO) {
+      activationDateISO = u.trial.trialStartedAtISO;
+      activationDateBS = getNepaliBSDate(activationDateISO);
+    } else if (matchingLead?.status === 'PURCHASE_APPROVED' && matchingLead?.approvedAtISO) {
+      activationDateISO = matchingLead.approvedAtISO;
+      activationDateBS = matchingLead.approvedAtBS || getNepaliBSDate(activationDateISO);
+    }
+
+    let expiryDateISO: string | null = null;
+    let expiryDateBS: string | null = null;
+    let remainingDays = 0;
+    let showWarning30Days = false;
+
+    if (userMembership?.duration === 'lifetime') {
+      expiryDateISO = null;
+      expiryDateBS = 'आजीवन';
+      remainingDays = 99999;
+      showWarning30Days = false;
+    } else if (userMembership?.expiresAtISO) {
+      expiryDateISO = userMembership.expiresAtISO;
+      expiryDateBS = userMembership.expiresAtBS || getNepaliBSDate(expiryDateISO);
+      if (userMembership.expiresAtTimestamp) {
+        const diff = userMembership.expiresAtTimestamp - nowMs;
+        if (diff > 0) {
+          remainingDays = Math.ceil(diff / (24 * 60 * 60 * 1000));
+          showWarning30Days = remainingDays <= 30;
+        } else {
+          remainingDays = 0;
+        }
+      }
+    } else if (isTrialActive || isTrialExpired) {
+      expiryDateISO = u.trial?.trialExpiresAtISO || null;
+      expiryDateBS = expiryDateISO ? `${getNepaliBSDate(expiryDateISO)} (२४ घण्टा)` : null;
+      if (isTrialActive && trialExpMs > nowMs) {
+        remainingDays = Math.ceil((trialExpMs - nowMs) / (24 * 60 * 60 * 1000));
+      } else {
+        remainingDays = 0;
+      }
+    } else if (matchingLead?.status === 'PURCHASE_APPROVED' && matchingLead?.expiresAtISO) {
+      expiryDateISO = matchingLead.expiresAtISO;
+      expiryDateBS = matchingLead.expiresAtBS || getNepaliBSDate(expiryDateISO);
+      if (matchingLead.expiresAtTimestamp) {
+        const diff = matchingLead.expiresAtTimestamp - nowMs;
+        remainingDays = diff > 0 ? Math.ceil(diff / (24 * 60 * 60 * 1000)) : 0;
+      }
+    }
+
     const availableServices: string[] = userMembership?.includedServices || (isMemberActive ? ['jyotish', 'vastu', 'karmakanda', 'panchanga'] : ['panchanga']);
 
     // dobBS and dobAD formatting
@@ -2352,9 +2407,13 @@ async function startServer() {
     const birthLocation = u.birthDetails?.location?.name || u.address || (matchingLead?.address) || "विवरण बाँकी";
     const whatsapp = u.whatsapp || (matchingLead?.whatsapp) || u.phone || "उपलब्ध छैन";
 
+    const createdAtISO = u.createdAtISO || new Date().toISOString();
+    const createdAtBS = u.createdAtBS || getNepaliBSDate(createdAtISO);
+    const bsYearOnly = createdAtBS.split(' ')[0] || '२०८३';
+
     return {
       id: u.id,
-      customerId: u.customerId || `सदस्य-${String(u.id).slice(-4)}`,
+      customerId: u.customerId || `सदस्य-${bsYearOnly}-${String(u.id).slice(-4)}`,
       fullName: u.fullName || matchingLead?.fullName || "उपलब्ध छैन",
       address: birthLocation,
       phone: u.phone || u.username || "उपलब्ध छैन",
@@ -2375,8 +2434,8 @@ async function startServer() {
       mobileVerified: !!u.mobileVerified,
       emailVerified: !!u.emailVerified,
       profileCompleted: u.profileCompleted !== undefined ? !!u.profileCompleted : Boolean(u.birthDetails?.dateBS || u.savedAddresses?.length || (u.address && u.address !== "विवरण बाँकी")),
-      createdAtISO: u.createdAtISO || new Date().toISOString(),
-      createdAtBS: u.createdAtBS || "२०८१",
+      createdAtISO,
+      createdAtBS,
       lastLoginISO: u.lastLoginISO || null,
       jyotishAccess: u.jyotishAccess || { unlocked: isMemberActive, period: null, expiresAtTimestamp: null, expiresAtBS: null },
       vastuAccess: u.vastuAccess || { unlocked: isMemberActive, period: null, expiresAtTimestamp: null, expiresAtBS: null },
@@ -2925,7 +2984,7 @@ async function startServer() {
         };
         leads.unshift(lead);
       }
-      applyLeadApproval(lead, adminId, "२०८१", "both", {
+      applyLeadApproval(lead, adminId, result.membership?.approvedAtBS || getNepaliBSDate(new Date()), "both", {
         cashVerified: Boolean(cashVerified),
         verifiedAmount: result.membership?.amountNPR,
         adminNotes: adminNotes || "सुपरएडमिन द्वारा सक्रिय",
@@ -3102,7 +3161,7 @@ async function startServer() {
     appendLicenseAudit({
       id: `audit_reset_${timestamp}`,
       timestampISO: new Date().toISOString(),
-      timestampBS: "२०८१",
+      timestampBS: getNepaliBSDate(new Date()),
       performedBy,
       action: "COMPLETE_USER_DATA_RESET",
       targetUserId: "ALL_USERS",
@@ -3278,10 +3337,10 @@ async function startServer() {
           dobBS: u.birthDetails?.dateBS || u.dobBS || "विवरण बाँकी",
           passwordPlain: u.passwordPlain || "सुरक्षित (Hashed)",
           createdAtISO: u.createdAtISO || new Date().toISOString(),
-          createdAtBS: u.createdAtBS || "२०८१",
-          period: u.subscriptionPeriod || (u.jyotishAccess?.period) || "1_year",
-          expiresAtTimestamp: u.jyotishAccess?.expiresAtTimestamp || (Date.now() + 365 * 24 * 60 * 60 * 1000),
-          expiresAtBS: u.jyotishAccess?.expiresAtBS || "२०८२",
+          createdAtBS: u.createdAtBS || getNepaliBSDate(u.createdAtISO || new Date()),
+          period: u.subscriptionPeriod || (u.jyotishAccess?.period) || "none",
+          expiresAtTimestamp: u.jyotishAccess?.expiresAtTimestamp || null,
+          expiresAtBS: u.jyotishAccess?.expiresAtBS || null,
           status: u.status || "active",
           permissions
         };
@@ -3373,12 +3432,14 @@ async function startServer() {
       }
 
       const isUnlock = action === "unlock";
+      const now = new Date();
+      const schedule = calculateMembershipDateSchedule(now, duration || "1_year");
       const accessObj = {
         unlocked: isUnlock,
         period: isUnlock ? (duration || "1_year") : null,
-        expiresAtTimestamp: isUnlock ? (expiresAtTimestamp || (Date.now() + 365 * 24 * 60 * 60 * 1000)) : null,
-        expiresAtBS: isUnlock ? (expiresAtBS || "२०८२") : null,
-        approvedAtISO: isUnlock ? new Date().toISOString() : null
+        expiresAtTimestamp: isUnlock ? (expiresAtTimestamp || schedule.expiresAtTimestamp) : null,
+        expiresAtBS: isUnlock ? (expiresAtBS || schedule.expiresAtBS) : null,
+        approvedAtISO: isUnlock ? now.toISOString() : null
       };
 
       if (serviceKey === "jyotish") {
@@ -3405,12 +3466,12 @@ async function startServer() {
         serviceKey,
         status: isUnlock ? "unlocked" : "locked",
         duration: duration || "1_year",
-        startsAtISO: new Date().toISOString(),
-        startsAtBS: "२०८१",
+        startsAtISO: now.toISOString(),
+        startsAtBS: schedule.activatedAtBS,
         expiresAtTimestamp: accessObj.expiresAtTimestamp,
         expiresAtISO: accessObj.expiresAtTimestamp ? new Date(accessObj.expiresAtTimestamp).toISOString() : null,
         expiresAtBS: accessObj.expiresAtBS,
-        updatedAtISO: new Date().toISOString()
+        updatedAtISO: now.toISOString()
       };
 
       if (existingLicIdx > -1) {
@@ -3459,15 +3520,16 @@ async function startServer() {
         });
       }
 
-      const now = Date.now();
-      const expiresAtTimestamp = now + 24 * 60 * 60 * 1000;
+      const now = new Date();
+      const schedule = calculateMembershipDateSchedule(now, 'trial');
+      const expiresAtTimestamp = schedule.expiresAtTimestamp!;
       const trialData = {
         mobile: cleanPhone,
         userId: user?.id || userId || `guest_${cleanPhone}`,
-        startedAtISO: new Date(now).toISOString(),
+        startedAtISO: schedule.activatedAtISO,
         expiresAtTimestamp,
-        expiresAtISO: new Date(expiresAtTimestamp).toISOString(),
-        startedAtBS: "२०८१",
+        expiresAtISO: schedule.expiresAtISO!,
+        startedAtBS: schedule.activatedAtBS,
         deviceFingerprint: deviceFingerprint || "unknown"
       };
 
@@ -3487,15 +3549,27 @@ async function startServer() {
           unlocked: true,
           period: "24_hours",
           expiresAtTimestamp,
-          expiresAtBS: "२४ घण्टा परीक्षण"
+          expiresAtBS: schedule.expiresAtBS
         };
         user.vastuAccess = {
           unlocked: true,
           period: "24_hours",
           expiresAtTimestamp,
-          expiresAtBS: "२४ घण्टा परीक्षण"
+          expiresAtBS: schedule.expiresAtBS
         };
         saveUsers(users);
+
+        // Crucial: Persist into PostgreSQL so cross-device login and server reboots retain trial state!
+        try {
+          dbAdapter.updateUser(user.id, {
+            trial: user.trial,
+            jyotishAccess: user.jyotishAccess,
+            vastuAccess: user.vastuAccess,
+            subscriptionPlan: "२४ घण्टा निःशुल्क परीक्षण",
+            subscriptionStartAt: trialData.startedAtISO,
+            subscriptionExpiresAt: trialData.expiresAtISO
+          }).catch(e => console.warn('[Trial] DB persistence notice:', e.message));
+        } catch {}
       }
 
       // Update client leads so Super Admin sees trial immediately
@@ -3520,7 +3594,7 @@ async function startServer() {
           planAmountNPR: 0,
           paymentMethod: "free_trial",
           submittedAtISO: trialData.startedAtISO,
-          submittedAtBS: "२०८१",
+          submittedAtBS: schedule.activatedAtBS,
           trialStartedAtISO: trialData.startedAtISO,
           trialExpiresAtISO: trialData.expiresAtISO
         });
@@ -4863,7 +4937,7 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
         uploadedBy: 'Super Admin',
         uploadedAtISO: isoNow,
         publishedAtISO: isoNow,
-        publishedAtBS: '२०८१',
+        publishedAtBS: getNepaliBSDate(new Date()),
         isOfficialCurrent: !!publishImmediately
       };
 

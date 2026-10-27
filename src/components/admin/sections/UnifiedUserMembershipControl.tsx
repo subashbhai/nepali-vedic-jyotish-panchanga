@@ -1133,24 +1133,34 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                       </td>
 
                       {/* Column 12: Start Date */}
-                      <td className="py-3 px-3 font-mono text-[10px] text-stone-300">
-                        {u.activationDateBS || u.createdAtBS || '-'}
+                      <td className="py-3 px-3 font-mono text-[10px]">
+                        {u.activationDateBS ? (
+                          <span className="text-stone-300">{u.activationDateBS}</span>
+                        ) : (
+                          <span className="text-stone-500 italic">सक्रिय भएको छैन</span>
+                        )}
                       </td>
 
                       {/* Column 13: Expiry Date */}
-                      <td className="py-3 px-3 font-mono text-[10px] text-stone-300">
-                        <span className={u.showWarning30Days ? 'text-amber-400 font-bold' : ''}>
-                          {u.expiryDateBS || 'असीमित'}
-                        </span>
+                      <td className="py-3 px-3 font-mono text-[10px]">
+                        {u.expiryDateBS === 'आजीवन' || u.purchasedPlan?.includes('आजीवन') || u.remainingDays >= 9999 ? (
+                          <span className="text-emerald-400 font-bold">आजीवन</span>
+                        ) : u.expiryDateBS ? (
+                          <span className={u.showWarning30Days ? 'text-amber-400 font-bold' : 'text-stone-300'}>
+                            {u.expiryDateBS}
+                          </span>
+                        ) : (
+                          <span className="text-stone-500 italic">लागू हुँदैन</span>
+                        )}
                       </td>
 
                       {/* Column 14: Remaining Days */}
                       <td className="py-3 px-3">
-                        {u.remainingDays === 9999 ? (
+                        {u.expiryDateBS === 'आजीवन' || u.purchasedPlan?.includes('आजीवन') || u.remainingDays >= 9999 ? (
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
                             आजीवन
                           </span>
-                        ) : u.remainingDays > 0 ? (
+                        ) : u.membershipStatus === 'ACTIVE' && u.remainingDays > 0 ? (
                           <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold font-mono ${
                             u.showWarning30Days
                               ? 'bg-amber-950 text-amber-300 border border-amber-700 animate-pulse'
@@ -1158,8 +1168,12 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                           }`}>
                             {toDevanagariNumerals(u.remainingDays)} दिन
                           </span>
+                        ) : u.membershipStatus === 'EXPIRED' || (u.activationDateBS && u.remainingDays === 0) ? (
+                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-rose-950 text-rose-300 border border-rose-800">
+                            म्याद सकियो
+                          </span>
                         ) : (
-                          <span className="text-[9.5px] text-stone-500 font-medium">सकियो / छैन</span>
+                          <span className="text-[9.5px] text-stone-500 font-medium">-</span>
                         )}
                       </td>
 
@@ -1603,22 +1617,30 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
                       <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800/80">
                         <div className="text-stone-500 text-[10px]">योजना</div>
-                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.purchasedPlan || 'निःशुल्क'}</div>
+                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.purchasedPlan || 'साधारण खाता (योजना छैन)'}</div>
                       </div>
                       <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800/80">
                         <div className="text-stone-500 text-[10px]">सुरु मिति</div>
-                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.activationDateBS || '-'}</div>
+                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.activationDateBS || 'सक्रिय भएको छैन'}</div>
                       </div>
                       <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800/80">
                         <div className="text-stone-500 text-[10px]">समाप्त मिति</div>
-                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.expiryDateBS || 'आजीवन'}</div>
+                        <div className="font-bold text-stone-200 mt-0.5">
+                          {selectedUser.expiryDateBS === 'आजीवन' || selectedUser.purchasedPlan?.includes('आजीवन') || selectedUser.remainingDays >= 9999
+                            ? 'आजीवन'
+                            : (selectedUser.expiryDateBS || 'लागू हुँदैन')}
+                        </div>
                       </div>
                       <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800/80">
                         <div className="text-stone-500 text-[10px]">बाँकी दिन</div>
                         <div className="font-bold text-amber-400 mt-0.5">
-                          {selectedUser.remainingDays === 9999
+                          {selectedUser.expiryDateBS === 'आजीवन' || selectedUser.purchasedPlan?.includes('आजीवन') || selectedUser.remainingDays >= 9999
                             ? 'आजीवन'
-                            : `${toDevanagariNumerals(selectedUser.remainingDays)} दिन`}
+                            : selectedUser.membershipStatus === 'ACTIVE' && selectedUser.remainingDays > 0
+                            ? `${toDevanagariNumerals(selectedUser.remainingDays)} दिन`
+                            : selectedUser.membershipStatus === 'EXPIRED'
+                            ? 'म्याद सकियो'
+                            : '-'}
                         </div>
                       </div>
                     </div>

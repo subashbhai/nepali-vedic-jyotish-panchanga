@@ -14,6 +14,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { getNepaliBSDate } from '../membershipDateEngine';
 
 export interface DatabaseHealth {
   ok: boolean;
@@ -859,7 +860,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       user.paymentAmountNPR || 0,
       user.paymentStatus || 'pending',
       user.createdAtISO || new Date().toISOString(),
-      user.createdAtBS || '२०८१',
+      user.createdAtBS || getNepaliBSDate(user.createdAtISO || new Date()),
       JSON.stringify(user)
     ];
 
@@ -892,7 +893,10 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
         status = COALESCE($6, status),
         payment_amount_npr = COALESCE($7, payment_amount_npr),
         payment_status = COALESCE($8, payment_status),
-        raw_data = $9,
+        subscription_plan = COALESCE($9, subscription_plan),
+        subscription_start_at = COALESCE($10, subscription_start_at),
+        subscription_expires_at = COALESCE($11, subscription_expires_at),
+        raw_data = $12,
         last_updated_iso = CURRENT_TIMESTAMP
       WHERE id = $1`,
       [
@@ -904,6 +908,9 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
         updates.status,
         updates.paymentAmountNPR,
         updates.paymentStatus,
+        updates.subscriptionPlan,
+        updates.subscriptionStartAt ? new Date(updates.subscriptionStartAt) : undefined,
+        updates.subscriptionExpiresAt ? new Date(updates.subscriptionExpiresAt) : undefined,
         JSON.stringify(merged)
       ]
     );
@@ -968,7 +975,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       lead.paymentMethod || 'cash',
       lead.transactionId || null,
       lead.submittedAtISO || new Date().toISOString(),
-      lead.submittedAtBS || '२०८१',
+      lead.submittedAtBS || getNepaliBSDate(lead.submittedAtISO || new Date()),
       JSON.stringify(lead)
     ];
     await this.pool.query(query, values);
