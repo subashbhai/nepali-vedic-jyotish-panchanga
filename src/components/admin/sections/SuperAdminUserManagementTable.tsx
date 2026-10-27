@@ -134,30 +134,7 @@ export interface UserStats {
 }
 
 function getSuperAdminAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-  try {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('balananda_superadmin_jwt_v2') ||
-                    localStorage.getItem('balananda_superadmin_auth_token') ||
-                    localStorage.getItem('superadmin_token');
-      if (token && token !== 'SUPERADMIN' && token !== 'SUPER_ADMIN') {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const adminRaw = localStorage.getItem('balananda_superadmin_secure_session_v2');
-      if (adminRaw && !headers['Authorization']) {
-        try {
-          const admin = JSON.parse(adminRaw);
-          if (admin?.token && admin.token !== 'SUPERADMIN') {
-            headers['Authorization'] = `Bearer ${admin.token}`;
-          }
-        } catch {}
-      }
-    }
-  } catch {}
-  return headers;
+  return apiClient.getHeaders();
 }
 
 export interface SuperAdminUserManagementTableProps {
@@ -451,7 +428,9 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
         const q = debouncedSearch.toLowerCase().trim();
         finalUsers = finalUsers.filter(u => 
           (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+          (u.username && u.username.toLowerCase().includes(q)) ||
           (u.phone && u.phone.includes(q)) ||
+          (u.id && u.id.toLowerCase().includes(q)) ||
           (u.email && u.email.toLowerCase().includes(q)) ||
           (u.address && u.address.toLowerCase().includes(q)) ||
           (u.customerId && u.customerId.toLowerCase().includes(q))
