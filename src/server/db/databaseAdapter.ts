@@ -415,9 +415,171 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
         connectionString: this.connectionString,
         ssl: this.connectionString.includes('localhost') ? false : { rejectUnauthorized: false }
       });
-      // Execute health check
+      // Execute health check and idempotent schema creation
       const client = await this.pool.connect();
-      client.release();
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS users (
+            id VARCHAR(64) PRIMARY KEY,
+            customer_id VARCHAR(64),
+            username VARCHAR(64) UNIQUE NOT NULL,
+            phone VARCHAR(20) UNIQUE NOT NULL,
+            full_name VARCHAR(128) NOT NULL,
+            address VARCHAR(255) NOT NULL,
+            email VARCHAR(128),
+            password_hash TEXT NOT NULL,
+            role VARCHAR(32) NOT NULL DEFAULT 'user',
+            role_name_nepali VARCHAR(128) DEFAULT 'साधारण प्रयोगकर्ता',
+            user_category VARCHAR(32) NOT NULL DEFAULT 'visitor',
+            account_status VARCHAR(32) NOT NULL DEFAULT 'active',
+            status VARCHAR(32) NOT NULL DEFAULT 'active',
+            mobile_verified BOOLEAN NOT NULL DEFAULT TRUE,
+            email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+            subscription_plan VARCHAR(128),
+            subscription_start_at TIMESTAMPTZ,
+            subscription_expires_at TIMESTAMPTZ,
+            payment_amount_npr INT DEFAULT 0,
+            payment_status VARCHAR(32) DEFAULT 'pending',
+            remaining_days INT DEFAULT 0,
+            permissions JSONB DEFAULT '[]'::jsonb,
+            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at_bs VARCHAR(32) DEFAULT '२०८१',
+            last_login_iso TIMESTAMPTZ,
+            last_updated_iso TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+          CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+          CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+          CREATE INDEX IF NOT EXISTS idx_users_user_category ON users(user_category);
+          CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at_iso DESC);
+
+          CREATE TABLE IF NOT EXISTS client_purchase_leads (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(64),
+            lead_number VARCHAR(64),
+            full_name VARCHAR(128) NOT NULL,
+            address VARCHAR(255),
+            mobile VARCHAR(20) NOT NULL,
+            email VARCHAR(128),
+            whatsapp VARCHAR(20),
+            device_fingerprint VARCHAR(128),
+            status VARCHAR(32) NOT NULL DEFAULT 'PENDING_VERIFICATION',
+            plan_id VARCHAR(64) NOT NULL,
+            plan_name_nepali VARCHAR(128) NOT NULL,
+            plan_amount_npr INT NOT NULL DEFAULT 0,
+            payment_method VARCHAR(32) NOT NULL DEFAULT 'cash',
+            transaction_id VARCHAR(128),
+            payment_verification_status VARCHAR(32) DEFAULT 'PENDING',
+            submitted_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            submitted_at_bs VARCHAR(32) DEFAULT '२०८१',
+            approved_at_iso TIMESTAMPTZ,
+            approved_by VARCHAR(64),
+            client_notes TEXT,
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+          CREATE INDEX IF NOT EXISTS idx_leads_mobile ON client_purchase_leads(mobile);
+          CREATE INDEX IF NOT EXISTS idx_leads_submitted_at ON client_purchase_leads(submitted_at_iso DESC);
+
+          CREATE TABLE IF NOT EXISTS memberships (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(64) NOT NULL,
+            phone VARCHAR(20) NOT NULL,
+            full_name VARCHAR(128),
+            email VARCHAR(128),
+            plan_id VARCHAR(64) NOT NULL,
+            plan_name_nepali VARCHAR(128) NOT NULL,
+            duration VARCHAR(32) NOT NULL DEFAULT '1_year',
+            devices VARCHAR(32) DEFAULT 'both',
+            amount_npr INT NOT NULL DEFAULT 0,
+            payment_method VARCHAR(32) NOT NULL DEFAULT 'cash',
+            payment_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+            membership_status VARCHAR(32) NOT NULL DEFAULT 'PENDING_PAYMENT',
+            cash_verified BOOLEAN DEFAULT FALSE,
+            cash_verified_by VARCHAR(64),
+            cash_verified_at_iso TIMESTAMPTZ,
+            submitted_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            submitted_at_bs VARCHAR(32) DEFAULT '२०८१',
+            approved_by VARCHAR(64),
+            approved_at_iso TIMESTAMPTZ,
+            approved_at_bs VARCHAR(32),
+            activated_at_iso TIMESTAMPTZ,
+            expires_at_timestamp BIGINT,
+            expires_at_iso TIMESTAMPTZ,
+            expires_at_bs VARCHAR(32),
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+
+          CREATE TABLE IF NOT EXISTS service_licenses (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(64) NOT NULL,
+            phone VARCHAR(20) NOT NULL,
+            service_key VARCHAR(64) NOT NULL,
+            service_name_nepali VARCHAR(128) NOT NULL,
+            status VARCHAR(32) NOT NULL DEFAULT 'active',
+            license_type VARCHAR(32) NOT NULL DEFAULT 'trial',
+            start_date_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expiry_date_iso TIMESTAMPTZ,
+            remaining_days INT DEFAULT 0,
+            notes TEXT,
+            updated_at_iso TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+
+          CREATE TABLE IF NOT EXISTS payments (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(64) NOT NULL,
+            subscription_id VARCHAR(64),
+            amount_npr INT NOT NULL,
+            currency VARCHAR(8) NOT NULL DEFAULT 'NPR',
+            payment_method VARCHAR(32) NOT NULL,
+            payment_status VARCHAR(32) NOT NULL DEFAULT 'paid',
+            transaction_reference VARCHAR(128),
+            recorded_by VARCHAR(64) NOT NULL,
+            notes TEXT,
+            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+
+          CREATE TABLE IF NOT EXISTS active_sessions (
+            token VARCHAR(128) PRIMARY KEY,
+            user_id VARCHAR(64) NOT NULL,
+            username VARCHAR(64) NOT NULL,
+            phone VARCHAR(20) NOT NULL,
+            role VARCHAR(32) NOT NULL,
+            user_category VARCHAR(32) NOT NULL DEFAULT 'visitor',
+            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at_iso TIMESTAMPTZ NOT NULL,
+            last_active_iso TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS notifications (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(64) NOT NULL,
+            subscription_id VARCHAR(64),
+            type VARCHAR(32) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            stage VARCHAR(32),
+            status VARCHAR(32) NOT NULL DEFAULT 'pending',
+            scheduled_at TIMESTAMPTZ NOT NULL,
+            sent_at TIMESTAMPTZ,
+            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS audit_logs (
+            id VARCHAR(64) PRIMARY KEY,
+            action VARCHAR(64) NOT NULL,
+            performed_by VARCHAR(64) NOT NULL,
+            target_id VARCHAR(64),
+            details TEXT,
+            timestamp_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            metadata JSONB DEFAULT '{}'::jsonb
+          );
+        `);
+        console.log('[Database] PostgreSQL schema verified and up to date.');
+      } finally {
+        client.release();
+      }
     } catch (err: any) {
       throw new Error(`PostgreSQL Initialization Failed: ${err.message}`);
     }
@@ -547,7 +709,15 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
         payment_amount_npr, payment_status, created_at_iso, created_at_bs, raw_data
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
-      ) RETURNING *;
+      ) ON CONFLICT (id) DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        address = EXCLUDED.address,
+        user_category = EXCLUDED.user_category,
+        payment_amount_npr = EXCLUDED.payment_amount_npr,
+        payment_status = EXCLUDED.payment_status,
+        last_updated_iso = CURRENT_TIMESTAMP,
+        raw_data = EXCLUDED.raw_data
+      RETURNING *;
     `;
     const values = [
       user.id,

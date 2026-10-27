@@ -20,6 +20,8 @@ async function startServer() {
   try {
     await dbAdapter.init();
     console.log('[Database] Central persistence engine initialized successfully.');
+    await authEngine.syncWithDatabase(dbAdapter);
+    console.log('[Database] Synchronized auth engine with authoritative database.');
   } catch (err: any) {
     console.error('[Database Fatal] Persistence engine initialization failed:', err.message);
     if (process.env.NODE_ENV === 'production') {
@@ -72,8 +74,7 @@ async function startServer() {
   const userSessions = new Map<string, { userId: string; role: string; phone: string; expiresAt: number }>();
 
   // Helper middleware for superadmin authentication (Strict RBAC & Cache-Control)
-  // Helper middleware for superadmin authentication (Strict RBAC & Cache-Control)
-  const requireSuperAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const requireSuperAdminAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     // 1. Strict Cache-Control headers to prevent proxy & browser caching of admin data
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
@@ -104,6 +105,23 @@ async function startServer() {
         (req as any).superAdmin = session;
         return next();
       }
+
+      // 3. Fallback: Check persistent central database session
+      try {
+        const dbSession = await dbAdapter.getSession(token);
+        if (dbSession && (dbSession.role === 'SUPER_ADMIN' || dbSession.role === 'super_admin')) {
+          const renewed = {
+            adminId: dbSession.userId || 'admin_super_01',
+            username: dbSession.username || 'admin',
+            expiresAt: Date.now() + 2 * 60 * 60 * 1000
+          };
+          superAdminSessions.set(token, renewed);
+          (req as any).superAdmin = renewed;
+          return next();
+        }
+      } catch (err: any) {
+        console.warn('[requireSuperAdminAuth] DB session lookup error:', err.message);
+      }
     }
 
     // Check trusted custom header for authorized SuperAdmin API calls (CI / cron / backend-to-backend)
@@ -124,7 +142,7 @@ async function startServer() {
   };
 
   // POST /api/superadmin/login
-  app.post("/api/superadmin/login", (req, res) => {
+  app.post("/api/superadmin/login", async (req, res) => {
     try {
       const { username, password } = req.body;
       const clientIp = req.ip || req.socket.remoteAddress || "unknown";
@@ -178,6 +196,19 @@ async function startServer() {
         username: adminInfo.username,
         expiresAt
       });
+
+      try {
+        await dbAdapter.saveSession(token, {
+          userId: adminInfo.id,
+          username: adminInfo.username,
+          phone: "9800000000",
+          role: "SUPER_ADMIN",
+          userCategory: "professional",
+          expiresAtISO: new Date(expiresAt).toISOString()
+        });
+      } catch (sessErr: any) {
+        console.warn("[SuperAdmin Login] Session persist notice:", sessErr.message);
+      }
 
       return res.json({
         success: true,
@@ -1491,7 +1522,7 @@ async function startServer() {
   // ── CENTRAL AUTHENTICATION & SUBSCRIPTION SYSTEM (ZERO OTP) ──
 
   // 1. POST /api/auth/register (5-Field Clean Signup: Full Name, Address, Mobile No, Username, Password)
-  app.post("/api/auth/register", (req, res) => {
+  app.post("/api/auth/register", async (req, res) => {
     try {
       const { fullName, address, mobileNumber, phone, username, password, email } = req.body;
       const result = authEngine.registerUser({
@@ -1507,6 +1538,16 @@ async function startServer() {
         return res.status(400).json(result);
       }
 
+      // Authoritative central database commit
+      if (result.user) {
+        try {
+          const registeredUser = authEngine.getUserById(result.user.id);
+          await dbAdapter.createUser(registeredUser || result.user);
+        } catch (dbErr: any) {
+          console.warn("[Register DB Commit Notice]:", dbErr.message);
+        }
+      }
+
       if (result.token && result.user) {
         userSessions.set(result.token, {
           userId: result.user.id,
@@ -1518,19 +1559,47 @@ async function startServer() {
       }
 
       return res.json(result);
-    } catch (err) {
+    } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
     }
   });
 
   // 2. POST /api/auth/login (Dual-Identifier Login: Mobile Number OR Username + Password)
-  app.post("/api/auth/login", (req, res) => {
+  app.post("/api/auth/login", async (req, res) => {
     try {
       const { phoneOrUsername, identifier, username, phone, password } = req.body;
       const loginId = phoneOrUsername || identifier || username || phone;
       const clientIp = req.ip || req.socket.remoteAddress || "unknown";
 
-      const result = authEngine.loginUser(loginId, password, clientIp);
+      let result = authEngine.loginUser(loginId, password, clientIp);
+      
+      // If user not in disk cache, check authoritative central database
+      if (!result.success && dbAdapter) {
+        try {
+          const cleanId = String(loginId || '').trim();
+          let dbUser = await dbAdapter.getUserByUsername(cleanId);
+          if (!dbUser) {
+            dbUser = await dbAdapter.getUserByPhone(cleanId);
+          }
+          if (dbUser && dbUser.passwordHash) {
+            const { verifyUserPassword } = await import("./src/server/authEngine");
+            if (verifyUserPassword(password, dbUser.passwordHash)) {
+              const token = crypto.randomBytes(32).toString("hex");
+              const sanitized = { ...dbUser };
+              delete sanitized.passwordHash;
+              result = {
+                success: true,
+                message: "लगइन सफल भयो!",
+                user: sanitized,
+                token
+              };
+            }
+          }
+        } catch (dbAuthErr: any) {
+          console.warn("[Login DB Fallback Notice]:", dbAuthErr.message);
+        }
+      }
+
       if (!result.success) {
         return res.status(401).json(result);
       }
@@ -1546,7 +1615,7 @@ async function startServer() {
       }
 
       return res.json(result);
-    } catch (err) {
+    } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
     }
   });
@@ -2091,9 +2160,21 @@ async function startServer() {
   });
 
   // 3. GET /api/users (Super Admin: Fetch All Registered Users - RBAC Protected)
-  app.get("/api/users", requireSuperAdminAuth, (req, res) => {
+  app.get("/api/users", requireSuperAdminAuth, async (req, res) => {
     try {
-      const users = getUsers();
+      let users: any[] = [];
+      try {
+        users = await dbAdapter.getUsers();
+      } catch {
+        users = getUsers();
+      }
+      if (!users || users.length === 0) {
+        users = getUsers();
+      }
+      const dbIds = new Set(users.map(u => u.id));
+      for (const du of getUsers()) {
+        if (!dbIds.has(du.id)) users.push(du);
+      }
       return res.json({ success: true, users });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -2327,11 +2408,38 @@ async function startServer() {
   };
 
   // 5.1 GET /api/superadmin/users (Super Admin: Paginated, Filtered, Searchable User Table)
-  app.get("/api/superadmin/users", requireSuperAdminAuth, (req, res) => {
+  app.get("/api/superadmin/users", requireSuperAdminAuth, async (req, res) => {
     try {
       const { search = "", filter = "all", sort = "newest", page = "1", limit = "20" } = req.query;
-      const users = getUsers();
-      const leads = getClientLeads();
+      
+      let users: any[] = [];
+      try {
+        users = await dbAdapter.getUsers();
+      } catch (dbErr: any) {
+        console.warn("[SuperAdmin Users] DB query notice:", dbErr.message);
+        users = getUsers();
+      }
+      if (!users || users.length === 0) {
+        users = getUsers();
+      }
+      // Merge with disk users ensuring no missing users
+      const dbIds = new Set(users.map(u => u.id));
+      const diskUsers = getUsers();
+      for (const du of diskUsers) {
+        if (!dbIds.has(du.id)) users.push(du);
+      }
+
+      let leads = getClientLeads();
+      try {
+        const dbLeads = await dbAdapter.getClientLeads();
+        if (dbLeads && dbLeads.length > 0) {
+          const leadIds = new Set(leads.map(l => l.id));
+          for (const dl of dbLeads) {
+            if (!leadIds.has(dl.id)) leads.push(dl);
+          }
+        }
+      } catch {}
+
       const licenses = getServiceLicenses();
 
       const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses));

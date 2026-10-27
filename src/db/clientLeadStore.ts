@@ -112,7 +112,9 @@ export function saveClientLeads(leads: ClientLead[]): void {
 export async function syncClientLeadsFromServer(): Promise<ClientLead[]> {
   try {
     if (typeof window === 'undefined') return [];
-    const res = await fetch('/api/client-leads');
+    const res = await fetch(apiClient.resolveUrl('/api/client-leads'), {
+      headers: apiClient.getHeaders()
+    });
     if (!res.ok) {
       try {
         const { unifiedUserSyncService } = await import('../services/unifiedUserSyncService');
@@ -335,7 +337,7 @@ export function start24HourTrial(leadData: {
   // Sync to central server
   try {
     if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
-      fetch('/api/client-leads/submit', {
+      fetch(apiClient.resolveUrl('/api/client-leads/submit'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newLead)
@@ -364,7 +366,7 @@ export async function start24HourTrialAsync(leadData: {
 }): Promise<{ success: boolean; messageNepali: string }> {
   const cleanPhone = leadData.mobile.replace(/\D/g, '').slice(-10);
   try {
-    const res = await fetch('/api/trial/start', {
+    const res = await fetch(apiClient.resolveUrl('/api/trial/start'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -626,9 +628,9 @@ export function superAdminApproveByTransactionId(
 
   // Sync to central server
   try {
-    fetch('/api/client-leads/approve-by-tx', {
+    fetch(apiClient.resolveUrl('/api/client-leads/approve-by-tx'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiClient.getHeaders(),
       body: JSON.stringify({ transactionId: cleanTx, approvedBy: adminName })
     }).catch((e) => console.warn('[clientLeadStore] Server sync failed for approve-by-tx:', e));
   } catch {}

@@ -92,7 +92,8 @@ class ApiClient {
         host.includes('firebaseapp.com')
       );
       if (isStaticHost) {
-        return '';
+        // Authoritative fallback to live Render backend for Firebase & GitHub Pages
+        return 'https://balananda-api.onrender.com';
       }
 
       // 4. Standard window origin if not static CDN
@@ -177,7 +178,8 @@ class ApiClient {
         // 1. SuperAdmin session token (cryptographically verified from login)
         const superToken = localStorage.getItem('balananda_superadmin_jwt_v2') ||
           localStorage.getItem('balananda_superadmin_auth_token') ||
-          localStorage.getItem('superadmin_token');
+          localStorage.getItem('superadmin_token') ||
+          (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('superadmin_token') : null);
         if (superToken && superToken !== 'SUPERADMIN' && superToken !== 'SUPER_ADMIN') {
           headers['Authorization'] = `Bearer ${superToken}`;
         }

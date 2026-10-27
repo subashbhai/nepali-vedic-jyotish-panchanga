@@ -46,21 +46,7 @@ import { authService } from '../../../services/authService';
 import { apiClient } from '../../../services/apiClient';
 
 const getAdminHeaders = (): Record<string, string> => {
-  const token = typeof localStorage !== 'undefined'
-    ? localStorage.getItem('balananda_superadmin_jwt_v2') ||
-      localStorage.getItem('balananda_superadmin_auth_token') ||
-      localStorage.getItem('superadmin_token') ||
-      sessionStorage.getItem('superadmin_token')
-    : null;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-  if (token && token !== 'SUPERADMIN' && token !== 'SUPER_ADMIN') {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
+  return apiClient.getHeaders();
 };
 
 export interface UnifiedUserRecord {

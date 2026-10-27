@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldCheck, Lock, User, AlertCircle, ArrowLeft, Loader2, Key } from 'lucide-react';
 import { setSuperAdminSession, SuperAdminSessionState } from './auth/superAdminAuthStore';
 import { setAdminSession } from '../db/adminStore';
+import { apiClient } from '../services/apiClient';
 
 interface SuperAdminLoginViewProps {
   onLoginSuccess: (session: SuperAdminSessionState) => void;
@@ -32,7 +33,7 @@ export const SuperAdminLoginView: React.FC<SuperAdminLoginViewProps> = ({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/superadmin/login', {
+      const res = await fetch(apiClient.resolveUrl('/api/superadmin/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: cleanUser, password: cleanPass })

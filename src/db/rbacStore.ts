@@ -272,7 +272,10 @@ export function deleteRBACUserPermanently(phoneOrId: string): boolean {
 
     // Call server DELETE
     if (typeof fetch !== 'undefined') {
-      fetch(`/api/users/${encodeURIComponent(phoneOrId)}`, { method: 'DELETE' }).catch(() => {});
+      fetch(apiClient.resolveUrl(`/api/users/${encodeURIComponent(phoneOrId)}`), {
+        method: 'DELETE',
+        headers: apiClient.getHeaders()
+      }).catch(() => {});
     }
     return true;
   } catch (e) {
@@ -285,7 +288,9 @@ export function deleteRBACUserPermanently(phoneOrId: string): boolean {
 export async function syncUsersFromServer(): Promise<RBACUser[]> {
   try {
     if (typeof fetch === 'undefined') return getStoredRBACUsers();
-    const res = await fetch('/api/users');
+    const res = await fetch(apiClient.resolveUrl('/api/users'), {
+      headers: apiClient.getHeaders()
+    });
     if (!res.ok) {
       try {
         const { unifiedUserSyncService } = await import('../services/unifiedUserSyncService');

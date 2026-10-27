@@ -14,6 +14,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { getDatabaseAdapter, IDatabaseAdapter } from './db/databaseAdapter';
 
 export type UserCategory = 'visitor' | 'member' | 'professional';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
@@ -259,6 +260,42 @@ export class AuthEngine {
     }
   }
 
+  /**
+   * Synchronize in-memory and disk users with the authoritative central database adapter
+   */
+  public async syncWithDatabase(adapter: IDatabaseAdapter): Promise<void> {
+    try {
+      const dbUsers = await adapter.getUsers();
+      if (Array.isArray(dbUsers) && dbUsers.length > 0) {
+        const userMap = new Map<string, UserAccount>();
+        // Add existing disk users first
+        this.users.forEach(u => userMap.set(u.id, u));
+        // Authoritative DB users override
+        dbUsers.forEach((u: any) => {
+          userMap.set(u.id, {
+            ...userMap.get(u.id),
+            ...u,
+            mobileVerified: u.mobileVerified !== false,
+            emailVerified: Boolean(u.emailVerified)
+          });
+        });
+        this.users = Array.from(userMap.values());
+        this.persistUsers();
+        console.log(`[authEngine] Synced ${this.users.length} users with authoritative central database.`);
+      } else if (this.users.length > 0) {
+        // Authoritative DB has no users yet — seed it from initial dataset
+        console.log(`[authEngine] Seeding central database with ${this.users.length} existing users...`);
+        for (const u of this.users) {
+          try {
+            await adapter.createUser(u);
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      console.warn('[authEngine] syncWithDatabase notice:', err.message);
+    }
+  }
+
   private persistUsers(): void {
     try {
       fs.writeFileSync(USERS_FILE, JSON.stringify(this.users, null, 2), 'utf-8');
@@ -458,6 +495,16 @@ export class AuthEngine {
 
     // Sync with client purchase leads for Super Admin
     this.syncLeadRecord(newUser);
+
+    // Sync with central database adapter
+    try {
+      const db = getDatabaseAdapter();
+      db.createUser(newUser).catch(err => {
+        console.warn('[authEngine] Central database sync notice:', err.message);
+      });
+    } catch (e) {
+      console.warn('[authEngine] Central database adapter unavailable:', e);
+    }
 
     // Create session token
     const token = crypto.randomBytes(32).toString('hex');
@@ -688,6 +735,18 @@ export class AuthEngine {
 
     this.persistUsers();
     this.syncLeadRecord(user);
+
+    // Sync category with central database adapter
+    try {
+      const db = getDatabaseAdapter();
+      db.updateUser(user.id, {
+        userCategory: category,
+        roleNameNepali: user.roleNameNepali,
+        lastUpdatedISO: user.lastUpdatedISO
+      }).catch(err => {
+        console.warn('[authEngine] Central DB updateUserCategory notice:', err.message);
+      });
+    } catch {}
 
     // Record audit log
     const audit: AdminAuditEntry = {

@@ -40,6 +40,7 @@ import {
 import { getStoredRBACUsers, RBACUser } from '../../../db/rbacStore';
 import { loadAllClientPolicies, ClientAccessRecord } from '../../../db/menuControlStore';
 import { unifiedUserSyncService } from '../../../services/unifiedUserSyncService';
+import { apiClient } from '../../../services/apiClient';
 import { convertADToBS, toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import {
   calculateRemainingDays,
@@ -113,7 +114,9 @@ export const AdminServiceLicenseSection: React.FC<AdminServiceLicenseSectionProp
       // Load real database users
       let fetchedDbUsers = dbUsers;
       try {
-        const uRes = await fetch('/api/users');
+        const uRes = await fetch(apiClient.resolveUrl('/api/users'), {
+          headers: apiClient.getHeaders()
+        });
         if (uRes.ok) {
           const uData = await uRes.json();
           if (uData.success && Array.isArray(uData.users)) {

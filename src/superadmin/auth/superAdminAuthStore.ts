@@ -3,6 +3,8 @@
  * Completely isolated from public/client user sessions and local states.
  */
 
+import { apiClient } from '../../services/apiClient';
+
 export interface SuperAdminSessionState {
   token: string;
   adminId: string;
@@ -82,7 +84,7 @@ export async function verifySuperAdminTokenWithServer(): Promise<{ valid: boolea
   if (!token) return { valid: false };
 
   try {
-    const res = await fetch('/api/superadmin/auth-check', {
+    const res = await fetch(apiClient.resolveUrl('/api/superadmin/auth-check'), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`

@@ -20,6 +20,7 @@ import {
 import { RBACSession } from './rbacStore';
 import { is24HourTrialActive, isClientPurchaseApproved, getStoredClientLeads, getDeviceTrialRecord } from './clientLeadStore';
 import { is3DayTrialActive, is7DayTrialActive } from './subscriptionStore';
+import { apiClient } from '../services/apiClient';
 
 const LOCAL_STORAGE_LICENSES_KEY = 'balananda_user_service_licenses_v1';
 const LOCAL_STORAGE_PURCHASE_REQ_KEY = 'balananda_my_purchase_requests_v1';
@@ -51,7 +52,9 @@ function getSuperAdminAuthHeaders(): Record<string, string> {
     if (typeof window !== 'undefined') {
       const token =
         localStorage.getItem('balananda_superadmin_jwt_v2') ||
-        localStorage.getItem('balananda_superadmin_auth_token');
+        localStorage.getItem('balananda_superadmin_auth_token') ||
+        localStorage.getItem('superadmin_token') ||
+        sessionStorage.getItem('superadmin_token');
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -386,7 +389,7 @@ export async function syncUserLicensesFromServer(userIdOrPhone: string): Promise
  */
 export async function fetchAllLicensesForAdmin(): Promise<UserServiceLicense[]> {
   try {
-    const res = await fetch('/api/licenses/all', {
+    const res = await fetch(apiClient.resolveUrl('/api/licenses/all'), {
       headers: getSuperAdminAuthHeaders()
     });
     const data = await res.json();
@@ -420,7 +423,7 @@ export async function mutateServiceLicense(payload: {
   notes?: string;
 }): Promise<{ success: boolean; message: string; license?: UserServiceLicense }> {
   try {
-    const res = await fetch('/api/licenses/mutate', {
+    const res = await fetch(apiClient.resolveUrl('/api/licenses/mutate'), {
       method: 'POST',
       headers: getSuperAdminAuthHeaders(),
       body: JSON.stringify(payload)
@@ -493,7 +496,7 @@ export async function submitServicePurchaseRequest(payload: {
   createdAtBS?: string;
 }): Promise<{ success: boolean; message: string; request?: ServicePurchaseRequest }> {
   try {
-    const res = await fetch('/api/licenses/purchase-requests/submit', {
+    const res = await fetch(apiClient.resolveUrl('/api/licenses/purchase-requests/submit'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -548,7 +551,7 @@ export async function submitServicePurchaseRequest(payload: {
  */
 export async function fetchPurchaseRequestsForAdmin(): Promise<ServicePurchaseRequest[]> {
   try {
-    const res = await fetch('/api/licenses/purchase-requests', {
+    const res = await fetch(apiClient.resolveUrl('/api/licenses/purchase-requests'), {
       headers: getSuperAdminAuthHeaders()
     });
     const data = await res.json();
@@ -578,7 +581,7 @@ export async function actionPurchaseRequest(
   }
 ): Promise<{ success: boolean; message: string; license?: UserServiceLicense }> {
   try {
-    const res = await fetch(`/api/licenses/purchase-requests/${encodeURIComponent(requestId)}/action`, {
+    const res = await fetch(apiClient.resolveUrl(`/api/licenses/purchase-requests/${encodeURIComponent(requestId)}/action`), {
       method: 'POST',
       headers: getSuperAdminAuthHeaders(),
       body: JSON.stringify(payload)
@@ -605,7 +608,7 @@ export async function actionPurchaseRequest(
  */
 export async function fetchLicenseAuditLogs(): Promise<ServiceLicenseAuditLog[]> {
   try {
-    const res = await fetch('/api/licenses/audit-logs', {
+    const res = await fetch(apiClient.resolveUrl('/api/licenses/audit-logs'), {
       headers: getSuperAdminAuthHeaders()
     });
     const data = await res.json();

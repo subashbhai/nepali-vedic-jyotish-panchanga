@@ -135,6 +135,7 @@ import {
   getStoredVivahRequests,
   getStoredVivahReports
 } from '../../db/vivahStore';
+import { apiClient } from '../../services/apiClient';
 
 interface TabContentErrorBoundaryProps {
   children: React.ReactNode;
@@ -516,19 +517,73 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
   }, []);
 
   // Login Handler
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
 
     const cleanUser = usernameInput.trim().toLowerCase();
-    const isMasterAdmin = cleanUser === 'admin' && (passwordInput === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || passwordInput === '[REDACTED_HISTORICAL_DEV_PASSWORD]' || passwordInput === 'admin');
+    const cleanPass = passwordInput.trim();
 
+    // 1. Authoritative Backend Authentication Attempt
+    try {
+      const res = await fetch(apiClient.resolveUrl('/api/superadmin/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: cleanUser, password: cleanPass })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.token) {
+        localStorage.setItem('balananda_superadmin_jwt_v2', data.token);
+        localStorage.setItem('balananda_superadmin_auth_token', data.token);
+        localStorage.setItem('superadmin_token', data.token);
+        sessionStorage.setItem('superadmin_token', data.token);
+
+        const newSession: AdminSession = {
+          adminId: data.admin?.id || 'admin_super_01',
+          username: data.admin?.username || cleanUser,
+          fullName: data.admin?.fullName || 'मुख्य प्रशासक (Super Admin)',
+          role: 'super_admin',
+          roleNameNepali: data.admin?.roleNameNepali || 'मुख्य प्रशासक (Super Admin)',
+          permissions: data.admin?.permissions || ['*'],
+          loginTimeISO: new Date().toISOString(),
+          lastActivityISO: new Date().toISOString()
+        };
+        setAdminSession(newSession);
+        setSession(newSession);
+
+        logAdminAction(
+          newSession.username,
+          newSession.roleNameNepali,
+          'security',
+          'प्रशासक लगइन',
+          newSession.adminId,
+          newSession.fullName,
+          'Super Admin Control Center मा सफलतापूर्व लगइन गरियो।'
+        );
+        loadAllData();
+        return;
+      } else if (!res.ok && data.error) {
+        setLoginError(data.error);
+        return;
+      }
+    } catch (netErr) {
+      console.warn('[SuperAdmin Login] Remote server offline or unreachable, checking local credentials:', netErr);
+    }
+
+    // 2. Offline / Local fallback check
+    const isMasterAdmin = cleanUser === 'admin' && (cleanPass === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || cleanPass === '[REDACTED_HISTORICAL_DEV_PASSWORD]' || cleanPass === 'admin');
     const accounts = getStoredAdminAccounts();
     const found = accounts.find(
       a => a.username.toLowerCase() === cleanUser && a.isActive
     );
 
-    if (isMasterAdmin || (found && (passwordInput === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || passwordInput === 'admin' || passwordInput === found.passwordHash))) {
+    if (isMasterAdmin || (found && (cleanPass === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || cleanPass === 'admin' || cleanPass === found.passwordHash))) {
+      const fallbackToken = `superadmin_offline_token_${Date.now()}`;
+      localStorage.setItem('balananda_superadmin_jwt_v2', fallbackToken);
+      localStorage.setItem('balananda_superadmin_auth_token', fallbackToken);
+      localStorage.setItem('superadmin_token', fallbackToken);
+      sessionStorage.setItem('superadmin_token', fallbackToken);
+
       const newSession: AdminSession = {
         adminId: found ? found.id : 'admin_super_01',
         username: found ? found.username : 'admin',
@@ -546,10 +601,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
         newSession.username,
         newSession.roleNameNepali,
         'security',
-        'प्रशासक लगइन',
+        'प्रशासक लगइन (Offline)',
         newSession.adminId,
         newSession.fullName,
-        'Super Admin Control Center मा सफलतापूर्व लगइन गरियो।'
+        'Super Admin Control Center मा अफलाइन लगइन गरियो।'
       );
       loadAllData();
     } else {
@@ -561,6 +616,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
     clearAdminSession();
     try {
       localStorage.removeItem('balananda_rbac_active_session_v1');
+      localStorage.removeItem('balananda_superadmin_jwt_v2');
+      localStorage.removeItem('balananda_superadmin_auth_token');
+      localStorage.removeItem('superadmin_token');
+      sessionStorage.removeItem('superadmin_token');
     } catch {}
     setSession(null);
   };
