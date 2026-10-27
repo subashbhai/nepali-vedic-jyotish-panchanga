@@ -190,18 +190,14 @@ async function runLiveVerification() {
 
   // 7. Test Super Admin Manual Membership Activation (1-Year & Lifetime)
   console.log('\n7. Testing Super Admin Manual 1-Year Membership Activation...');
-  const oneYearRes = await request('/api/superadmin/memberships/manual-activate', {
+  const oneYearRes = await request(`/api/superadmin/users/${user.id}/activate-membership`, {
     method: 'POST',
     headers: adminHeaders,
     body: JSON.stringify({
-      userId: user.id,
-      phone: testPhone,
-      fullName: user.fullName,
       planId: 'yearly_both',
-      duration: '1_year',
       paymentMethod: 'cash',
       cashVerified: true,
-      adminId: 'SuperAdmin'
+      adminNotes: 'सुपरएडमिन १-वर्ष परीक्षण'
     })
   });
 
@@ -221,18 +217,14 @@ async function runLiveVerification() {
 
   // 8. Test Super Admin Manual Lifetime Activation
   console.log('\n8. Testing Super Admin Manual Lifetime Activation...');
-  const lifetimeRes = await request('/api/superadmin/memberships/manual-activate', {
+  const lifetimeRes = await request(`/api/superadmin/users/${user.id}/activate-membership`, {
     method: 'POST',
     headers: adminHeaders,
     body: JSON.stringify({
-      userId: user.id,
-      phone: testPhone,
-      fullName: user.fullName,
       planId: 'lifetime_both',
-      duration: 'lifetime',
       paymentMethod: 'cash',
       cashVerified: true,
-      adminId: 'SuperAdmin'
+      adminNotes: 'सुपरएडमिन आजीवन परीक्षण'
     })
   });
 
