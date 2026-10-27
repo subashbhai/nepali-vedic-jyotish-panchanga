@@ -552,6 +552,22 @@ export class AuthEngine {
     };
   }
 
+  public deleteUser(idOrPhone: string): boolean {
+    const cleanDigits = String(idOrPhone || '').replace(/\D/g, '').slice(-10);
+    const initialLen = this.users.length;
+    this.users = this.users.filter(u => {
+      const uMob = String(u.phone || '').replace(/\D/g, '').slice(-10);
+      if (cleanDigits && cleanDigits.length >= 7 && uMob === cleanDigits) return false;
+      if (u.id === idOrPhone || u.phone === idOrPhone) return false;
+      return true;
+    });
+    const deleted = this.users.length < initialLen;
+    if (deleted) {
+      this.persistUsers();
+    }
+    return deleted;
+  }
+
   // =========================================================================
   // 2. PHASE 4: NORMAL LOGIN (MOBILE NUMBER OR USERNAME + PASSWORD)
   // =========================================================================

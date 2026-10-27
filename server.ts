@@ -2236,6 +2236,18 @@ async function startServer() {
       });
       saveUsers(users);
 
+      // Clean up from database and auth engine
+      try {
+        authEngine.deleteUser(target?.id || id);
+      } catch (e: any) {
+        console.warn("[DeleteUser AuthEngine Notice]:", e.message);
+      }
+      try {
+        dbAdapter.deleteUser(target?.id || id).catch(e => console.warn("[DeleteUser DB Notice]:", e.message));
+      } catch (e: any) {
+        console.warn("[DeleteUser DB Notice]:", e.message);
+      }
+
       // Clean up client leads
       let leads = getClientLeads();
       leads = leads.filter(l => {
