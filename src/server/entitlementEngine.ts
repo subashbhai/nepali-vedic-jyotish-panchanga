@@ -142,8 +142,14 @@ export function resolveUserEntitlement(params: {
 
   // 3. Active Paid Membership Check
   const mStatus = m?.membershipStatus || m?.status;
-  const isMemActive = mStatus === 'ACTIVE' || mStatus === 'PURCHASE_APPROVED' || mStatus === 'APPROVED' || (u.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt).getTime() > Date.now());
-  if ((m || u.subscriptionExpiresAt) && isMemActive) {
+  const isRevokedOrVoid = mStatus === 'TEST_REVOKED' || mStatus === 'REVOKED' || mStatus === 'CANCELLED' || mStatus === 'TEST_COMPLETED_REVERTED' || mStatus === 'VOIDED_TEST';
+  const isMemActive = !isRevokedOrVoid && (
+    mStatus === 'ACTIVE' || 
+    mStatus === 'PURCHASE_APPROVED' || 
+    mStatus === 'APPROVED' || 
+    (!m && u.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt).getTime() > Date.now())
+  );
+  if (!isRevokedOrVoid && (m || u.subscriptionExpiresAt) && isMemActive) {
     const mem = m || {
       planId: u.subscriptionPlan || 'yearly_both',
       planNameNepali: u.subscriptionPlan || '१ वर्ष मोबाइल + कम्प्युटर',

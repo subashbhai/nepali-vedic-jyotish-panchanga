@@ -1035,6 +1035,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   public async getUsers(): Promise<any[]> {
     const res = await this.pool.query('SELECT * FROM users ORDER BY created_at_iso DESC');
     return res.rows.map((r: any) => ({
+      ...(r.raw_data || {}),
       id: r.id,
       customerId: r.customer_id,
       username: r.username,
@@ -1060,8 +1061,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       createdAtISO: r.created_at_iso ? new Date(r.created_at_iso).toISOString() : new Date().toISOString(),
       createdAtBS: r.created_at_bs,
       lastLoginISO: r.last_login_iso ? new Date(r.last_login_iso).toISOString() : null,
-      lastUpdatedISO: r.last_updated_iso ? new Date(r.last_updated_iso).toISOString() : null,
-      ...(r.raw_data || {})
+      lastUpdatedISO: r.last_updated_iso ? new Date(r.last_updated_iso).toISOString() : null
     }));
   }
 
@@ -1070,6 +1070,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
     return {
+      ...(r.raw_data || {}),
       id: r.id,
       customerId: r.customer_id,
       username: r.username,
@@ -1083,10 +1084,12 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       userCategory: r.user_category,
       accountStatus: r.account_status,
       status: r.status,
+      subscriptionPlan: r.subscription_plan,
+      subscriptionStartAt: r.subscription_start_at ? new Date(r.subscription_start_at).toISOString() : null,
+      subscriptionExpiresAt: r.subscription_expires_at ? new Date(r.subscription_expires_at).toISOString() : null,
       paymentAmountNPR: r.payment_amount_npr,
       paymentStatus: r.payment_status,
-      createdAtISO: r.created_at_iso ? new Date(r.created_at_iso).toISOString() : new Date().toISOString(),
-      ...(r.raw_data || {})
+      createdAtISO: r.created_at_iso ? new Date(r.created_at_iso).toISOString() : new Date().toISOString()
     };
   }
 
@@ -1095,6 +1098,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
     return {
+      ...(r.raw_data || {}),
       id: r.id,
       username: r.username,
       phone: r.phone,
@@ -1103,7 +1107,11 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       role: r.role,
       userCategory: r.user_category,
       accountStatus: r.account_status,
-      ...(r.raw_data || {})
+      subscriptionPlan: r.subscription_plan,
+      subscriptionStartAt: r.subscription_start_at ? new Date(r.subscription_start_at).toISOString() : null,
+      subscriptionExpiresAt: r.subscription_expires_at ? new Date(r.subscription_expires_at).toISOString() : null,
+      paymentAmountNPR: r.payment_amount_npr,
+      paymentStatus: r.payment_status
     };
   }
 
@@ -1113,6 +1121,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
     return {
+      ...(r.raw_data || {}),
       id: r.id,
       username: r.username,
       phone: r.phone,
@@ -1121,7 +1130,11 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       role: r.role,
       userCategory: r.user_category,
       accountStatus: r.account_status,
-      ...(r.raw_data || {})
+      subscriptionPlan: r.subscription_plan,
+      subscriptionStartAt: r.subscription_start_at ? new Date(r.subscription_start_at).toISOString() : null,
+      subscriptionExpiresAt: r.subscription_expires_at ? new Date(r.subscription_expires_at).toISOString() : null,
+      paymentAmountNPR: r.payment_amount_npr,
+      paymentStatus: r.payment_status
     };
   }
 

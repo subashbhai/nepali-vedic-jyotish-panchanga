@@ -2604,10 +2604,13 @@ async function startServer() {
         }
         const activeMem = memberships.find((m: any) => {
           const mPhone = String(m.phone || "").replace(/\D/g, "").slice(-10);
-          return (cleanDigits && mPhone === cleanDigits) || m.userId === userIdOrPhone || (userObj && (m.userId === userObj.id || (userObj.phone && mPhone === String(userObj.phone).replace(/\D/g, "").slice(-10))));
+          const isPhoneMatch = (cleanDigits && mPhone === cleanDigits) || (userObj?.phone && mPhone === String(userObj.phone).replace(/\D/g, "").slice(-10));
+          const isUserMatch = m.userId === userIdOrPhone || (userObj && m.userId === userObj.id);
+          return (isPhoneMatch || isUserMatch) && m.membershipStatus === 'ACTIVE';
         });
 
-        const effectiveMembership = activeMem || userLead;
+        const activeLead = (userLead && userLead.status === 'PURCHASE_APPROVED') ? userLead : null;
+        const effectiveMembership = activeMem || activeLead;
 
         let licenses: any[] = [];
         try {
