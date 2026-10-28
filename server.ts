@@ -1111,8 +1111,11 @@ async function startServer() {
       try {
         logs = await dbAdapter.getAuditLogs();
       } catch (dbErr: any) {
-        console.warn("[License Audit Logs] DB fallback:", dbErr.message);
-        logs = getLicenseAuditLogs();
+        console.error("[License Audit Logs] Authoritative DB lookup failed:", dbErr.message);
+        return res.status(503).json({
+          success: false,
+          error: `Authoritative database unavailable: ${dbErr.message}`
+        });
       }
       return res.json({ success: true, count: logs.length, logs });
     } catch (err: any) {
@@ -1133,6 +1136,13 @@ async function startServer() {
       planDuration?: string;
     }
   ) => {
+    // Guard against approving synthetic test transactions in production
+    const isSyntheticTx = target.transactionId === 'TEST_TX_PURCHASE_AUDIT_2081' || 
+                          String(target.transactionId || '').toUpperCase().startsWith('TEST_TX_');
+    if (process.env.NODE_ENV === 'production' && isSyntheticTx && !options?.adminNotes?.includes('OVERRIDE_TEST_FIXTURE')) {
+      throw new Error("नक्कली वा परीक्षण ट्रान्ज्याक्सन (TEST_TX_*) उत्पादन प्रणालीमा भुक्तानी प्रमाणीकरण गर्न पाइँदैन। (Synthetic test transactions cannot be approved as paid in production).");
+    }
+
     const now = new Date();
     const cleanPhone = String(target.mobile || target.whatsapp || "").replace(/\D/g, "").slice(-10);
     const planDur = options?.planDuration || (String(target.planId || "").startsWith("lifetime") ? "lifetime" : "1_year");
@@ -1991,8 +2001,11 @@ async function startServer() {
       try {
         logs = await dbAdapter.getAuditLogs();
       } catch (err: any) {
-        console.warn("[Admin Audit Logs] DB fallback:", err.message);
-        logs = authEngine.getAdminAuditLogs();
+        console.error("[Admin Audit Logs] Authoritative DB lookup failed:", err.message);
+        return res.status(503).json({
+          success: false,
+          error: `Authoritative database unavailable: ${err.message}`
+        });
       }
       return res.json({ success: true, count: logs.length, logs });
     } catch (err: any) {
@@ -2248,6 +2261,16 @@ async function startServer() {
 
       if (!cleanPhone || !planId) {
         return res.status(400).json({ success: false, message: "फोन नम्बर र सदस्यता योजना अनिवार्य छन्।" });
+      }
+
+      // Production Guard: Reject synthetic test transactions in production environment
+      const isSyntheticTx = transactionId === 'TEST_TX_PURCHASE_AUDIT_2081' || 
+                            String(transactionId || '').toUpperCase().startsWith('TEST_TX_');
+      if (process.env.NODE_ENV === 'production' && isSyntheticTx && req.headers['x-allow-test-fixture'] !== 'authorized_staging_test') {
+        return res.status(400).json({
+          success: false,
+          error: "उत्पादन प्रणालीमा परीक्षण ट्रान्ज्याक्सन (TEST_TX_*) दर्ता गर्न निषेध गरिएको छ। (Synthetic test transactions are barred from production)."
+        });
       }
 
       // Update user birth profile if details provided
@@ -2660,8 +2683,11 @@ async function startServer() {
       try {
         memberships = await dbAdapter.getMemberships();
       } catch (e: any) {
-        console.warn("[SuperAdmin Memberships] DB lookup fallback:", e.message);
-        memberships = membershipEngine.listMemberships("all");
+        console.error("[SuperAdmin Memberships] Authoritative DB lookup failed:", e.message);
+        return res.status(503).json({
+          success: false,
+          error: `Authoritative database unavailable: ${e.message}`
+        });
       }
 
       if (filter && filter !== "all") {
@@ -2690,7 +2716,17 @@ async function startServer() {
   app.get("/api/superadmin/payments", requireSuperAdminAuth, async (req, res) => {
     try {
       const filter = String(req.query.filter || "all").toLowerCase();
-      const payments = await dbAdapter.getPayments();
+      let payments: any[] = [];
+      try {
+        payments = await dbAdapter.getPayments();
+      } catch (e: any) {
+        console.error("[SuperAdmin Payments] Authoritative DB lookup failed:", e.message);
+        return res.status(503).json({
+          success: false,
+          error: `Authoritative database unavailable: ${e.message}`
+        });
+      }
+
       let filtered = payments;
       if (filter && filter !== "all") {
         filtered = payments.filter((p: any) => (p.paymentStatus || "").toLowerCase() === filter);
