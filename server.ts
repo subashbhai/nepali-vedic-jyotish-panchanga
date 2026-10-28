@@ -2903,22 +2903,26 @@ async function startServer() {
   });
 
   // Helper to sanitize & enrich user details for Super Admin (ensuring no passwords leaked)
-  function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[]) {
+  function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[], memberships: any[] = []) {
     const cleanPhone = String(u.phone || u.username || "").replace(/\D/g, "").slice(-10);
     const matchingLead = leads.find(l => {
       const leadPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
-      return (cleanPhone && leadPhone === cleanPhone) || (u.email && l.email && u.email.toLowerCase() === l.email.toLowerCase());
+      return (cleanPhone && leadPhone === cleanPhone) || (u.email && l.email && u.email.toLowerCase() === l.email.toLowerCase()) || l.userId === u.id;
     });
 
     const userLicenses = licenses.filter(lic => lic.userId === u.id || (lic.phone && String(lic.phone).replace(/\D/g, "").slice(-10) === cleanPhone));
 
-    // Membership & service entitlement from central engine
-    const userMembership = membershipEngine.getMembershipByUserId(u.id) || (cleanPhone ? membershipEngine.getMembershipByPhoneOrId(cleanPhone) : undefined);
+    // Membership & service entitlement from central engine and DB
+    const dbMem = memberships.find((m: any) => {
+      const mPhone = String(m.phone || "").replace(/\D/g, "").slice(-10);
+      return (cleanPhone && mPhone === cleanPhone) || m.userId === u.id;
+    });
+    const userMembership = dbMem || membershipEngine.getMembershipByUserId(u.id) || (cleanPhone ? membershipEngine.getMembershipByPhoneOrId(cleanPhone) : undefined);
     const memAccess = membershipEngine.checkServiceAccess(cleanPhone || u.id, "jyotish");
 
     const allUserLeads = leads.filter(l => {
       const lPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
-      return (cleanPhone && lPhone === cleanPhone) || (u.email && l.email && u.email.toLowerCase() === l.email.toLowerCase());
+      return (cleanPhone && lPhone === cleanPhone) || (u.email && l.email && u.email.toLowerCase() === l.email.toLowerCase()) || l.userId === u.id;
     });
 
     const nowMs = Date.now();
@@ -2926,15 +2930,19 @@ async function startServer() {
     const isTrialActive = Boolean(u.trial?.isTrialActive && trialExpMs > nowMs);
     const isTrialExpired = Boolean(u.trial?.hasUsedTrial && trialExpMs > 0 && trialExpMs <= nowMs);
 
-    const isMemberActive = (userMembership?.membershipStatus === 'ACTIVE' && (!userMembership.expiresAtTimestamp || userMembership.expiresAtTimestamp > nowMs)) || isTrialActive;
+    const isMemberActive = (userMembership?.membershipStatus === 'ACTIVE' && (!userMembership.expiresAtTimestamp || userMembership.expiresAtTimestamp > nowMs)) ||
+      (u.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt).getTime() > nowMs) ||
+      isTrialActive;
     const isMemberExpired = userMembership?.membershipStatus === 'EXPIRED' || (userMembership?.expiresAtTimestamp && userMembership.expiresAtTimestamp <= nowMs) || isTrialExpired;
     const isPendingPayment = !isMemberActive && (userMembership?.membershipStatus === 'PENDING_PAYMENT' || matchingLead?.status === 'PURCHASE_PENDING');
 
     const membershipStatus: string = isMemberActive ? 'ACTIVE' : isMemberExpired ? 'EXPIRED' : isPendingPayment ? 'PENDING_PAYMENT' : 'NONE';
 
     let purchasedPlanName: string = 'साधारण खाता (योजना छैन)';
-    if (userMembership) {
+    if (userMembership?.planNameNepali) {
       purchasedPlanName = userMembership.planNameNepali;
+    } else if (u.subscriptionPlan) {
+      purchasedPlanName = u.subscriptionPlan;
     } else if (isTrialActive) {
       purchasedPlanName = '२४ घण्टा निःशुल्क परीक्षण (सक्रिय)';
     } else if (isTrialExpired) {
@@ -3108,7 +3116,14 @@ async function startServer() {
         licenses = getServiceLicenses();
       }
 
-      const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses));
+      let memberships: any[] = [];
+      try {
+        memberships = await dbAdapter.getMemberships();
+      } catch {
+        memberships = [];
+      }
+
+      const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses, memberships));
 
       // Global statistics for 9 Master Classification Filters
       const now = Date.now();
