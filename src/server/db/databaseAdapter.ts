@@ -1230,6 +1230,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   public async getClientLeads(): Promise<any[]> {
     const res = await this.pool.query('SELECT * FROM client_purchase_leads ORDER BY submitted_at_iso DESC');
     return res.rows.map((r: any) => ({
+      ...(r.raw_data || {}),
       id: r.id,
       userId: r.user_id,
       leadNumber: r.lead_number,
@@ -1239,14 +1240,14 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       email: r.email,
       whatsapp: r.whatsapp,
       status: r.status,
+      paymentVerificationStatus: r.payment_verification_status,
       planId: r.plan_id,
       planNameNepali: r.plan_name_nepali,
       planAmountNPR: r.plan_amount_npr,
       paymentMethod: r.payment_method,
       transactionId: r.transaction_id,
       submittedAtISO: r.submitted_at_iso ? new Date(r.submitted_at_iso).toISOString() : new Date().toISOString(),
-      submittedAtBS: r.submitted_at_bs,
-      ...(r.raw_data || {})
+      submittedAtBS: r.submitted_at_bs
     }));
   }
 
@@ -1313,6 +1314,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   public async getMemberships(): Promise<any[]> {
     const res = await this.pool.query('SELECT * FROM memberships ORDER BY submitted_at_iso DESC');
     return res.rows.map((r: any) => ({
+      ...(r.raw_data || {}),
       id: r.id,
       userId: r.user_id,
       phone: r.phone,
@@ -1322,12 +1324,12 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       duration: r.duration,
       amountNPR: r.amount_npr,
       paymentMethod: r.payment_method,
+      paymentStatus: r.payment_status,
       membershipStatus: r.membership_status,
       cashVerified: r.cash_verified,
       expiresAtTimestamp: Number(r.expires_at_timestamp || 0),
       expiresAtISO: r.expires_at_iso ? new Date(r.expires_at_iso).toISOString() : null,
-      includedServices: r.included_services || ['panchanga'],
-      ...(r.raw_data || {})
+      includedServices: r.included_services || ['panchanga']
     }));
   }
 
@@ -1382,16 +1384,17 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   public async getServiceLicenses(): Promise<any[]> {
     const res = await this.pool.query('SELECT * FROM service_licenses');
     return res.rows.map((r: any) => ({
+      ...(r.raw_data || {}),
       id: r.id,
       userId: r.user_id,
       phone: r.phone,
       serviceKey: r.service_key,
       status: r.status,
+      notes: r.notes,
       amountNPR: r.amount_npr,
       startsAtISO: r.starts_at_iso ? new Date(r.starts_at_iso).toISOString() : null,
       expiresAtISO: r.expires_at_iso ? new Date(r.expires_at_iso).toISOString() : null,
-      expiresAtTimestamp: Number(r.expires_at_timestamp || 0),
-      ...(r.raw_data || {})
+      expiresAtTimestamp: Number(r.expires_at_timestamp || 0)
     }));
   }
 
@@ -1438,15 +1441,17 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   public async getPayments(): Promise<any[]> {
     const res = await this.pool.query('SELECT * FROM payments ORDER BY created_at_iso DESC');
     return res.rows.map((r: any) => ({
+      ...(r.raw_data || {}),
       id: r.id,
       userId: r.user_id,
       amountNPR: r.amount_npr,
       currency: r.currency,
       paymentMethod: r.payment_method,
       paymentStatus: r.payment_status,
+      notes: r.notes,
+      transactionReference: r.transaction_reference,
       recordedBy: r.recorded_by,
-      createdAtISO: r.created_at_iso ? new Date(r.created_at_iso).toISOString() : new Date().toISOString(),
-      ...(r.raw_data || {})
+      createdAtISO: r.created_at_iso ? new Date(r.created_at_iso).toISOString() : new Date().toISOString()
     }));
   }
 
@@ -1868,7 +1873,10 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
           status = 'TEST_COMPLETED_REVERTED',
           payment_verification_status = 'VOIDED_TEST',
           raw_data = jsonb_set(
-            jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{reconciled}', 'true'::jsonb),
+            jsonb_set(
+              jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{status}', '"TEST_COMPLETED_REVERTED"'::jsonb),
+              '{paymentVerificationStatus}', '"VOIDED_TEST"'::jsonb
+            ),
             '{reconciliationReason}',
             to_jsonb($1::text)
           )
@@ -1902,7 +1910,10 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
           membership_status = 'TEST_REVOKED',
           payment_status = 'test_voided',
           raw_data = jsonb_set(
-            jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{revocationReason}', '"Synthetic test verification teardown"'::jsonb),
+            jsonb_set(
+              jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{membershipStatus}', '"TEST_REVOKED"'::jsonb),
+              '{revocationReason}', '"Synthetic test verification teardown"'::jsonb
+            ),
             '{paymentStatus}',
             '"test_voided"'::jsonb
           )
