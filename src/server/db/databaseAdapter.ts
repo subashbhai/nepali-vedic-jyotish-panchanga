@@ -116,6 +116,7 @@ export interface IDatabaseAdapter {
   getTableCounts(): Promise<TableCounts>;
   createBackupSnapshot(): Promise<BackupSnapshot>;
   resetAllUserData(): Promise<ResetUserDataResult>;
+  reconcileSyntheticTestPurchases(adminId: string, reason: string): Promise<any>;
 }
 
 // ============================================================================
@@ -592,6 +593,143 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
       beforeCounts,
       afterCounts,
       message: 'All local disk test user data wiped successfully.'
+    };
+  }
+
+  public async reconcileSyntheticTestPurchases(adminId: string, reason: string): Promise<any> {
+    const backup = await this.createBackupSnapshot();
+    
+    // 1. Leads
+    const leads = await this.getClientLeads();
+    let leadsCount = 0;
+    const updatedLeads = leads.map(l => {
+      if (
+        l.transactionId === 'TEST_TX_PURCHASE_AUDIT_2081' ||
+        l.userId === 'usr_1793155790675_a1zz3' ||
+        (l.mobile && String(l.mobile).replace(/\D/g, '').slice(-10) === '9801234567')
+      ) {
+        leadsCount++;
+        return {
+          ...l,
+          status: 'TEST_COMPLETED_REVERTED',
+          paymentVerificationStatus: 'VOIDED_TEST',
+          reconciliationReason: reason,
+          reconciledAtISO: new Date().toISOString()
+        };
+      }
+      return l;
+    });
+    this.atomicWriteSync(this.leadsFile, updatedLeads);
+
+    // 2. Payments
+    const payments = await this.getPayments();
+    let paymentsCount = 0;
+    const updatedPayments = payments.map(p => {
+      if (
+        p.transactionReference === 'TEST_TX_PURCHASE_AUDIT_2081' ||
+        p.userId === 'usr_1793155790675_a1zz3' ||
+        (p.id && String(p.id).startsWith('pmt_audit_'))
+      ) {
+        paymentsCount++;
+        return {
+          ...p,
+          paymentStatus: 'test_voided',
+          notes: 'Voided synthetic test payment fixture from E2E audit - non-revenue',
+          voidedAtISO: new Date().toISOString()
+        };
+      }
+      return p;
+    });
+    this.atomicWriteSync(this.paymentsFile, updatedPayments);
+
+    // 3. Memberships
+    const memberships = await this.getMemberships();
+    let membershipsCount = 0;
+    const updatedMemberships = memberships.map(m => {
+      if (
+        m.userId === 'usr_1793155790675_a1zz3' ||
+        (m.phone && String(m.phone).replace(/\D/g, '').slice(-10) === '9801234567')
+      ) {
+        membershipsCount++;
+        return {
+          ...m,
+          membershipStatus: 'TEST_REVOKED',
+          paymentStatus: 'test_voided',
+          revocationReason: 'Synthetic test verification teardown',
+          revokedAtISO: new Date().toISOString()
+        };
+      }
+      return m;
+    });
+    this.atomicWriteSync(this.membershipsFile, updatedMemberships);
+
+    // 4. Licenses
+    const licenses = await this.getServiceLicenses();
+    let licensesCount = 0;
+    const updatedLicenses = licenses.map(lic => {
+      if (
+        lic.userId === 'usr_1793155790675_a1zz3' ||
+        (lic.phone && String(lic.phone).replace(/\D/g, '').slice(-10) === '9801234567')
+      ) {
+        licensesCount++;
+        return {
+          ...lic,
+          status: 'locked',
+          notes: 'Relocked after synthetic E2E verification test',
+          lockedAtISO: new Date().toISOString()
+        };
+      }
+      return lic;
+    });
+    this.atomicWriteSync(this.licensesFile, updatedLicenses);
+
+    // 5. Users
+    const users = await this.getUsers();
+    let userUpdated = false;
+    const updatedUsers = users.map(u => {
+      if (
+        u.id === 'usr_1793155790675_a1zz3' ||
+        u.username === 'audit_test_user' ||
+        (u.phone && String(u.phone).replace(/\D/g, '').slice(-10) === '9801234567')
+      ) {
+        userUpdated = true;
+        const copy = { ...u };
+        delete copy.subscriptionPlan;
+        delete copy.subscriptionStartAt;
+        delete copy.subscriptionExpiresAt;
+        delete copy.paymentStatus;
+        delete copy.jyotishAccess;
+        delete copy.vastuAccess;
+        copy.paymentAmountNPR = 0;
+        copy.lastUpdatedISO = new Date().toISOString();
+        return copy;
+      }
+      return u;
+    });
+    this.atomicWriteSync(this.usersFile, updatedUsers);
+
+    // 6. Audit Log
+    const auditLogId = `audit_reconcile_${Date.now()}`;
+    await this.createAuditLog({
+      id: auditLogId,
+      action: 'SYNTHETIC_TEST_PURCHASE_RECONCILED',
+      performedBy: adminId || 'SuperAdmin',
+      targetId: 'usr_1793155790675_a1zz3',
+      details: reason || 'Audited remediation of synthetic E2E verification test data'
+    });
+
+    return {
+      success: true,
+      backupFile: backup.backupFile,
+      reconciled: {
+        leadsCount,
+        paymentsCount,
+        membershipsCount,
+        licensesCount,
+        userUpdated
+      },
+      auditLogId,
+      message: 'Synthetic test purchase records safely reconciled.'
     };
   }
 }
@@ -1707,6 +1845,138 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       beforeCounts,
       afterCounts,
       message: 'All PostgreSQL test user records wiped successfully.'
+    };
+  }
+
+  public async reconcileSyntheticTestPurchases(adminId: string, reason: string): Promise<any> {
+    const backup = await this.createBackupSnapshot();
+    const client = await this.pool.connect();
+    let leadsCount = 0;
+    let paymentsCount = 0;
+    let membershipsCount = 0;
+    let licensesCount = 0;
+    let userUpdated = false;
+    const auditLogId = `audit_reconcile_${Date.now()}`;
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Leads
+      const leadsRes = await client.query(`
+        UPDATE client_purchase_leads
+        SET 
+          status = 'TEST_COMPLETED_REVERTED',
+          payment_verification_status = 'VOIDED_TEST',
+          raw_data = jsonb_set(
+            jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{reconciled}', 'true'::jsonb),
+            '{reconciliationReason}',
+            to_jsonb($1::text)
+          )
+        WHERE transaction_id = 'TEST_TX_PURCHASE_AUDIT_2081'
+           OR user_id = 'usr_1793155790675_a1zz3'
+           OR mobile = '9801234567';
+      `, [reason]);
+      leadsCount = leadsRes.rowCount || 0;
+
+      // 2. Payments
+      const payRes = await client.query(`
+        UPDATE payments
+        SET 
+          payment_status = 'test_voided',
+          notes = 'Voided synthetic test payment fixture from E2E audit - non-revenue',
+          raw_data = jsonb_set(
+            jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{voided}', 'true'::jsonb),
+            '{notes}',
+            '"Voided synthetic test payment fixture from E2E audit - non-revenue"'::jsonb
+          )
+        WHERE transaction_reference = 'TEST_TX_PURCHASE_AUDIT_2081'
+           OR user_id = 'usr_1793155790675_a1zz3'
+           OR id LIKE 'pmt_audit_%';
+      `);
+      paymentsCount = payRes.rowCount || 0;
+
+      // 3. Memberships
+      const memRes = await client.query(`
+        UPDATE memberships
+        SET 
+          membership_status = 'TEST_REVOKED',
+          payment_status = 'test_voided',
+          raw_data = jsonb_set(
+            jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{revocationReason}', '"Synthetic test verification teardown"'::jsonb),
+            '{paymentStatus}',
+            '"test_voided"'::jsonb
+          )
+        WHERE user_id = 'usr_1793155790675_a1zz3'
+           OR phone = '9801234567';
+      `);
+      membershipsCount = memRes.rowCount || 0;
+
+      // 4. Service Licenses
+      const licRes = await client.query(`
+        UPDATE service_licenses
+        SET 
+          status = 'locked',
+          notes = 'Relocked after synthetic E2E verification test',
+          raw_data = jsonb_set(
+            jsonb_set(COALESCE(raw_data, '{}'::jsonb), '{status}', '"locked"'::jsonb),
+            '{notes}',
+            '"Relocked after synthetic E2E verification test"'::jsonb
+          )
+        WHERE user_id = 'usr_1793155790675_a1zz3'
+           OR phone = '9801234567';
+      `);
+      licensesCount = licRes.rowCount || 0;
+
+      // 5. Users
+      const userRes = await client.query(`
+        UPDATE users
+        SET 
+          subscription_plan = NULL,
+          subscription_start_at = NULL,
+          subscription_expires_at = NULL,
+          payment_status = NULL,
+          payment_amount_npr = 0,
+          account_status = 'active',
+          status = 'active',
+          raw_data = COALESCE(raw_data, '{}'::jsonb) - 'jyotishAccess' - 'vastuAccess' - 'subscriptionPlan' - 'paymentStatus' - 'paymentAmountNPR'
+        WHERE id = 'usr_1793155790675_a1zz3'
+           OR phone = '9801234567'
+           OR username = 'audit_test_user';
+      `);
+      userUpdated = (userRes.rowCount || 0) > 0;
+
+      // 6. Audit Log
+      await client.query(`
+        INSERT INTO audit_logs (id, action, performed_by, target_id, details, timestamp_iso)
+        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP);
+      `, [
+        auditLogId,
+        'SYNTHETIC_TEST_PURCHASE_RECONCILED',
+        adminId || 'SuperAdmin',
+        'usr_1793155790675_a1zz3',
+        reason || 'Audited remediation of synthetic E2E verification test data'
+      ]);
+
+      await client.query('COMMIT');
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      throw new Error(`Transactional PostgreSQL reconciliation failed: ${err.message}`);
+    } finally {
+      client.release();
+    }
+
+    return {
+      success: true,
+      backupFile: backup.backupFile,
+      reconciled: {
+        leadsCount,
+        paymentsCount,
+        membershipsCount,
+        licensesCount,
+        userUpdated
+      },
+      auditLogId,
+      message: 'Synthetic test purchase records safely reconciled in PostgreSQL.'
     };
   }
 }

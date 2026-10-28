@@ -4,7 +4,7 @@
 
 import NepaliDate from 'nepali-date-converter';
 
-const NepaliDateClass: any = (NepaliDate as any)?.default || NepaliDate;
+const NepaliDateClass: any = (NepaliDate as any)?.default?.default || (NepaliDate as any)?.default || NepaliDate;
 
 export function toDevanagariNumerals(num: number | string | undefined | null): string {
   if (num === undefined || num === null || num === 'undefined' || num === 'null' || num === '') {
@@ -237,13 +237,8 @@ export function convertADToBSFull(dateInput: string | Date): {
   formattedBS: string;
   formattedBSFull: string;
 } {
-  const cacheKey = typeof dateInput === 'string' ? dateInput : dateInput.toISOString().split('T')[0];
-  if (adToBsCache.has(cacheKey)) {
-    return adToBsCache.get(cacheKey)!;
-  }
-
-  const dateObj = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-  if (isNaN(dateObj.getTime())) {
+  const rawDateObj = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(rawDateObj.getTime())) {
     const fallback = {
       year: 2083,
       month: 1,
@@ -254,6 +249,16 @@ export function convertADToBSFull(dateInput: string | Date): {
       formattedBSFull: '२०८३ साल वैशाख १ गते, बुधबार'
     };
     return fallback;
+  }
+
+  // Adjust to Asia/Kathmandu timezone (UTC + 05:45 = +345 minutes)
+  const utcMs = rawDateObj.getTime() + (rawDateObj.getTimezoneOffset() * 60000);
+  const ktmMs = utcMs + (345 * 60000);
+  const dateObj = new Date(ktmMs);
+
+  const cacheKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+  if (adToBsCache.has(cacheKey)) {
+    return adToBsCache.get(cacheKey)!;
   }
 
   // For years between 1943 AD and 2033 AD (BS 2000-2089), try NepaliDateClass

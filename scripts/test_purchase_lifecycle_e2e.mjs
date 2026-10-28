@@ -326,18 +326,19 @@ async function runVerification() {
       },
       body: JSON.stringify({
         approvedBy: 'SuperAdmin',
-        approvedAtBS: '२०८१-११-१५',
         serviceKey: 'both',
         verifiedAmount: 1200,
-        adminNotes: '२०८१ अडिट खरिद आवेदन आधिकारिक रूपमा स्वीकृत'
+        adminNotes: '२०८३ अडिट खरिद आवेदन आधिकारिक रूपमा स्वीकृत'
       })
     });
     const approveData = await approveRes.json();
     const isApproved = approveRes.ok && approveData.success === true && approveData.lead?.status === 'PURCHASE_APPROVED';
-    record('PHASE 6', 'Super Admin Authorized Lead Approval', isApproved, {
+    const has2083BSDate = String(approveData.lead?.approvedAtBS || '').includes('२०८३');
+    record('PHASE 6', 'Super Admin Authorized Lead Approval', isApproved && has2083BSDate, {
       status: approveData.lead?.status,
       paymentVerificationStatus: approveData.lead?.paymentVerificationStatus,
       approvedBy: approveData.lead?.approvedBy,
+      approvedAtBS: approveData.lead?.approvedAtBS,
       expiresAtBS: approveData.lead?.expiresAtBS
     });
   } catch (err) {
@@ -491,6 +492,79 @@ async function runVerification() {
     });
   } catch (err) {
     record('PHASE 10', 'Regression Tests', false, { error: err.message });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PHASE 11: Audited Test-Data Reconciliation & Teardown Verification
+  // ─────────────────────────────────────────────────────────────
+  console.log('\n--- PHASE 11: Audited Test-Data Reconciliation & Teardown Verification ---');
+  try {
+    // 1. Execute safe audited reconciliation
+    const reconcileRes = await fetch(`${API_BASE}/api/superadmin/maintenance/reconcile-test-data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({
+        reason: 'Automated E2E purchase verification cleanup — safe non-destructive teardown'
+      })
+    });
+    const reconcileData = await reconcileRes.json();
+    record('PHASE 11', 'Super Admin Audited Test Data Reconciliation Execution', reconcileRes.ok && reconcileData.success === true, {
+      backupFile: reconcileData.backupFile,
+      reconciled: reconcileData.reconciled,
+      auditLogId: reconcileData.auditLogId
+    });
+
+    // 2. Verify Memberships in authoritative DB reflect TEST_REVOKED
+    const memRes = await fetch(`${API_BASE}/api/superadmin/memberships?filter=all`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const memData = await memRes.json();
+    const testMems = memData.memberships?.filter(m => m.userId === TEST_USER.phone || m.phone === TEST_USER.phone || m.userId === userToken);
+    const allMemsRevoked = testMems.length === 0 || testMems.every(m => m.membershipStatus === 'TEST_REVOKED' || m.membershipStatus === 'REVOKED');
+    record('PHASE 11', 'Authoritative Memberships Revoked State Verification', memRes.ok && allMemsRevoked, {
+      totalFound: testMems.length,
+      statuses: testMems.map(m => m.membershipStatus)
+    });
+
+    // 3. Verify Payments in authoritative DB reflect test_voided
+    const payRes = await fetch(`${API_BASE}/api/superadmin/payments?filter=all`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const payData = await payRes.json();
+    const testPayments = payData.payments?.filter(p => p.transactionReference === 'TEST_TX_PURCHASE_AUDIT_2081' || p.userId === TEST_USER.phone);
+    const allPaymentsVoided = testPayments.length === 0 || testPayments.every(p => p.paymentStatus === 'test_voided');
+    record('PHASE 11', 'Authoritative Payments Voided State Verification', payRes.ok && allPaymentsVoided, {
+      totalFound: testPayments.length,
+      statuses: testPayments.map(p => p.paymentStatus)
+    });
+
+    // 4. Verify License Relocked
+    const licRes = await fetch(`${API_BASE}/api/licenses/check?userId=${TEST_USER.phone}&serviceKey=jyotish`);
+    const licData = await licRes.json();
+    record('PHASE 11', 'Service License Relocked Verification', licData.allowed === false && licData.status === 'locked', {
+      allowed: licData.allowed,
+      status: licData.status,
+      reasonNepali: licData.reasonNepali
+    });
+
+    // 5. Verify Entitlements Reset
+    const entRes = await fetch(`${API_BASE}/api/entitlements`, {
+      headers: { 'Authorization': `Bearer ${userToken}` }
+    });
+    const entData = await entRes.json();
+    const ent = entData.entitlement;
+    const isReset = ent && !ent.isJyotishAllowed && !ent.isVastuAllowed && !ent.hasActiveMembership;
+    record('PHASE 11', 'User Entitlements Reset Verification', entRes.ok && isReset, {
+      planTier: ent?.planTier,
+      isJyotishAllowed: ent?.isJyotishAllowed,
+      isVastuAllowed: ent?.isVastuAllowed,
+      hasActiveMembership: ent?.hasActiveMembership
+    });
+  } catch (err) {
+    record('PHASE 11', 'Audited Teardown Workflow', false, { error: err.message });
   }
 
   // ─────────────────────────────────────────────────────────────

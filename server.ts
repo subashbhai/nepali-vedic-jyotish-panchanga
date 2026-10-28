@@ -1105,10 +1105,16 @@ async function startServer() {
   });
 
   // 7. GET /api/licenses/audit-logs (Super Admin)
-  app.get("/api/licenses/audit-logs", requireSuperAdminAuth, (req, res) => {
+  app.get("/api/licenses/audit-logs", requireSuperAdminAuth, async (req, res) => {
     try {
-      const logs = getLicenseAuditLogs();
-      return res.json({ success: true, logs });
+      let logs: any[] = [];
+      try {
+        logs = await dbAdapter.getAuditLogs();
+      } catch (dbErr: any) {
+        console.warn("[License Audit Logs] DB fallback:", dbErr.message);
+        logs = getLicenseAuditLogs();
+      }
+      return res.json({ success: true, count: logs.length, logs });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -1136,7 +1142,7 @@ async function startServer() {
     target.paymentVerificationStatus = "VERIFIED";
     target.approvedBy = approvedBy || "SuperAdmin";
     target.approvedAtISO = now.toISOString();
-    target.approvedAtBS = approvedAtBS || schedule.activatedAtBS;
+    target.approvedAtBS = schedule.activatedAtBS;
 
     if (target.paymentMethod === "cash") {
       target.cashVerified = true;
@@ -1979,11 +1985,17 @@ async function startServer() {
   });
 
   // 9. GET /api/admin/audit-logs (Super Admin Category & Payment Audit Logs)
-  app.get("/api/admin/audit-logs", requireSuperAdminAuth, (req, res) => {
+  app.get("/api/admin/audit-logs", requireSuperAdminAuth, async (req, res) => {
     try {
-      const logs = authEngine.getAdminAuditLogs();
-      return res.json({ success: true, logs });
-    } catch (err) {
+      let logs: any[] = [];
+      try {
+        logs = await dbAdapter.getAuditLogs();
+      } catch (err: any) {
+        console.warn("[Admin Audit Logs] DB fallback:", err.message);
+        logs = authEngine.getAdminAuditLogs();
+      }
+      return res.json({ success: true, count: logs.length, logs });
+    } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2637,16 +2649,54 @@ async function startServer() {
     }
   });
 
-  // GET /api/superadmin/memberships (SuperAdmin: List Memberships with Status Filter)
-  app.get("/api/superadmin/memberships", requireSuperAdminAuth, (req, res) => {
+  // GET /api/superadmin/memberships (SuperAdmin: List Memberships with Status Filter via DB Adapter)
+  app.get("/api/superadmin/memberships", requireSuperAdminAuth, async (req, res) => {
     try {
-      const filter = String(req.query.filter || "all");
-      const memberships = membershipEngine.listMemberships(filter);
+      const filter = String(req.query.filter || "all").toLowerCase();
+      let memberships: any[] = [];
+      try {
+        memberships = await dbAdapter.getMemberships();
+      } catch (e: any) {
+        console.warn("[SuperAdmin Memberships] DB lookup fallback:", e.message);
+        memberships = membershipEngine.listMemberships("all");
+      }
+
+      if (filter && filter !== "all") {
+        memberships = memberships.filter((m: any) => {
+          const status = (m.membershipStatus || m.status || "").toLowerCase();
+          if (filter === "active") return status === "active";
+          if (filter === "pending") return status === "pending" || status === "pending_payment";
+          if (filter === "expired") return status === "expired";
+          if (filter === "revoked") return status === "revoked" || status === "test_revoked";
+          return status === filter;
+        });
+      }
+
       return res.json({
         success: true,
         count: memberships.length,
         filter,
         memberships
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/superadmin/payments (SuperAdmin: List Authoritative Payments via DB Adapter)
+  app.get("/api/superadmin/payments", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const filter = String(req.query.filter || "all").toLowerCase();
+      const payments = await dbAdapter.getPayments();
+      let filtered = payments;
+      if (filter && filter !== "all") {
+        filtered = payments.filter((p: any) => (p.paymentStatus || "").toLowerCase() === filter);
+      }
+      return res.json({
+        success: true,
+        count: filtered.length,
+        filter,
+        payments: filtered
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -3877,6 +3927,91 @@ async function startServer() {
       return res.json(result);
     } catch (err: any) {
       console.error("[Maintenance] Full system data reset failed:", err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.7.4b POST /api/superadmin/maintenance/reconcile-test-data (Audited Reconciliation of Synthetic Purchases)
+  app.post("/api/superadmin/maintenance/reconcile-test-data", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const adminSession = (req as any).superAdmin;
+      const adminId = adminSession?.username || "SuperAdmin";
+      const reason = req.body?.reason || "Audited remediation of synthetic E2E verification test data";
+
+      console.log(`[Maintenance] Starting synthetic test data reconciliation requested by ${adminId}...`);
+      const dbResult = await dbAdapter.reconcileSyntheticTestPurchases(adminId, reason);
+
+      // Synchronize in-memory/disk caches
+      const leads = getClientLeads();
+      let localLeadsUpdated = false;
+      for (const l of leads) {
+        if (
+          l.transactionId === "TEST_TX_PURCHASE_AUDIT_2081" ||
+          l.userId === "usr_1793155790675_a1zz3" ||
+          (l.mobile && String(l.mobile).replace(/\D/g, "").slice(-10) === "9801234567")
+        ) {
+          l.status = "TEST_COMPLETED_REVERTED";
+          l.paymentVerificationStatus = "VOIDED_TEST";
+          l.reconciliationReason = reason;
+          l.reconciledAtISO = new Date().toISOString();
+          localLeadsUpdated = true;
+        }
+      }
+      if (localLeadsUpdated) saveClientLeads(leads);
+
+      const licenses = getServiceLicenses();
+      let localLicUpdated = false;
+      for (const lic of licenses) {
+        if (
+          lic.userId === "usr_1793155790675_a1zz3" ||
+          (lic.phone && String(lic.phone).replace(/\D/g, "").slice(-10) === "9801234567")
+        ) {
+          lic.status = "locked";
+          lic.notes = "Relocked after synthetic E2E verification test";
+          lic.lockedAtISO = new Date().toISOString();
+          localLicUpdated = true;
+        }
+      }
+      if (localLicUpdated) saveServiceLicenses(licenses);
+
+      const users = getUsers();
+      let localUserUpdated = false;
+      for (const u of users) {
+        if (
+          u.id === "usr_1793155790675_a1zz3" ||
+          u.username === "audit_test_user" ||
+          (u.phone && String(u.phone).replace(/\D/g, "").slice(-10) === "9801234567")
+        ) {
+          delete u.subscriptionPlan;
+          delete u.subscriptionStartAt;
+          delete u.subscriptionExpiresAt;
+          delete u.paymentStatus;
+          delete u.jyotishAccess;
+          delete u.vastuAccess;
+          u.paymentAmountNPR = 0;
+          u.lastUpdatedISO = new Date().toISOString();
+          localUserUpdated = true;
+        }
+      }
+      if (localUserUpdated) saveUsers(users);
+
+      membershipEngine.loadFromDisk();
+
+      broadcastRealtimeEvent("SYNTHETIC_PURCHASE_RECONCILED", {
+        timestamp: Date.now(),
+        adminId
+      });
+
+      console.log("[Maintenance] Synthetic test purchase reconciliation completed successfully.");
+      return res.json({
+        success: true,
+        message: "Synthetic test data successfully reconciled",
+        backupFile: dbResult.backupFile,
+        reconciled: dbResult.reconciled,
+        auditLogId: dbResult.auditLogId
+      });
+    } catch (err: any) {
+      console.error("[Maintenance] Synthetic test data reconciliation failed:", err);
       return res.status(500).json({ success: false, error: err.message });
     }
   });
