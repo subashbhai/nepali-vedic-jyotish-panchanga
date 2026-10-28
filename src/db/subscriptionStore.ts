@@ -26,109 +26,76 @@ export interface SoftwarePackageTier {
 }
 
 export const SOFTWARE_PURCHASE_TIERS: SoftwarePackageTier[] = [
-  // 1. जीवनभर (Lifetime)
+  // 1. Normal Membership (साधारण सदस्यता - १ वर्ष: रु. १००)
   {
-    id: 'lifetime_mobile',
-    category: 'lifetime',
-    platform: 'mobile',
-    labelNepali: '📱 मोबाइल जीवनभर',
-    icon: '📱',
-    priceNPR: 1000,
-    priceFormattedNepali: 'रु. १,००० मात्र',
-    durationLabel: 'जीवनभर',
-    features: [
-      'एन्ड्रोइड तथा आईफोन मोबाइलमा पूर्ण पहुँच',
-      'दैनिक पञ्चाङ्ग, मुहूर्त तथा गोचर फलादेश',
-      'जन्मकुण्डली, विंशोत्तरी दशा र नक्षत्र विश्लेषण',
-      '३६०° डिजिटल वास्तु कम्पास र दिक्पाल दिशा',
-      'जीवनभर निःशुल्क नयाँ अपडेट तथा प्राविधिक सहयोग'
-    ]
-  },
-  {
-    id: 'lifetime_desktop',
-    category: 'lifetime',
-    platform: 'desktop',
-    labelNepali: '💻 कम्प्युटर जीवनभर',
-    icon: '💻',
-    priceNPR: 2500,
-    priceFormattedNepali: 'रु. २,५०० मात्र',
-    durationLabel: 'जीवनभर',
-    features: [
-      'विन्डोज तथा म्याक कम्प्युटरमा पूर्ण पहुँच',
-      'सम्पूर्ण षोडशवर्ग (D1 देखि D60), अष्टकवर्ग र दशा फलित',
-      'बृहत् कुण्डली, चिना तथा पत्रिका A4 PDF मुद्रण',
-      '८१-पद वास्तु मण्डल, भूमि परीक्षण र नक्शा विश्लेषण',
-      'संस्थागत लेटरहेड, लोगो र आफ्नै नाममा ब्रान्डिङ'
-    ]
-  },
-  {
-    id: 'lifetime_both',
-    category: 'lifetime',
-    platform: 'both',
-    labelNepali: '⚡📱💻 मोबाइल + कम्प्युटर जीवनभर (सर्वोत्कृष्ट)',
-    icon: '⚡📱💻',
-    priceNPR: 3000,
-    priceFormattedNepali: 'रु. ३,००० मात्र',
-    durationLabel: 'जीवनभर',
-    isBestValue: true,
-    features: [
-      'मोबाइल तथा कम्प्युटर दुवैमा असीमित आजीवन पहुँच',
-      'सम्पूर्ण वैदिक ज्योतिष, वास्तु तथा कर्मकाण्ड सुविधाहरू',
-      'असीमित जातक विवरण बचत तथा स्वचालित क्लाउड सिंक',
-      'संस्थागत ब्रान्डिङ, डिजिटल हस्ताक्षर र A4 लेटरहेड मुद्रण',
-      '२४/७ प्राथमिकता प्राविधिक तथा ज्योतिषीय सहायता'
-    ]
-  },
-
-  // 2. एक वर्षको सदस्यता (Yearly Subscription)
-  {
-    id: 'yearly_mobile',
+    id: 'normal_yearly',
     category: 'yearly',
-    platform: 'mobile',
-    labelNepali: '📱 मोबाइल मात्र',
-    icon: '📱',
-    priceNPR: 200,
-    priceFormattedNepali: 'रु. २००',
+    platform: 'both',
+    labelNepali: 'साधारण सदस्यता (१ वर्ष)',
+    icon: '👤',
+    priceNPR: 100,
+    priceFormattedNepali: 'रु. १०० मात्र',
     durationLabel: '१ वर्ष',
     features: [
-      '१ वर्षसम्म मोबाइलमा सम्पूर्ण ज्योतिष तथा पञ्चाङ्ग',
-      'दैनिक तिथि, पर्व तथा शुभ-मुहूर्त अलर्ट',
-      'जन्मकुण्डली, गोचर र आधारभूत वास्तु कम्पास',
-      '१ वर्षसम्म सबै नयाँ अपडेट तथा प्राविधिक सहयोग'
+      '१ वर्षसम्म व्यक्तिगत ड्यासबोर्डमा पूर्ण पहुँच',
+      'दैनिक, मासिक तथा वार्षिक व्यक्तिगत राशिफल',
+      'व्यक्तिगत जन्मकुण्डली, राशी र नक्षत्र विश्लेषण',
+      'सुरक्षित कुण्डली सेयरिङ सुविधा'
     ]
   },
+  // 2. Normal Membership Lifetime (साधारण सदस्यता - आजीवन: रु. ५००)
   {
-    id: 'yearly_desktop',
-    category: 'yearly',
-    platform: 'desktop',
-    labelNepali: '💻 कम्प्युटर मात्र',
-    icon: '💻',
+    id: 'normal_lifetime',
+    category: 'lifetime',
+    platform: 'both',
+    labelNepali: 'साधारण सदस्यता (आजीवन)',
+    icon: '🌟',
     priceNPR: 500,
-    priceFormattedNepali: 'रु. ५००',
-    durationLabel: '१ वर्ष',
+    priceFormattedNepali: 'रु. ५०० मात्र',
+    durationLabel: 'आजीवन',
     features: [
-      '१ वर्षसम्म कम्प्युटरमा सम्पूर्ण कुण्डली तथा वास्तु कार्यक्षेत्र',
-      'A4 कुण्डली तथा वास्तु प्रतिवेदन मुद्रण सुविधा',
-      'संस्थागत लेटरहेड तथा ग्राहक विवरण व्यवस्थापन',
-      '१ वर्षसम्म प्राविधिक सहायता तथा सफ्टवेयर अपडेट'
+      'आजीवन व्यक्तिगत ड्यासबोर्ड र फलादेशमा पहुँच',
+      'आजीवन दैनिक गोचर तथा राशिफल विश्लेषण',
+      'दैनिक पञ्चाङ्ग तथा साइत विवरण',
+      'प्राविधिक सहयोग तथा आजीवन अपडेट'
     ]
   },
+  // 3. Professional Membership (प्रो. मेम्बरशिप / पेशागत सदस्यता - १ वर्ष: रु. २,०००)
   {
-    id: 'yearly_both',
+    id: 'pro_yearly',
     category: 'yearly',
     platform: 'both',
-    labelNepali: '⚡📱💻 मोबाइल + कम्प्युटर (सर्वोत्कृष्ट)',
-    icon: '⚡📱💻',
-    priceNPR: 1200,
-    priceFormattedNepali: 'रु. १,२००',
+    labelNepali: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (१ वर्ष)',
+    icon: '🔮',
+    priceNPR: 2000,
+    priceFormattedNepali: 'रु. २,००० मात्र',
     durationLabel: '१ वर्ष',
     isPopular: true,
+    features: [
+      '१ वर्षसम्म व्यावसायिक ज्योतिष तथा वास्तु सेवा पूर्ण अनलक',
+      'नयाँ कुण्डली निर्माण तथा जातक विवरण व्यवस्थापन',
+      'बृहत् कुण्डली तथा पत्रिका PDF प्रिन्ट सुविधा',
+      '८१-पद वास्तु मण्डल तथा नक्सा परीक्षण',
+      'पेशागत एकल-उपकरण (Single-Device) सुरक्षित लगइन (username-pro)'
+    ]
+  },
+  // 4. Professional Membership Lifetime (प्रो. मेम्बरशिप / पेशागत सदस्यता - आजीवन: रु. ५,०००)
+  {
+    id: 'pro_lifetime',
+    category: 'lifetime',
+    platform: 'both',
+    labelNepali: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (आजीवन - सर्वोत्कृष्ट)',
+    icon: '👑',
+    priceNPR: 5000,
+    priceFormattedNepali: 'रु. ५,००० मात्र',
+    durationLabel: 'आजीवन',
     isBestValue: true,
     features: [
-      '१ वर्षसम्म मोबाइल तथा कम्प्युटर दुवैमा पूर्ण पहुँच',
-      'सम्पूर्ण पत्रिका, चिना, वास्तु र पञ्चाङ्ग विश्लेषण',
-      'यन्त्र, मन्त्र, कर्मकाण्ड र क्लाउड सिंक',
-      '१ वर्षसम्म पूर्ण प्राविधिक तथा ग्राहक सहायता'
+      'आजीवन व्यावसायिक ज्योतिष तथा वास्तु सफ्टवेयर पूर्ण पहुँच',
+      'असीमित ग्राहक कुण्डली निर्माण, सम्पादन तथा प्रिन्ट',
+      'संस्थागत लेटरहेड, लोगो र ब्रान्डिङसहित PDF मुद्रण',
+      'आजीवन नयाँ अपडेट तथा प्राथमिकता सहायता',
+      'पेशागत एकल-उपकरण (Single-Device) सुरक्षा'
     ]
   }
 ];
@@ -256,17 +223,17 @@ const STORAGE_KEY_GATEWAYS = 'sukdev_payment_gateways_v1';
 const STORAGE_KEY_TRIAL_CONFIG = 'sukdev_trial_config_v1';
 
 export interface TrialConfig {
-  trialDurationHours: number; // Default: 168 hours (7 days)
+  trialDurationHours: number; // Default: 48 hours
   autoEnableOnRegistration: boolean;
   requiresCreditCard: boolean;
   welcomeNoteNepali: string;
 }
 
 export const DEFAULT_TRIAL_CONFIG: TrialConfig = {
-  trialDurationHours: 168,
-  autoEnableOnRegistration: false,
+  trialDurationHours: 48,
+  autoEnableOnRegistration: true,
   requiresCreditCard: false,
-  welcomeNoteNepali: 'श्री गणेशाय नमः! बालानन्द ज्योतिष, वास्तु तथा कर्मकाण्ड सेवाको ७ दिने निःशुल्क परीक्षणमा हार्दिक स्वागत छ।',
+  welcomeNoteNepali: 'श्री गणेशाय नमः! बालानन्द वैदिक सेवाको ४८ घण्टे निःशुल्क परीक्षणमा हार्दिक स्वागत छ।',
 };
 
 // Convert numbers to Nepali numerals
@@ -289,51 +256,42 @@ export function formatNPRCurrency(amount: number): string {
 export const DEFAULT_PLANS: PlanConfig[] = [
   {
     id: 'free',
-    nameNepali: 'निःशुल्क योजना',
+    nameNepali: 'साधारण खाता',
     basePriceNPR: 0,
     basePriceFormattedNepali: 'निःशुल्क',
     durationLabelNepali: 'सीमित पहुँच',
     durationDays: null,
-    descriptionNepali: 'आधारभूत पञ्चाङ्ग, १ वटा जन्मकुण्डली र सीमित फलादेश सुविधाहरू।',
+    descriptionNepali: 'दैनिक पञ्चाङ्ग तथा आधारभूत वैदिक सेवाहरू।',
   },
   {
     id: 'trial',
-    nameNepali: '७ दिने पूर्ण परीक्षण',
+    nameNepali: '४८ घण्टा निःशुल्क परीक्षण',
     basePriceNPR: 0,
     basePriceFormattedNepali: 'रु. ० (निःशुल्क)',
-    durationLabelNepali: '७ दिन',
-    durationDays: 7,
-    descriptionNepali: 'सबै सुविधाहरू ७ दिनका लागि पूर्ण रूपमा निःशुल्क परीक्षण गर्नुहोस्। (कुण्डली तथा नक्सा प्रिन्ट बाहेक)',
-    badgeTagNepali: '७ दिने निःशुल्क परीक्षण',
-  },
-  {
-    id: 'monthly',
-    nameNepali: 'मासिक सदस्यता',
-    basePriceNPR: 600,
-    basePriceFormattedNepali: 'रु. ६००',
-    durationLabelNepali: '१ महिना',
-    durationDays: 30,
-    descriptionNepali: 'प्रत्येक महिना नवीकरण गर्न सकिने सम्पूर्ण ज्योतिषीय सेवाहरूको पूर्ण पहुँच।',
+    durationLabelNepali: '४८ घण्टा',
+    durationDays: 2,
+    descriptionNepali: 'सबै सुविधाहरू दर्ता भएको समयबाट ठिक ४८ घण्टाका लागि पूर्ण निःशुल्क परीक्षण गर्नुहोस्।',
+    badgeTagNepali: '४८ घण्टे निःशुल्क परीक्षण',
   },
   {
     id: 'yearly',
-    nameNepali: 'वार्षिक सदस्यता',
-    basePriceNPR: 1200,
-    basePriceFormattedNepali: 'रु. १,२००',
+    nameNepali: 'साधारण सदस्यता (१ वर्ष)',
+    basePriceNPR: 100,
+    basePriceFormattedNepali: 'रु. १००',
     durationLabelNepali: '१ वर्ष',
     durationDays: 365,
-    descriptionNepali: 'वार्षिक रूपमा सबै डिजिटल पत्रिका, चिना, टिपण र वास्तु प्रतिवेदन।',
-    badgeTagNepali: 'लोकप्रिय योजना (Best Value)',
+    descriptionNepali: '१ वर्षसम्म व्यक्तिगत ड्यासबोर्ड, राशिफल तथा व्यक्तिगत कुण्डली फलादेश अवलोकन।',
+    badgeTagNepali: 'साधारण वार्षिक सदस्यता',
   },
   {
     id: 'lifetime',
-    nameNepali: 'आजीवन सदस्यता',
-    basePriceNPR: 3000,
-    basePriceFormattedNepali: 'रु. ३,०००',
+    nameNepali: 'साधारण सदस्यता (आजीवन)',
+    basePriceNPR: 500,
+    basePriceFormattedNepali: 'रु. ५००',
     durationLabelNepali: 'आजीवन',
     durationDays: null,
-    descriptionNepali: 'एकपटक मात्र भुक्तानी गर्नुहोस् र जीवनभर मोबाइल तथा कम्प्युटरमा सबै सुविधा चलाउनुहोस्।',
-    badgeTagNepali: 'सर्वोत्कृष्ट आजीवन योजना',
+    descriptionNepali: 'आजीवन व्यक्तिगत ड्यासबोर्ड, राशिफल, पञ्चाङ्ग तथा व्यक्तिगत कुण्डली फलादेश अवलोकन।',
+    badgeTagNepali: 'साधारण आजीवन योजना',
   },
 ];
 

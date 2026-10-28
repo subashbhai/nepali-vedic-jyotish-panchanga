@@ -38,7 +38,10 @@ import {
   DollarSign,
   AlertCircle,
   ArrowUpDown,
-  Laptop
+  Laptop,
+  Key,
+  LogOut,
+  RotateCcw
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unifiedUserSyncService';
@@ -110,10 +113,15 @@ export interface UnifiedUserRecord {
   adminNotes: any[];
   history: any[];
   licenses: any[];
+  hasActiveSession?: boolean;
 }
 
 export interface UserStats {
   totalUsers: number;
+  active48hTrial?: number;
+  trialExpired?: number;
+  normalPaid?: number;
+  proMembers?: number;
   regularLoginUsers: number;
   contactVerifiedUsers: number;
   pendingPurchases: number;
@@ -126,15 +134,14 @@ export interface UserStats {
   todaySignups: number;
 }
 
-// 9 Master Classification Filters
+// 8 Master Classification Filters
 export type MasterFilterKey =
   | 'all'
-  | 'regular_login'
-  | 'contact_verified'
+  | 'trial_active'
+  | 'trial_expired'
+  | 'normal_paid'
+  | 'pro_members'
   | 'pending_payment'
-  | 'payment_verified'
-  | 'active_member'
-  | 'trial_user'
   | 'expired_member'
   | 'suspended_inactive';
 
@@ -210,10 +217,10 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
   const [selectedServices, setSelectedServices] = useState<string[]>(['jyotish', 'vastu', 'karmakanda', 'panchanga']);
 
   // Tab 4: Direct Activation Form
-  const [actPlanId, setActPlanId] = useState<string>('yearly_both');
+  const [actPlanId, setActPlanId] = useState<string>('normal_yearly');
   const [actPaymentMethod, setActPaymentMethod] = useState<'cash' | 'esewa' | 'khalti' | 'bank'>('cash');
   const [actCashVerified, setActCashVerified] = useState<boolean>(false);
-  const [actAmount, setActAmount] = useState<number>(1200);
+  const [actAmount, setActAmount] = useState<number>(100);
   const [actAdminNotes, setActAdminNotes] = useState<string>('');
   const [activatingMembership, setActivatingMembership] = useState<boolean>(false);
 
@@ -430,8 +437,8 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     setMutationReason('');
 
     // Populate Tab 4 (Activation Form default)
-    setActPlanId('yearly_both');
-    setActAmount(1200);
+    setActPlanId('normal_yearly');
+    setActAmount(100);
     setActCashVerified(false);
     setActAdminNotes('');
 
@@ -629,19 +636,63 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
   };
 
   // ── DIRECT MEMBERSHIP ACTIVATION FORM (Tab 4) ──
-  const officialPlans: Record<string, { name: string; device: string; price: number; dur: string }> = {
-    yearly_mobile: { name: 'मोबाइल मात्र (१ वर्ष)', device: 'Mobile Only', price: 200, dur: '1_year' },
-    lifetime_mobile: { name: 'मोबाइल मात्र (आजीवन)', device: 'Mobile Only', price: 1000, dur: 'lifetime' },
-    yearly_computer: { name: 'कम्प्युटर मात्र (१ वर्ष)', device: 'Computer Only', price: 500, dur: '1_year' },
-    lifetime_computer: { name: 'कम्प्युटर मात्र (आजीवन)', device: 'Computer Only', price: 2500, dur: 'lifetime' },
-    yearly_both: { name: 'मोबाइल + कम्प्युटर दुवै (१ वर्ष)', device: 'Mobile + Computer', price: 1200, dur: '1_year' },
-    lifetime_both: { name: 'मोबाइल + कम्प्युटर दुवै (आजीवन)', device: 'Mobile + Computer', price: 3000, dur: 'lifetime' }
+  const officialPlans: Record<string, { name: string; device: string; price: number; dur: string; tier: string }> = {
+    normal_yearly: { name: 'साधारण सदस्यता (१ वर्ष)', device: 'मोबाइल + कम्प्युटर', price: 100, dur: '1_year', tier: 'normal' },
+    normal_lifetime: { name: 'साधारण सदस्यता (आजीवन)', device: 'मोबाइल + कम्प्युटर', price: 500, dur: 'lifetime', tier: 'normal' },
+    pro_yearly: { name: 'पेशागत सदस्यता (१ वर्ष)', device: 'मोबाइल + कम्प्युटर', price: 2000, dur: '1_year', tier: 'professional' },
+    pro_lifetime: { name: 'पेशागत सदस्यता (आजीवन)', device: 'मोबाइल + कम्प्युटर', price: 5000, dur: 'lifetime', tier: 'professional' }
   };
 
   const handlePlanChange = (pId: string) => {
     setActPlanId(pId);
     if (officialPlans[pId]) {
       setActAmount(officialPlans[pId].price);
+    }
+  };
+
+  // ── SUPER ADMIN ACTIONS: PASSWORD RESET LINK & SESSION INVALIDATION ──
+  const [generatingResetLinkUserId, setGeneratingResetLinkUserId] = useState<string | null>(null);
+  const [resettingSessionUserId, setResettingSessionUserId] = useState<string | null>(null);
+
+  const handleGeneratePasswordResetLink = async (user: UnifiedUserRecord) => {
+    setGeneratingResetLinkUserId(user.id);
+    try {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${user.id}/generate-reset-link`), {
+        method: 'POST',
+        headers: getAdminHeaders()
+      });
+      const data = await res.json();
+      if (data.success && data.resetUrl) {
+        navigator.clipboard.writeText(data.resetUrl);
+        showToast(`सुरक्षित पासवर्ड रिसेट लिङ्क सिर्जना गरी क्लिपबोर्डमा कपी गरियो! (अवधि: २० मिनेट)`, 'success');
+      } else {
+        showToast(data.error || 'लिङ्क सिर्जना गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setGeneratingResetLinkUserId(null);
+    }
+  };
+
+  const handleResetUserSessions = async (user: UnifiedUserRecord) => {
+    setResettingSessionUserId(user.id);
+    try {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${user.id}/reset-sessions`), {
+        method: 'POST',
+        headers: getAdminHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`${user.fullName || user.username} को सबै सक्रिय सत्रहरू बन्द गरियो!`, 'success');
+        fetchUsers(true);
+      } else {
+        showToast(data.error || 'सत्र रिसेट गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setResettingSessionUserId(null);
     }
   };
 
@@ -754,17 +805,16 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     }
   };
 
-  // 9 Filter Tabs Configuration
+  // 8 Dynamic Filter Tabs Configuration
   const filterTabs: Array<{ key: MasterFilterKey; label: string; count: number; badgeColor: string }> = [
     { key: 'all', label: '१. सबै प्रयोगकर्ता', count: stats.totalUsers, badgeColor: 'bg-stone-800 text-stone-200' },
-    { key: 'regular_login', label: '२. सामान्य Login User', count: stats.regularLoginUsers, badgeColor: 'bg-stone-700 text-stone-300' },
-    { key: 'contact_verified', label: '३. सम्पर्क विवरण Verified User', count: stats.contactVerifiedUsers, badgeColor: 'bg-cyan-900/40 text-cyan-300 border border-cyan-800/60' },
-    { key: 'pending_payment', label: '४. खरिद/भुक्तानी पर्खिरहेका', count: stats.pendingPurchases, badgeColor: 'bg-amber-900/50 text-amber-300 border border-amber-800/80 animate-pulse' },
-    { key: 'payment_verified', label: '५. खरिद प्रमाणित भएका', count: stats.paymentVerifiedUsers, badgeColor: 'bg-blue-900/50 text-blue-300 border border-blue-800' },
-    { key: 'active_member', label: '६. सक्रिय सदस्य', count: stats.activeMembers, badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-800' },
-    { key: 'trial_user', label: '७. Trial User', count: stats.trialUsers, badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-800' },
-    { key: 'expired_member', label: '८. म्याद सकिएका सदस्य', count: stats.expiredMembers, badgeColor: 'bg-red-900/50 text-red-300 border border-red-800' },
-    { key: 'suspended_inactive', label: '९. निष्क्रिय वा निलम्बित', count: stats.suspendedInactiveUsers, badgeColor: 'bg-stone-900 text-stone-400 border border-stone-800' }
+    { key: 'trial_active', label: '२. सक्रिय ४८ घण्टे परीक्षण', count: (stats as any).active48hTrial ?? stats.trialUsers, badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-800 animate-pulse' },
+    { key: 'trial_expired', label: '३. परीक्षण म्याद सकिएको', count: (stats as any).trialExpired ?? 0, badgeColor: 'bg-rose-900/50 text-rose-300 border border-rose-800' },
+    { key: 'normal_paid', label: '४. साधारण सशुल्क सदस्य', count: (stats as any).normalPaid ?? stats.activeMembers, badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-800' },
+    { key: 'pro_members', label: '५. पेशागत सदस्य (प्रो)', count: (stats as any).proMembers ?? 0, badgeColor: 'bg-amber-900/50 text-amber-300 border border-amber-800' },
+    { key: 'pending_payment', label: '६. भुक्तानी रुजु बाँकी', count: stats.pendingPurchases, badgeColor: 'bg-amber-900/50 text-amber-300 border border-amber-800/80 animate-pulse' },
+    { key: 'expired_member', label: '७. सदस्यता म्याद समाप्त', count: stats.expiredMembers, badgeColor: 'bg-red-900/50 text-red-300 border border-red-800' },
+    { key: 'suspended_inactive', label: '८. निलम्बित वा निष्क्रिय', count: stats.suspendedInactiveUsers, badgeColor: 'bg-stone-900 text-stone-400 border border-stone-800' }
   ];
 
   return (
@@ -828,60 +878,66 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
         {/* ── TOP KPI SUMMARY CARDS ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-5">
           <div className="bg-stone-950/60 border border-stone-800/80 rounded-2xl p-3.5">
-            <div className="text-[11px] text-stone-400 font-medium">जम्मा दर्ता</div>
+            <div className="text-[11px] text-stone-400 font-medium">१. जम्मा दर्ता</div>
             <div className="text-xl font-black text-stone-100 mt-1 font-mono">
               {toDevanagariNumerals(stats.totalUsers)}
             </div>
             <div className="text-[10px] text-stone-500 mt-0.5">आज दर्ता: {toDevanagariNumerals(stats.todaySignups)}</div>
           </div>
 
-          <div className="bg-stone-950/60 border border-emerald-900/30 rounded-2xl p-3.5">
+          <div className="bg-stone-950/60 border border-purple-900/40 rounded-2xl p-3.5">
+            <div className="text-[11px] text-purple-400 font-medium flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-purple-400" />
+              <span>२. सक्रिय ४८h परीक्षण</span>
+            </div>
+            <div className="text-xl font-black text-purple-300 mt-1 font-mono">
+              {toDevanagariNumerals((stats as any).active48hTrial ?? stats.trialUsers)}
+            </div>
+            <div className="text-[10px] text-purple-500/80 mt-0.5">४८ घण्टे परीक्षण चालू</div>
+          </div>
+
+          <div className="bg-stone-950/60 border border-emerald-900/40 rounded-2xl p-3.5">
             <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1.5">
-              <Crown className="w-3.5 h-3.5 text-emerald-400" />
-              <span>सक्रिय सदस्य</span>
+              <Users className="w-3.5 h-3.5 text-emerald-400" />
+              <span>३. साधारण सदस्य</span>
             </div>
             <div className="text-xl font-black text-emerald-300 mt-1 font-mono">
-              {toDevanagariNumerals(stats.activeMembers)}
+              {toDevanagariNumerals((stats as any).normalPaid ?? stats.activeMembers)}
             </div>
-            <div className="text-[10px] text-emerald-500/80 mt-0.5">पूर्ण पहुँच प्राप्त</div>
+            <div className="text-[10px] text-emerald-500/80 mt-0.5">रु. १०० / ५०० योजना</div>
           </div>
 
           <div className="bg-stone-950/60 border border-amber-900/40 rounded-2xl p-3.5">
             <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>खरिद पेन्डिङ</span>
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span>४. पेशागत प्रो सदस्य</span>
             </div>
             <div className="text-xl font-black text-amber-300 mt-1 font-mono">
+              {toDevanagariNumerals((stats as any).proMembers ?? 0)}
+            </div>
+            <div className="text-[10px] text-amber-500/80 mt-0.5">रु. २,००० / ५,००० योजना</div>
+          </div>
+
+          <div className="bg-stone-950/60 border border-orange-900/40 rounded-2xl p-3.5">
+            <div className="text-[11px] text-orange-400 font-medium flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5 text-orange-400" />
+              <span>५. खरिद पेन्डिङ</span>
+            </div>
+            <div className="text-xl font-black text-orange-300 mt-1 font-mono">
               {toDevanagariNumerals(stats.pendingPurchases)}
             </div>
-            <div className="text-[10px] text-amber-500/80 mt-0.5">रुजु गर्न बाँकी</div>
+            <div className="text-[10px] text-orange-500/80 mt-0.5">रुजु गर्न बाँकी</div>
           </div>
 
-          <div className="bg-stone-950/60 border border-cyan-900/30 rounded-2xl p-3.5">
-            <div className="text-[11px] text-cyan-400 font-medium">सम्पर्क प्रमाणित</div>
-            <div className="text-xl font-black text-cyan-300 mt-1 font-mono">
-              {toDevanagariNumerals(stats.contactVerifiedUsers)}
+          <div className="bg-stone-950/60 border border-stone-800 rounded-2xl p-3.5">
+            <div className="text-[11px] text-stone-400 font-medium flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-stone-400" />
+              <span>६. निष्क्रिय/निलम्बित</span>
             </div>
-            <div className="text-[10px] text-cyan-500/80 mt-0.5">मोबाइल र ईमेल दुवै</div>
-          </div>
-
-          <div className="bg-stone-950/60 border border-purple-900/30 rounded-2xl p-3.5">
-            <div className="text-[11px] text-purple-400 font-medium">Trial Users</div>
-            <div className="text-xl font-black text-purple-300 mt-1 font-mono">
-              {toDevanagariNumerals(stats.trialUsers)}
+            <div className="text-xl font-black text-stone-300 mt-1 font-mono">
+              {toDevanagariNumerals(stats.suspendedInactiveUsers)}
             </div>
-            <div className="text-[10px] text-purple-400/80 mt-0.5">२४ घण्टे परीक्षणमा</div>
-          </div>
-
-          <div className="bg-stone-950/60 border border-red-900/30 rounded-2xl p-3.5">
-            <div className="text-[11px] text-red-400 font-medium flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-              <span>३० दिन चेतावनी</span>
-            </div>
-            <div className="text-xl font-black text-red-300 mt-1 font-mono">
-              {toDevanagariNumerals(stats.expiringIn30Days)}
-            </div>
-            <div className="text-[10px] text-red-400/80 mt-0.5">म्याद सकिन लागेको</div>
+            <div className="text-[10px] text-stone-500 mt-0.5">रोक्का गरिएका खाता</div>
           </div>
         </div>
       </div>
@@ -918,6 +974,77 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
           })}
         </div>
       </div>
+
+      {/* ── DEDICATED PROFESSIONAL MEMBERSHIP COMMAND CENTER (Active when Pro Tab is selected) ── */}
+      {activeFilter === 'pro_members' && (
+        <div className="bg-gradient-to-r from-amber-950/40 via-stone-900/90 to-amber-950/30 border border-amber-600/40 rounded-3xl p-5 shadow-2xl space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-amber-600/20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-amber-300 font-serif">
+                  पेशागत सदस्यता व्यवस्थापन केन्द्र (Professional Membership Command Center)
+                </h3>
+                <p className="text-xs text-stone-400">
+                  ज्योतिष तथा वास्तु विज्ञ, पण्डित तथा व्यावसायिक प्रयोगकर्ताहरूको लागि विशेष व्यवस्थापन
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-stone-950 flex items-center gap-1.5 shadow-sm">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                एकल-उपकरण सत्र नियन्त्रण (Single-Device Enforcement Active)
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="bg-stone-950/70 p-3 rounded-2xl border border-stone-800">
+              <div className="text-stone-400 font-medium">खुला गरिएका प्रो सुविधाहरू:</div>
+              <ul className="mt-1.5 space-y-1 text-stone-200">
+                <li className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> कुण्डली प्रिन्ट तथा पिडिएफ डाउनलोड
+                </li>
+                <li className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> नयाँ ग्राहक कुण्डली निर्माण (असीमित)
+                </li>
+                <li className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> पूर्ण ज्योतिष तथा वास्तु सेवा पहुँच
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-stone-950/70 p-3 rounded-2xl border border-stone-800">
+              <div className="text-stone-400 font-medium">शुल्क दर तथा अवधि:</div>
+              <div className="mt-1.5 space-y-1 text-stone-300 font-mono">
+                <div className="flex justify-between">
+                  <span>१ वर्षको प्रो सदस्यता:</span>
+                  <span className="font-bold text-amber-400">रु. २,०००</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>आजीवन प्रो सदस्यता:</span>
+                  <span className="font-bold text-amber-400">रु. ५,०००</span>
+                </div>
+                <div className="text-[11px] text-stone-500 mt-1 font-sans">
+                  * प्रो युजर लगइन गर्दा अघिल्लो लगइन स्वतः बन्द (Force Invalidation) हुन्छ।
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-stone-950/70 p-3 rounded-2xl border border-stone-800 flex flex-col justify-between">
+              <div className="text-stone-400 font-medium">द्रुत व्यवस्थापन नियम:</div>
+              <p className="text-[11px] text-stone-400 mt-1">
+                कुनै पनि प्रो प्रयोगकर्ताले नयाँ उपकरणमा लगइन गर्न समस्या परेमा तालिकाको <span className="text-amber-400 font-bold">"सत्र"</span> बटन थिचेर सक्रिय सत्र तुरुन्त रिसेट गरिदिन सकिन्छ।
+              </p>
+              <div className="text-[10px] text-amber-400/80 font-mono mt-2">
+                सुपरएडमिन सत्रहरू पूर्ण सुरक्षित र अप्रभावित रहनेछन्।
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── SEARCH, SORT & TABLE CONTROLS ── */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-stone-900/50 p-3 rounded-2xl border border-stone-800">
@@ -1008,6 +1135,7 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                   const isExpired = u.membershipStatus === 'EXPIRED';
                   const serialNum = (currentPage - 1) * pageSize + idx + 1;
                   const currentCategory = u.userCategory || (u.role === 'SUPER_ADMIN' ? 'professional' : (u.membershipStatus === 'ACTIVE' ? 'member' : 'visitor'));
+                  const isPro = currentCategory === 'professional' || u.purchasedPlan?.includes('पेशागत') || u.purchasedPlan?.toLowerCase().includes('pro');
                   const currentPaymentAmt = editingPaymentAmounts[u.id] !== undefined ? editingPaymentAmounts[u.id] : (u.paymentAmountNPR !== undefined ? u.paymentAmountNPR : (u.membership?.amountNPR || 0));
 
                   return (
@@ -1044,14 +1172,35 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         <div className="flex items-center gap-1">
                           <span>{u.phone || '-'}</span>
                           {u.mobileVerified && (
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" title="प्रमाणित" />
+                            <span title="प्रमाणित">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                            </span>
                           )}
                         </div>
                       </td>
 
                       {/* Column 5: Username */}
-                      <td className="py-3 px-3 font-mono text-[11px] text-amber-300/90 truncate max-w-[110px]" title={u.username || u.phone}>
-                        {u.username || u.phone || '-'}
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-mono text-[11px] font-bold text-amber-300/90 truncate max-w-[120px]" title={u.username || u.phone}>
+                            {u.username ? (
+                              <span>@{u.username}{isPro ? '-pro' : ''}</span>
+                            ) : (
+                              u.phone || '-'
+                            )}
+                          </span>
+                          {isPro && (
+                            <span className="inline-flex items-center gap-1 w-fit px-1.5 py-0.2 text-[8.5px] font-black bg-amber-500/20 text-amber-300 border border-amber-600/40 rounded">
+                              <Crown className="w-2.5 h-2.5" /> प्रो
+                            </span>
+                          )}
+                          {u.hasActiveSession && (
+                            <span className="inline-flex items-center gap-1 text-[8px] font-semibold text-emerald-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                              सक्रिय सत्र
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Column 6: Registration Date */}
@@ -1184,14 +1333,41 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
 
                       {/* Column 16: Actions */}
                       <td className="py-3 px-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenUserModal(u, 'info')}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-[10.5px] font-black shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>नियन्त्रण</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleGeneratePasswordResetLink(u)}
+                            disabled={generatingResetLinkUserId === u.id}
+                            className="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-[10px] font-bold border border-stone-700 transition-colors cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                            title="एकपटक मात्र प्रयोग हुने पासवर्ड रिसेट लिङ्क सिर्जना गरी क्लिपबोर्डमा कपी गर्नुहोस्"
+                          >
+                            <Key className="w-3 h-3 text-amber-400" />
+                            <span>{generatingResetLinkUserId === u.id ? '...' : 'पासवर्ड'}</span>
+                          </button>
+
+                          {(isPro || u.hasActiveSession) && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetUserSessions(u)}
+                              disabled={resettingSessionUserId === u.id}
+                              className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 text-[10px] font-bold border border-rose-800/80 transition-colors cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                              title="यो प्रयोगकर्ताका सबै सक्रिय लगइन सत्र बन्द (Force Invalidate) गर्नुहोस्"
+                            >
+                              <LogOut className="w-3 h-3 text-rose-400" />
+                              <span>{resettingSessionUserId === u.id ? '...' : 'सत्र'}</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenUserModal(u, 'info')}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-[10.5px] font-black shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
+                            title="पूर्ण विवरण र नियन्त्रण खोल्नुहोस्"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>नियन्त्रण</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1790,100 +1966,68 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                     <label className="block text-xs font-semibold text-stone-400 mb-2">
                       १. सदस्यता योजना छनोट (Select Official Plan)
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {/* Mobile Only */}
-                      <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Normal Membership Category */}
+                      <div className="space-y-2 p-3 bg-stone-950/40 rounded-2xl border border-stone-800">
                         <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
-                          <Smartphone className="w-3.5 h-3.5" />
-                          <span>१. मोबाइल मात्र</span>
+                          <Users className="w-3.5 h-3.5" />
+                          <span>१. साधारण सदस्यता (Normal Membership)</span>
                         </div>
                         <button
                           type="button"
-                          onClick={() => handlePlanChange('yearly_mobile')}
+                          onClick={() => handlePlanChange('normal_yearly')}
                           className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            actPlanId === 'yearly_mobile'
+                            actPlanId === 'normal_yearly'
                               ? 'bg-amber-500 text-stone-950 border-amber-500 shadow-md font-bold'
                               : 'bg-stone-900 border-stone-800 text-stone-300 hover:border-stone-700'
                           }`}
                         >
-                          <div className="font-bold text-xs">१ वर्ष: रु. २००</div>
-                          <div className="text-[10px] opacity-80 mt-0.5">मोवाइल डिभाइस मात्र</div>
+                          <div className="font-bold text-xs">१ वर्ष: रु. १००</div>
+                          <div className="text-[10px] opacity-80 mt-0.5">व्यक्तिगत ड्यासबोर्ड र फलादेश</div>
                         </button>
                         <button
                           type="button"
-                          onClick={() => handlePlanChange('lifetime_mobile')}
+                          onClick={() => handlePlanChange('normal_lifetime')}
                           className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            actPlanId === 'lifetime_mobile'
+                            actPlanId === 'normal_lifetime'
                               ? 'bg-amber-500 text-stone-950 border-amber-500 shadow-md font-bold'
                               : 'bg-stone-900 border-stone-800 text-stone-300 hover:border-stone-700'
                           }`}
                         >
-                          <div className="font-bold text-xs">आजीवन: रु. १,०००</div>
-                          <div className="text-[10px] opacity-80 mt-0.5">मोवाइल आजीवन असीमित</div>
+                          <div className="font-bold text-xs">आजीवन: रु. ५००</div>
+                          <div className="text-[10px] opacity-80 mt-0.5">आजीवन साधारण सदस्यता</div>
                         </button>
                       </div>
 
-                      {/* Computer Only */}
-                      <div className="space-y-2">
-                        <div className="text-[11px] font-bold text-cyan-400 flex items-center gap-1.5">
-                          <Monitor className="w-3.5 h-3.5" />
-                          <span>२. कम्प्युटर मात्र</span>
+                      {/* Professional Membership Category */}
+                      <div className="space-y-2 p-3 bg-amber-950/20 rounded-2xl border border-amber-500/40">
+                        <div className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                          <Crown className="w-3.5 h-3.5" />
+                          <span>२. पेशागत सदस्यता (Professional / प्रो)</span>
                         </div>
                         <button
                           type="button"
-                          onClick={() => handlePlanChange('yearly_computer')}
+                          onClick={() => handlePlanChange('pro_yearly')}
                           className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            actPlanId === 'yearly_computer'
+                            actPlanId === 'pro_yearly'
                               ? 'bg-amber-500 text-stone-950 border-amber-500 shadow-md font-bold'
                               : 'bg-stone-900 border-stone-800 text-stone-300 hover:border-stone-700'
                           }`}
                         >
-                          <div className="font-bold text-xs">१ वर्ष: रु. ५००</div>
-                          <div className="text-[10px] opacity-80 mt-0.5">कम्प्युटर / ल्यापटप मात्र</div>
+                          <div className="font-bold text-xs">१ वर्ष: रु. २,०००</div>
+                          <div className="text-[10px] opacity-80 mt-0.5">ज्योतिष/वास्तु, कुण्डली प्रिन्ट, एकल-उपकरण</div>
                         </button>
                         <button
                           type="button"
-                          onClick={() => handlePlanChange('lifetime_computer')}
+                          onClick={() => handlePlanChange('pro_lifetime')}
                           className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            actPlanId === 'lifetime_computer'
+                            actPlanId === 'pro_lifetime'
                               ? 'bg-amber-500 text-stone-950 border-amber-500 shadow-md font-bold'
                               : 'bg-stone-900 border-stone-800 text-stone-300 hover:border-stone-700'
                           }`}
                         >
-                          <div className="font-bold text-xs">आजीवन: रु. २,५००</div>
-                          <div className="text-[10px] opacity-80 mt-0.5">कम्प्युटर आजीवन असीमित</div>
-                        </button>
-                      </div>
-
-                      {/* Both Mobile & Computer */}
-                      <div className="space-y-2">
-                        <div className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
-                          <Laptop className="w-3.5 h-3.5" />
-                          <span>३. मोबाइल + कम्प्युटर</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handlePlanChange('yearly_both')}
-                          className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            actPlanId === 'yearly_both'
-                              ? 'bg-amber-500 text-stone-950 border-amber-500 shadow-md font-bold'
-                              : 'bg-stone-900 border-stone-800 text-stone-300 hover:border-stone-700'
-                          }`}
-                        >
-                          <div className="font-bold text-xs">१ वर्ष: रु. १,२००</div>
-                          <div className="text-[10px] opacity-80 mt-0.5">सबै डिभाइसमा पूर्ण पहुँच</div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePlanChange('lifetime_both')}
-                          className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                            actPlanId === 'lifetime_both'
-                              ? 'bg-amber-500 text-stone-950 border-amber-500 shadow-md font-bold'
-                              : 'bg-stone-900 border-stone-800 text-stone-300 hover:border-stone-700'
-                          }`}
-                        >
-                          <div className="font-bold text-xs">आजीवन: रु. ३,०००</div>
-                          <div className="text-[10px] opacity-80 mt-0.5">आजीवन दुवै डिभाइसमा पहुँच</div>
+                          <div className="font-bold text-xs">आजीवन: रु. ५,०००</div>
+                          <div className="text-[10px] opacity-80 mt-0.5">आजीवन पूर्ण पेशागत औजार पहुँच</div>
                         </button>
                       </div>
                     </div>

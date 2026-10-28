@@ -1739,17 +1739,34 @@ async function startServer() {
 
   // ── CENTRAL AUTHENTICATION & SUBSCRIPTION SYSTEM (ZERO OTP) ──
 
-  // 1. POST /api/auth/register (5-Field Clean Signup: Full Name, Address, Mobile No, Username, Password)
+  // 1. POST /api/auth/register (8-Field Canonical Signup: Full Name, Address, Mobile No, Username, Password, Birth Date, Birth Time, Birth Place)
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { fullName, address, mobileNumber, phone, username, password, email } = req.body;
+      const {
+        fullName,
+        address,
+        mobileNumber,
+        phone,
+        username,
+        password,
+        email,
+        dobBS,
+        dobAD,
+        birthTime,
+        birthPlace
+      } = req.body;
+
       const result = authEngine.registerUser({
         fullName,
         address,
         mobileNumber: mobileNumber || phone,
         username,
         password,
-        email
+        email,
+        dobBS,
+        dobAD,
+        birthTime,
+        birthPlace
       });
 
       if (!result.success) {
@@ -1822,11 +1839,33 @@ async function startServer() {
       }
 
       if (result.token && result.user) {
+        // Professional Single-Device Session Enforcement:
+        // Automatically invalidate previous active sessions for this professional user
+        const isProUser = result.user.userCategory === 'professional' ||
+          (result.user.subscriptionPlan && String(result.user.subscriptionPlan).toLowerCase().includes('pro')) ||
+          (result.user.subscriptionPlan && String(result.user.subscriptionPlan).toLowerCase().includes('both'));
+
+        if (isProUser) {
+          for (const [sTok, sVal] of userSessions.entries()) {
+            if (sVal.userId === result.user.id) {
+              userSessions.delete(sTok);
+            }
+          }
+          try {
+            if (dbAdapter && (dbAdapter as any).pool) {
+              await (dbAdapter as any).pool.query('DELETE FROM active_sessions WHERE user_id = $1;', [result.user.id]);
+            }
+          } catch (e: any) {
+            console.warn('[Pro Session Invalidation Notice]:', e.message);
+          }
+        }
+
         const sessionPayload = {
           token: result.token,
           userId: result.user.id,
           username: result.user.username,
           phone: result.user.phone,
+          fullName: result.user.fullName || result.user.username || 'प्रयोगकर्ता',
           role: result.user.role || "user",
           userCategory: result.user.userCategory || "visitor",
           expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
@@ -2586,6 +2625,8 @@ async function startServer() {
       let userObj: any = null;
       let userLead: any = null;
       let userLicenses: any[] = [];
+      let effectiveMembership: any = null;
+      let effectiveUserObj: any = null;
 
       if (userIdOrPhone) {
         const cleanDigits = String(userIdOrPhone).replace(/\D/g, "").slice(-10);
@@ -2633,7 +2674,7 @@ async function startServer() {
         });
 
         const activeLead = (userLead && userLead.status === 'PURCHASE_APPROVED') ? userLead : null;
-        const effectiveMembership = activeMem || activeLead;
+        effectiveMembership = activeMem || activeLead;
 
         let licenses: any[] = [];
         try {
@@ -2649,7 +2690,7 @@ async function startServer() {
           return (cleanDigits && licPhone === cleanDigits) || lic.userId === userIdOrPhone || (userObj && (lic.userId === userObj.id || (userObj.phone && licPhone === String(userObj.phone).replace(/\D/g, "").slice(-10))));
         });
 
-        var effectiveUserObj = userObj;
+        effectiveUserObj = userObj;
         if (!effectiveUserObj && activeMem) {
           effectiveUserObj = {
             id: activeMem.userId,
@@ -2664,8 +2705,8 @@ async function startServer() {
       const entitlement = resolveUserEntitlement({
         userId: userIdOrPhone,
         phone: userIdOrPhone,
-        user: typeof effectiveUserObj !== 'undefined' ? effectiveUserObj : userObj,
-        membership: typeof effectiveMembership !== 'undefined' ? effectiveMembership : userLead,
+        user: effectiveUserObj || userObj,
+        membership: effectiveMembership || userLead,
         isSuperAdmin: session?.role === "SUPER_ADMIN" || userObj?.role === "SUPER_ADMIN"
       });
 
@@ -2992,7 +3033,7 @@ async function startServer() {
   });
 
   // Helper to sanitize & enrich user details for Super Admin (ensuring no passwords leaked)
-  function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[], memberships: any[] = []) {
+  function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[], memberships: any[] = [], activeSessionUserIds?: Set<string>) {
     const cleanPhone = String(u.phone || u.username || "").replace(/\D/g, "").slice(-10);
     const matchingLead = leads.find(l => {
       const leadPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
@@ -3033,9 +3074,9 @@ async function startServer() {
     } else if (u.subscriptionPlan) {
       purchasedPlanName = u.subscriptionPlan;
     } else if (isTrialActive) {
-      purchasedPlanName = '२४ घण्टा निःशुल्क परीक्षण (सक्रिय)';
+      purchasedPlanName = '४८ घण्टा निःशुल्क परीक्षण (सक्रिय)';
     } else if (isTrialExpired) {
-      purchasedPlanName = '२४ घण्टा परीक्षण (समाप्त)';
+      purchasedPlanName = '४८ घण्टा परीक्षण (समाप्त)';
     } else if (matchingLead?.status === 'PURCHASE_PENDING') {
       purchasedPlanName = matchingLead.planNameNepali || 'खरिद अनुरोध पेन्डिङ';
     }
@@ -3079,7 +3120,7 @@ async function startServer() {
       }
     } else if (isTrialActive || isTrialExpired) {
       expiryDateISO = u.trial?.trialExpiresAtISO || null;
-      expiryDateBS = expiryDateISO ? `${getNepaliBSDate(expiryDateISO)} (२४ घण्टा)` : null;
+      expiryDateBS = expiryDateISO ? `${getNepaliBSDate(expiryDateISO)} (४८ घण्टा)` : null;
       if (isTrialActive && trialExpMs > nowMs) {
         remainingDays = Math.ceil((trialExpMs - nowMs) / (24 * 60 * 60 * 1000));
       } else {
@@ -3136,6 +3177,7 @@ async function startServer() {
       jyotishAccess: u.jyotishAccess || { unlocked: isMemberActive, period: null, expiresAtTimestamp: null, expiresAtBS: null },
       vastuAccess: u.vastuAccess || { unlocked: isMemberActive, period: null, expiresAtTimestamp: null, expiresAtBS: null },
       trial: u.trial || { hasUsedTrial: false, isTrialActive: false, trialExpiresAtISO: null },
+      hasActiveSession: activeSessionUserIds ? activeSessionUserIds.has(u.id) : false,
       purchaseLead: matchingLead ? {
         id: matchingLead.id,
         status: matchingLead.status,
@@ -3212,31 +3254,48 @@ async function startServer() {
         memberships = [];
       }
 
-      const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses, memberships));
+      // Collect active session user IDs across memory and database
+      const activeSessionUserIds = new Set<string>();
+      for (const sess of userSessions.values()) {
+        if (sess?.userId) activeSessionUserIds.add(sess.userId);
+      }
+      for (const sess of (authEngine as any).activeSessions.values()) {
+        if (sess?.userId) activeSessionUserIds.add(sess.userId);
+      }
+      try {
+        if (dbAdapter && (dbAdapter as any).pool) {
+          const sessRes = await (dbAdapter as any).pool.query('SELECT user_id FROM active_sessions;');
+          for (const row of sessRes.rows) {
+            if (row.user_id) activeSessionUserIds.add(row.user_id);
+          }
+        }
+      } catch {}
 
-      // Global statistics for 9 Master Classification Filters
+      const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses, memberships, activeSessionUserIds));
+
+      // Global statistics for 8 Master Classification Filters
       const now = Date.now();
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
       const stats = {
         totalUsers: enriched.length,
-        regularLoginUsers: enriched.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended").length,
-        contactVerifiedUsers: enriched.filter(u => u.mobileVerified && u.emailVerified).length,
+        active48hTrial: enriched.filter(u => u.trial?.isTrialActive && (u.remainingDays > 0 || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() > now))).length,
+        trialExpired: enriched.filter(u => (u.trial?.hasUsedTrial || u.trial?.trialExpiresAtISO) && (!u.trial?.isTrialActive || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() <= now)) && u.membershipStatus !== "ACTIVE").length,
+        normalPaid: enriched.filter(u => u.membershipStatus === "ACTIVE" && u.userCategory !== "professional" && !String(u.purchasedPlan || "").toLowerCase().includes("pro") && u.role !== "SUPER_ADMIN").length,
+        proMembers: enriched.filter(u => u.userCategory === "professional" || String(u.purchasedPlan || "").toLowerCase().includes("pro") || u.role === "SUPER_ADMIN").length,
         pendingPurchases: enriched.filter(u => u.membershipStatus === "PENDING_PAYMENT" || u.purchaseLead?.status === "PURCHASE_PENDING").length,
-        paymentVerifiedUsers: enriched.filter(u => u.paymentStatus === "VERIFIED").length,
-        activeMembers: enriched.filter(u => u.membershipStatus === "ACTIVE").length,
-        trialUsers: enriched.filter(u => u.trial?.isTrialActive).length,
-        expiredMembers: enriched.filter(u => u.membershipStatus === "EXPIRED").length,
+        expiredMembers: enriched.filter(u => u.membershipStatus === "EXPIRED" && !u.trial?.isTrialActive).length,
         suspendedInactiveUsers: enriched.filter(u => u.status === "suspended" || u.status === "inactive").length,
-        expiringIn30Days: enriched.filter(u => u.remainingDays > 0 && u.remainingDays <= 30).length,
+        // Legacy keys for backwards compatibility:
+        trialUsers: enriched.filter(u => u.trial?.isTrialActive).length,
+        activeMembers: enriched.filter(u => u.membershipStatus === "ACTIVE").length,
+        contactVerifiedUsers: enriched.filter(u => u.mobileVerified && u.emailVerified).length,
+        regularLoginUsers: enriched.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended").length,
+        paymentVerifiedUsers: enriched.filter(u => u.paymentStatus === "VERIFIED").length,
         todaySignups: enriched.filter(u => new Date(u.createdAtISO).getTime() >= oneDayAgo).length,
-        activeUsers: enriched.filter(u => u.status === "active").length,
-        suspendedUsers: enriched.filter(u => u.status === "suspended").length,
-        inTrialUsers: enriched.filter(u => u.trial?.isTrialActive).length,
-        trialExpiredUsers: enriched.filter(u => u.trial?.hasUsedTrial && !u.trial?.isTrialActive).length,
-        approvedSubscribers: enriched.filter(u => u.membershipStatus === "ACTIVE").length
+        expiringIn30Days: enriched.filter(u => u.remainingDays > 0 && u.remainingDays <= 30).length
       };
 
-      // Filter by the 9 Master Categories
+      // Filter by the 8 Master Categories
       let filtered = enriched;
       const s = String(search).trim().toLowerCase();
       if (s) {
@@ -3253,55 +3312,53 @@ async function startServer() {
         );
       }
 
-      // 1. सबै प्रयोगकर्ता
+      // 1. All Users (सबै प्रयोगकर्ता)
       if (filter === "all") {
         // No extra filtering
       }
-      // 2. सामान्य Login User
-      else if (filter === "regular_login") {
-        filtered = filtered.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended");
+      // 2. Active 48h Trial (सक्रिय ४८ घण्टे परीक्षण)
+      else if (filter === "trial_active" || filter === "trial_user" || filter === "in_trial") {
+        filtered = filtered.filter(u => u.trial?.isTrialActive && (u.remainingDays > 0 || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() > now)));
       }
-      // 3. सम्पर्क विवरण Verified User
-      else if (filter === "contact_verified") {
-        filtered = filtered.filter(u => u.mobileVerified && u.emailVerified);
+      // 3. Trial Expired (परीक्षण म्याद सकिएको)
+      else if (filter === "trial_expired") {
+        filtered = filtered.filter(u => (u.trial?.hasUsedTrial || u.trial?.trialExpiresAtISO) && (!u.trial?.isTrialActive || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() <= now)) && u.membershipStatus !== "ACTIVE");
       }
-      // 4. खरिद/भुक्तानी पर्खिरहेका प्रयोगकर्ता
+      // 4. Normal Paid (साधारण सशुल्क सदस्य)
+      else if (filter === "normal_paid") {
+        filtered = filtered.filter(u => u.membershipStatus === "ACTIVE" && u.userCategory !== "professional" && !String(u.purchasedPlan || "").toLowerCase().includes("pro") && u.role !== "SUPER_ADMIN");
+      }
+      // 5. Pro Members (पेशागत सदस्य - प्रो)
+      else if (filter === "pro_members" || filter === "professional") {
+        filtered = filtered.filter(u => u.userCategory === "professional" || String(u.purchasedPlan || "").toLowerCase().includes("pro") || u.role === "SUPER_ADMIN");
+      }
+      // 6. Purchase Pending (भुक्तानी रुजु बाँकी)
       else if (filter === "pending_payment" || filter === "purchase_requested") {
         filtered = filtered.filter(u => u.membershipStatus === "PENDING_PAYMENT" || u.purchaseLead?.status === "PURCHASE_PENDING");
       }
-      // 5. खरिद प्रमाणित भएका प्रयोगकर्ता
-      else if (filter === "payment_verified") {
-        filtered = filtered.filter(u => u.paymentStatus === "VERIFIED");
-      }
-      // 6. सक्रिय सदस्य
-      else if (filter === "active_member" || filter === "approved_subscription") {
-        filtered = filtered.filter(u => u.membershipStatus === "ACTIVE");
-      }
-      // 7. Trial User
-      else if (filter === "trial_user" || filter === "in_trial") {
-        filtered = filtered.filter(u => u.trial?.isTrialActive);
-      }
-      // 8. म्याद सकिएका सदस्य
+      // 7. Membership Expired (सदस्यता म्याद समाप्त)
       else if (filter === "expired_member" || filter === "expired") {
-        filtered = filtered.filter(u => u.membershipStatus === "EXPIRED");
+        filtered = filtered.filter(u => u.membershipStatus === "EXPIRED" && !u.trial?.isTrialActive);
       }
-      // 9. निष्क्रिय वा निलम्बित प्रयोगकर्ता
+      // 8. Suspended / Inactive (निलम्बित वा निष्क्रिय)
       else if (filter === "suspended_inactive" || filter === "suspended") {
         filtered = filtered.filter(u => u.status === "suspended" || u.status === "inactive");
       }
-      // Additional Convenience Sub-filters
+      // Legacy compatibility:
+      else if (filter === "regular_login") {
+        filtered = filtered.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended");
+      }
+      else if (filter === "contact_verified") {
+        filtered = filtered.filter(u => u.mobileVerified && u.emailVerified);
+      }
+      else if (filter === "payment_verified") {
+        filtered = filtered.filter(u => u.paymentStatus === "VERIFIED");
+      }
+      else if (filter === "active_member") {
+        filtered = filtered.filter(u => u.membershipStatus === "ACTIVE");
+      }
       else if (filter === "today") {
         filtered = filtered.filter(u => new Date(u.createdAtISO).getTime() >= oneDayAgo);
-      } else if (filter === "7days") {
-        const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-        filtered = filtered.filter(u => new Date(u.createdAtISO).getTime() >= sevenDaysAgo);
-      } else if (filter === "30days") {
-        const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
-        filtered = filtered.filter(u => new Date(u.createdAtISO).getTime() >= thirtyDaysAgo);
-      } else if (filter === "active") {
-        filtered = filtered.filter(u => u.status === "active");
-      } else if (filter === "incomplete_registration") {
-        filtered = filtered.filter(u => !u.profileCompleted);
       }
 
       // Sort
@@ -3328,6 +3385,64 @@ async function startServer() {
         limit: limitNum,
         totalPages,
         stats
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.1.1 POST /api/superadmin/users/:id/reset-sessions (Super Admin: Invalidate All Active Sessions for User)
+  app.post("/api/superadmin/users/:id/reset-sessions", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const adminSession = (req as any).superAdmin;
+      const adminUsername = adminSession?.username || 'admin';
+
+      let users: any[] = [];
+      try {
+        users = await dbAdapter.getUsers();
+      } catch {
+        users = getUsers();
+      }
+      const user = users.find((u: any) => u.id === id || u.phone === id || u.username === id);
+      const targetUserId = user ? user.id : id;
+      const targetName = user ? user.fullName : id;
+
+      // Invalidate in-memory session maps
+      for (const [token, sess] of userSessions.entries()) {
+        if (sess.userId === targetUserId) {
+          userSessions.delete(token);
+        }
+      }
+      for (const [token, sess] of (authEngine as any).activeSessions.entries()) {
+        if (sess.userId === targetUserId) {
+          (authEngine as any).activeSessions.delete(token);
+        }
+      }
+      (authEngine as any).persistSessions();
+
+      // Invalidate database active_sessions
+      try {
+        if (dbAdapter && (dbAdapter as any).pool) {
+          await (dbAdapter as any).pool.query('DELETE FROM active_sessions WHERE user_id = $1;', [targetUserId]);
+        }
+      } catch (dbErr: any) {
+        console.warn('[Session Invalidate DB Notice]:', dbErr.message);
+      }
+
+      // Record audit log
+      try {
+        await dbAdapter.createAuditLog({
+          action: "USER_SESSION_RESET",
+          performedBy: adminUsername,
+          targetId: targetUserId,
+          details: `सुपरएडमिन द्वारा प्रयोगकर्ता ${targetName} का सबै सक्रिय उपकरण सत्रहरू रद्द गरियो।`
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: `${targetName} को सबै सक्रिय उपकरण सत्रहरू सफलतापूर्वक बन्द गरियो।`
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });

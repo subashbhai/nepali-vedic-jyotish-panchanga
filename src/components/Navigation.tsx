@@ -72,7 +72,6 @@ import { mobileHybridSync } from '../services/mobileHybridSync';
 
 // Public menus visible on the first screen before login (Jyotish & Vastu require active trial or purchase license)
 export const VISITOR_ALLOWED_TABS = new Set<NavTab>([
-  'faladesh',
   'home',
   'panchanga',
   'membership',
@@ -84,7 +83,6 @@ export const VISITOR_ALLOWED_TABS = new Set<NavTab>([
 ]);
 
 export const PUBLIC_UNAUTH_NAV_IDS = new Set<NavTab>([
-  'faladesh',
   'home',
   'dashboard',
   'panchanga',
@@ -277,7 +275,6 @@ export const MAIN_NAV_ITEMS: Array<{
   highlight?: boolean;
   hasSubmenu?: boolean;
 }> = [
-  { id: 'faladesh', labelNepali: 'फलादेश', icon: Sparkles },
   { id: 'home', labelNepali: 'गृहपृष्ठ', icon: Home },
   { id: 'panchanga', labelNepali: 'पञ्चाङ्ग', icon: Clock },
   { id: 'membership', labelNepali: 'सदस्यता', icon: Crown, highlight: true },

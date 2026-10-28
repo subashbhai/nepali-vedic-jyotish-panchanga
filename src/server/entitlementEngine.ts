@@ -159,8 +159,14 @@ export function resolveUserEntitlement(params: {
       expiresAtBS: u.jyotishAccess?.expiresAtBS
     };
     const isLifetime = mem.duration === 'lifetime';
-    const isBothPlan = mem.devices === 'both' || (mem.planId && String(mem.planId).includes('both'));
-    const isProfessional = isBothPlan || u.userCategory === 'professional' || mem.planType === 'PROFESSIONAL' || mem.tier === 'professional' || (mem.planId && String(mem.planId).includes('pro'));
+    const planIdStr = String(mem.planId || '').toLowerCase();
+    const isProfessional = u.userCategory === 'professional' ||
+      mem.tier === 'professional' ||
+      mem.planType === 'PROFESSIONAL' ||
+      planIdStr.startsWith('pro_') ||
+      planIdStr.includes('professional') ||
+      planIdStr === 'yearly_both' ||
+      planIdStr === 'lifetime_both';
 
     const now = Date.now();
     const expiryTime = mem.expiresAtTimestamp || (mem.expiresAtISO ? new Date(mem.expiresAtISO).getTime() : (u.subscriptionExpiresAt ? new Date(u.subscriptionExpiresAt).getTime() : undefined));
@@ -170,14 +176,14 @@ export function resolveUserEntitlement(params: {
     if (isProfessional) {
       return {
         lifecycleState: 'PROFESSIONAL_MEMBER',
-        stateNepali: 'व्यावसायिक सदस्य (Professional Member)',
+        stateNepali: 'पेशागत सदस्य (Professional Member)',
         isSuperAdmin: false,
         isAuthenticated: true,
         hasActiveMembership: true,
         isTrialActive: false,
         isExpired: false,
         isPendingPayment: false,
-        planNameNepali: mem.planNameNepali || 'व्यावसायिक योजना',
+        planNameNepali: mem.planNameNepali || 'पेशागत सदस्यता (प्रो)',
         allowedServices: ['panchanga', 'jyotish', 'vastu', 'karmakanda', 'personal_faladesh', 'professional_tools'],
         isJyotishAllowed: true,
         isVastuAllowed: true,
@@ -186,7 +192,7 @@ export function resolveUserEntitlement(params: {
         canAccessPersonalFaladesh: true,
         remainingDays,
         expiresAtBS: mem.expiresAtBS || (isLifetime ? 'आजीवन' : null),
-        messageNepali: `${mem.planNameNepali || 'व्यावसायिक योजना'} सक्रिय छ। सम्पूर्ण सुविधाहरू खुला छन्।`,
+        messageNepali: `${mem.planNameNepali || 'पेशागत सदस्यता'} सक्रिय छ। पेशागत ज्योतिष तथा वास्तु सेवाहरू पूर्ण रूपमा उपलब्ध छन्।`,
         allowedNavTabs: PROFESSIONAL_SERVICE_TABS
       };
     }
@@ -200,51 +206,63 @@ export function resolveUserEntitlement(params: {
       isTrialActive: false,
       isExpired: false,
       isPendingPayment: false,
-      planNameNepali: mem.planNameNepali || 'साधारण सदस्य योजना',
-      allowedServices: ['panchanga', 'jyotish', 'vastu', 'personal_faladesh'],
-      isJyotishAllowed: true,
-      isVastuAllowed: true,
+      planNameNepali: mem.planNameNepali || 'साधारण सदस्यता योजना',
+      allowedServices: ['panchanga', 'personal_faladesh'],
+      isJyotishAllowed: false,
+      isVastuAllowed: false,
       isProfessionalToolsAllowed: false,
       isMemberDashboardAllowed: true,
       canAccessPersonalFaladesh: true,
       remainingDays,
       expiresAtBS: mem.expiresAtBS,
-      messageNepali: `${mem.planNameNepali || 'साधारण सदस्य योजना'} सक्रिय छ।`,
+      messageNepali: `${mem.planNameNepali || 'साधारण सदस्यता'} सक्रिय छ। व्यक्तिगत राशिफल तथा कुण्डली फलादेश उपलब्ध छ।`,
       allowedNavTabs: REGISTERED_BASE_TABS
     };
   }
 
-  // 4. Active 24-Hour Free Trial
-  if (trial && trial.isTrialActive && trial.trialExpiresAtTimestamp && Date.now() < trial.trialExpiresAtTimestamp) {
-    const remainingHours = Math.max(0, Math.ceil((trial.trialExpiresAtTimestamp - Date.now()) / (3600 * 1000)));
+  // 4. Exactly 48-Hour Free Trial (from server registration timestamp)
+  const trialExpiryTime = trial?.trialExpiresAtTimestamp ||
+    (trial?.trialExpiresAtISO ? new Date(trial.trialExpiresAtISO).getTime() : 0) ||
+    (u?.trialExpiresAtISO ? new Date(u.trialExpiresAtISO).getTime() : 0) ||
+    (u?.trialStartedAtISO ? new Date(u.trialStartedAtISO).getTime() + 48 * 3600 * 1000 : 0);
+
+  const isTrialWindowValid = trialExpiryTime > 0 && Date.now() < trialExpiryTime;
+
+  if (isTrialWindowValid) {
+    const remainingHours = Math.max(0, Math.ceil((trialExpiryTime - Date.now()) / (3600 * 1000)));
     return {
       lifecycleState: 'TRIAL_USER',
-      stateNepali: '२४ घण्टे निःशुल्क परीक्षण (Trial User)',
+      stateNepali: '४८ घण्टे निःशुल्क परीक्षण (Trial User)',
       isSuperAdmin: false,
       isAuthenticated: true,
       hasActiveMembership: true,
       isTrialActive: true,
       isExpired: false,
       isPendingPayment: false,
-      planNameNepali: '२४ घण्टा निःशुल्क परीक्षण',
-      allowedServices: ['panchanga', 'jyotish', 'vastu', 'personal_faladesh'],
-      isJyotishAllowed: true,
-      isVastuAllowed: true,
+      planNameNepali: '४८ घण्टा निःशुल्क परीक्षण',
+      allowedServices: ['panchanga', 'personal_faladesh'],
+      isJyotishAllowed: false,
+      isVastuAllowed: false,
       isProfessionalToolsAllowed: false,
       isMemberDashboardAllowed: true,
       canAccessPersonalFaladesh: true,
-      remainingDays: 1,
-      expiresAtBS: trial.startedAtBS ? `${trial.startedAtBS} (२४ घण्टा)` : '२४ घण्टा',
-      messageNepali: `२४ घण्टे निःशुल्क परीक्षण सक्रिय छ (बाँकी करिब ${remainingHours} घण्टा)।`,
+      remainingDays: 2,
+      expiresAtBS: '४८ घण्टा',
+      messageNepali: `४८ घण्टे निःशुल्क परीक्षण सक्रिय छ (बाँकी करिब ${remainingHours} घण्टा)।`,
       allowedNavTabs: REGISTERED_BASE_TABS
     };
   }
 
-  // 5. Expired Membership / Trial
-  if ((m && m.membershipStatus === 'EXPIRED') || (trial && trial.hasUsedTrial && !trial.isTrialActive)) {
+  // 5. Expired Membership / Trial (Gated Personal Faladesh!)
+  const isTrialActuallyExpired = (trialExpiryTime > 0 && Date.now() >= trialExpiryTime) ||
+    (trial && trial.hasUsedTrial && !trial.isTrialActive) ||
+    (m && m.membershipStatus === 'EXPIRED') ||
+    (u?.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt).getTime() <= Date.now());
+
+  if (isTrialActuallyExpired) {
     return {
       lifecycleState: 'EXPIRED_MEMBER',
-      stateNepali: 'म्याद सकिएको सदस्य (Expired Member)',
+      stateNepali: 'म्याद सकिएको सदस्य (Trial/Membership Expired)',
       isSuperAdmin: false,
       isAuthenticated: true,
       hasActiveMembership: false,
@@ -252,15 +270,15 @@ export function resolveUserEntitlement(params: {
       isExpired: true,
       isPendingPayment: false,
       planNameNepali: m?.planNameNepali || 'म्याद सकिएको योजना',
-      allowedServices: ['panchanga', 'personal_faladesh'],
+      allowedServices: ['panchanga'], // Gated! No personal_faladesh when trial expired without payment
       isJyotishAllowed: false,
       isVastuAllowed: false,
       isProfessionalToolsAllowed: false,
       isMemberDashboardAllowed: true,
-      canAccessPersonalFaladesh: true,
+      canAccessPersonalFaladesh: false, // Strictly false: Gated upgrade screen!
       remainingDays: 0,
       expiresAtBS: m?.expiresAtBS,
-      messageNepali: 'तपाईंको सदस्यता वा परीक्षण म्याद समाप्त भएको छ। कृपया सेवा नवीकरण गर्नुहोस्।',
+      messageNepali: 'तपाईंको ४८ घण्टे निःशुल्क परीक्षण म्याद समाप्त भएको छ। व्यक्तिगत फलादेश तथा थप सेवाहरूको लागि कृपया सदस्यता लिनुहोस्।',
       allowedNavTabs: REGISTERED_BASE_TABS
     };
   }

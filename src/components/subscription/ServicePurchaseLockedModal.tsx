@@ -55,7 +55,7 @@ export const ServicePurchaseLockedModal: React.FC<ServicePurchaseLockedModalProp
     ? 'सम्पूर्ण जन्मकुण्डली, फलादेश, विंशोत्तरी दशा, गोचर, वर्षफल तथा पत्रिका प्रिन्ट'
     : '३६०° कम्पास, ८१ पद मण्डल, भूमि परीक्षण, पञ्चतत्त्व सन्तुलन तथा संरचना अडिट';
 
-  const planAmount = duration === 'lifetime' ? 15000 : duration === '5_years' ? 12000 : 3500;
+  const planAmount = duration === 'lifetime' ? 5000 : 2000;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,7 +293,7 @@ export const ServicePurchaseLockedModal: React.FC<ServicePurchaseLockedModalProp
                             <div className="text-[11px] text-stone-500">वार्षिक नवीकरण</div>
                           </div>
                           <div className="font-extrabold text-sm text-[#7A1C1C] dark:text-amber-400">
-                            रु ३,५००
+                            रु २,०००
                           </div>
                         </div>
 
@@ -313,7 +313,7 @@ export const ServicePurchaseLockedModal: React.FC<ServicePurchaseLockedModalProp
                             <div className="text-[11px] text-stone-500">एकमुष्ट भुक्तानी</div>
                           </div>
                           <div className="font-extrabold text-sm text-[#7A1C1C] dark:text-amber-400">
-                            रु १५,०००
+                            रु ५,०००
                           </div>
                         </div>
                       </div>

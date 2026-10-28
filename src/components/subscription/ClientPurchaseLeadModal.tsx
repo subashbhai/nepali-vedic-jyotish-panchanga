@@ -206,56 +206,87 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     whatsapp.trim().length >= 10 &&
     isBirthValid;
 
-  // Compute pricing
+  // Compute pricing (4 Canonical Plans)
   const planPricing: Record<string, { label: string; price: number; formatted: string; desc: string; icon: any; popular?: boolean }> = {
-    'yearly_mobile': {
-      label: '१ वर्ष मोबाइल मात्र',
-      price: 200,
-      formatted: 'रु. २००',
-      desc: 'एन्ड्रोइड तथा iOS मोबाइल एपमा कुण्डली, फलादेश तथा पञ्चाङ्ग सेवा',
-      icon: Smartphone
+    'normal_yearly': {
+      label: 'साधारण सदस्यता (१ वर्ष)',
+      price: 100,
+      formatted: 'रु. १००',
+      desc: '१ वर्षसम्म व्यक्तिगत ड्यासबोर्ड, राशिफल, व्यक्तिगत कुण्डली तथा फलादेश अवलोकन',
+      icon: User
     },
-    'yearly_desktop': {
-      label: '१ वर्ष कम्प्युटर मात्र',
+    'normal_lifetime': {
+      label: 'साधारण सदस्यता (आजीवन)',
       price: 500,
       formatted: 'रु. ५००',
-      desc: 'विन्डोज ल्यापटप / डेस्कटपमा ठूलो स्क्रिन, विस्तृत प्रिन्टिङ तथा फलादेश',
-      icon: Monitor
+      desc: 'आजीवन व्यक्तिगत ड्यासबोर्ड, राशिफल, पञ्चाङ्ग तथा व्यक्तिगत कुण्डली अवलोकन',
+      icon: Sparkles
+    },
+    'pro_yearly': {
+      label: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (१ वर्ष)',
+      price: 2000,
+      formatted: 'रु. २,०००',
+      desc: '१ वर्ष व्यावसायिक ज्योतिष तथा वास्तु पूर्ण पहुँच, नयाँ कुण्डली निर्माण, A4 PDF प्रिन्ट',
+      icon: Zap,
+      popular: true
+    },
+    'pro_lifetime': {
+      label: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (आजीवन - सर्वोत्कृष्ट)',
+      price: 5000,
+      formatted: 'रु. ५,०००',
+      desc: 'आजीवन व्यावसायिक ज्योतिष तथा वास्तु सेवा, असीमित ग्राहक कुण्डली निर्माण तथा मुद्रण',
+      icon: Crown,
+      popular: true
+    },
+    // Compatibility aliases
+    'yearly_mobile': {
+      label: 'साधारण सदस्यता (१ वर्ष)',
+      price: 100,
+      formatted: 'रु. १००',
+      desc: '१ वर्षसम्म व्यक्तिगत ड्यासबोर्ड, राशिफल तथा व्यक्तिगत कुण्डली अवलोकन',
+      icon: User
+    },
+    'yearly_desktop': {
+      label: 'साधारण सदस्यता (१ वर्ष)',
+      price: 100,
+      formatted: 'रु. १००',
+      desc: '१ वर्षसम्म व्यक्तिगत ड्यासबोर्ड, राशिफल तथा व्यक्तिगत कुण्डली अवलोकन',
+      icon: User
     },
     'yearly_both': {
-      label: '१ वर्ष मोबाइल + कम्प्युटर (सर्वोत्कृष्ट / Best Value)',
-      price: 1200,
-      formatted: 'रु. १,२००',
-      desc: 'मोबाइल र कम्प्युटर दुवैमा पूर्ण पहुँच, कुनै पनि डिभाइसबाट सिंक हुने',
+      label: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (१ वर्ष)',
+      price: 2000,
+      formatted: 'रु. २,०००',
+      desc: '१ वर्ष व्यावसायिक ज्योतिष तथा वास्तु पूर्ण पहुँच, नयाँ कुण्डली निर्माण, A4 PDF प्रिन्ट',
       icon: Zap,
       popular: true
     },
     'lifetime_mobile': {
-      label: 'आजीवन मोबाइल मात्र',
-      price: 1000,
-      formatted: 'रु. १,०००',
-      desc: 'एकपटक भुक्तानी गरी मोबाइलमा सधैँभरिका लागि पूर्ण पहुँच',
-      icon: Smartphone
+      label: 'साधारण सदस्यता (आजीवन)',
+      price: 500,
+      formatted: 'रु. ५००',
+      desc: 'आजीवन व्यक्तिगत ड्यासबोर्ड, राशिफल तथा व्यक्तिगत कुण्डली अवलोकन',
+      icon: Sparkles
     },
     'lifetime_desktop': {
-      label: 'आजीवन कम्प्युटर मात्र',
-      price: 2500,
-      formatted: 'रु. २,५००',
-      desc: 'एकपटक भुक्तानी गरी कम्प्युटरमा सधैँभरिका लागि पूर्ण पहुँच',
-      icon: Monitor
+      label: 'साधारण सदस्यता (आजीवन)',
+      price: 500,
+      formatted: 'रु. ५००',
+      desc: 'आजीवन व्यक्तिगत ड्यासबोर्ड, राशिफल तथा व्यक्तिगत कुण्डली अवलोकन',
+      icon: Sparkles
     },
     'lifetime_both': {
-      label: 'आजीवन मोबाइल + कम्प्युटर (सर्वोत्कृष्ट / Best Value)',
-      price: 3000,
-      formatted: 'रु. ३,०००',
-      desc: 'मोबाइल र कम्प्युटर दुवैमा आजीवन पूर्ण पहुँच, भविष्यका सम्पूर्ण नयाँ फिचर निःशुल्क',
-      icon: Zap,
+      label: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (आजीवन)',
+      price: 5000,
+      formatted: 'रु. ५,०००',
+      desc: 'आजीवन व्यावसायिक ज्योतिष तथा वास्तु सेवा, असीमित ग्राहक कुण्डली निर्माण तथा मुद्रण',
+      icon: Crown,
       popular: true
-    },
+    }
   };
 
   const currentPlanKey = `${selectedPlanCategory}_${selectedPlatform}` as keyof typeof planPricing;
-  const currentPlan = planPricing[currentPlanKey] || planPricing['yearly_both'];
+  const currentPlan = planPricing[currentPlanKey] || planPricing['pro_yearly'];
 
   const handleCopyEsewa = () => {
     if (navigator.clipboard) {

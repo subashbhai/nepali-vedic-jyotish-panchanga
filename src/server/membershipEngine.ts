@@ -12,7 +12,8 @@ export type MembershipStatus =
   | 'ACTIVE'
   | 'EXPIRED'
   | 'REJECTED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'NONE';
 
 export interface MembershipRecord {
   id: string;
@@ -93,70 +94,130 @@ function writeJsonAtomic(filePath: string, data: any) {
   }
 }
 
-// Plan definitions with updated official prices
+// Canonical 4 Official Membership Plans
 export const MEMBERSHIP_PLANS: Record<string, {
   planId: string;
   nameNepali: string;
   devices: DeviceType;
   duration: PlanDuration;
   priceNPR: number;
+  tier: 'normal' | 'professional';
   services: Array<'jyotish' | 'vastu' | 'karmakanda' | 'panchanga'>;
 }> = {
-  yearly_mobile: {
-    planId: 'yearly_mobile',
-    nameNepali: 'मोबाइल मात्र (१ वर्ष)',
-    devices: 'mobile_only',
+  // 1. Normal Membership (साधारण सदस्यता)
+  normal_yearly: {
+    planId: 'normal_yearly',
+    nameNepali: 'साधारण सदस्यता (१ वर्ष)',
+    devices: 'both',
     duration: '1_year',
-    priceNPR: 200,
-    services: ['jyotish', 'vastu', 'panchanga']
+    priceNPR: 100,
+    tier: 'normal',
+    services: ['panchanga']
   },
-  lifetime_mobile: {
-    planId: 'lifetime_mobile',
-    nameNepali: 'मोबाइल मात्र (आजीवन)',
-    devices: 'mobile_only',
+  normal_lifetime: {
+    planId: 'normal_lifetime',
+    nameNepali: 'साधारण सदस्यता (आजीवन)',
+    devices: 'both',
     duration: 'lifetime',
-    priceNPR: 1000,
-    services: ['jyotish', 'vastu', 'karmakanda', 'panchanga']
-  },
-  yearly_computer: {
-    planId: 'yearly_computer',
-    nameNepali: 'कम्प्युटर मात्र (१ वर्ष)',
-    devices: 'computer_only',
-    duration: '1_year',
     priceNPR: 500,
-    services: ['jyotish', 'vastu', 'panchanga']
+    tier: 'normal',
+    services: ['panchanga']
   },
-  lifetime_computer: {
-    planId: 'lifetime_computer',
-    nameNepali: 'कम्प्युटर मात्र (आजीवन)',
-    devices: 'computer_only',
-    duration: 'lifetime',
-    priceNPR: 2500,
-    services: ['jyotish', 'vastu', 'karmakanda', 'panchanga']
-  },
-  yearly_both: {
-    planId: 'yearly_both',
-    nameNepali: 'मोबाइल + कम्प्युटर दुवै (१ वर्ष)',
+
+  // 2. Professional Membership (प्रो. मेम्बरशिप / पेशागत सदस्यता)
+  pro_yearly: {
+    planId: 'pro_yearly',
+    nameNepali: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (१ वर्ष)',
     devices: 'both',
     duration: '1_year',
-    priceNPR: 1200,
+    priceNPR: 2000,
+    tier: 'professional',
     services: ['jyotish', 'vastu', 'karmakanda', 'panchanga']
   },
-  lifetime_both: {
-    planId: 'lifetime_both',
-    nameNepali: 'मोबाइल + कम्प्युटर दुवै (आजीवन - Best Value)',
+  pro_lifetime: {
+    planId: 'pro_lifetime',
+    nameNepali: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (आजीवन)',
     devices: 'both',
     duration: 'lifetime',
-    priceNPR: 3000,
+    priceNPR: 5000,
+    tier: 'professional',
     services: ['jyotish', 'vastu', 'karmakanda', 'panchanga']
   },
-  trial_24h: {
-    planId: 'trial_24h',
-    nameNepali: '२४ घण्टा निःशुल्क परीक्षण',
+
+  // Free Trial
+  trial_48h: {
+    planId: 'trial_48h',
+    nameNepali: '४८ घण्टा निःशुल्क परीक्षण',
     devices: 'both',
     duration: 'trial',
     priceNPR: 0,
-    services: ['jyotish', 'vastu', 'panchanga']
+    tier: 'normal',
+    services: ['panchanga']
+  },
+  trial_24h: {
+    planId: 'trial_48h',
+    nameNepali: '४८ घण्टा निःशुल्क परीक्षण',
+    devices: 'both',
+    duration: 'trial',
+    priceNPR: 0,
+    tier: 'normal',
+    services: ['panchanga']
+  },
+
+  // Legacy mappings to preserve compatibility with existing database records
+  yearly_mobile: {
+    planId: 'normal_yearly',
+    nameNepali: 'साधारण सदस्यता (१ वर्ष)',
+    devices: 'both',
+    duration: '1_year',
+    priceNPR: 100,
+    tier: 'normal',
+    services: ['panchanga']
+  },
+  lifetime_mobile: {
+    planId: 'normal_lifetime',
+    nameNepali: 'साधारण सदस्यता (आजीवन)',
+    devices: 'both',
+    duration: 'lifetime',
+    priceNPR: 500,
+    tier: 'normal',
+    services: ['panchanga']
+  },
+  yearly_computer: {
+    planId: 'normal_yearly',
+    nameNepali: 'साधारण सदस्यता (१ वर्ष)',
+    devices: 'both',
+    duration: '1_year',
+    priceNPR: 100,
+    tier: 'normal',
+    services: ['panchanga']
+  },
+  lifetime_computer: {
+    planId: 'normal_lifetime',
+    nameNepali: 'साधारण सदस्यता (आजीवन)',
+    devices: 'both',
+    duration: 'lifetime',
+    priceNPR: 500,
+    tier: 'normal',
+    services: ['panchanga']
+  },
+  yearly_both: {
+    planId: 'pro_yearly',
+    nameNepali: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (१ वर्ष)',
+    devices: 'both',
+    duration: '1_year',
+    priceNPR: 2000,
+    tier: 'professional',
+    services: ['jyotish', 'vastu', 'karmakanda', 'panchanga']
+  },
+  lifetime_both: {
+    planId: 'pro_lifetime',
+    nameNepali: 'प्रो. मेम्बरशिप / पेशागत सदस्यता (आजीवन)',
+    devices: 'both',
+    duration: 'lifetime',
+    priceNPR: 5000,
+    tier: 'professional',
+    services: ['jyotish', 'vastu', 'karmakanda', 'panchanga']
   }
 };
 
@@ -582,9 +643,11 @@ class MembershipEngine {
     paymentMethod?: 'esewa' | 'khalti' | 'bank' | 'cash';
     transactionId?: string;
     cashVerified?: boolean;
+    verifiedAmount?: number;
+    services?: Array<'jyotish' | 'vastu' | 'karmakanda' | 'panchanga'>;
     approvedAtBS?: string;
   }): { success: boolean; membership?: MembershipRecord; message: string } {
-    const plan = MEMBERSHIP_PLANS[params.planId] || MEMBERSHIP_PLANS.yearly_both;
+    const plan = MEMBERSHIP_PLANS[params.planId] || MEMBERSHIP_PLANS.normal_yearly || MEMBERSHIP_PLANS.yearly_both;
     const cleanPhone = params.phone.replace(/\D/g, '').slice(-10);
     const method = params.paymentMethod || 'cash';
 
@@ -615,7 +678,7 @@ class MembershipEngine {
       membership.planNameNepali = plan.nameNepali;
       membership.duration = duration;
       membership.devices = plan.devices;
-      membership.amountNPR = plan.priceNPR;
+      membership.amountNPR = params.verifiedAmount !== undefined ? params.verifiedAmount : plan.priceNPR;
       membership.paymentMethod = method;
       membership.paymentStatus = 'VERIFIED';
       membership.membershipStatus = 'ACTIVE';
@@ -631,7 +694,7 @@ class MembershipEngine {
       membership.expiresAtTimestamp = expiresAtTimestamp;
       membership.expiresAtISO = expiresAtISO;
       membership.expiresAtBS = expiresAtBS;
-      membership.includedServices = params.includedServices || plan.services;
+      membership.includedServices = params.includedServices || params.services || plan.services;
       membership.adminNotes = params.adminNotes || membership.adminNotes;
       membership.renewalCount = (membership.renewalCount || 0) + 1;
     } else {
@@ -645,7 +708,7 @@ class MembershipEngine {
         planNameNepali: plan.nameNepali,
         duration,
         devices: plan.devices,
-        amountNPR: plan.priceNPR,
+        amountNPR: params.verifiedAmount !== undefined ? params.verifiedAmount : plan.priceNPR,
         paymentMethod: method,
         paymentStatus: 'VERIFIED',
         membershipStatus: 'ACTIVE',
@@ -663,7 +726,7 @@ class MembershipEngine {
         expiresAtTimestamp,
         expiresAtISO,
         expiresAtBS,
-        includedServices: params.includedServices || plan.services,
+        includedServices: params.includedServices || params.services || plan.services,
         adminNotes: params.adminNotes,
         renewalCount: 0,
         history: []

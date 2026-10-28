@@ -558,7 +558,9 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
       payments: await this.getPayments(),
       sessions: this.readSessionsSync(),
       notifications: await this.getNotifications(),
-      auditLogs: await this.getAuditLogs()
+      auditLogs: await this.getAuditLogs(),
+      visitorAnalytics: this.readArraySync(this.visitorAnalyticsFile),
+      passwordResetTokens: this.readArraySync(this.passwordResetTokensFile)
     };
 
     fs.writeFileSync(fullBackupPath, JSON.stringify({ timestampISO, counts, snapshot }, null, 2), 'utf-8');
@@ -575,6 +577,8 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     this.atomicWriteSync(this.licensesFile, []);
     this.atomicWriteSync(this.paymentsFile, []);
     this.atomicWriteSync(this.notificationsFile, []);
+    this.atomicWriteSync(this.visitorAnalyticsFile, []);
+    this.atomicWriteSync(this.passwordResetTokensFile, []);
 
     // Filter sessions: keep only SUPER_ADMIN
     const sessions = this.readSessionsSync();
@@ -1781,7 +1785,9 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       paymentsRes,
       sessionsRes,
       notifsRes,
-      auditRes
+      auditRes,
+      visitorRes,
+      resetTokensRes
     ] = await Promise.all([
       this.pool.query('SELECT * FROM users'),
       this.pool.query('SELECT * FROM client_purchase_leads'),
@@ -1790,7 +1796,9 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       this.pool.query('SELECT * FROM payments'),
       this.pool.query('SELECT * FROM active_sessions'),
       this.pool.query('SELECT * FROM notifications'),
-      this.pool.query('SELECT * FROM audit_logs')
+      this.pool.query('SELECT * FROM audit_logs'),
+      this.pool.query('SELECT * FROM visitor_analytics'),
+      this.pool.query('SELECT * FROM password_reset_tokens')
     ]);
 
     const snapshot = {
@@ -1801,7 +1809,9 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       payments: paymentsRes.rows,
       sessions: sessionsRes.rows,
       notifications: notifsRes.rows,
-      auditLogs: auditRes.rows
+      auditLogs: auditRes.rows,
+      visitorAnalytics: visitorRes.rows,
+      passwordResetTokens: resetTokensRes.rows
     };
 
     const backupsDir = path.join(process.cwd(), 'data', 'backups');
@@ -1834,7 +1844,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
     try {
       await client.query('BEGIN');
       await client.query(`
-        TRUNCATE TABLE payments, notifications, service_licenses, memberships, client_purchase_leads, users CASCADE;
+        TRUNCATE TABLE payments, notifications, service_licenses, memberships, client_purchase_leads, users, visitor_analytics, password_reset_tokens CASCADE;
       `);
       await client.query(`
         DELETE FROM active_sessions WHERE role != 'SUPER_ADMIN';

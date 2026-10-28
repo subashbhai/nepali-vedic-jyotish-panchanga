@@ -36,7 +36,11 @@ import {
   Music,
   Bookmark,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Lock,
+  Crown,
+  Zap,
+  Check
 } from 'lucide-react';
 import { 
   BirthDetails, 
@@ -189,6 +193,93 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       setPhotoUrl(rbacSession.photoUrl);
     }
   }, [rbacSession?.photoUrl]);
+
+  // ── User Entitlement & 48-Hour Trial Countdown State ──
+  const [entitlement, setEntitlement] = useState<any>(null);
+  const [countdownText, setCountdownText] = useState<string>('');
+  const [isShareCopied, setIsShareCopied] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEntitlements = async () => {
+      try {
+        const token = rbacSession?.token || localStorage.getItem('balananda_session_token');
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`/api/entitlements?userId=${encodeURIComponent(currentUserId)}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && data.entitlement && isMounted) {
+            setEntitlement(data.entitlement);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch entitlements in dashboard:', err);
+      }
+    };
+    fetchEntitlements();
+    return () => { isMounted = false; };
+  }, [currentUserId, rbacSession?.token]);
+
+  const isProfessional = useMemo(() => {
+    return (
+      (rbacSession as any)?.userCategory === 'professional' ||
+      entitlement?.lifecycleState === 'PROFESSIONAL_MEMBER' ||
+      String(entitlement?.planNameNepali || '').toLowerCase().includes('पेशागत') ||
+      String(entitlement?.planNameNepali || '').toLowerCase().includes('pro') ||
+      rbacSession?.role === 'SUPER_ADMIN'
+    );
+  }, [rbacSession, entitlement]);
+
+  const isSuperAdmin = rbacSession?.role === 'SUPER_ADMIN' || entitlement?.isSuperAdmin;
+  const isPaidMember = entitlement?.hasActiveMembership && !entitlement?.isTrialActive;
+  const isTrialActive = Boolean(entitlement?.isTrialActive ?? (!isPaidMember && !isSuperAdmin));
+  const isTrialExpired = Boolean(
+    entitlement ? (entitlement.lifecycleState === 'TRIAL_EXPIRED' || (!entitlement.isTrialActive && !entitlement.hasActiveMembership)) : false
+  );
+
+  // Pro username badge: e.g. "username-pro"
+  const proUsername = useMemo(() => {
+    const rawUser = rbacSession?.username || profileState.phone || 'user';
+    return rawUser.endsWith('-pro') ? rawUser : `${rawUser}-pro`;
+  }, [rbacSession?.username, profileState.phone]);
+
+  // Live 48-hour trial countdown timer in Asia/Kathmandu
+  useEffect(() => {
+    const updateCountdown = () => {
+      const trialExp = entitlement?.trial?.trialExpiresAtTimestamp ||
+        (entitlement?.trial?.trialExpiresAtISO ? new Date(entitlement.trial.trialExpiresAtISO).getTime() : 0) ||
+        (rbacSession as any)?.trialExpiresAtTimestamp ||
+        (rbacSession as any)?.trial?.trialExpiresAtTimestamp ||
+        0;
+
+      if (!trialExp) {
+        setCountdownText('४८ घण्टे निःशुल्क परीक्षण');
+        return;
+      }
+
+      const now = Date.now();
+      const diff = trialExp - now;
+      if (diff <= 0) {
+        setCountdownText('४८ घण्टे परीक्षण समाप्त (Upgrade Required)');
+      } else {
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setCountdownText(`४८ घण्टे परीक्षण: बाँकी ${toDevanagariNumerals(h)} घण्टा ${toDevanagariNumerals(m)} मिनेट`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 10000);
+    return () => clearInterval(interval);
+  }, [entitlement, rbacSession]);
+
+  const handleSecureShare = () => {
+    const shareUrl = `${window.location.origin}/#/user_dashboard?sharedProfile=${encodeURIComponent(currentUserId)}`;
+    navigator.clipboard.writeText(shareUrl);
+    setIsShareCopied(true);
+    setTimeout(() => setIsShareCopied(false), 3000);
+  };
 
   // Image Crop Modal
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
@@ -578,9 +669,40 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
                 <h1 className="text-2xl sm:text-3xl font-black font-serif text-amber-100 tracking-tight">
                   {profileState.name}
                 </h1>
-                <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
-                  {rbacSession?.roleNameNepali || 'यजमान / प्रयोगकर्ता'}
-                </span>
+                {isProfessional ? (
+                  <>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-400 text-stone-950 border border-amber-300 shadow-xs">
+                      @{proUsername}
+                    </span>
+                    <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 flex items-center gap-1 shadow-sm">
+                      <Crown className="w-3.5 h-3.5" />
+                      पेशागत सदस्य (प्रो)
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-500/20 text-blue-200 border border-blue-400/40 flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-blue-400" />
+                      एकल-उपकरण सुरक्षित सत्र (Single-Device Session)
+                    </span>
+                  </>
+                ) : isPaidMember ? (
+                  <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    साधारण सशुल्क सदस्य
+                  </span>
+                ) : (
+                  <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                    {rbacSession?.roleNameNepali || 'यजमान / प्रयोगकर्ता'}
+                  </span>
+                )}
+                {!isPaidMember && !isProfessional && !isSuperAdmin && (
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
+                    isTrialExpired 
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-400/40' 
+                      : 'bg-purple-500/20 text-purple-200 border border-purple-400/40 animate-pulse'
+                  }`}>
+                    <Clock className="w-3 h-3 text-purple-400" />
+                    {countdownText}
+                  </span>
+                )}
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
                   प्रमाणित खाता
@@ -641,15 +763,24 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Edit Profile Action Button */}
+          {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={handleSecureShare}
+              className="px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-2xl text-xs font-bold border border-amber-400/40 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="सुरक्षित प्रोफाइल तथा फलादेश सेयर गर्नुहोस्"
+            >
+              {isShareCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4 text-amber-400" />}
+              <span>{isShareCopied ? 'लिङ्क कपी भयो!' : 'सुरक्षित सेयर'}</span>
+            </button>
             <button
               type="button"
               onClick={handleOpenEditModal}
               className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg transition-all flex items-center gap-2 cursor-pointer"
             >
               <Edit3 className="w-4 h-4" />
-              <span>प्रोफाइल सम्पादन / विवरण परिवर्तन</span>
+              <span>प्रोफाइल सम्पादन</span>
             </button>
             <button
               type="button"
@@ -692,7 +823,130 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
 
       {dashboardTab === 'faladesh' ? (
         <div className="space-y-4 animate-in fade-in">
-          {faladeshAstroData ? (
+          {isTrialExpired && !isPaidMember && !isSuperAdmin ? (
+            <div className="bg-gradient-to-br from-[#1C1917] via-[#2A1509] to-[#1C1917] text-white border-2 border-amber-500/40 rounded-3xl p-6 sm:p-10 shadow-2xl text-center space-y-6">
+              <div className="w-16 h-16 rounded-3xl bg-amber-500/20 border-2 border-amber-400/50 flex items-center justify-center mx-auto text-amber-400 shadow-xl">
+                <Lock className="w-8 h-8" />
+              </div>
+
+              <div className="max-w-xl mx-auto space-y-2">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                  ४८ घण्टे निःशुल्क परीक्षण समाप्त भएको छ
+                </span>
+                <h3 className="text-2xl sm:text-3xl font-black font-serif text-amber-200">
+                  वैदिक फलादेश सेवा अनलक गर्न सदस्यता छान्नुहोस्
+                </h3>
+                <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
+                  तपाईंको ४८ घण्टाको निःशुल्क परीक्षण अवधि पूरा भएको छ। व्यक्तिगत विस्तृत कुण्डली फलादेश, ग्रहदशा विश्लेषण, र दैनिक सेवाहरू निरन्तर प्रयोग गर्न निम्न योजनाहरू मध्ये एक चयन गर्नुहोस्।
+                </p>
+              </div>
+
+              {/* 4 Canonical Plans Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto text-left pt-2">
+                {/* Plan 1: Normal Yearly */}
+                <div className="p-5 bg-stone-900/80 rounded-2xl border border-stone-800 hover:border-amber-400/60 transition-all flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                        साधारण सदस्यता
+                      </span>
+                      <span className="text-xs text-stone-400 font-mono">१ वर्ष</span>
+                    </div>
+                    <div className="text-2xl font-black text-amber-100 font-mono">
+                      रु. १००
+                    </div>
+                    <p className="text-xs text-stone-400">
+                      व्यक्तिगत कुण्डली फलादेश, दैनिक तथा मासिक राशिफल, पञ्चाङ्ग सेवा अवलोकन। (पेशागत औजारहरू बाहेक)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('membership')}
+                    className="w-full py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs rounded-xl transition-all cursor-pointer text-center"
+                  >
+                    रु. १०० मा १ वर्ष लिनुहोस् ↗
+                  </button>
+                </div>
+
+                {/* Plan 2: Normal Lifetime */}
+                <div className="p-5 bg-stone-900/80 rounded-2xl border border-stone-800 hover:border-amber-400/60 transition-all flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
+                        साधारण आजीवन
+                      </span>
+                      <span className="text-xs text-emerald-400 font-bold">आजीवन पहुँच</span>
+                    </div>
+                    <div className="text-2xl font-black text-emerald-300 font-mono">
+                      रु. ५००
+                    </div>
+                    <p className="text-xs text-stone-400">
+                      एकपटक तिरेर आजीवन व्यक्तिगत ड्यासबोर्ड, राशिफल, पञ्चाङ्ग तथा व्यक्तिगत कुण्डली फलादेश पहुँच।
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('membership')}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer text-center shadow-md"
+                  >
+                    रु. ५०० मा आजीवन लिनुहोस् ↗
+                  </button>
+                </div>
+
+                {/* Plan 3: Pro Yearly */}
+                <div className="p-5 bg-stone-900/80 rounded-2xl border border-amber-500/40 hover:border-amber-400 transition-all flex flex-col justify-between space-y-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 px-3 py-0.5 bg-amber-500 text-stone-950 text-[10px] font-black rounded-bl-xl uppercase tracking-wider">
+                    प्रो. मेम्बरशिप
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Crown className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-amber-300">पेशागत सदस्यता (१ वर्ष)</span>
+                    </div>
+                    <div className="text-2xl font-black text-amber-300 font-mono">
+                      रु. २,०००
+                    </div>
+                    <p className="text-xs text-stone-400">
+                      पेशागत ज्योतिष तथा वास्तु सेवा, असीमित नयाँ कुण्डली निर्माण, A4 कुण्डली प्रिन्ट, एकल-उपकरण सुरक्षित सत्र।
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('membership')}
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs rounded-xl transition-all cursor-pointer text-center shadow-lg"
+                  >
+                    रु. २,००० मा प्रो १ वर्ष लिनुहोस् ↗
+                  </button>
+                </div>
+
+                {/* Plan 4: Pro Lifetime */}
+                <div className="p-5 bg-gradient-to-br from-amber-950/40 via-stone-900 to-stone-900 rounded-2xl border-2 border-amber-400 transition-all flex flex-col justify-between space-y-4 relative overflow-hidden shadow-xl">
+                  <div className="absolute top-0 right-0 px-3 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-300 text-stone-950 text-[10px] font-black rounded-bl-xl uppercase tracking-wider">
+                    सर्वोत्कृष्ट प्रो
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-amber-300">पेशागत सदस्यता (आजीवन)</span>
+                    </div>
+                    <div className="text-2xl font-black text-amber-200 font-mono">
+                      रु. ५,०००
+                    </div>
+                    <p className="text-xs text-stone-300">
+                      आजीवन व्यावसायिक ज्योतिष तथा वास्तु सेवा, असीमित ग्राहक कुण्डली निर्माण, प्रिन्ट, एकल-उपकरण सुरक्षित सत्र।
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('membership')}
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-stone-950 font-black text-xs rounded-xl transition-all cursor-pointer text-center shadow-xl"
+                  >
+                    रु. ५,००० मा आजीवन प्रो लिनुहोस् ↗
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : faladeshAstroData ? (
             <FaladeshView
               profile={faladeshAstroData.profile}
               lagna={faladeshAstroData.lagna}
@@ -702,8 +956,8 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
               dasha={faladeshAstroData.dasha}
               sadeSatiStatus={faladeshAstroData.sadeSatiStatus}
               gochar={faladeshAstroData.gochar}
-              hideNewKundali={true}
-              hidePrint={true}
+              hideNewKundali={!isProfessional && !isSuperAdmin}
+              hidePrint={!isProfessional && !isSuperAdmin}
             />
           ) : (
             <div className="p-8 text-center text-stone-500 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
@@ -803,13 +1057,24 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => window.print()}
-            className="p-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-            title="प्रिन्ट गर्नुहोस्"
+            onClick={handleSecureShare}
+            className="p-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            title="सुरक्षित सेयर"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">प्रिन्ट</span>
+            {isShareCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Share2 className="w-3.5 h-3.5 text-amber-600" />}
+            <span className="hidden sm:inline">{isShareCopied ? 'कपी भयो' : 'सेयर'}</span>
           </button>
+          {(isProfessional || isSuperAdmin) && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="p-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              title="प्रिन्ट गर्नुहोस् (पेशागत सुविधा)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">प्रिन्ट</span>
+            </button>
+          )}
         </div>
       </div>
 

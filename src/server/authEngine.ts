@@ -409,6 +409,10 @@ export class AuthEngine {
     username: string;
     password: string;
     email?: string;
+    dobBS?: string;
+    dobAD?: string;
+    birthTime?: string;
+    birthPlace?: any;
   }): { success: boolean; message: string; user?: any; token?: string; error?: string } {
     this.loadFromDisk();
 
@@ -418,8 +422,20 @@ export class AuthEngine {
     const usernameRaw = String(params.username || '').trim();
     const password = String(params.password || '').trim();
     const email = String(params.email || '').trim();
+    const dobBS = String(params.dobBS || '').trim();
+    const dobAD = String(params.dobAD || '').trim();
+    const birthTime = String(params.birthTime || '०६:३०').trim();
+    const birthLocation = params.birthPlace || {
+      name: 'काठमाडौँ, नेपाल',
+      district: 'काठमाडौँ',
+      province: 'बागमती प्रदेश',
+      country: 'नेपाल',
+      latitude: 27.7172,
+      longitude: 85.3240,
+      timeZone: 5.75
+    };
 
-    // 1. Validate all 5 required fields
+    // 1. Validate required fields
     if (!fullName) {
       return { success: false, message: 'कृपया पूरा नाम प्रविष्ट गर्नुहोस्।' };
     }
@@ -481,7 +497,21 @@ export class AuthEngine {
     const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const customerId = `सदस्य-${bsYearOnly}-${String(this.users.length + 1).padStart(4, '०')}`;
 
-    // 7. Create user with default role 'user' and userCategory 'visitor'
+    // Exactly 48 Hours Free Trial window (from server registration timestamp)
+    const trialStartedAtISO = createdAtISO;
+    const trialExpiresAtTimestamp = now.getTime() + 48 * 3600 * 1000;
+    const trialExpiresAtISO = new Date(trialExpiresAtTimestamp).toISOString();
+
+    const birthDetails = {
+      name: fullName,
+      dateBS: dobBS,
+      dateAD: dobAD,
+      time: birthTime,
+      location: birthLocation,
+      gender: 'पुरुष'
+    };
+
+    // 7. Create user with default role 'user' and userCategory 'visitor' with 48h trial
     const newUser: UserAccount = {
       id: userId,
       customerId,
@@ -493,17 +523,29 @@ export class AuthEngine {
       passwordHash,
       role: 'user',
       roleNameNepali: 'साधारण प्रयोगकर्ता (विजिटर)',
-      userCategory: 'visitor', // Non-negotiable: All signups default to visitor!
+      userCategory: 'visitor', // All signups default to visitor!
       accountStatus: 'active',
       status: 'active',
       mobileVerified: true,
       emailVerified: false,
-      subscriptionPlan: 'साधारण खाता (योजना छैन)',
-      subscriptionStartAt: null,
-      subscriptionExpiresAt: null,
+      subscriptionPlan: '४८ घण्टा निःशुल्क परीक्षण',
+      subscriptionStartAt: trialStartedAtISO,
+      subscriptionExpiresAt: trialExpiresAtISO,
+      trialStartedAtISO,
+      trialExpiresAtISO,
+      trialExpiresAtTimestamp,
+      trial: {
+        hasUsedTrial: false,
+        isTrialActive: true,
+        trialStartedAtISO,
+        trialExpiresAtISO,
+        trialExpiresAtTimestamp,
+        startedAtBS: createdAtBS
+      },
+      birthDetails,
       paymentAmountNPR: 0,
       paymentStatus: 'pending',
-      remainingDays: 0,
+      remainingDays: 2,
       permissions: ['visitor.view', 'faladesh.view', 'panchanga.view', 'samachar.view', 'membership.view', 'vivah.view', 'yajaman.view', 'org.view'],
       createdAtISO,
       createdAtBS,
@@ -675,6 +717,20 @@ export class AuthEngine {
     // Update last login
     user.lastLoginISO = new Date().toISOString();
     this.persistUsers();
+
+    // Professional Single-Device Session Enforcement:
+    // When a professional user logs in, atomically invalidate previous active session(s)
+    const isProfessional = user.userCategory === 'professional' ||
+      String(user.subscriptionPlan || '').toLowerCase().includes('pro') ||
+      String(user.subscriptionPlan || '').toLowerCase().includes('both');
+
+    if (isProfessional) {
+      for (const [sTok, sVal] of this.activeSessions.entries()) {
+        if (sVal.userId === user.id) {
+          this.activeSessions.delete(sTok);
+        }
+      }
+    }
 
     // Generate authenticated session
     const token = crypto.randomBytes(32).toString('hex');

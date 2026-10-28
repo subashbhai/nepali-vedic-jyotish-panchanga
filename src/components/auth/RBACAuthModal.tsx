@@ -16,14 +16,19 @@ import {
   CheckCircle2,
   Server,
   Settings,
-  RefreshCw
+  RefreshCw,
+  Calendar,
+  Clock,
+  Compass
 } from 'lucide-react';
 import { SystemRole, RBACSession } from '../../db/rbacStore';
 import { authService } from '../../services/authService';
 import { apiClient } from '../../services/apiClient';
 import { formatNepalPhoneNumber } from '../../services/firebaseAuthService';
 import { getAssetUrl, handleImageFallback } from '../../utils/assetHelper';
-import { BirthDetails } from '../../types/astrology';
+import { BirthDetails, LocationData } from '../../types/astrology';
+import { BirthplaceSearchInput } from '../common/BirthplaceSearchInput';
+import { convertBSToADFull, convertADToBSFull } from '../../utils/bsCalendarData';
 
 interface RBACAuthModalProps {
   isOpen: boolean;
@@ -50,13 +55,30 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Sign Up Form State (EXACTLY 5 Visible Fields — Zero OTP)
+  // Sign Up Form State (EXACTLY 8 Canonical Fields — Zero OTP)
+  // 1. Full Name, 2. Address, 3. Mobile Number, 4. Username, 5. Password
   const [fullName, setFullName] = useState('');
   const [address, setAddress] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showSignupPassword, setShowSignupPassword] = useState(false);
+
+  // 6. Date of Birth (BS & AD), 7. Birth Time, 8. Birthplace
+  const [calendarMode, setCalendarMode] = useState<'BS' | 'AD'>('BS');
+  const [dobBS, setDobBS] = useState('२०५०-०१-१५');
+  const [dobAD, setDobAD] = useState('1993-04-28');
+  const [birthTime, setBirthTime] = useState('०६:३०');
+  const [birthPlace, setBirthPlace] = useState<LocationData>({
+    name: 'काठमाडौँ, नेपाल',
+    district: 'काठमाडौँ',
+    province: 'बागमती प्रदेश',
+    country: 'नेपाल',
+    latitude: 27.7172,
+    longitude: 85.3240,
+    timeZone: 5.75,
+    timezone: 5.75
+  });
 
   // UI / Status States
   const [isLoading, setIsLoading] = useState(false);
@@ -147,7 +169,7 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     }
   };
 
-  // ── Handle 5-Field Signup Submission (No OTP!) ──
+  // ── Handle 8-Field Canonical Signup Submission (No OTP!) ──
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -158,17 +180,20 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
     const cleanPhone = mobileNumber.trim();
     const cleanUsername = username.trim().toLowerCase();
     const cleanPassword = password.trim();
+    const cleanDobBS = dobBS.trim();
+    const cleanDobAD = dobAD.trim();
+    const cleanBirthTime = birthTime.trim();
 
     if (!cleanName) {
-      setErrorMsg('कृपया आफ्नो पूरा नाम प्रविष्ट गर्नुहोस्।');
+      setErrorMsg('कृपया १. आफ्नो पूरा नाम प्रविष्ट गर्नुहोस्।');
       return;
     }
     if (!cleanAddress) {
-      setErrorMsg('कृपया आफ्नो स्थायी वा हालको ठेगाना प्रविष्ट गर्नुहोस्।');
+      setErrorMsg('कृपया २. आफ्नो स्थायी वा हालको ठेगाना प्रविष्ट गर्नुहोस्।');
       return;
     }
     if (!cleanPhone) {
-      setErrorMsg('कृपया १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
+      setErrorMsg('कृपया ३. १० अङ्कको मोबाइल नम्बर प्रविष्ट गर्नुहोस्।');
       return;
     }
     const phoneVal = formatNepalPhoneNumber(cleanPhone);
@@ -177,11 +202,23 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
       return;
     }
     if (!cleanUsername) {
-      setErrorMsg('कृपया युजरनेम प्रविष्ट गर्नुहोस् (३-३० अक्षर, अङ्क वा _)।');
+      setErrorMsg('कृपया ४. प्रयोगकर्ता नाम (Username) प्रविष्ट गर्नुहोस् (३-३० अक्षर, अङ्क वा _)।');
       return;
     }
     if (!cleanPassword || cleanPassword.length < 6) {
-      setErrorMsg('पासवर्ड कम्तिमा ६ अक्षर वा अङ्कको हुनुपर्दछ।');
+      setErrorMsg('कृपया ५. पासवर्ड कम्तिमा ६ अक्षर वा अङ्कको हुनुपर्दछ।');
+      return;
+    }
+    if (!cleanDobAD && !cleanDobBS) {
+      setErrorMsg('कृपया ६. जन्म मिति (वि.सं. वा ई.सं.) प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+    if (!cleanBirthTime) {
+      setErrorMsg('कृपया ७. जन्म समय प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+    if (!birthPlace || !birthPlace.name) {
+      setErrorMsg('कृपया ८. जन्म स्थान खोजेर छान्नुहोस् वा प्रविष्ट गर्नुहोस्।');
       return;
     }
 
@@ -192,7 +229,11 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
         address: cleanAddress,
         mobileNumber: phoneVal.local10,
         username: cleanUsername,
-        password: cleanPassword
+        password: cleanPassword,
+        dobBS: cleanDobBS,
+        dobAD: cleanDobAD,
+        birthTime: cleanBirthTime,
+        birthPlace
       });
 
       if (res.success && res.session) {
@@ -551,6 +592,117 @@ export const RBACAuthModal: React.FC<RBACAuthModalProps> = ({
                     {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+              </div>
+
+              {/* 6. Date of Birth (BS & AD) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
+                    ६. जन्म मिति (Date of Birth) *
+                  </label>
+                  <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-0.5 rounded-lg border border-stone-200 dark:border-stone-700 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMode('BS')}
+                      className={`px-2 py-0.5 rounded-md transition-colors ${
+                        calendarMode === 'BS' ? 'bg-[#7A1C1C] text-white' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                      }`}
+                    >
+                      वि.सं. (BS)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMode('AD')}
+                      className={`px-2 py-0.5 rounded-md transition-colors ${
+                        calendarMode === 'AD' ? 'bg-[#7A1C1C] text-white' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                      }`}
+                    >
+                      ई.सं. (AD)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <Calendar className="absolute left-3.5 top-2.5 w-4 h-4 text-stone-400" />
+                  {calendarMode === 'BS' ? (
+                    <input
+                      type="text"
+                      required
+                      value={dobBS}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDobBS(val);
+                        // Attempt parse YYYY-MM-DD
+                        const parts = val.replace(/[०-९]/g, d => '०१२३४५६७८९'.indexOf(d).toString()).split(/[-/]/);
+                        if (parts.length === 3 && parts[0].length === 4) {
+                          try {
+                            const y = parseInt(parts[0], 10);
+                            const m = parseInt(parts[1], 10);
+                            const d = parseInt(parts[2], 10);
+                            if (y >= 1970 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 32) {
+                              const adStr = convertBSToADFull(y, m, d);
+                              if (adStr) setDobAD(adStr);
+                            }
+                          } catch {}
+                        }
+                      }}
+                      placeholder="वि.सं. मिति: २०५०-०१-१५"
+                      className="w-full pl-10 pr-3.5 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-900 dark:text-stone-100 font-mono"
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      required
+                      value={dobAD}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDobAD(val);
+                        if (val) {
+                          try {
+                            const bs = convertADToBSFull(val);
+                            if (bs && bs.year) {
+                              setDobBS(`${bs.year}-${String(bs.month).padStart(2, '0')}-${String(bs.day).padStart(2, '0')}`);
+                            }
+                          } catch {}
+                        }
+                      }}
+                      className="w-full pl-10 pr-3.5 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-900 dark:text-stone-100 font-mono"
+                    />
+                  )}
+                </div>
+                <div className="text-[10px] text-stone-500 dark:text-stone-400 px-1 flex items-center justify-between">
+                  <span>वि.सं.: {dobBS || '—'}</span>
+                  <span>ई.सं.: {dobAD || '—'}</span>
+                </div>
+              </div>
+
+              {/* 7. Birth Time */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                  ७. जन्म समय (Time of Birth) *
+                </label>
+                <div className="relative">
+                  <Clock className="absolute left-3.5 top-2.5 w-4 h-4 text-stone-400" />
+                  <input
+                    type="time"
+                    required
+                    value={birthTime}
+                    onChange={(e) => setBirthTime(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-900 dark:text-stone-100 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* 8. Birthplace Autocomplete */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                  ८. जन्म स्थान (Birthplace - देश, प्रदेश, जिल्ला, पालिका वा गाउँ) *
+                </label>
+                <BirthplaceSearchInput
+                  value={birthPlace}
+                  onChange={(loc) => setBirthPlace(loc)}
+                  placeholder="जन्म स्थान खोज्नुहोस् (उदा: काठमाडौँ, पोखरा, वा विश्वका शहर...)"
+                />
               </div>
 
               <button

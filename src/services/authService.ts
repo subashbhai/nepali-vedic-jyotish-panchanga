@@ -20,6 +20,10 @@ export interface SignupInput {
   mobileNumber: string;
   username: string;
   password: string;
+  dobBS?: string;
+  dobAD?: string;
+  birthTime?: string;
+  birthPlace?: any;
   email?: string;
 }
 
@@ -34,7 +38,7 @@ export interface AuthResponse {
 
 class AuthService {
   /**
-   * 1. Direct 5-Field User Signup (No OTP)
+   * 1. Direct 8-Field User Signup (No OTP)
    */
   async signup(data: SignupInput): Promise<AuthResponse> {
     const fullName = String(data.fullName || '').trim();
@@ -42,12 +46,16 @@ class AuthService {
     const mobileNumber = String(data.mobileNumber || '').trim();
     const username = String(data.username || '').trim().toLowerCase();
     const password = String(data.password || '').trim();
+    const dobBS = String(data.dobBS || '').trim();
+    const dobAD = String(data.dobAD || '').trim();
+    const birthTime = String(data.birthTime || '').trim();
+    const birthPlace = data.birthPlace || null;
     const email = String(data.email || '').trim();
 
     if (!fullName || !address || !mobileNumber || !username || !password) {
       return {
         success: false,
-        message: 'सबै पाँचवटै फिल्ड (पूरा नाम, ठेगाना, मोबाइल नम्बर, युजरनेम र पासवर्ड) भर्नु अनिवार्य छ।'
+        message: 'कृपया सबै अनिवार्य विवरणहरू (पूरा नाम, ठेगाना, मोबाइल नम्बर, युजरनेम, पासवर्ड, जन्म मिति, जन्म समय र जन्म स्थान) भर्नुहोस्।'
       };
     }
 
@@ -59,6 +67,10 @@ class AuthService {
         phone: mobileNumber,
         username,
         password,
+        dobBS,
+        dobAD,
+        birthTime,
+        birthPlace,
         email
       });
 
