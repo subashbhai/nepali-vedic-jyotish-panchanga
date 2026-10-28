@@ -142,7 +142,8 @@ export function resolveUserEntitlement(params: {
 
   // 3. Active Paid Membership Check
   const mStatus = m?.membershipStatus || m?.status;
-  if (m && mStatus === 'ACTIVE') {
+  const isMemActive = mStatus === 'ACTIVE' || mStatus === 'PURCHASE_APPROVED' || mStatus === 'APPROVED' || (u.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt).getTime() > Date.now());
+  if ((m || u.subscriptionExpiresAt) && isMemActive) {
     const isLifetime = m.duration === 'lifetime';
     const isBothPlan = m.devices === 'both' || m.planId?.includes('both');
     const isProfessional = isBothPlan || u.userCategory === 'professional' || m.planType === 'PROFESSIONAL' || m.tier === 'professional' || m.planId?.includes('pro');
@@ -251,7 +252,7 @@ export function resolveUserEntitlement(params: {
   }
 
   // 6. Purchase Request Pending Approval
-  if (m?.membershipStatus === 'PENDING_PAYMENT' || u.paymentStatus === 'pending_approval') {
+  if (m?.membershipStatus === 'PENDING_PAYMENT' || m?.status === 'PURCHASE_PENDING' || u.paymentStatus === 'pending_approval') {
     return {
       lifecycleState: 'PURCHASE_PENDING',
       stateNepali: 'खरिद रुजु हुन बाँकी (Purchase Pending)',

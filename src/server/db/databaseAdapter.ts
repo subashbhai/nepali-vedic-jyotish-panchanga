@@ -823,6 +823,20 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
           CREATE INDEX IF NOT EXISTS idx_mcd_category ON master_cultural_data(category);
         `);
 
+        // Idempotent column migrations for existing deployments
+        try {
+          await client.query(`
+            ALTER TABLE memberships ADD COLUMN IF NOT EXISTS included_services JSONB DEFAULT '["panchanga"]'::jsonb;
+            ALTER TABLE service_licenses ADD COLUMN IF NOT EXISTS amount_npr INT DEFAULT 0;
+            ALTER TABLE service_licenses ADD COLUMN IF NOT EXISTS starts_at_iso TIMESTAMPTZ;
+            ALTER TABLE service_licenses ADD COLUMN IF NOT EXISTS expires_at_iso TIMESTAMPTZ;
+            ALTER TABLE service_licenses ADD COLUMN IF NOT EXISTS expires_at_timestamp BIGINT;
+            ALTER TABLE service_licenses ALTER COLUMN service_name_nepali DROP NOT NULL;
+          `);
+        } catch (migErr: any) {
+          console.warn('[Postgres Schema Migration Notice]:', migErr.message);
+        }
+
         // Seed initial cultural data if empty
         const countRes = await client.query('SELECT COUNT(*) as cnt FROM master_cultural_data');
         if (parseInt(countRes.rows[0]?.cnt || '0', 10) === 0) {
@@ -1139,9 +1153,20 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       `UPDATE client_purchase_leads SET
         status = COALESCE($2, status),
         plan_amount_npr = COALESCE($3, plan_amount_npr),
-        raw_data = raw_data || $4::jsonb
+        payment_verification_status = COALESCE($4, payment_verification_status),
+        approved_at_iso = COALESCE($5, approved_at_iso),
+        approved_by = COALESCE($6, approved_by),
+        raw_data = raw_data || $7::jsonb
       WHERE id = $1`,
-      [id, updates.status, updates.planAmountNPR, JSON.stringify(updates)]
+      [
+        id,
+        updates.status,
+        updates.planAmountNPR,
+        updates.paymentVerificationStatus,
+        updates.approvedAtISO ? new Date(updates.approvedAtISO) : null,
+        updates.approvedBy,
+        JSON.stringify(updates)
+      ]
     );
     return updates;
   }
@@ -1235,9 +1260,9 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   public async createLicense(license: any): Promise<any> {
     const query = `
       INSERT INTO service_licenses (
-        id, user_id, phone, service_key, status, amount_npr,
+        id, user_id, phone, service_key, service_name_nepali, status, amount_npr,
         starts_at_iso, expires_at_iso, expires_at_timestamp, raw_data
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT (id) DO UPDATE SET
         status = EXCLUDED.status,
         expires_at_iso = EXCLUDED.expires_at_iso,
@@ -1248,6 +1273,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       license.userId,
       license.phone,
       license.serviceKey,
+      license.serviceNameNepali || license.softwareName || 'ज्योतिष तथा वास्तु सेवा',
       license.status || 'unlocked',
       license.amountNPR || 0,
       license.startsAtISO || new Date().toISOString(),

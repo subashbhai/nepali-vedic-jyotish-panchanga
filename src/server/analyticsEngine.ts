@@ -138,7 +138,7 @@ export class VisitorAnalyticsEngine {
     referrer?: string;
     isInitialLoad?: boolean;
     district?: string;
-  }): Promise<{ recorded: boolean; reason?: string }> {
+  }): Promise<{ recorded: boolean; reason?: string; record?: VisitRecord }> {
     const userAgent = String(req.headers['user-agent'] || '').toLowerCase();
 
     // 1. Bot & Crawler Filtering
@@ -228,7 +228,7 @@ export class VisitorAnalyticsEngine {
     }
     this.persist();
 
-    return { recorded: true };
+    return { recorded: true, record };
   }
 
   /**

@@ -1114,8 +1114,8 @@ async function startServer() {
     }
   });
 
-  // Helper to synchronize approval across client_purchase_leads, service_licenses, and users
-  const applyLeadApproval = (
+  // Helper to synchronize approval across client_purchase_leads, service_licenses, memberships, payments, and users
+  const applyLeadApproval = async (
     target: any,
     approvedBy?: string,
     approvedAtBS?: string,
@@ -1158,15 +1158,34 @@ async function startServer() {
     target.expiresAtISO = expiresAtISO;
     target.expiresAtBS = expiresAtBS;
 
+    // 1. Persist lead update to database
+    try {
+      await dbAdapter.updateLead(target.id, target);
+    } catch (dbErr: any) {
+      console.warn("[applyLeadApproval Lead DB Notice]:", dbErr.message);
+    }
+
+    // Resolve associated user
+    const users = getUsers();
+    const matchedUser = users.find((u: any) => 
+      (cleanPhone && u.phone && String(u.phone).replace(/\D/g, "").slice(-10) === cleanPhone) ||
+      (target.userId && u.id === target.userId)
+    );
+    const effectiveUserId = target.userId || (matchedUser ? matchedUser.id : `usr_${cleanPhone || target.id}`);
+    if (!target.userId && matchedUser) {
+      target.userId = matchedUser.id;
+    }
+
     const planId = String(target.planId || "").toLowerCase();
     const servicesToUnlock: Array<"jyotish" | "vastu"> =
       targetService === "vastu" || planId.includes("vastu_only") ? ["vastu"] :
       targetService === "jyotish" || planId.includes("jyotish_only") ? ["jyotish"] :
       ["jyotish", "vastu"];
 
+    // 2. Persist Service Licenses
     const licenses = getServiceLicenses();
     for (const sKey of servicesToUnlock) {
-      const licId = `${cleanPhone || target.id}_${sKey}`;
+      const licId = `${cleanPhone || effectiveUserId}_${sKey}`;
       const existingLicIdx = licenses.findIndex((l: any) =>
         l.serviceKey === sKey && (
           l.id === licId ||
@@ -1176,15 +1195,16 @@ async function startServer() {
 
       const newLic = {
         id: licId,
-        userId: target.id,
-        username: target.mobile || target.fullName,
+        userId: effectiveUserId,
+        username: (matchedUser && matchedUser.username) || target.mobile || target.fullName,
         fullName: target.fullName,
         phone: target.mobile,
         email: target.email || "",
         serviceKey: sKey,
+        serviceNameNepali: sKey === "jyotish" ? "वैदिक ज्योतिष सफ्टवेयर" : "वास्तुशास्त्र सफ्टवेयर",
         softwareName: "नेपाली वैदिक ज्योतिष तथा वास्तु सफ्टवेयर",
         planNameNepali: target.planNameNepali || "१ वर्षको सदस्यता",
-        amountNPR: target.verifiedAmount || target.planAmountNPR || 2100,
+        amountNPR: target.verifiedAmount || target.planAmountNPR || 1200,
         paymentStatus: "VERIFIED",
         paymentMethod: target.paymentMethod || "esewa",
         transactionId: target.transactionId || "",
@@ -1206,12 +1226,89 @@ async function startServer() {
       } else {
         licenses.unshift(newLic);
       }
+
+      try {
+        await dbAdapter.createLicense(newLic);
+      } catch (licDbErr: any) {
+        console.warn("[applyLeadApproval License DB Notice]:", licDbErr.message);
+      }
     }
     saveServiceLicenses(licenses);
 
-    if (cleanPhone) {
-      const users = getUsers();
-      const uIdx = users.findIndex((u: any) => u.phone && String(u.phone).replace(/\D/g, "").slice(-10) === cleanPhone);
+    // 3. Persist Membership record
+    const membershipId = `MEM-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const membershipRecord = {
+      id: membershipId,
+      userId: effectiveUserId,
+      phone: cleanPhone || target.mobile,
+      fullName: target.fullName,
+      email: target.email || "",
+      planId: target.planId || "yearly_both",
+      planNameNepali: target.planNameNepali || "१ वर्ष मोबाइल + कम्प्युटर",
+      duration: planDur,
+      devices: "both",
+      amountNPR: target.verifiedAmount || target.planAmountNPR || 1200,
+      paymentMethod: target.paymentMethod || "esewa",
+      paymentStatus: "paid",
+      membershipStatus: "ACTIVE",
+      cashVerified: Boolean(target.cashVerified || options?.cashVerified),
+      cashVerifiedBy: target.cashVerifiedBy,
+      cashVerifiedAtISO: target.cashVerifiedAtISO,
+      submittedAtISO: target.submittedAtISO || now.toISOString(),
+      submittedAtBS: target.submittedAtBS,
+      approvedBy: target.approvedBy,
+      approvedAtISO: target.approvedAtISO,
+      approvedAtBS: target.approvedAtBS,
+      activatedAtISO: schedule.activatedAtISO,
+      expiresAtTimestamp: schedule.expiresAtTimestamp,
+      expiresAtISO: schedule.expiresAtISO,
+      expiresAtBS: schedule.expiresAtBS,
+      includedServices: servicesToUnlock
+    };
+
+    try {
+      await dbAdapter.createMembership(membershipRecord);
+    } catch (memDbErr: any) {
+      console.warn("[applyLeadApproval Membership DB Notice]:", memDbErr.message);
+    }
+
+    // 4. Persist Payment record
+    const paymentRecord = {
+      id: `PAY-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      userId: effectiveUserId,
+      subscriptionId: membershipId,
+      amountNPR: target.verifiedAmount || target.planAmountNPR || 1200,
+      currency: "NPR",
+      paymentMethod: target.paymentMethod || "esewa",
+      paymentStatus: "paid",
+      transactionReference: target.transactionId || `TX-${Date.now()}`,
+      recordedBy: approvedBy || "SuperAdmin",
+      notes: options?.adminNotes || `Approved lead ${target.id} - ${target.planNameNepali}`,
+      createdAtISO: now.toISOString()
+    };
+
+    try {
+      await dbAdapter.createPayment(paymentRecord);
+    } catch (payDbErr: any) {
+      console.warn("[applyLeadApproval Payment DB Notice]:", payDbErr.message);
+    }
+
+    // 5. Audit Log
+    try {
+      await dbAdapter.createAuditLog({
+        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        action: "MEMBERSHIP_APPROVED",
+        performedBy: approvedBy || "SuperAdmin",
+        targetId: target.id,
+        details: `Approved membership for ${target.fullName} (${target.mobile}) - Plan: ${target.planNameNepali}, Amount: Rs. ${target.verifiedAmount || target.planAmountNPR}`
+      });
+    } catch (auditErr: any) {
+      console.warn("[applyLeadApproval Audit Notice]:", auditErr.message);
+    }
+
+    // 6. Update User Profile if user exists
+    if (matchedUser) {
+      const uIdx = users.findIndex(u => u.id === matchedUser.id);
       if (uIdx > -1) {
         if (servicesToUnlock.includes("jyotish")) {
           users[uIdx].jyotishAccess = {
@@ -1234,10 +1331,12 @@ async function startServer() {
         users[uIdx].subscriptionPlan = target.planNameNepali || "सदस्यता योजना";
         users[uIdx].subscriptionStartAt = schedule.activatedAtISO;
         users[uIdx].subscriptionExpiresAt = schedule.expiresAtISO;
+        users[uIdx].paymentStatus = "paid";
+        users[uIdx].paymentAmountNPR = target.verifiedAmount || target.planAmountNPR || 0;
         saveUsers(users);
 
         try {
-          dbAdapter.updateUser(users[uIdx].id, {
+          await dbAdapter.updateUser(users[uIdx].id, {
             subscriptionPlan: users[uIdx].subscriptionPlan,
             subscriptionStartAt: users[uIdx].subscriptionStartAt,
             subscriptionExpiresAt: users[uIdx].subscriptionExpiresAt,
@@ -1245,8 +1344,10 @@ async function startServer() {
             vastuAccess: users[uIdx].vastuAccess,
             paymentStatus: "paid",
             paymentAmountNPR: target.verifiedAmount || target.planAmountNPR || 0
-          }).catch(e => console.warn('[applyLeadApproval] Central DB update notice:', e.message));
-        } catch {}
+          });
+        } catch (uDbErr: any) {
+          console.warn("[applyLeadApproval] Central DB update notice:", uDbErr.message);
+        }
       }
     }
   };
@@ -1280,14 +1381,27 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "पूरा नाम र मोबाइल नम्बर अनिवार्य छन्।" });
       }
 
+      let authUser: any = null;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        authUser = userSessions.get(token) || authEngine.validateSession(token);
+      }
+
+      const cleanMob = String(leadData.mobile || "").replace(/\D/g, "").slice(-10);
+      const users = getUsers();
+      const matchedUser = users.find(u => (u.phone && String(u.phone).replace(/\D/g, "").slice(-10) === cleanMob) || (leadData.userId && u.id === leadData.userId));
+      const resolvedUserId = (authUser && authUser.userId) || leadData.userId || (matchedUser ? matchedUser.id : null);
+
       const leads = getClientLeads();
       const existingIdx = leads.findIndex((l: any) => 
         (leadData.id && l.id === leadData.id) ||
-        (leadData.mobile && l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === leadData.mobile.replace(/\D/g, "").slice(-10) && l.status === leadData.status)
+        (leadData.mobile && l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === cleanMob && l.status === leadData.status)
       );
 
       const record = {
         id: leadData.id || `LEAD-${Date.now()}`,
+        userId: resolvedUserId,
         fullName: String(leadData.fullName || "").trim(),
         address: String(leadData.birthLocation || leadData.address || "").trim(),
         mobile: String(leadData.mobile || "").trim(),
@@ -1297,7 +1411,7 @@ async function startServer() {
         status: leadData.status || "PURCHASE_PENDING",
         planId: leadData.planId || "yearly_both",
         planNameNepali: leadData.planNameNepali || "१ वर्ष मोबाइल + कम्प्युटर",
-        planAmountNPR: Number(leadData.planAmountNPR) || 5000,
+        planAmountNPR: Number(leadData.planAmountNPR) || 1200,
         paymentMethod: leadData.paymentMethod || "esewa",
         transactionId: String(leadData.transactionId || "").trim(),
         submittedAtISO: leadData.submittedAtISO || new Date().toISOString(),
@@ -1314,9 +1428,7 @@ async function startServer() {
       // Synchronize birth details to user profile if exists
       if (leadData.dobBS || leadData.birthTime || leadData.birthLocation || leadData.gender || leadData.gotra || leadData.jaatBarna) {
         try {
-          const cleanMob = String(leadData.mobile || "").replace(/\D/g, "").slice(-10);
-          const users = getUsers();
-          const uIdx = users.findIndex(u => (u.phone && u.phone.replace(/\D/g, "").slice(-10) === cleanMob) || (leadData.userId && u.id === leadData.userId));
+          const uIdx = users.findIndex(u => (u.phone && String(u.phone).replace(/\D/g, "").slice(-10) === cleanMob) || (resolvedUserId && u.id === resolvedUserId));
           if (uIdx > -1) {
             const birthDetails = {
               ...(users[uIdx].birthDetails || {}),
@@ -1373,14 +1485,22 @@ async function startServer() {
   });
 
   // POST /api/client-leads/:id/approve (Super Admin: Approve client purchase)
-  app.post("/api/client-leads/:id/approve", (req, res) => {
+  app.post("/api/client-leads/:id/approve", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { approvedBy, approvedAtBS, serviceKey, cashVerified, verifiedAmount, adminNotes, planDuration } = req.body;
+      const adminSession = (req as any).superAdmin;
+      const effectiveAdmin = approvedBy || adminSession?.username || "SuperAdmin";
+
       const leads = getClientLeads();
       const target = leads.find((l: any) => l.id === id);
       if (!target) {
         return res.status(404).json({ success: false, error: "आवेदन फेला परेन।" });
+      }
+
+      // Check if already approved
+      if (target.status === "PURCHASE_APPROVED") {
+        return res.status(400).json({ success: false, error: "यो आवेदन पहिले नै स्वीकृत भइसकेको छ।" });
       }
 
       // Mandatory Cash Payment Verification Rule
@@ -1391,18 +1511,24 @@ async function startServer() {
         });
       }
 
-      applyLeadApproval(target, approvedBy, approvedAtBS, serviceKey, {
+      await applyLeadApproval(target, effectiveAdmin, approvedAtBS, serviceKey, {
         cashVerified,
         verifiedAmount,
         adminNotes,
         planDuration
       });
       saveClientLeads(leads);
+
       broadcastRealtimeEvent("PURCHASE_APPROVED", {
         lead: target,
         leadId: target.id,
         mobile: target.mobile,
         status: "PURCHASE_APPROVED"
+      });
+      broadcastRealtimeEvent("MEMBERSHIP_ACTIVATED", {
+        lead: target,
+        mobile: target.mobile,
+        status: "ACTIVE"
       });
 
       return res.json({
@@ -1416,17 +1542,25 @@ async function startServer() {
   });
 
   // POST /api/client-leads/approve-by-tx (Super Admin: Approve by Transaction ID)
-  app.post("/api/client-leads/approve-by-tx", (req, res) => {
+  app.post("/api/client-leads/approve-by-tx", requireSuperAdminAuth, async (req, res) => {
     try {
       const { transactionId, approvedBy, serviceKey, cashVerified, verifiedAmount, adminNotes, planDuration } = req.body;
       if (!transactionId) {
         return res.status(400).json({ success: false, error: "कारोबार नम्बर अनिवार्य छ।" });
       }
+      const adminSession = (req as any).superAdmin;
+      const effectiveAdmin = approvedBy || adminSession?.username || "SuperAdmin";
+
       const cleanTx = String(transactionId).trim().toUpperCase();
       const leads = getClientLeads();
       const target = leads.find((l: any) => l.transactionId && l.transactionId.trim().toUpperCase() === cleanTx);
       if (!target) {
         return res.status(404).json({ success: false, error: `कारोबार नम्बर '${cleanTx}' भएको कुनै पनि आवेदन फेला परेन।` });
+      }
+
+      // Check if already approved
+      if (target.status === "PURCHASE_APPROVED") {
+        return res.status(400).json({ success: false, error: "यो कारोबार नम्बरको आवेदन पहिले नै स्वीकृत भइसकेको छ।" });
       }
 
       if (target.paymentMethod === 'cash' && !cashVerified && !target.cashVerified) {
@@ -1436,18 +1570,24 @@ async function startServer() {
         });
       }
 
-      applyLeadApproval(target, approvedBy, getNepaliBSDate(new Date()), serviceKey, {
+      await applyLeadApproval(target, effectiveAdmin, getNepaliBSDate(new Date()), serviceKey, {
         cashVerified,
         verifiedAmount,
         adminNotes,
         planDuration
       });
       saveClientLeads(leads);
+
       broadcastRealtimeEvent("PURCHASE_APPROVED", {
         lead: target,
         leadId: target.id,
         mobile: target.mobile,
         status: "PURCHASE_APPROVED"
+      });
+      broadcastRealtimeEvent("MEMBERSHIP_ACTIVATED", {
+        lead: target,
+        mobile: target.mobile,
+        status: "ACTIVE"
       });
 
       return res.json({
@@ -1461,7 +1601,7 @@ async function startServer() {
   });
 
   // POST /api/client-leads/:id/reject (Super Admin: Reject client purchase)
-  app.post("/api/client-leads/:id/reject", (req, res) => {
+  app.post("/api/client-leads/:id/reject", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { reason } = req.body;
@@ -1475,6 +1615,12 @@ async function startServer() {
       target.rejectionReason = reason || "रकम रुजु हुन सकेन।";
 
       saveClientLeads(leads);
+      try {
+        await dbAdapter.updateLead(target.id, target);
+      } catch (dbErr: any) {
+        console.warn("[ClientLeads Reject DB Notice]:", dbErr.message);
+      }
+
       broadcastRealtimeEvent("PURCHASE_REJECTED", {
         lead: target,
         leadId: target.id,
@@ -1488,7 +1634,7 @@ async function startServer() {
   });
 
   // DELETE /api/client-leads/:id (Super Admin: Delete client lead)
-  app.delete("/api/client-leads/:id", (req, res) => {
+  app.delete("/api/client-leads/:id", requireSuperAdminAuth, (req, res) => {
     try {
       const { id } = req.params;
       let leads = getClientLeads();
@@ -2136,6 +2282,7 @@ async function startServer() {
       const plan = MEMBERSHIP_PLANS[planId] || MEMBERSHIP_PLANS.yearly_both;
 
       const leadPayload = {
+        userId: effectiveUserId,
         fullName: effectiveFullName,
         address: birthLocation || "नेपाल",
         mobile: cleanPhone,
@@ -2175,11 +2322,11 @@ async function startServer() {
   // ── VISITOR TRACKING & SUPER ADMIN ANALYTICS ──
   app.post("/api/analytics/visit", async (req, res) => {
     try {
-      const record = visitorAnalyticsEngine.trackVisit(req, req.body);
-      if (record) {
-        dbAdapter.recordVisit(record).catch(e => console.warn('[Visit DB Notice]:', e.message));
+      const result = await visitorAnalyticsEngine.trackVisit(req, req.body);
+      if (result.recorded && result.record) {
+        await dbAdapter.recordVisit(result.record).catch(e => console.warn('[Visit DB Notice]:', e.message));
       }
-      return res.json({ success: true, tracked: !!record });
+      return res.json({ success: true, tracked: result.recorded });
     } catch (err: any) {
       return res.json({ success: false, error: err.message });
     }
@@ -2419,18 +2566,42 @@ async function startServer() {
           return (cleanDigits && lPhone === cleanDigits) || l.id === userIdOrPhone;
         });
 
+        let memberships: any[] = [];
+        try {
+          memberships = await dbAdapter.getMemberships();
+        } catch {
+          memberships = [];
+        }
+        const activeMem = memberships.find((m: any) => {
+          const mPhone = String(m.phone || "").replace(/\D/g, "").slice(-10);
+          return (cleanDigits && mPhone === cleanDigits) || m.userId === userIdOrPhone;
+        });
+
+        const effectiveMembership = activeMem || userLead;
+
         const licenses = getServiceLicenses();
         userLicenses = licenses.filter((lic: any) => {
           const licPhone = String(lic.phone || "").replace(/\D/g, "").slice(-10);
           return (cleanDigits && licPhone === cleanDigits) || lic.userId === userIdOrPhone;
         });
+
+        var effectiveUserObj = userObj;
+        if (!effectiveUserObj && activeMem) {
+          effectiveUserObj = {
+            id: activeMem.userId,
+            phone: activeMem.phone,
+            fullName: activeMem.fullName,
+            subscriptionPlan: activeMem.planNameNepali,
+            subscriptionExpiresAt: activeMem.expiresAtISO
+          };
+        }
       }
 
       const entitlement = resolveUserEntitlement({
         userId: userIdOrPhone,
         phone: userIdOrPhone,
-        user: userObj,
-        membership: userLead,
+        user: typeof effectiveUserObj !== 'undefined' ? effectiveUserObj : userObj,
+        membership: typeof effectiveMembership !== 'undefined' ? effectiveMembership : userLead,
         isSuperAdmin: session?.role === "SUPER_ADMIN" || userObj?.role === "SUPER_ADMIN"
       });
 
@@ -2457,7 +2628,7 @@ async function startServer() {
   });
 
   // POST /api/superadmin/memberships/:id/approve (SuperAdmin: Approve Membership & Enforce Cash Verification)
-  app.post("/api/superadmin/memberships/:id/approve", requireSuperAdminAuth, (req, res) => {
+  app.post("/api/superadmin/memberships/:id/approve", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { cashVerified, verifiedAmount, adminNotes, customDuration, approvedAtBS } = req.body;
@@ -2482,7 +2653,7 @@ async function startServer() {
       const leads = getClientLeads();
       const lead = leads.find((l: any) => l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === membership.phone);
       if (lead) {
-        applyLeadApproval(lead, adminId, approvedAtBS, "both", {
+        await applyLeadApproval(lead, adminId, approvedAtBS, "both", {
           cashVerified: membership.cashVerified,
           verifiedAmount: membership.amountNPR,
           adminNotes: membership.adminNotes,
@@ -2501,7 +2672,7 @@ async function startServer() {
           paymentMethod: membership.paymentMethod,
           transactionId: membership.transactionId
         };
-        applyLeadApproval(dummyLead, adminId, approvedAtBS, "both", {
+        await applyLeadApproval(dummyLead, adminId, approvedAtBS, "both", {
           cashVerified: membership.cashVerified,
           verifiedAmount: membership.amountNPR,
           adminNotes: membership.adminNotes,

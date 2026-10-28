@@ -577,9 +577,11 @@ class UnifiedUserSyncService {
 
           if (parsed.type === 'USER_HEARTBEAT') {
             this.recordPresence(parsed.phone || parsed.userId, parsed.timestamp || Date.now());
-            window.dispatchEvent(new CustomEvent('user-presence-updated', { detail: parsed }));
-          } else if ((parsed.type === 'LICENSE_APPROVED' || parsed.type === 'PURCHASE_APPROVED') && (parsed.mobile || parsed.leadId)) {
-            const mobile = parsed.mobile || '';
+          } else if (
+            (parsed.type === 'LICENSE_APPROVED' || parsed.type === 'PURCHASE_APPROVED' || parsed.type === 'MEMBERSHIP_ACTIVATED' || parsed.type === 'MEMBERSHIP_APPROVED') &&
+            (parsed.mobile || parsed.leadId || parsed.membership?.phone || parsed.lead?.mobile)
+          ) {
+            const mobile = parsed.mobile || parsed.membership?.phone || parsed.lead?.mobile || '';
             const norm = this.normalizePhoneOrId(mobile);
             const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
             let isCurrent = false;

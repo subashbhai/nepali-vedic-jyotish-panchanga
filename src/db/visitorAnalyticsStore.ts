@@ -1,4 +1,5 @@
 import { convertADToBS } from '../utils/nepaliCalendar';
+import { apiClient } from '../services/apiClient';
 
 export interface VisitorLogEntry {
   id: string;
@@ -78,11 +79,12 @@ export function sendAnalyticsBeacon(path: string): void {
       deviceType: detectPlatform(),
     };
     const body = JSON.stringify(payload);
+    const endpoint = apiClient.resolveUrl('/api/analytics/visit');
     if (navigator.sendBeacon) {
       const blob = new Blob([body], { type: 'application/json' });
-      navigator.sendBeacon('/api/analytics/visit', blob);
+      navigator.sendBeacon(endpoint, blob);
     } else {
-      fetch('/api/analytics/visit', {
+      fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
