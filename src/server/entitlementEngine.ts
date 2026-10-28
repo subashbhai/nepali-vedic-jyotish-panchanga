@@ -144,12 +144,20 @@ export function resolveUserEntitlement(params: {
   const mStatus = m?.membershipStatus || m?.status;
   const isMemActive = mStatus === 'ACTIVE' || mStatus === 'PURCHASE_APPROVED' || mStatus === 'APPROVED' || (u.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt).getTime() > Date.now());
   if ((m || u.subscriptionExpiresAt) && isMemActive) {
-    const isLifetime = m.duration === 'lifetime';
-    const isBothPlan = m.devices === 'both' || m.planId?.includes('both');
-    const isProfessional = isBothPlan || u.userCategory === 'professional' || m.planType === 'PROFESSIONAL' || m.tier === 'professional' || m.planId?.includes('pro');
+    const mem = m || {
+      planId: u.subscriptionPlan || 'yearly_both',
+      planNameNepali: u.subscriptionPlan || '१ वर्ष मोबाइल + कम्प्युटर',
+      duration: '1_year',
+      devices: 'both',
+      expiresAtISO: u.subscriptionExpiresAt,
+      expiresAtBS: u.jyotishAccess?.expiresAtBS
+    };
+    const isLifetime = mem.duration === 'lifetime';
+    const isBothPlan = mem.devices === 'both' || (mem.planId && String(mem.planId).includes('both'));
+    const isProfessional = isBothPlan || u.userCategory === 'professional' || mem.planType === 'PROFESSIONAL' || mem.tier === 'professional' || (mem.planId && String(mem.planId).includes('pro'));
 
     const now = Date.now();
-    const expiryTime = m.expiresAtTimestamp || (m.expiresAtISO ? new Date(m.expiresAtISO).getTime() : undefined);
+    const expiryTime = mem.expiresAtTimestamp || (mem.expiresAtISO ? new Date(mem.expiresAtISO).getTime() : (u.subscriptionExpiresAt ? new Date(u.subscriptionExpiresAt).getTime() : undefined));
     const remainingMs = expiryTime ? expiryTime - now : Infinity;
     const remainingDays = isLifetime ? 99999 : Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
 
@@ -163,7 +171,7 @@ export function resolveUserEntitlement(params: {
         isTrialActive: false,
         isExpired: false,
         isPendingPayment: false,
-        planNameNepali: m.planNameNepali || 'व्यावसायिक योजना',
+        planNameNepali: mem.planNameNepali || 'व्यावसायिक योजना',
         allowedServices: ['panchanga', 'jyotish', 'vastu', 'karmakanda', 'personal_faladesh', 'professional_tools'],
         isJyotishAllowed: true,
         isVastuAllowed: true,
@@ -171,8 +179,8 @@ export function resolveUserEntitlement(params: {
         isMemberDashboardAllowed: true,
         canAccessPersonalFaladesh: true,
         remainingDays,
-        expiresAtBS: m.expiresAtBS || (isLifetime ? 'आजीवन' : null),
-        messageNepali: `${m.planNameNepali} सक्रिय छ। सम्पूर्ण सुविधाहरू खुला छन्।`,
+        expiresAtBS: mem.expiresAtBS || (isLifetime ? 'आजीवन' : null),
+        messageNepali: `${mem.planNameNepali || 'व्यावसायिक योजना'} सक्रिय छ। सम्पूर्ण सुविधाहरू खुला छन्।`,
         allowedNavTabs: PROFESSIONAL_SERVICE_TABS
       };
     }
@@ -186,7 +194,7 @@ export function resolveUserEntitlement(params: {
       isTrialActive: false,
       isExpired: false,
       isPendingPayment: false,
-      planNameNepali: m.planNameNepali || 'साधारण सदस्य योजना',
+      planNameNepali: mem.planNameNepali || 'साधारण सदस्य योजना',
       allowedServices: ['panchanga', 'jyotish', 'vastu', 'personal_faladesh'],
       isJyotishAllowed: true,
       isVastuAllowed: true,
@@ -194,8 +202,8 @@ export function resolveUserEntitlement(params: {
       isMemberDashboardAllowed: true,
       canAccessPersonalFaladesh: true,
       remainingDays,
-      expiresAtBS: m.expiresAtBS,
-      messageNepali: `${m.planNameNepali} सक्रिय छ।`,
+      expiresAtBS: mem.expiresAtBS,
+      messageNepali: `${mem.planNameNepali || 'साधारण सदस्य योजना'} सक्रिय छ।`,
       allowedNavTabs: REGISTERED_BASE_TABS
     };
   }

@@ -2581,7 +2581,7 @@ async function startServer() {
 
         userLead = leads.find((l: any) => {
           const lPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
-          return (cleanDigits && lPhone === cleanDigits) || l.id === userIdOrPhone;
+          return (cleanDigits && lPhone === cleanDigits) || l.id === userIdOrPhone || (userObj && (l.userId === userObj.id || (userObj.phone && lPhone === String(userObj.phone).replace(/\D/g, "").slice(-10))));
         });
 
         let memberships: any[] = [];
@@ -2592,15 +2592,23 @@ async function startServer() {
         }
         const activeMem = memberships.find((m: any) => {
           const mPhone = String(m.phone || "").replace(/\D/g, "").slice(-10);
-          return (cleanDigits && mPhone === cleanDigits) || m.userId === userIdOrPhone;
+          return (cleanDigits && mPhone === cleanDigits) || m.userId === userIdOrPhone || (userObj && (m.userId === userObj.id || (userObj.phone && mPhone === String(userObj.phone).replace(/\D/g, "").slice(-10))));
         });
 
         const effectiveMembership = activeMem || userLead;
 
-        const licenses = getServiceLicenses();
+        let licenses: any[] = [];
+        try {
+          licenses = await dbAdapter.getServiceLicenses();
+        } catch {
+          licenses = getServiceLicenses();
+        }
+        if (!Array.isArray(licenses) || licenses.length === 0) {
+          licenses = getServiceLicenses();
+        }
         userLicenses = licenses.filter((lic: any) => {
           const licPhone = String(lic.phone || "").replace(/\D/g, "").slice(-10);
-          return (cleanDigits && licPhone === cleanDigits) || lic.userId === userIdOrPhone;
+          return (cleanDigits && licPhone === cleanDigits) || lic.userId === userIdOrPhone || (userObj && (lic.userId === userObj.id || (userObj.phone && licPhone === String(userObj.phone).replace(/\D/g, "").slice(-10))));
         });
 
         var effectiveUserObj = userObj;
