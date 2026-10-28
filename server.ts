@@ -1806,13 +1806,26 @@ async function startServer() {
       }
 
       if (result.token && result.user) {
-        userSessions.set(result.token, {
+        const sessionPayload = {
+          token: result.token,
           userId: result.user.id,
-          role: result.user.role || "user",
+          username: result.user.username,
           phone: result.user.phone,
+          role: result.user.role || "user",
+          userCategory: result.user.userCategory || "visitor",
           expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-        });
+        };
+        userSessions.set(result.token, sessionPayload);
+        dbAdapter.saveSession(result.token, {
+          userId: result.user.id,
+          username: result.user.username,
+          phone: result.user.phone,
+          role: result.user.role || 'user',
+          userCategory: result.user.userCategory || 'visitor',
+          expiresAtISO: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        }).catch(e => console.warn('[Session DB Notice]:', e.message));
         broadcastRealtimeEvent("USER_LOGIN", { user: result.user, token: result.token });
+        result.session = sessionPayload;
       }
 
       return res.json(result);
@@ -2527,6 +2540,11 @@ async function startServer() {
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
         session = userSessions.get(token) || authEngine.validateSession(token);
+        if (!session && dbAdapter) {
+          try {
+            session = await dbAdapter.getSession(token);
+          } catch {}
+        }
       }
 
       const userIdOrPhone = (req.query.userId as string) || (session?.userId) || (session?.phone);
