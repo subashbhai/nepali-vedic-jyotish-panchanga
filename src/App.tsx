@@ -7,6 +7,7 @@ import { SamacharView } from './components/SamacharView';
 import { DailyHoroscopeAlertBanner } from './components/DailyHoroscopeAlertBanner';
 import { getActiveRBACSession, setRBACSession, clearRBACSession, RBACSession } from './db/rbacStore';
 import { RBACAuthModal } from './components/auth/RBACAuthModal';
+import { ResetPasswordModal } from './components/auth/ResetPasswordModal';
 import { SoftwareFullAccessModal } from './components/subscription/SoftwareFullAccessModal';
 import { ClientPurchaseLeadModal } from './components/subscription/ClientPurchaseLeadModal';
 import { ClientThemeNotificationModal } from './components/subscription/ClientThemeNotificationModal';
@@ -676,12 +677,11 @@ export default function App() {
 
       if (hash === 'dashboard' || hash === 'user_dashboard' || hash === 'user-dashboard' || hash === 'my-dashboard' || hash === 'mydashboard' || hash === 'profile') {
         const session = getActiveRBACSession();
-        const cat = session ? (session.role === 'SUPER_ADMIN' ? 'professional' : (localStorage.getItem('balananda_user_category') || (session as any).userCategory || 'visitor')) : 'visitor';
-        if (cat === 'visitor' && session?.role !== 'SUPER_ADMIN') {
+        if (!session) {
           setActiveModule('MAIN');
           setActiveTab('home');
           document.title = TAB_PAGE_TITLES.home;
-          setLockedFeatureName('व्यक्तिगत ड्यासबोर्ड (सदस्यता आवश्यक)');
+          setLockedFeatureName('व्यक्तिगत ड्यासबोर्ड (लगइन वा खाता आवश्यक)');
           setIsClientPurchaseLeadModalOpen(true);
           return;
         }
@@ -794,8 +794,27 @@ export default function App() {
   const [isRBACAuthModalOpen, setIsRBACAuthModalOpen] = useState(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'signin' | 'signup'>('signin');
   const [isSuperAdminAuthModalOpen, setIsSuperAdminAuthModalOpen] = useState(false);
+  const [resetPasswordToken, setResetPasswordToken] = useState<string>('');
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<string | undefined>(undefined);
   const [pasalInitialTab, setPasalInitialTab] = useState<'home' | 'books' | 'books_download' | 'pos' | 'admin'>('home');
+
+  // Listen to single-use password reset link in URL hash (#reset-password?token=...)
+  useEffect(() => {
+    const handleCheckResetHash = () => {
+      const raw = window.location.hash || '';
+      if (raw.toLowerCase().includes('reset-password')) {
+        const match = window.location.href.match(/token=([a-zA-Z0-9_-]+)/);
+        if (match && match[1]) {
+          setResetPasswordToken(match[1]);
+          setIsResetPasswordModalOpen(true);
+        }
+      }
+    };
+    handleCheckResetHash();
+    window.addEventListener('hashchange', handleCheckResetHash);
+    return () => window.removeEventListener('hashchange', handleCheckResetHash);
+  }, []);
 
   // Full Software Access Licensing State
   const [hasFullAccess, setHasFullAccess] = useState<boolean>(() => isSoftwareFullAccessUnlocked() || isClientPurchaseApproved());
@@ -1317,7 +1336,8 @@ export default function App() {
       ? (rbacSession.role === 'SUPER_ADMIN' ? 'professional' : ((localStorage.getItem('balananda_user_category') || (rbacSession as any).userCategory || 'visitor') as string))
       : 'visitor';
 
-    if (userCategory === 'visitor') {
+    // Unauthenticated anonymous visitor
+    if (!rbacSession) {
       if (resolved === 'jyotishi' || resolved === 'aarje' || resolved === 'vastu' || resolved === 'user_dashboard') {
         setLockedFeatureName(
           resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' :
@@ -1328,7 +1348,8 @@ export default function App() {
       }
     }
 
-    if (userCategory === 'member') {
+    // Authenticated user without professional plan attempting to access professional tools
+    if (rbacSession && userCategory !== 'professional' && rbacSession.role !== 'SUPER_ADMIN') {
       if (resolved === 'jyotishi' || resolved === 'aarje' || resolved === 'vastu') {
         setLockedFeatureName(
           resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' : 'वास्तु सेवा'
@@ -2872,6 +2893,23 @@ export default function App() {
             } else if (session.role === 'MARRIAGE_MODERATOR') {
               if (activeTab === 'home' || activeTab === 'dashboard') navigateTab('vivah_admin');
             }
+          }}
+        />
+
+        <ResetPasswordModal
+          isOpen={isResetPasswordModalOpen}
+          token={resetPasswordToken}
+          onClose={() => {
+            setIsResetPasswordModalOpen(false);
+            setResetPasswordToken('');
+            if (window.location.hash.includes('reset-password')) {
+              window.location.hash = '#home';
+            }
+          }}
+          onResetSuccess={() => {
+            setIsResetPasswordModalOpen(false);
+            setResetPasswordToken('');
+            setIsRBACAuthModalOpen(true);
           }}
         />
 

@@ -18,7 +18,10 @@ import {
   Zap,
   Crown,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  User,
+  Calendar,
+  Award
 } from 'lucide-react';
 import {
   start24HourTrialAsync,
@@ -30,6 +33,8 @@ import {
   isClientPurchaseApproved
 } from '../../db/clientLeadStore';
 import { getActiveRBACSession } from '../../db/rbacStore';
+import { getUserPersonalBirthProfile } from '../../db/profileStore';
+import { convertBSToADFull } from '../../utils/bsCalendarData';
 
 interface ClientPurchaseLeadModalProps {
   isOpen: boolean;
@@ -47,12 +52,57 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   targetFeatureName = 'ज्योतिष / वास्तुशास्त्र',
   initialMode = 'trial_or_purchase',
 }) => {
-  // Form fields
+  // Form fields (Registration fields)
   const [fullName, setFullName] = useState('');
   const [address, setAddress] = useState('');
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+
+  // Additional mandatory birth details
+  const [dobBS, setDobBS] = useState('२०४६-०५-१५');
+  const [birthTime, setBirthTime] = useState('०६:३०');
+  const [birthLocation, setBirthLocation] = useState('काठमाडौँ');
+  const [gender, setGender] = useState('पुरुष');
+
+  // Optional cultural details
+  const [gotra, setGotra] = useState('');
+  const [customGotra, setCustomGotra] = useState('');
+  const [jaatBarna, setJaatBarna] = useState('');
+  const [customJaat, setCustomJaat] = useState('');
+
+  // Master cultural lists
+  const [gotraList, setGotraList] = useState<string[]>([
+    'कश्यप', 'भारद्वाज', 'वशिष्ठ', 'विश्वामित्र', 'गौतम', 'जमदग्नि', 'अत्रि', 'अगस्त्य', 
+    'गर्ग', 'कौडिन्य', 'उपमन्यु', 'पराशर', 'शाण्डिल्य', 'धनञ्जय', 'माधव', 'आत्रेय', 
+    'घृतकौशिक', 'मौद्गल्य', 'कौशिक', 'अंगिरस', 'हरित', 'माण्डव्य', 'अन्य / सूचीमा छैन'
+  ]);
+  const [jaatList, setJaatList] = useState<string[]>([
+    'ब्राह्मण (पर्वते)', 'क्षेत्री', 'ठकुरी', 'संन्यासी / दशनामी', 'नेवार', 'मगर', 
+    'गुरुङ', 'राई', 'लिम्बु', 'तामाङ', 'शेर्पा', 'थारु', 'यादव', 'दलित समुदाय', 
+    'मधेशी समुदाय', 'मुस्लिम समुदाय', 'अन्य / सूचीमा छैन'
+  ]);
+
+  // Fetch cultural data from backend
+  useEffect(() => {
+    fetch('/api/cultural-data')
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.success && d.data) {
+          if (Array.isArray(d.data.gotras) && d.data.gotras.length > 0) {
+            const names = d.data.gotras.map((g: any) => g.nameNepali);
+            if (!names.includes('अन्य / सूचीमा छैन')) names.push('अन्य / सूचीमा छैन');
+            setGotraList(names);
+          }
+          if (Array.isArray(d.data.jaatBarna) && d.data.jaatBarna.length > 0) {
+            const names = d.data.jaatBarna.map((j: any) => j.nameNepali);
+            if (!names.includes('अन्य / सूचीमा छैन')) names.push('अन्य / सूचीमा छैन');
+            setJaatList(names);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Purchase Sub-state
   const [showPurchasePlans, setShowPurchasePlans] = useState(initialMode === 'purchase_only');
@@ -76,6 +126,22 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
   const activeSession = getActiveRBACSession();
   const prevIsOpenRef = useRef(false);
 
+  // Restore pending plan if redirected from login
+  useEffect(() => {
+    try {
+      const savedCat = sessionStorage.getItem('balananda_pending_plan_category');
+      const savedPlat = sessionStorage.getItem('balananda_pending_plan_platform');
+      if (savedCat === 'yearly' || savedCat === 'lifetime') {
+        setSelectedPlanCategory(savedCat);
+        sessionStorage.removeItem('balananda_pending_plan_category');
+      }
+      if (savedPlat === 'both' || savedPlat === 'desktop' || savedPlat === 'mobile') {
+        setSelectedPlatform(savedPlat);
+        sessionStorage.removeItem('balananda_pending_plan_platform');
+      }
+    } catch {}
+  }, []);
+
   // 1. Initialise form and plan state ONLY when modal transitions from closed to open
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
@@ -94,6 +160,15 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
           if (!whatsapp) setWhatsapp(ph);
         }
         if ((session as any).email && !email) setEmail((session as any).email);
+
+        const prof = getUserPersonalBirthProfile(session.userId, session.fullName, session.phone || session.username);
+        if (prof) {
+          if (prof.dateBS) setDobBS(prof.dateBS);
+          if (prof.time) setBirthTime(prof.time);
+          if (prof.location?.name || prof.location?.district) setBirthLocation(prof.location.name || prof.location.district || '');
+          if (prof.gender) setGender(prof.gender);
+          if (prof.gotra) setGotra(prof.gotra);
+        }
       }
     }
     prevIsOpenRef.current = isOpen;
@@ -117,13 +192,19 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
 
   if (!isOpen) return null;
 
-  // Validation: all 5 fields required
+  // Validation: all 5 registration fields + mandatory birth details
+  const isBirthValid =
+    dobBS.trim().length >= 8 &&
+    birthTime.trim().length >= 3 &&
+    birthLocation.trim().length >= 2;
+
   const isFormValid =
     fullName.trim().length >= 3 &&
     address.trim().length >= 3 &&
     mobile.trim().length >= 10 &&
     email.trim().includes('@') &&
-    whatsapp.trim().length >= 10;
+    whatsapp.trim().length >= 10 &&
+    isBirthValid;
 
   // Compute pricing
   const planPricing: Record<string, { label: string; price: number; formatted: string; desc: string; icon: any; popular?: boolean }> = {
@@ -259,11 +340,24 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
     }
 
     if (!isFormValid) {
-      setErrorMsg('कृपया नाम, ठेगाना, मोबाइल नं., इमेल र ह्वाट्सएप नम्बर सबै अनिवार्य रूपमा भर्नुहोस्।');
+      setErrorMsg('कृपया नाम, ठेगाना, मोबाइल नं., इमेल, जन्ममिति (BS), जन्म समय र स्थान अनिवार्य रूपमा भर्नुहोस्।');
       return;
     }
 
     const finalTx = transactionCode.trim() || 'भुक्तानी रुजु बाँकी (Pending eSewa)';
+
+    let calculatedAD = '';
+    if (dobBS) {
+      try {
+        const parts = dobBS.split('-').map(p => parseInt(p, 10));
+        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+          calculatedAD = convertBSToADFull(parts[0], parts[1], parts[2]);
+        }
+      } catch {}
+    }
+
+    const finalGotra = gotra === 'अन्य / सूचीमा छैन' ? customGotra.trim() : gotra;
+    const finalJaat = jaatBarna === 'अन्य / सूचीमा छैन' ? customJaat.trim() : jaatBarna;
 
     setIsSubmitting(true);
     try {
@@ -278,6 +372,13 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
         planAmountNPR: currentPlan.price,
         paymentMethod: selectedGateway,
         transactionId: finalTx,
+        dobBS: dobBS.trim(),
+        dobAD: calculatedAD,
+        birthTime: birthTime.trim(),
+        birthLocation: birthLocation.trim(),
+        gender,
+        gotra: finalGotra,
+        jaatBarna: finalJaat,
       });
 
       if (res.success) {
@@ -425,15 +526,27 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
                   {/* Name */}
                   <div>
-                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
-                      पूरा नाम (Full Name) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-stone-600 dark:text-stone-300 font-bold">
+                        पूरा नाम (Full Name) *
+                      </label>
+                      {activeSession && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          🔒 स्वतः भरिएको
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="text"
                       placeholder="उदा: पं. रामप्रसाद शर्मा"
                       value={fullName}
+                      readOnly={Boolean(activeSession)}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                      className={`w-full px-3 py-2 border rounded-xl focus:border-amber-500 focus:outline-none ${
+                        activeSession 
+                          ? 'bg-stone-100 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 cursor-not-allowed font-medium' 
+                          : 'bg-white dark:bg-stone-900 border-stone-300 dark:border-stone-700'
+                      }`}
                     />
                   </div>
 
@@ -453,15 +566,27 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
 
                   {/* Mobile No */}
                   <div>
-                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
-                      मोबाइल नम्बर (Mobile No.) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-stone-600 dark:text-stone-300 font-bold">
+                        मोबाइल नम्बर (Mobile No.) *
+                      </label>
+                      {activeSession && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          🔒 स्वतः भरिएको
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="tel"
                       placeholder="९८xxxxxxxx / ९७xxxxxxxx"
                       value={mobile}
+                      readOnly={Boolean(activeSession)}
                       onChange={(e) => setMobile(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                      className={`w-full px-3 py-2 border rounded-xl focus:border-amber-500 focus:outline-none ${
+                        activeSession 
+                          ? 'bg-stone-100 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 cursor-not-allowed font-mono' 
+                          : 'bg-white dark:bg-stone-900 border-stone-300 dark:border-stone-700'
+                      }`}
                     />
                   </div>
 
@@ -481,16 +606,168 @@ export const ClientPurchaseLeadModal: React.FC<ClientPurchaseLeadModalProps> = (
 
                   {/* Email ID */}
                   <div className="sm:col-span-2">
-                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
-                      इमेल ठेगाना (Email ID) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-stone-600 dark:text-stone-300 font-bold">
+                        इमेल ठेगाना (Email ID) *
+                      </label>
+                      {activeSession && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          🔒 खातासँग बाँधिएको
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="email"
                       placeholder="example@gmail.com"
                       value={email}
+                      readOnly={Boolean(activeSession && (activeSession as any).email)}
                       onChange={(e) => setEmail(e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-xl focus:border-amber-500 focus:outline-none ${
+                        activeSession && (activeSession as any).email 
+                          ? 'bg-stone-100 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 cursor-not-allowed' 
+                          : 'bg-white dark:bg-stone-900 border-stone-300 dark:border-stone-700'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* १.१. अनिवार्य जन्म विवरण (कुण्डली तथा फलादेश) */}
+              <div className="space-y-3 bg-amber-500/5 dark:bg-amber-950/20 p-4 rounded-2xl border border-amber-500/30">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-amber-500" />
+                    <span>जन्म विवरण (कुण्डली तथा फलादेशका लागि अनिवार्य)</span>
+                  </h4>
+                  <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700">
+                    ४ वटै अनिवार्य
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                  {/* DOB BS */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                      जन्म मिति (वि.सं.) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="उदा: २०४६-०५-१५"
+                      value={dobBS}
+                      onChange={(e) => setDobBS(e.target.value)}
                       className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
                     />
+                  </div>
+
+                  {/* TOB */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                      जन्म समय (Birth Time) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="उदा: ०६:३०"
+                      value={birthTime}
+                      onChange={(e) => setBirthTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Birth Place */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                      जन्म स्थान (जिल्ला / शहर) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="उदा: काठमाडौँ"
+                      value={birthLocation}
+                      onChange={(e) => setBirthLocation(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Gender */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                      लिङ्ग (Gender) *
+                    </label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none cursor-pointer"
+                    >
+                      <option value="पुरुष">पुरुष (Male)</option>
+                      <option value="महिला">महिला (Female)</option>
+                      <option value="अन्य">अन्य (Other)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* १.२. सांस्कृतिक तथा परम्परागत विवरण (ऐच्छिक) */}
+              <div className="space-y-3 bg-stone-50 dark:bg-stone-800/60 p-4 rounded-2xl border border-stone-200 dark:border-stone-700">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-amber-500" />
+                    <span>सांस्कृतिक तथा परम्परागत विवरण (ऐच्छिक / Non-blocking)</span>
+                  </h4>
+                  <span className="text-[10px] text-stone-500 font-medium">
+                    कुण्डली मिलान तथा पूजाका लागि
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                  {/* Gotra */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                      गोत्र (Gotra)
+                    </label>
+                    <select
+                      value={gotra}
+                      onChange={(e) => setGotra(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">-- गोत्र छनोट गर्नुहोस् --</option>
+                      {gotraList.map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                    {gotra === 'अन्य / सूचीमा छैन' && (
+                      <input
+                        type="text"
+                        placeholder="आफ्नो गोत्र टाइप गर्नुहोस्"
+                        value={customGotra}
+                        onChange={(e) => setCustomGotra(e.target.value)}
+                        className="mt-2 w-full px-3 py-2 bg-white dark:bg-stone-900 border border-amber-400 rounded-xl focus:outline-none"
+                      />
+                    )}
+                  </div>
+
+                  {/* Jaat / Barna */}
+                  <div>
+                    <label className="block text-stone-600 dark:text-stone-300 font-bold mb-1">
+                      जात / वर्ण (Community / Caste)
+                    </label>
+                    <select
+                      value={jaatBarna}
+                      onChange={(e) => setJaatBarna(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl focus:border-amber-500 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">-- जात/वर्ण छनोट गर्नुहोस् --</option>
+                      {jaatList.map((j) => (
+                        <option key={j} value={j}>{j}</option>
+                      ))}
+                    </select>
+                    {jaatBarna === 'अन्य / सूचीमा छैन' && (
+                      <input
+                        type="text"
+                        placeholder="आफ्नो जात/वर्ण टाइप गर्नुहोस्"
+                        value={customJaat}
+                        onChange={(e) => setCustomJaat(e.target.value)}
+                        className="mt-2 w-full px-3 py-2 bg-white dark:bg-stone-900 border border-amber-400 rounded-xl focus:outline-none"
+                      />
+                    )}
                   </div>
                 </div>
               </div>

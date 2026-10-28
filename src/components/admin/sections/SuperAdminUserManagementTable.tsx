@@ -38,7 +38,8 @@ import {
   Send,
   Plus,
   Sliders,
-  Upload
+  Upload,
+  Key
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { unifiedUserSyncService, REALTIME_SSE_URL, getRealtimeSSEUrl, isLocalhostEnvironment } from '../../../services/unifiedUserSyncService';
@@ -51,6 +52,7 @@ import { calculateRemainingDays, isLicenseExpired } from '../../../utils/license
 export interface SuperAdminUser {
   id: string;
   customerId: string;
+  username?: string;
   fullName: string;
   address: string;
   phone: string;
@@ -239,6 +241,83 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
     setVerifiedAmountInput(lead.verifiedAmount || lead.planAmountNPR || 2100);
     setShowRejectBox(false);
     setRejectionReasonInput('');
+  };
+
+  // Password Reset Link Generation State
+  const [resetModalData, setResetModalData] = useState<{
+    isOpen: boolean;
+    user: SuperAdminUser | null;
+    link: string;
+    loading: boolean;
+    error: string | null;
+    copied: boolean;
+    remainingSeconds: number;
+  } | null>(null);
+
+  const handleGeneratePasswordResetLink = async (user: SuperAdminUser) => {
+    setResetModalData({
+      isOpen: true,
+      user,
+      link: '',
+      loading: true,
+      error: null,
+      copied: false,
+      remainingSeconds: 1200
+    });
+
+    try {
+      const res = await fetch(`/api/superadmin/users/${encodeURIComponent(user.id)}/generate-reset-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await res.json();
+      if (result.success && result.resetLink) {
+        setResetModalData(prev => prev ? {
+          ...prev,
+          link: result.resetLink,
+          loading: false,
+          remainingSeconds: result.expiresInSeconds || 1200
+        } : null);
+      } else {
+        setResetModalData(prev => prev ? {
+          ...prev,
+          loading: false,
+          error: result.error || 'लिङ्क सिर्जना गर्न सकिएन।'
+        } : null);
+      }
+    } catch {
+      setResetModalData(prev => prev ? {
+        ...prev,
+        loading: false,
+        error: 'सर्भरसँग सम्पर्क हुन सकेन।'
+      } : null);
+    }
+  };
+
+  useEffect(() => {
+    if (!resetModalData?.isOpen || !resetModalData?.link) return;
+    const timer = setInterval(() => {
+      setResetModalData(prev => {
+        if (!prev || prev.remainingSeconds <= 1) {
+          clearInterval(timer);
+          return prev ? { ...prev, remainingSeconds: 0 } : null;
+        }
+        return { ...prev, remainingSeconds: prev.remainingSeconds - 1 };
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resetModalData?.isOpen, resetModalData?.link]);
+
+  const handleCopyResetLink = () => {
+    if (resetModalData?.link && navigator.clipboard) {
+      navigator.clipboard.writeText(resetModalData.link);
+      setResetModalData(prev => prev ? { ...prev, copied: true } : null);
+      setTimeout(() => {
+        setResetModalData(prev => prev ? { ...prev, copied: false } : null);
+      }, 2000);
+    }
   };
 
   // Permanent Delete Modal States & Handlers
@@ -1926,6 +2005,17 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              handleGeneratePasswordResetLink(user);
+                            }}
+                            className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
+                            title="पासवर्ड रिसेट लिङ्क सिर्जना गर्नुहोस् (Generate Password Reset Link)"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setUserToDelete(user);
                             }}
                             className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
@@ -2455,6 +2545,16 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                   </button>
                 </>
               )}
+              <button
+                onClick={() => {
+                  handleGeneratePasswordResetLink(contextMenu.user!);
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                }}
+                className="w-full text-left px-3.5 py-1.5 hover:bg-amber-950/60 text-amber-300 flex items-center gap-2.5 font-bold transition-colors"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>पासवर्ड रिसेट लिङ्क सिर्जना गर्नुहोस्</span>
+              </button>
             </div>
 
             {/* Section C: सेवा तथा लाइसेन्स व्यवस्थापन */}
@@ -3935,6 +4035,98 @@ export const SuperAdminUserManagementTable: React.FC<SuperAdminUserManagementTab
                 <Trash2 className="w-4 h-4" />
                 <span>{isDeleting ? 'हटाउँदैछ...' : 'स्थायी रूपमा हटाउनुहोस् (Delete)'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PASSWORD RESET LINK GENERATION MODAL ── */}
+      {resetModalData?.isOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-stone-900 border-2 border-amber-500/80 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden my-auto text-stone-100">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#7A1C1C] via-[#9B2C2C] to-[#5C1515] p-4 sm:p-5 flex items-center justify-between text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5 text-amber-300" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg font-serif">
+                    पासवर्ड रिसेट लिङ्क सिर्जना
+                  </h3>
+                  <p className="text-xs text-amber-200/90 mt-0.5">
+                    {resetModalData.user?.fullName} ({resetModalData.user?.phone})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetModalData(null)}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5 sm:p-6 space-y-4 text-xs">
+              {resetModalData.loading ? (
+                <div className="py-12 text-center text-stone-400 space-y-3">
+                  <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
+                  <p className="font-bold text-stone-200">सुरक्षित ३२-बाइट एकल प्रयोग टोकन सिर्जना गरिँदैछ...</p>
+                </div>
+              ) : resetModalData.error ? (
+                <div className="p-4 bg-rose-500/15 border border-rose-500/40 rounded-2xl text-rose-300 flex items-center gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                  <span>{resetModalData.error}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-200 space-y-1.5 leading-relaxed">
+                    <div className="flex items-center justify-between font-bold text-amber-300">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-amber-400" />
+                        <span>लिङ्क म्याद (२० मिनेट):</span>
+                      </span>
+                      <span className="font-mono text-sm bg-amber-950 px-2 py-0.5 rounded border border-amber-800">
+                        {Math.floor(resetModalData.remainingSeconds / 60)} मिनेट {resetModalData.remainingSeconds % 60} सेकेन्ड
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-300">
+                      यो लिङ्क <strong>एक पटक मात्र प्रयोग</strong> गर्न सकिनेछ। प्रयोगकर्ताले पासवर्ड रिसेट गर्नासाथ पुराना सबै सत्रहरू (sessions) स्वतः बन्द हुनेछन्।
+                    </p>
+                  </div>
+
+                  {/* Reset Link Box */}
+                  <div className="space-y-1.5">
+                    <label className="block text-stone-400 font-bold">
+                      उत्पन्न गरिएको आधिकारिक पासवर्ड रिसेट लिङ्क :
+                    </label>
+                    <div className="p-3 bg-stone-950 border border-stone-800 rounded-xl font-mono text-[11px] text-amber-300 break-all select-all">
+                      {resetModalData.link}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-stone-800">
+                    <button
+                      type="button"
+                      onClick={() => setResetModalData(null)}
+                      className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold rounded-xl cursor-pointer"
+                    >
+                      बन्द गर्नुहोस्
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyResetLink}
+                      className="px-5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:brightness-110 text-white font-bold rounded-xl shadow-lg flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {resetModalData.copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{resetModalData.copied ? 'प्रतिलिपि भयो (Copied)' : 'लिङ्क प्रतिलिपि बनाउनुहोस् (Copy Link)'}</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

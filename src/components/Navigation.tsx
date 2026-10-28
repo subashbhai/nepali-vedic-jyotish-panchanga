@@ -651,8 +651,9 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   }, [rbacSession]);
 
   const visibleNavItems = useMemo(() => {
-    if (userCategory === 'visitor') {
-      // Phase 5: Exactly 8 visitor menus: Faladesh, Home, Panchanga, Membership, Bibaha, Yajaman, Samachar, Institution
+    // 1. Unauthenticated anonymous visitor
+    if (!rbacSession) {
+      // Visitor menus: Faladesh (preview), Home, Panchanga, Membership, Bibaha, Yajaman, Samachar, Institution
       // Jyotish, Vastu, and personal dashboard are strictly hidden!
       return baseNavItems.filter((item) => {
         if (item.id === 'jyotishi' || item.id === 'vastu' || item.id === 'user_dashboard') return false;
@@ -660,21 +661,17 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       });
     }
 
-    if (userCategory === 'member') {
-      // Phase 7: Member User has visitor menus PLUS member dashboard. Jyotish & Vastu remain hidden!
-      return baseNavItems.filter((item) => {
-        if (item.id === 'jyotishi' || item.id === 'vastu') return false;
-        return isTabVisibleInNavigation(item.id).visible;
-      });
-    }
-
-    // Professional User: All legitimately available software features unlocked!
+    // 2. Authenticated user (registered user, member, or professional/superadmin)
+    // Standalone top-bar faladesh is hidden (lives inside Dashboard)
+    // Personal user_dashboard is accessible to all logged-in users
+    // Paid Jyotish & Vastu are unlocked only if entitled or superadmin
     return baseNavItems.filter((item) => {
+      if (item.id === 'faladesh') return false;
       if (item.id === 'jyotishi' && !isJyotishUnlocked && rbacSession?.role !== 'SUPER_ADMIN') return false;
       if (item.id === 'vastu' && !isVastuUnlocked && rbacSession?.role !== 'SUPER_ADMIN') return false;
       return isTabVisibleInNavigation(item.id).visible;
     });
-  }, [baseNavItems, pageServiceCfg, navVersion, isJyotishUnlocked, isVastuUnlocked, userCategory]);
+  }, [baseNavItems, pageServiceCfg, navVersion, isJyotishUnlocked, isVastuUnlocked, userCategory, rbacSession]);
 
   return (
     <nav className="text-[#2D241E] dark:text-stone-100 transition-colors">
@@ -863,13 +860,13 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               }
 
               // 3-Tier Access Control Enforcement
-              if (userCategory === 'visitor' && (isJyotishi || isVastu || item.id === 'user_dashboard')) {
-                alert('यो सुविधा प्रयोग गर्न कृपया सदस्यता लिनुहोस् वा नवीकरण गर्नुहोस्।');
+              if (!rbacSession && (isJyotishi || isVastu || item.id === 'user_dashboard')) {
+                alert('यो सुविधा प्रयोग गर्न कृपया लगइन गर्नुहोस् वा नयाँ खाता खोल्नुहोस्।');
                 onTabChange('membership');
                 return;
               }
 
-              if (userCategory === 'member' && (isJyotishi || isVastu)) {
+              if (rbacSession && (isJyotishi || isVastu) && !isJyotishUnlocked && rbacSession.role !== 'SUPER_ADMIN') {
                 alert('ज्योतिष तथा वास्तु सम्बन्धी सम्पूर्ण व्यावसायिक सुविधाहरू प्रयोग गर्न व्यावसायिक सदस्यता (Professional Plan) मा अपग्रेड गर्नुहोस्।');
                 onTabChange('membership');
                 return;
@@ -1848,7 +1845,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                     </button>
                   )}
 
-                  {isTabVisibleInNavigation('user_dashboard').visible && (
+                  {rbacSession && isTabVisibleInNavigation('user_dashboard').visible && (
                     <button
                       type="button"
                       onClick={() => {

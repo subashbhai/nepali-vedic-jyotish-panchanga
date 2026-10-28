@@ -63,6 +63,8 @@ interface FaladeshViewProps {
   sadeSatiStatus: string;
   gochar?: GocharTransitResult;
   onNewProfile?: () => void;
+  hideNewKundali?: boolean;
+  hidePrint?: boolean;
 }
 
 export const FaladeshView: React.FC<FaladeshViewProps> = ({
@@ -75,6 +77,8 @@ export const FaladeshView: React.FC<FaladeshViewProps> = ({
   sadeSatiStatus,
   gochar,
   onNewProfile,
+  hideNewKundali = false,
+  hidePrint = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'life_areas' | 'parashara_shloka' | 'graha_phal' | 'bhava_phal' | 'bhavesh_varga' | 'yoga_dosha' | 'dasha_timeline' | 'qna_engine' | 'report_print'>('life_areas');
   const [astrologerNotes, setAstrologerNotes] = useState<string>('जातकको कुण्डलीमा शुभ ग्रहहरूको स्थिति अनुकूल रहेकाले प्रयत्न र अनुशासनले मनोकाङ्क्षा पूरा हुनेछ।');
@@ -163,7 +167,7 @@ export const FaladeshView: React.FC<FaladeshViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {onNewProfile && (
+            {!hideNewKundali && onNewProfile && (
               <button
                 onClick={onNewProfile}
                 className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-all cursor-pointer ring-1 ring-amber-500/50"
@@ -173,13 +177,15 @@ export const FaladeshView: React.FC<FaladeshViewProps> = ({
                 <span>नयाँ कुण्डली (New Kundali)</span>
               </button>
             )}
-            <button
-              onClick={handlePrint}
-              className="px-3 py-2 bg-[#FDFCF8] dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 text-[#2D241E] dark:text-stone-200 rounded-xl text-xs font-medium hover:bg-[#F5F2EB] dark:hover:bg-stone-700 flex items-center gap-1.5 transition-colors"
-            >
-              <Printer className="w-4 h-4 text-[#D97706]" />
-              <span>छपाइ (Print)</span>
-            </button>
+            {!hidePrint && (
+              <button
+                onClick={handlePrint}
+                className="px-3 py-2 bg-[#FDFCF8] dark:bg-stone-800 border border-[#E6E0D5] dark:border-stone-700 text-[#2D241E] dark:text-stone-200 rounded-xl text-xs font-medium hover:bg-[#F5F2EB] dark:hover:bg-stone-700 flex items-center gap-1.5 transition-colors"
+              >
+                <Printer className="w-4 h-4 text-[#D97706]" />
+                <span>छपाइ (Print)</span>
+              </button>
+            )}
             <button
               onClick={handleDownloadPDF}
               className="px-3.5 py-2 bg-[#D97706] text-white rounded-xl text-xs font-semibold hover:bg-[#B45309] shadow-sm flex items-center gap-1.5 transition-colors"

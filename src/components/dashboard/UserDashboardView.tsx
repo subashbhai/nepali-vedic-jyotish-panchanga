@@ -63,6 +63,8 @@ import {
 } from '../../utils/personalizedRashifalEngine';
 import { getUnifiedNativeDailyPrediction, UnifiedNativeDailyPrediction } from '../../utils/unifiedAstroFaladeshChain';
 import { ImageCropModal } from '../ImageCropModal';
+import { FaladeshView } from '../FaladeshView';
+import { calculateGocharAndSadeSati } from '../../utils/gocharEngine';
 
 interface UserDashboardViewProps {
   rbacSession: RBACSession | null;
@@ -383,6 +385,39 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
   };
 
   // ── Astrological Personal Calculations ──
+  const [dashboardTab, setDashboardTab] = useState<'overview' | 'faladesh'>('overview');
+
+  // Current-Time Kundali calculation for Dashboard Faladesh (Asia/Kathmandu local time)
+  const liveMomentProfile = useMemo(() => {
+    return getLiveCurrentMomentProfile();
+  }, []);
+
+  const faladeshAstroData = useMemo(() => {
+    const prof = liveMomentProfile;
+    const ad = prof.dateAD || todayAD;
+    const time = prof.time || '12:00';
+    const lat = prof.location?.latitude ?? 27.7172;
+    const lng = prof.location?.longitude ?? 85.3240;
+    const tz = prof.location?.timeZone ?? 5.75;
+    try {
+      const calc = getCachedAstroCalculation(ad, time, lat, lng, tz, 'Lahiri');
+      const gch = calculateGocharAndSadeSati(calc.moon, transitPlanets, todayAD);
+      return {
+        profile: prof,
+        lagna: calc.lagna,
+        planets: calc.planets,
+        dasha: calc.dasha,
+        yogas: calc.yogas,
+        panchanga: calc.panchanga || todayPanchanga,
+        sadeSatiStatus: gch.sadeSati?.status || 'अनुकूल',
+        gochar: gch
+      };
+    } catch (err) {
+      console.warn('Faladesh astro computation error in Dashboard:', err);
+      return null;
+    }
+  }, [liveMomentProfile, todayAD, transitPlanets, todayPanchanga]);
+
   const currentBS = useMemo(() => convertADToBSFull(new Date(todayAD)), [todayAD]);
   const [activeTimeframe, setActiveTimeframe] = useState<'daily' | 'monthly' | 'yearly'>('daily');
 
@@ -627,6 +662,57 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
         </div>
       </div>
 
+      {/* ── 1.5 SUB-NAVIGATION TABS (OVERVIEW vs FALADESH) ── */}
+      <div className="flex flex-wrap items-center gap-2.5 bg-white dark:bg-stone-900 p-2 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setDashboardTab('overview')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            dashboardTab === 'overview'
+              ? 'bg-gradient-to-r from-[#7A1C1C] to-[#92400E] text-white shadow-md'
+              : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>मेरो राशिफल तथा सिंहावलोकन</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setDashboardTab('faladesh')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            dashboardTab === 'faladesh'
+              ? 'bg-gradient-to-r from-[#7A1C1C] to-[#92400E] text-white shadow-md'
+              : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+          }`}
+        >
+          <Compass className="w-4 h-4 text-amber-300" />
+          <span>वैदिक फलादेश (Current-Time Kundali)</span>
+        </button>
+      </div>
+
+      {dashboardTab === 'faladesh' ? (
+        <div className="space-y-4 animate-in fade-in">
+          {faladeshAstroData ? (
+            <FaladeshView
+              profile={faladeshAstroData.profile}
+              lagna={faladeshAstroData.lagna}
+              planets={faladeshAstroData.planets}
+              panchanga={faladeshAstroData.panchanga}
+              yogas={faladeshAstroData.yogas}
+              dasha={faladeshAstroData.dasha}
+              sadeSatiStatus={faladeshAstroData.sadeSatiStatus}
+              gochar={faladeshAstroData.gochar}
+              hideNewKundali={true}
+              hidePrint={true}
+            />
+          ) : (
+            <div className="p-8 text-center text-stone-500 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
+              फलादेश गणना हुँदैछ, कृपया केही क्षण प्रतिक्षा गर्नुहोस्...
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       {/* ── 2. QUICK PERSONAL LUCKY METRICS BAR ── */}
       {/* ── 2. QUICK PERSONAL LUCKY METRICS BAR (UNIFIED ZERO-DISCREPANCY CHAIN) ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
@@ -1171,6 +1257,8 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
           );
         })()}
       </div>
+      </>
+      )}
 
       {/* ── 7. IMAGE CROP / UPLOAD MODAL ── */}
       <ImageCropModal

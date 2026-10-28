@@ -33,13 +33,16 @@ export interface TableCounts {
   sessions: number;
   notifications: number;
   auditLogs: number;
+  visitorAnalytics?: number;
+  resetTokens?: number;
+  culturalItems?: number;
 }
 
 export interface BackupSnapshot {
   timestampISO: string;
   backupFile: string;
   counts: TableCounts;
-  snapshot: Record<string, any[]>;
+  snapshot: Record<string, any>;
 }
 
 export interface ResetUserDataResult {
@@ -96,6 +99,19 @@ export interface IDatabaseAdapter {
   getAuditLogs(): Promise<any[]>;
   createAuditLog(log: any): Promise<any>;
 
+  // Visitor Analytics
+  recordVisit(visit: any): Promise<any>;
+  getVisitorAnalytics(params?: any): Promise<any>;
+
+  // Password Reset Tokens
+  createPasswordResetToken(data: any): Promise<any>;
+  findValidPasswordResetToken(tokenHash: string): Promise<any | null>;
+  markPasswordResetTokenUsed(tokenHash: string, metadata?: any): Promise<boolean>;
+
+  // Master Cultural Data
+  getMasterCulturalData(category?: string): Promise<any[]>;
+  addMasterCulturalItem(item: any): Promise<any>;
+
   // Maintenance & System Reset
   getTableCounts(): Promise<TableCounts>;
   createBackupSnapshot(): Promise<BackupSnapshot>;
@@ -116,6 +132,9 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
   private sessionsFile: string;
   private notificationsFile: string;
   private auditFile: string;
+  private visitorAnalyticsFile: string;
+  private passwordResetTokensFile: string;
+  private culturalMasterFile: string;
 
   constructor(customDataDir?: string) {
     this.dataDir = customDataDir || path.join(process.cwd(), 'data');
@@ -135,6 +154,9 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     this.sessionsFile = path.join(this.dataDir, 'active_sessions.json');
     this.notificationsFile = path.join(this.dataDir, 'notifications.json');
     this.auditFile = path.join(this.dataDir, 'admin_audit_logs.json');
+    this.visitorAnalyticsFile = path.join(this.dataDir, 'visitor_analytics.json');
+    this.passwordResetTokensFile = path.join(this.dataDir, 'password_reset_tokens.json');
+    this.culturalMasterFile = path.join(this.dataDir, 'master_cultural_data.json');
   }
 
   public async init(): Promise<void> {
@@ -146,7 +168,10 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
       { file: this.paymentsFile, defaultContent: '[]' },
       { file: this.sessionsFile, defaultContent: '{}' },
       { file: this.notificationsFile, defaultContent: '[]' },
-      { file: this.auditFile, defaultContent: '[]' }
+      { file: this.auditFile, defaultContent: '[]' },
+      { file: this.visitorAnalyticsFile, defaultContent: '[]' },
+      { file: this.passwordResetTokensFile, defaultContent: '[]' },
+      { file: this.culturalMasterFile, defaultContent: '[]' }
     ];
 
     for (const item of defaultFiles) {
@@ -427,6 +452,56 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     return log;
   }
 
+  // --- Visitor Analytics ---
+  public async recordVisit(visit: any): Promise<any> {
+    const list = this.readArraySync(this.visitorAnalyticsFile);
+    list.unshift(visit);
+    if (list.length > 5000) list.splice(5000);
+    this.atomicWriteSync(this.visitorAnalyticsFile, list);
+    return visit;
+  }
+
+  public async getVisitorAnalytics(params?: any): Promise<any> {
+    const { visitorAnalyticsEngine } = await import('../analyticsEngine');
+    return visitorAnalyticsEngine.getAnalyticsSummary(params?.period || 'all');
+  }
+
+  // --- Password Reset Tokens ---
+  public async createPasswordResetToken(data: any): Promise<any> {
+    const list = this.readArraySync(this.passwordResetTokensFile);
+    list.unshift(data);
+    this.atomicWriteSync(this.passwordResetTokensFile, list);
+    return data;
+  }
+
+  public async findValidPasswordResetToken(tokenHash: string): Promise<any | null> {
+    const list = this.readArraySync(this.passwordResetTokensFile);
+    const now = new Date().toISOString();
+    return list.find((t: any) => t.tokenHash === tokenHash && !t.used && t.expiresAtISO > now) || null;
+  }
+
+  public async markPasswordResetTokenUsed(tokenHash: string, metadata?: any): Promise<boolean> {
+    const list = this.readArraySync(this.passwordResetTokensFile);
+    const idx = list.findIndex((t: any) => t.tokenHash === tokenHash);
+    if (idx === -1) return false;
+    list[idx].used = true;
+    list[idx].usedAtISO = new Date().toISOString();
+    if (metadata) list[idx].metadata = metadata;
+    this.atomicWriteSync(this.passwordResetTokensFile, list);
+    return true;
+  }
+
+  // --- Master Cultural Data ---
+  public async getMasterCulturalData(category?: string): Promise<any[]> {
+    const { culturalMasterStore } = await import('../culturalMasterStore');
+    return culturalMasterStore.getItems(category as any);
+  }
+
+  public async addMasterCulturalItem(item: any): Promise<any> {
+    const { culturalMasterStore } = await import('../culturalMasterStore');
+    return culturalMasterStore.addItem(item);
+  }
+
   private readSessionsSync(): Record<string, any> {
     try {
       if (!fs.existsSync(this.sessionsFile)) return {};
@@ -446,6 +521,9 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     const sessions = this.readSessionsSync();
     const notifications = await this.getNotifications();
     const auditLogs = await this.getAuditLogs();
+    const visitorAnalytics = this.readArraySync(this.visitorAnalyticsFile).length;
+    const resetTokens = this.readArraySync(this.passwordResetTokensFile).length;
+    const culturalItems = this.readArraySync(this.culturalMasterFile).length;
     return {
       users: users.length,
       leads: leads.length,
@@ -454,7 +532,10 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
       payments: payments.length,
       sessions: Object.keys(sessions).length,
       notifications: notifications.length,
-      auditLogs: auditLogs.length
+      auditLogs: auditLogs.length,
+      visitorAnalytics,
+      resetTokens,
+      culturalItems
     };
   }
 
@@ -694,7 +775,78 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
             timestamp_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             metadata JSONB DEFAULT '{}'::jsonb
           );
+
+          CREATE TABLE IF NOT EXISTS visitor_analytics (
+            id VARCHAR(64) PRIMARY KEY,
+            visitor_hash VARCHAR(64) NOT NULL,
+            user_id VARCHAR(64),
+            is_authenticated BOOLEAN NOT NULL DEFAULT FALSE,
+            path VARCHAR(128) NOT NULL,
+            country VARCHAR(64) DEFAULT 'Unknown',
+            country_code VARCHAR(8) DEFAULT 'XX',
+            district VARCHAR(64) DEFAULT 'Unknown/अनिर्धारित',
+            device_type VARCHAR(32) DEFAULT 'desktop',
+            referrer TEXT,
+            visit_date VARCHAR(10) NOT NULL,
+            visit_timestamp_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+          CREATE INDEX IF NOT EXISTS idx_va_timestamp ON visitor_analytics(visit_timestamp_iso DESC);
+          CREATE INDEX IF NOT EXISTS idx_va_hash ON visitor_analytics(visitor_hash);
+          CREATE INDEX IF NOT EXISTS idx_va_date ON visitor_analytics(visit_date);
+          CREATE INDEX IF NOT EXISTS idx_va_path ON visitor_analytics(path);
+
+          CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(64) NOT NULL,
+            token_hash VARCHAR(64) UNIQUE NOT NULL,
+            created_by VARCHAR(64) NOT NULL,
+            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at_iso TIMESTAMPTZ NOT NULL,
+            used BOOLEAN NOT NULL DEFAULT FALSE,
+            used_at_iso TIMESTAMPTZ,
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+          CREATE INDEX IF NOT EXISTS idx_prt_token_hash ON password_reset_tokens(token_hash);
+          CREATE INDEX IF NOT EXISTS idx_prt_user_id ON password_reset_tokens(user_id);
+
+          CREATE TABLE IF NOT EXISTS master_cultural_data (
+            id VARCHAR(64) PRIMARY KEY,
+            category VARCHAR(32) NOT NULL,
+            name_nepali VARCHAR(128) NOT NULL,
+            name_english VARCHAR(128),
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INT NOT NULL DEFAULT 0,
+            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            raw_data JSONB DEFAULT '{}'::jsonb
+          );
+          CREATE INDEX IF NOT EXISTS idx_mcd_category ON master_cultural_data(category);
         `);
+
+        // Seed initial cultural data if empty
+        const countRes = await client.query('SELECT COUNT(*) as cnt FROM master_cultural_data');
+        if (parseInt(countRes.rows[0]?.cnt || '0', 10) === 0) {
+          const { INITIAL_GOTRAS, INITIAL_JAAT_BARNA } = await import('../culturalMasterStore');
+          let order = 1;
+          for (const g of INITIAL_GOTRAS) {
+            await client.query(
+              `INSERT INTO master_cultural_data (id, category, name_nepali, name_english, is_active, sort_order)
+               VALUES ($1, 'gotra', $2, $3, TRUE, $4) ON CONFLICT DO NOTHING`,
+              [`gotra_${order}`, g.nameNepali, g.nameEnglish || null, order]
+            );
+            order++;
+          }
+          for (const j of INITIAL_JAAT_BARNA) {
+            await client.query(
+              `INSERT INTO master_cultural_data (id, category, name_nepali, name_english, is_active, sort_order)
+               VALUES ($1, 'jaat_barna', $2, $3, TRUE, $4) ON CONFLICT DO NOTHING`,
+              [`jaat_${order}`, j.nameNepali, j.nameEnglish || null, order]
+            );
+            order++;
+          }
+          console.log('[Database] Seeded initial cultural master data (Gotras & Jaat/Barna).');
+        }
+
         console.log('[Database] PostgreSQL schema verified and up to date.');
       } finally {
         client.release();
@@ -1266,6 +1418,125 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
     return log;
   }
 
+  // --- Visitor Analytics ---
+  public async recordVisit(visit: any): Promise<any> {
+    try {
+      const query = `
+        INSERT INTO visitor_analytics (
+          id, visitor_hash, user_id, is_authenticated, path, country, country_code,
+          district, device_type, referrer, visit_date, visit_timestamp_iso, raw_data
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, $12)
+        ON CONFLICT (id) DO NOTHING;
+      `;
+      const id = visit.id || `va_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      await this.pool.query(query, [
+        id,
+        visit.visitorHash || visit.visitor_hash,
+        visit.userId || visit.user_id || null,
+        Boolean(visit.isAuthenticated ?? visit.is_authenticated),
+        visit.path || '/',
+        visit.country || 'Unknown',
+        visit.countryCode || visit.country_code || 'XX',
+        visit.district || 'Unknown/अनिर्धारित',
+        visit.deviceType || visit.device_type || 'desktop',
+        visit.referrer || null,
+        visit.visitDate || visit.visit_date || new Date().toISOString().split('T')[0],
+        JSON.stringify(visit.rawData || {})
+      ]);
+      return visit;
+    } catch (e: any) {
+      console.warn('[PostgresDatabaseAdapter] recordVisit notice:', e.message);
+      return visit;
+    }
+  }
+
+  public async getVisitorAnalytics(params?: any): Promise<any> {
+    const { visitorAnalyticsEngine } = await import('../analyticsEngine');
+    return visitorAnalyticsEngine.getAnalyticsSummary(params?.period || 'all');
+  }
+
+  // --- Password Reset Tokens ---
+  public async createPasswordResetToken(data: any): Promise<any> {
+    const query = `
+      INSERT INTO password_reset_tokens (
+        id, user_id, token_hash, created_by, created_at_iso, expires_at_iso, used, raw_data
+      ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, FALSE, $6);
+    `;
+    const id = data.id || `prt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    await this.pool.query(query, [
+      id,
+      data.userId,
+      data.tokenHash,
+      data.createdBy || 'admin',
+      data.expiresAtISO,
+      JSON.stringify(data.rawData || {})
+    ]);
+    return data;
+  }
+
+  public async findValidPasswordResetToken(tokenHash: string): Promise<any | null> {
+    const res = await this.pool.query(
+      `SELECT * FROM password_reset_tokens WHERE token_hash = $1 AND used = FALSE AND expires_at_iso > CURRENT_TIMESTAMP LIMIT 1`,
+      [tokenHash]
+    );
+    if (!res.rows[0]) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      userId: r.user_id,
+      tokenHash: r.token_hash,
+      createdBy: r.created_by,
+      createdAtISO: r.created_at_iso,
+      expiresAtISO: r.expires_at_iso,
+      used: r.used
+    };
+  }
+
+  public async markPasswordResetTokenUsed(tokenHash: string, metadata?: any): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE password_reset_tokens SET used = TRUE, used_at_iso = CURRENT_TIMESTAMP WHERE token_hash = $1`,
+      [tokenHash]
+    );
+    return (res.rowCount || 0) > 0;
+  }
+
+  // --- Master Cultural Data ---
+  public async getMasterCulturalData(category?: string): Promise<any[]> {
+    let q = `SELECT * FROM master_cultural_data WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC`;
+    let args: any[] = [];
+    if (category) {
+      q = `SELECT * FROM master_cultural_data WHERE is_active = TRUE AND category = $1 ORDER BY sort_order ASC, id ASC`;
+      args = [category];
+    }
+    const res = await this.pool.query(q, args);
+    return res.rows.map((r: any) => ({
+      id: r.id,
+      category: r.category,
+      nameNepali: r.name_nepali,
+      nameEnglish: r.name_english,
+      isActive: r.is_active,
+      sortOrder: r.sort_order,
+      createdAtISO: r.created_at_iso
+    }));
+  }
+
+  public async addMasterCulturalItem(item: any): Promise<any> {
+    const id = item.id || `${item.category}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    await this.pool.query(
+      `INSERT INTO master_cultural_data (
+        id, category, name_nepali, name_english, is_active, sort_order, created_at_iso
+      ) VALUES ($1, $2, $3, $4, TRUE, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM master_cultural_data), CURRENT_TIMESTAMP)`,
+      [id, item.category, item.nameNepali.trim(), item.nameEnglish?.trim() || null]
+    );
+    return {
+      id,
+      category: item.category,
+      nameNepali: item.nameNepali.trim(),
+      nameEnglish: item.nameEnglish?.trim() || null,
+      isActive: true
+    };
+  }
+
   // --- Maintenance & System Reset ---
   public async getTableCounts(): Promise<TableCounts> {
     const defaultCounts: TableCounts = {
@@ -1276,7 +1547,10 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       payments: 0,
       sessions: 0,
       notifications: 0,
-      auditLogs: 0
+      auditLogs: 0,
+      visitorAnalytics: 0,
+      resetTokens: 0,
+      culturalItems: 0
     };
     if (!this.pool) return defaultCounts;
     try {
@@ -1289,7 +1563,10 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
           (SELECT COUNT(*) FROM payments) as payments,
           (SELECT COUNT(*) FROM active_sessions) as sessions,
           (SELECT COUNT(*) FROM notifications) as notifications,
-          (SELECT COUNT(*) FROM audit_logs) as audit_logs;
+          (SELECT COUNT(*) FROM audit_logs) as audit_logs,
+          (SELECT COUNT(*) FROM visitor_analytics) as visitor_analytics,
+          (SELECT COUNT(*) FROM password_reset_tokens) as reset_tokens,
+          (SELECT COUNT(*) FROM master_cultural_data) as cultural_items;
       `;
       const res = await this.pool.query(q);
       const r = res.rows[0];
@@ -1301,7 +1578,10 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
         payments: parseInt(r.payments || '0', 10),
         sessions: parseInt(r.sessions || '0', 10),
         notifications: parseInt(r.notifications || '0', 10),
-        auditLogs: parseInt(r.audit_logs || '0', 10)
+        auditLogs: parseInt(r.audit_logs || '0', 10),
+        visitorAnalytics: parseInt(r.visitor_analytics || '0', 10),
+        resetTokens: parseInt(r.reset_tokens || '0', 10),
+        culturalItems: parseInt(r.cultural_items || '0', 10)
       };
     } catch (err: any) {
       console.warn('[PostgresDatabaseAdapter] getTableCounts notice:', err.message);

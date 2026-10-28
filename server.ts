@@ -10,6 +10,10 @@ import { authEngine } from "./src/server/authEngine";
 import { membershipEngine, MEMBERSHIP_PLANS } from "./src/server/membershipEngine";
 import { calculateMembershipDateSchedule, getNepaliBSDate } from "./src/server/membershipDateEngine";
 import { getDatabaseAdapter } from "./src/server/db/databaseAdapter";
+import { visitorAnalyticsEngine } from "./src/server/analyticsEngine";
+import { culturalMasterStore } from "./src/server/culturalMasterStore";
+import { passwordResetEngine } from "./src/server/passwordResetEngine";
+import { resolveUserEntitlement } from "./src/server/entitlementEngine";
 
 dotenv.config();
 
@@ -863,7 +867,7 @@ async function startServer() {
           status: "locked",
           duration: existing?.duration || "1_year",
           startsAtISO: existing?.startsAtISO || new Date().toISOString(),
-          startsAtBS: existing?.startsAtBS || getNepaliBSDate(now),
+          startsAtBS: existing?.startsAtBS || getNepaliBSDate(new Date()),
           notes: notes || "Superadmin द्वारा लक गरियो",
           updatedAtISO: new Date().toISOString()
         };
@@ -1079,7 +1083,7 @@ async function startServer() {
         appendLicenseAudit({
           id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           timestampISO: new Date().toISOString(),
-          timestampBS: targetReq.createdAtBS || getNepaliBSDate(now),
+          timestampBS: targetReq.createdAtBS || getNepaliBSDate(new Date()),
           performedBy,
           action: "REJECT_PURCHASE",
           targetUserId: targetReq.userId || targetReq.phone,
@@ -1247,9 +1251,20 @@ async function startServer() {
   };
 
   // GET /api/client-leads (Fetch all client purchase leads & trials)
-  app.get("/api/client-leads", (req, res) => {
+  app.get("/api/client-leads", async (req, res) => {
     try {
-      const leads = getClientLeads();
+      let leads: any[] = [];
+      let dbLeadsSuccess = false;
+      try {
+        leads = await dbAdapter.getClientLeads();
+        dbLeadsSuccess = true;
+      } catch (dbErr: any) {
+        console.warn("[ClientLeads GET] DB query notice:", dbErr.message);
+        leads = getClientLeads();
+      }
+      if (!dbLeadsSuccess) {
+        leads = getClientLeads();
+      }
       return res.json({ success: true, leads });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -1273,7 +1288,7 @@ async function startServer() {
       const record = {
         id: leadData.id || `LEAD-${Date.now()}`,
         fullName: String(leadData.fullName || "").trim(),
-        address: String(leadData.address || "").trim(),
+        address: String(leadData.birthLocation || leadData.address || "").trim(),
         mobile: String(leadData.mobile || "").trim(),
         email: String(leadData.email || "").trim(),
         whatsapp: String(leadData.whatsapp || leadData.mobile || "").trim(),
@@ -1292,8 +1307,49 @@ async function startServer() {
         approvedAtBS: leadData.approvedAtBS,
         approvedBy: leadData.approvedBy,
         rejectionReason: leadData.rejectionReason,
-        clientNotes: leadData.clientNotes || ""
+        clientNotes: leadData.clientNotes || (leadData.gotra || leadData.jaatBarna ? `गोत्र: ${leadData.gotra || '-'}, समुदाय: ${leadData.jaatBarna || '-'}` : "")
       };
+
+      // Synchronize birth details to user profile if exists
+      if (leadData.dobBS || leadData.birthTime || leadData.birthLocation || leadData.gender || leadData.gotra || leadData.jaatBarna) {
+        try {
+          const cleanMob = String(leadData.mobile || "").replace(/\D/g, "").slice(-10);
+          const users = getUsers();
+          const uIdx = users.findIndex(u => (u.phone && u.phone.replace(/\D/g, "").slice(-10) === cleanMob) || (leadData.userId && u.id === leadData.userId));
+          if (uIdx > -1) {
+            const birthDetails = {
+              ...(users[uIdx].birthDetails || {}),
+              dateBS: leadData.dobBS || users[uIdx].birthDetails?.dateBS || users[uIdx].dobBS,
+              dateAD: leadData.dobAD || users[uIdx].birthDetails?.dateAD || users[uIdx].dobAD,
+              time: leadData.birthTime || users[uIdx].birthDetails?.time || users[uIdx].birthTime,
+              gender: leadData.gender || users[uIdx].gender || users[uIdx].birthDetails?.gender || "पुरुष",
+              gotra: leadData.gotra || users[uIdx].gotra || users[uIdx].birthDetails?.gotra,
+              jaatBarna: leadData.jaatBarna || users[uIdx].jaatBarna || users[uIdx].birthDetails?.jaatBarna,
+              location: {
+                ...(users[uIdx].birthDetails?.location || {}),
+                name: leadData.birthLocation || users[uIdx].address || "काठमाडौँ",
+                district: leadData.birthLocation || users[uIdx].address || "काठमाडौँ"
+              }
+            };
+            users[uIdx].birthDetails = birthDetails;
+            if (leadData.dobBS) users[uIdx].dobBS = leadData.dobBS;
+            if (leadData.dobAD) users[uIdx].dobAD = leadData.dobAD;
+            if (leadData.birthTime) users[uIdx].birthTime = leadData.birthTime;
+            if (leadData.gender) users[uIdx].gender = leadData.gender;
+            if (leadData.gotra) users[uIdx].gotra = leadData.gotra;
+            if (leadData.jaatBarna) users[uIdx].jaatBarna = leadData.jaatBarna;
+            if (leadData.birthLocation) users[uIdx].address = leadData.birthLocation;
+            saveUsers(users);
+
+            dbAdapter.updateUser(users[uIdx].id, {
+              address: users[uIdx].address,
+              birthDetails: users[uIdx].birthDetails
+            }).catch(e => console.warn('[ClientLeads User Update DB Notice]:', e.message));
+          }
+        } catch (uErr: any) {
+          console.warn('[ClientLeads User Update Notice]:', uErr.message);
+        }
+      }
 
       if (existingIdx > -1) {
         leads[existingIdx] = { ...leads[existingIdx], ...record };
@@ -1540,8 +1596,7 @@ async function startServer() {
       // Authoritative central database commit
       if (result.user) {
         try {
-          const registeredUser = authEngine.getUserById(result.user.id);
-          await dbAdapter.createUser(registeredUser || result.user);
+          await dbAdapter.createUser(result.user);
         } catch (dbErr: any) {
           console.warn("[Register DB Commit Notice]:", dbErr.message);
         }
@@ -1624,7 +1679,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       const { category, reason } = req.body;
-      const adminUsername = req.superAdmin?.username || "SuperAdmin";
+      const adminUsername = (req as any).superAdmin?.username || "SuperAdmin";
 
       const result = authEngine.updateUserCategory(id, category, adminUsername, reason);
       if (!result.success) {
@@ -1681,7 +1736,7 @@ async function startServer() {
   app.post("/api/admin/payments/record", requireSuperAdminAuth, (req, res) => {
     try {
       const { userId, amountNPR, planId, planNameNepali, category, durationDays, paymentMethod, notes, transactionReference } = req.body;
-      const adminUsername = req.superAdmin?.username || "SuperAdmin";
+      const adminUsername = (req as any).superAdmin?.username || "SuperAdmin";
 
       const result = authEngine.recordManualPayment({
         userId,
@@ -1985,21 +2040,89 @@ async function startServer() {
   });
 
   // POST /api/membership/purchase (Submit Membership Purchase Request)
-  app.post("/api/membership/purchase", (req, res) => {
+  app.post("/api/membership/purchase", async (req, res) => {
     try {
-      const { userId, phone, email, fullName, planId, paymentMethod, transactionId, submittedAtBS } = req.body;
-      if (!phone || !planId) {
+      const {
+        userId,
+        phone,
+        email,
+        fullName,
+        planId,
+        paymentMethod,
+        transactionId,
+        submittedAtBS,
+        dobBS,
+        dobAD,
+        birthTime,
+        birthLocation,
+        gender,
+        gotra,
+        jaatBarna,
+        notes
+      } = req.body;
+
+      // Identity resolution: Bind strictly to session if authenticated
+      let authUser: any = null;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        authUser = userSessions.get(token) || authEngine.validateSession(token);
+      }
+
+      const cleanPhone = String((authUser && authUser.phone) || phone || "").replace(/\D/g, "").slice(-10);
+      const effectiveUserId = (authUser && authUser.userId) || userId || (cleanPhone ? `user_${cleanPhone}` : `user_${Date.now()}`);
+      const effectiveFullName = (authUser && (authUser.fullName || authUser.name)) || fullName || "ग्राहक";
+      const effectiveEmail = (authUser && authUser.email) || email || "";
+
+      if (!cleanPhone || !planId) {
         return res.status(400).json({ success: false, message: "फोन नम्बर र सदस्यता योजना अनिवार्य छन्।" });
       }
 
-      const cleanPhone = String(phone).replace(/\D/g, "").slice(-10);
-      const effectiveUserId = userId || `user_${cleanPhone}`;
+      // Update user birth profile if details provided
+      if (effectiveUserId && (dobBS || birthTime || birthLocation || gender || gotra || jaatBarna)) {
+        try {
+          const users = getUsers();
+          const uIdx = users.findIndex(u => u.id === effectiveUserId || (u.phone && u.phone.replace(/\D/g, "").slice(-10) === cleanPhone));
+          if (uIdx > -1) {
+            const birthDetails = {
+              ...(users[uIdx].birthDetails || {}),
+              dateBS: dobBS || users[uIdx].birthDetails?.dateBS || users[uIdx].dobBS,
+              dateAD: dobAD || users[uIdx].birthDetails?.dateAD || users[uIdx].dobAD,
+              time: birthTime || users[uIdx].birthDetails?.time || users[uIdx].birthTime,
+              gender: gender || users[uIdx].gender || users[uIdx].birthDetails?.gender || "पुरुष",
+              gotra: gotra || users[uIdx].gotra || users[uIdx].birthDetails?.gotra,
+              jaatBarna: jaatBarna || users[uIdx].jaatBarna || users[uIdx].birthDetails?.jaatBarna,
+              location: {
+                ...(users[uIdx].birthDetails?.location || {}),
+                name: birthLocation || users[uIdx].address || "काठमाडौँ",
+                district: birthLocation || users[uIdx].address || "काठमाडौँ"
+              }
+            };
+            users[uIdx].birthDetails = birthDetails;
+            if (dobBS) users[uIdx].dobBS = dobBS;
+            if (dobAD) users[uIdx].dobAD = dobAD;
+            if (birthTime) users[uIdx].birthTime = birthTime;
+            if (gender) users[uIdx].gender = gender;
+            if (gotra) users[uIdx].gotra = gotra;
+            if (jaatBarna) users[uIdx].jaatBarna = jaatBarna;
+            if (birthLocation) users[uIdx].address = birthLocation;
+            saveUsers(users);
+
+            dbAdapter.updateUser(users[uIdx].id, {
+              address: users[uIdx].address,
+              birthDetails: users[uIdx].birthDetails
+            }).catch(e => console.warn('[Purchase User DB Update Notice]:', e.message));
+          }
+        } catch (uErr: any) {
+          console.warn('[Purchase User Update Notice]:', uErr.message);
+        }
+      }
 
       const result = membershipEngine.submitPurchaseRequest({
         userId: effectiveUserId,
         phone: cleanPhone,
-        email,
-        fullName: fullName || "ग्राहक",
+        email: effectiveEmail,
+        fullName: effectiveFullName,
         planId,
         paymentMethod: paymentMethod || "cash",
         transactionId,
@@ -2011,34 +2134,32 @@ async function startServer() {
       const existingLead = leads.find((l: any) => l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === cleanPhone);
       const plan = MEMBERSHIP_PLANS[planId] || MEMBERSHIP_PLANS.yearly_both;
 
+      const leadPayload = {
+        fullName: effectiveFullName,
+        address: birthLocation || "नेपाल",
+        mobile: cleanPhone,
+        email: effectiveEmail,
+        whatsapp: cleanPhone,
+        deviceFingerprint: "membership-purchase",
+        status: "PURCHASE_PENDING",
+        planId: plan.planId,
+        planNameNepali: plan.nameNepali,
+        planAmountNPR: plan.priceNPR,
+        paymentMethod: paymentMethod || "cash",
+        transactionId: transactionId || "",
+        paymentVerificationStatus: "PENDING",
+        submittedAtISO: new Date().toISOString(),
+        submittedAtBS: submittedAtBS || getNepaliBSDate(new Date()),
+        clientNotes: notes || (gotra || jaatBarna ? `गोत्र: ${gotra || '-'}, समुदाय: ${jaatBarna || '-'}` : "")
+      };
+
       if (existingLead) {
-        existingLead.status = "PURCHASE_PENDING";
-        existingLead.planId = plan.planId;
-        existingLead.planNameNepali = plan.nameNepali;
-        existingLead.planAmountNPR = plan.priceNPR;
-        existingLead.paymentMethod = paymentMethod || "cash";
-        existingLead.transactionId = transactionId || "";
-        existingLead.paymentVerificationStatus = "PENDING";
-        existingLead.submittedAtISO = new Date().toISOString();
+        Object.assign(existingLead, leadPayload);
+        dbAdapter.updateLead(existingLead.id, existingLead).catch(e => console.warn('[Lead DB Update Notice]:', e.message));
       } else {
-        leads.unshift({
-          id: `LEAD-${Date.now()}`,
-          fullName: fullName || "ग्राहक",
-          address: "नेपाल",
-          mobile: cleanPhone,
-          email: email || "",
-          whatsapp: cleanPhone,
-          deviceFingerprint: "membership-purchase",
-          status: "PURCHASE_PENDING",
-          planId: plan.planId,
-          planNameNepali: plan.nameNepali,
-          planAmountNPR: plan.priceNPR,
-          paymentMethod: paymentMethod || "cash",
-          transactionId: transactionId || "",
-          paymentVerificationStatus: "PENDING",
-          submittedAtISO: new Date().toISOString(),
-          submittedAtBS: submittedAtBS || getNepaliBSDate(new Date())
-        });
+        const newLead = { id: `LEAD-${Date.now()}`, ...leadPayload };
+        leads.unshift(newLead);
+        dbAdapter.createLead(newLead).catch(e => console.warn('[Lead DB Create Notice]:', e.message));
       }
       saveClientLeads(leads);
 
@@ -2047,6 +2168,274 @@ async function startServer() {
       return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // ── VISITOR TRACKING & SUPER ADMIN ANALYTICS ──
+  app.post("/api/analytics/visit", async (req, res) => {
+    try {
+      const record = visitorAnalyticsEngine.trackVisit(req, req.body);
+      if (record) {
+        dbAdapter.recordVisit(record).catch(e => console.warn('[Visit DB Notice]:', e.message));
+      }
+      return res.json({ success: true, tracked: !!record });
+    } catch (err: any) {
+      return res.json({ success: false, error: err.message });
+    }
+  });
+
+  app.get("/api/superadmin/analytics", requireSuperAdminAuth, (req, res) => {
+    try {
+      const period = String(req.query.period || 'all') as any;
+      const summary = visitorAnalyticsEngine.getAnalyticsSummary(period);
+      return res.json({ success: true, period, summary });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ── CENTRALIZED MASTER CULTURAL DATA (GOTRA & JAAT/BARNA) ──
+  app.get("/api/cultural-data", async (req, res) => {
+    try {
+      const category = req.query.category as any;
+      let items = [];
+      try {
+        items = await dbAdapter.getMasterCulturalData(category);
+      } catch {
+        items = culturalMasterStore.getItems(category);
+      }
+      if (!items || items.length === 0) {
+        items = culturalMasterStore.getItems(category);
+      }
+      const gotras = items.filter((i: any) => i.category === 'gotra');
+      const jaatBarna = items.filter((i: any) => i.category === 'jaat_barna');
+      return res.json({
+        success: true,
+        items,
+        data: {
+          gotras,
+          jaatBarna
+        }
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/superadmin/cultural-data", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { category, nameNepali, nameEnglish } = req.body;
+      if (!category || !nameNepali) {
+        return res.status(400).json({ success: false, error: "कोटि (category) र नेपाली नाम अनिवार्य छ।" });
+      }
+      const item = culturalMasterStore.addItem({ category, nameNepali, nameEnglish });
+      try {
+        await dbAdapter.addMasterCulturalItem(item);
+      } catch (e: any) {
+        console.warn('[CulturalData DB Notice]:', e.message);
+      }
+      return res.json({ success: true, item });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ── ADMIN-GENERATED SECURE PASSWORD RESET LINKS (ZERO OTP) ──
+  app.post("/api/superadmin/users/:id/generate-reset-link", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const users = getUsers();
+      const user = users.find(u => u.id === id || u.phone === id);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+      const adminSession = (req as any).superAdmin;
+      const adminUsername = adminSession?.username || 'admin';
+      const frontendBaseUrl = `${req.protocol}://${req.get('host')}`;
+
+      const result = passwordResetEngine.generateResetLink({
+        userId: user.id,
+        adminUsername,
+        frontendBaseUrl,
+        expiresMinutes: 20
+      });
+
+      // Persist token hash in authoritative database (never plaintext!)
+      try {
+        await dbAdapter.createPasswordResetToken(result.tokenRecord);
+      } catch (dbErr: any) {
+        console.warn('[ResetToken DB Notice]:', dbErr.message);
+      }
+
+      // Record audit log without plaintext token
+      try {
+        await dbAdapter.createAuditLog({
+          action: "PASSWORD_RESET_LINK_GENERATED",
+          performedBy: adminUsername,
+          targetId: user.id,
+          details: `प्रयोगकर्ता ${user.fullName} (${user.phone}) का लागि २० मिनेट अवधिको सुरक्षित पासवर्ड रिसेट लिङ्क सिर्जना गरियो।`
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        resetUrl: result.resetUrl,
+        expiresAtISO: result.expiresAtISO,
+        expiresMinutes: result.expiresMinutes,
+        message: "एकपटक मात्र प्रयोग गर्न मिल्ने सुरक्षित पासवर्ड रिसेट लिङ्क तयार भयो।"
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      if (!token || !newPassword) {
+        return res.status(400).json({ success: false, error: "टोकन र नयाँ पासवर्ड अनिवार्य छ।" });
+      }
+      if (String(newPassword).length < 6) {
+        return res.status(400).json({ success: false, error: "नयाँ पासवर्ड कम्तीमा ६ अक्षरको हुनुपर्दछ।" });
+      }
+
+      // Verify token
+      const verifyResult = passwordResetEngine.verifyToken(token);
+      let targetUserId = verifyResult.tokenRecord?.userId;
+
+      if (!verifyResult.valid) {
+        // Fallback: check database directly
+        const tokenHash = crypto.createHash('sha256').update(String(token).trim()).digest('hex');
+        const dbToken = await dbAdapter.findValidPasswordResetToken(tokenHash);
+        if (!dbToken) {
+          return res.status(400).json({ success: false, error: verifyResult.message || "अवैध वा म्याद सकिएको रिसेट टोकन।" });
+        }
+        targetUserId = dbToken.userId;
+      }
+
+      if (!targetUserId) {
+        return res.status(400).json({ success: false, error: "टोकन सम्बन्धी प्रयोगकर्ता फेला परेन।" });
+      }
+
+      // Update user password
+      const newHash = hashUserPassword(newPassword);
+      const users = getUsers();
+      const uIdx = users.findIndex(u => u.id === targetUserId);
+      if (uIdx > -1) {
+        users[uIdx].passwordHash = newHash;
+        saveUsers(users);
+      }
+
+      // Auth engine update
+      try {
+        (authEngine as any).updateUserPassword?.(targetUserId, newHash);
+      } catch {}
+
+      // Central database update
+      try {
+        await dbAdapter.updateUser(targetUserId, { passwordHash: newHash });
+      } catch (dbErr: any) {
+        console.warn('[ResetPassword DB Update Notice]:', dbErr.message);
+      }
+
+      // Mark token used
+      passwordResetEngine.markTokenUsed(token);
+      try {
+        const tokenHash = crypto.createHash('sha256').update(String(token).trim()).digest('hex');
+        await dbAdapter.markPasswordResetTokenUsed(tokenHash);
+      } catch {}
+
+      // Invalidate all active sessions for this user
+      for (const [sToken, sess] of userSessions.entries()) {
+        if (sess.userId === targetUserId) {
+          userSessions.delete(sToken);
+        }
+      }
+
+      // Audit log
+      try {
+        await dbAdapter.createAuditLog({
+          action: "PASSWORD_RESET_COMPLETED",
+          performedBy: "user",
+          targetId: targetUserId,
+          details: "प्रयोगकर्ताद्वारा एकल-प्रयोग लिङ्क मार्फत पासवर्ड सफलतापूर्वक रिसेट गरियो।"
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: "तपाईंको पासवर्ड सफलतापूर्वक परिवर्तन भयो! अब नयाँ पासवर्ड प्रयोग गरी लगइन गर्नुहोस्।"
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ── CENTRAL USER ENTITLEMENT ENGINE ──
+  app.get("/api/entitlements", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      let session: any = null;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        session = userSessions.get(token) || authEngine.validateSession(token);
+      }
+
+      const userIdOrPhone = (req.query.userId as string) || (session?.userId) || (session?.phone);
+      let userObj: any = null;
+      let userLead: any = null;
+      let userLicenses: any[] = [];
+
+      if (userIdOrPhone) {
+        const cleanDigits = String(userIdOrPhone).replace(/\D/g, "").slice(-10);
+        let users: any[] = [];
+        try {
+          users = await dbAdapter.getUsers();
+        } catch {
+          users = getUsers();
+        }
+        if (!Array.isArray(users) || users.length === 0) {
+          users = getUsers();
+        }
+
+        userObj = users.find((u: any) => {
+          const uPhone = String(u.phone || "").replace(/\D/g, "").slice(-10);
+          return (cleanDigits && uPhone === cleanDigits) || u.id === userIdOrPhone || u.username === userIdOrPhone;
+        });
+
+        let leads: any[] = [];
+        try {
+          leads = await dbAdapter.getClientLeads();
+        } catch {
+          leads = getClientLeads();
+        }
+        if (!Array.isArray(leads) || leads.length === 0) {
+          leads = getClientLeads();
+        }
+
+        userLead = leads.find((l: any) => {
+          const lPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
+          return (cleanDigits && lPhone === cleanDigits) || l.id === userIdOrPhone;
+        });
+
+        const licenses = getServiceLicenses();
+        userLicenses = licenses.filter((lic: any) => {
+          const licPhone = String(lic.phone || "").replace(/\D/g, "").slice(-10);
+          return (cleanDigits && licPhone === cleanDigits) || lic.userId === userIdOrPhone;
+        });
+      }
+
+      const entitlement = resolveUserEntitlement({
+        userId: userIdOrPhone,
+        phone: userIdOrPhone,
+        user: userObj,
+        membership: userLead,
+        isSuperAdmin: session?.role === "SUPER_ADMIN" || userObj?.role === "SUPER_ADMIN"
+      });
+
+      return res.json({ success: true, entitlement });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 
@@ -4697,6 +5086,11 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
   // Health & Readiness check APIs (Phase 2 & Phase 3)
   app.get(["/api/health", "/api/readiness"], async (req, res) => {
     try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.setHeader("Surrogate-Control", "no-store");
+
       const dbHealth = await dbAdapter.healthCheck();
       const isProduction = process.env.NODE_ENV === "production";
       const hasProdDb = Boolean(process.env.DATABASE_URL);

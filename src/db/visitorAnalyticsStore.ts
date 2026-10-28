@@ -58,9 +58,46 @@ function detectBrowser(): string {
   return 'Browser';
 }
 
+let lastBeaconTime = 0;
+let lastBeaconPath = '';
+
+export function sendAnalyticsBeacon(path: string): void {
+  if (typeof window === 'undefined') return;
+  const now = Date.now();
+  // 10-second debounce for identical route
+  if (path === lastBeaconPath && (now - lastBeaconTime) < 10000) {
+    return;
+  }
+  lastBeaconTime = now;
+  lastBeaconPath = path;
+
+  try {
+    const payload = {
+      path: path || (window.location ? window.location.pathname + window.location.hash : '/'),
+      referrer: document.referrer || '',
+      deviceType: detectPlatform(),
+    };
+    const body = JSON.stringify(payload);
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      navigator.sendBeacon('/api/analytics/visit', blob);
+    } else {
+      fetch('/api/analytics/visit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
 export function recordVisitorHit(page: string = 'गृहपृष्ठ'): void {
   if (typeof window === 'undefined') return;
   try {
+    // Dispatch debounced server beacon to centralized analytics engine
+    sendAnalyticsBeacon(page);
+
     const visitorId = getOrGenerateVisitorId();
     const now = new Date();
     const nowISO = now.toISOString();

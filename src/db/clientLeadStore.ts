@@ -45,6 +45,13 @@ export interface ClientLead {
   rejectionReason?: string;
   adminNotes?: string;
   clientNotes?: string;
+  dobBS?: string;
+  dobAD?: string;
+  birthTime?: string;
+  birthLocation?: string;
+  gender?: string;
+  gotra?: string;
+  jaatBarna?: string;
 }
 
 const STORAGE_KEY_LEADS = 'balananda_client_leads_v2';
@@ -419,6 +426,13 @@ export async function submitPurchaseApplicationAsync(data: {
   planAmountNPR: number;
   paymentMethod: 'esewa' | 'khalti' | 'bank';
   transactionId: string;
+  dobBS?: string;
+  dobAD?: string;
+  birthTime?: string;
+  birthLocation?: string;
+  gender?: string;
+  gotra?: string;
+  jaatBarna?: string;
 }): Promise<{ success: boolean; messageNepali: string; leadId: string }> {
   if (typeof window === 'undefined') return { success: false, messageNepali: 'अमान्य वातावरण', leadId: '' };
 
@@ -444,6 +458,13 @@ export async function submitPurchaseApplicationAsync(data: {
     transactionId: data.transactionId,
     submittedAtISO: now.toISOString(),
     submittedAtBS: todayBS,
+    dobBS: data.dobBS,
+    dobAD: data.dobAD,
+    birthTime: data.birthTime,
+    birthLocation: data.birthLocation,
+    gender: data.gender,
+    gotra: data.gotra,
+    jaatBarna: data.jaatBarna,
   };
 
   try {

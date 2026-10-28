@@ -128,6 +128,7 @@ import { SuperAdminUserManagementTable } from './sections/SuperAdminUserManageme
 import { UnifiedUserMembershipControl } from './sections/UnifiedUserMembershipControl';
 import { SoftwareReleaseManagerModal } from '../superadmin/SoftwareReleaseManagerModal';
 import { AdminSoftwareUploadSection } from './sections/AdminSoftwareUploadSection';
+import { AdminVisitorAnalyticsSection } from './sections/AdminVisitorAnalyticsSection';
 import { getStoredClientLeads, ClientLead } from '../../db/clientLeadStore';
 import {
   getStoredVivahProfiles,
@@ -305,7 +306,7 @@ function resolveInitialAdminSession(): AdminSession | null {
 // Helper to map tab to block
 function getBlockIdFromTab(tab?: string): string | null {
   if (!tab || tab === 'overview' || tab === 'dashboard') return null;
-  if (['system_health', 'live_alerts'].includes(tab)) return 'block_overview';
+  if (['system_health', 'live_alerts', 'visitor_analytics'].includes(tab)) return 'block_overview';
   if (['pages_services', 'samachar_editor', 'samachar', 'rashifal_management', 'advertisement', 'pages', 'services'].includes(tab)) return 'block_pages_services';
   if (['vivah_portal', 'bookings', 'patrika', 'store_pos', 'media_downloads'].includes(tab)) return 'block_vedic_portals';
   if (['user_membership_control', 'user_list', 'user_control', 'users', 'service_licenses', 'subscriptions', 'licenses', 'experts', 'yajaman', 'staff_rbac', 'rbac', 'role_magic_links', 'admin_roles'].includes(tab)) return 'block_users_experts';
@@ -705,6 +706,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       defaultTab: 'overview',
       items: [
         { id: 'overview', label: 'केन्द्रीय ओभरभ्यु & सूचकहरू', icon: Activity, badge: (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) > 0 ? (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) : null },
+        { id: 'visitor_analytics', label: 'दर्शक विश्लेषण (Visitor Analytics)', icon: Globe, badge: 'Live' },
         { id: 'system_health', label: 'प्रणाली स्वास्थ्य & सर्भर स्थिति', icon: Server, badge: 'Live' },
         { id: 'live_alerts', label: 'प्रत्यक्ष अलर्ट तथा कार्य सूची', icon: AlertTriangle, badge: (pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount) > 0 ? `${pendingExpertsCount + pendingPaymentsCount + pendingPurchasesCount + vivahPendingCount} बाँकी` : null }
       ]
@@ -1135,6 +1137,10 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === 'visitor_analytics' && (
+        <AdminVisitorAnalyticsSection />
       )}
 
       {/* ── BLOCK 2: PAGE & SERVICE CONTROL VIEWS ── */}

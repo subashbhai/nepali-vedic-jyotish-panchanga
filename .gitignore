@@ -16,3 +16,4 @@ manual_video_work/
 *.mp4
 public/downloads/*.mp4
 .firebase/
+data/
