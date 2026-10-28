@@ -19,6 +19,7 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
+  app.set('etag', false);
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const dbAdapter = getDatabaseAdapter();
 
@@ -3671,11 +3672,19 @@ async function startServer() {
   // 5.7.5 GET /api/superadmin/maintenance/table-counts (Live Table & Store Counts)
   app.get("/api/superadmin/maintenance/table-counts", requireSuperAdminAuth, async (req, res) => {
     try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.setHeader("Surrogate-Control", "no-store");
+      res.removeHeader("ETag");
+
       const counts = await dbAdapter.getTableCounts();
       const health = await dbAdapter.healthCheck();
       return res.json({
         success: true,
         databaseType: health.type,
+        commit: process.env.RENDER_GIT_COMMIT || "94783b7",
+        version: "1.3.0",
         tableCounts: counts,
         timestampISO: new Date().toISOString()
       });
@@ -5083,13 +5092,31 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
     }
   });
 
+  // Version & Build Metadata API
+  app.get("/api/version", (req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    res.removeHeader("ETag");
+    return res.json({
+      success: true,
+      app: "Nepali Vedic Jyotish & Panchanga",
+      version: "1.3.0",
+      commit: process.env.RENDER_GIT_COMMIT || "94783b7",
+      branch: process.env.RENDER_GIT_BRANCH || "main",
+      serverTimeISO: new Date().toISOString()
+    });
+  });
+
   // Health & Readiness check APIs (Phase 2 & Phase 3)
   app.get(["/api/health", "/api/readiness"], async (req, res) => {
     try {
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
       res.setHeader("Surrogate-Control", "no-store");
+      res.removeHeader("ETag");
 
       const dbHealth = await dbAdapter.healthCheck();
       const isProduction = process.env.NODE_ENV === "production";
@@ -5110,6 +5137,10 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
         status: dbHealth.ok ? "ok" : "degraded",
         ready: dbHealth.ok,
         app: "Nepali Vedic Jyotish & Panchanga",
+        version: "1.3.0",
+        commit: process.env.RENDER_GIT_COMMIT || "94783b7",
+        branch: process.env.RENDER_GIT_BRANCH || "main",
+        serverTimeISO: new Date().toISOString(),
         environment: process.env.NODE_ENV || "development",
         database: dbHealth
       });
