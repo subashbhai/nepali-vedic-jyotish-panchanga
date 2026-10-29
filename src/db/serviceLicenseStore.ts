@@ -148,8 +148,7 @@ export function checkServiceAccess(
     const isPro =
       (session as any)?.userCategory === 'professional' ||
       (session as any)?.lifecycleState === 'PROFESSIONAL_MEMBER' ||
-      (session as any)?.role === 'SUPER_ADMIN' ||
-      (typeof window !== 'undefined' && localStorage.getItem('balananda_user_category') === 'professional');
+      (session as any)?.role === 'SUPER_ADMIN';
     if (isPro) {
       return {
         allowed: true,
@@ -220,17 +219,16 @@ export function checkServiceAccess(
         }
       }
 
-      // Active 24-hr trial for this user
+      // Active trial for this user - does NOT unlock professional services
       if (userLead.status === 'TRIAL_ACTIVE') {
         if (userLead.trialExpiresAtISO) {
           const expTime = new Date(userLead.trialExpiresAtISO).getTime();
           if (Date.now() < expTime) {
-            const remainingHours = Math.max(1, Math.ceil((expTime - Date.now()) / (1000 * 60 * 60)));
             return {
-              allowed: true,
+              allowed: false,
               serviceKey,
-              status: 'unlocked',
-              reasonNepali: `परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
+              status: 'locked',
+              reasonNepali: 'परीक्षण अवधिमा सामान्य सदस्य सुविधाहरू (पञ्चाङ्ग, राशिफल तथा व्यक्तिगत कुण्डली फलादेश) मात्र उपलब्ध छन्। व्यावसायिक ज्योतिष तथा वास्तु सेवाका लागि व्यावसायिक सदस्यता वा सेवा लाइसेन्स आवश्यक छ।'
             };
           } else {
             return {
@@ -286,16 +284,15 @@ export function checkServiceAccess(
       };
     }
 
-    // E. Check user trial in session object
+    // E. Check user trial in session object - does NOT unlock professional services
     if ((session as any)?.trial?.isTrialActive) {
       const exp = (session as any).trial.trialExpiresAtTimestamp || ((session as any).trial.trialExpiresAtISO ? new Date((session as any).trial.trialExpiresAtISO).getTime() : 0);
       if (exp > 0 && Date.now() < exp) {
-        const remainingHours = Math.max(1, Math.ceil((exp - Date.now()) / (3600 * 1000)));
         return {
-          allowed: true,
+          allowed: false,
           serviceKey,
-          status: 'unlocked',
-          reasonNepali: `निःशुल्क परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
+          status: 'locked',
+          reasonNepali: 'निःशुल्क परीक्षण अवधिमा सामान्य सदस्य सुविधाहरू (पञ्चाङ्ग, राशिफल तथा व्यक्तिगत कुण्डली फलादेश) मात्र उपलब्ध छन्। व्यावसायिक ज्योतिष तथा वास्तु सेवाका लागि व्यावसायिक सदस्यता वा सेवा लाइसेन्स आवश्यक छ।'
         };
       }
     }
@@ -307,12 +304,11 @@ export function checkServiceAccess(
       if (cleanPhone.length >= 7 && trialPhone === cleanPhone) {
         const expTime = new Date(devTrial.expiresAtISO).getTime();
         if (Date.now() < expTime) {
-          const remainingHours = Math.max(1, Math.ceil((expTime - Date.now()) / (1000 * 60 * 60)));
           return {
-            allowed: true,
+            allowed: false,
             serviceKey,
-            status: 'unlocked',
-            reasonNepali: `२४ घण्टे निःशुल्क परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
+            status: 'locked',
+            reasonNepali: 'निःशुल्क परीक्षण अवधिमा सामान्य सदस्य सुविधाहरू मात्र उपलब्ध छन्। व्यावसायिक ज्योतिष तथा वास्तु सेवाका लागि व्यावसायिक सदस्यता आवश्यक छ।'
           };
         } else {
           return {
@@ -345,14 +341,14 @@ export function checkServiceAccess(
   }
 
   // 3. Unauthenticated site visitor (not logged in):
-  // Check if visitor activated an unauthenticated guest trial on this device
+  // Check if visitor activated an unauthenticated guest trial on this device - does NOT unlock professional services
   const devTrial = getDeviceTrialRecord();
   if (devTrial && !devTrial.leadMobile && is24HourTrialActive()) {
     return {
-      allowed: true,
+      allowed: false,
       serviceKey,
-      status: 'unlocked',
-      reasonNepali: '२४ घण्टे निःशुल्क परीक्षण सक्रिय (Trial Active)'
+      status: 'locked',
+      reasonNepali: 'निःशुल्क परीक्षण अवधिमा सामान्य सदस्य सुविधाहरू मात्र उपलब्ध छन्। व्यावसायिक ज्योतिष तथा वास्तु सेवाका लागि व्यावसायिक सदस्यता आवश्यक छ।'
     };
   }
 
@@ -380,7 +376,15 @@ export async function syncUserLicensesFromServer(
     const url = apiClient.resolveUrl(
       `/api/service-access?phone=${encodeURIComponent(cleanDigits)}&userId=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}`
     );
-    const res = await fetch(url);
+    const authHeaders: Record<string, string> = {};
+    if (session?.token) {
+      authHeaders['Authorization'] = `Bearer ${session.token}`;
+    }
+    const headers = {
+      ...apiClient.getHeaders(),
+      ...authHeaders
+    };
+    const res = await fetch(url, { headers });
     const accessData = await res.json();
 
     const currentLicenses = getLocalLicenses();

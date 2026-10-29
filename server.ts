@@ -910,11 +910,11 @@ async function startServer() {
         if (expTime > 0 && Date.now() < expTime) {
           const remainingHours = Math.max(1, Math.ceil((expTime - Date.now()) / (3600 * 1000)));
           return {
-            allowed: true,
+            allowed: false,
             serviceKey,
-            status: "trial_active",
+            status: "trial_active_locked",
             lead: userLead,
-            reasonNepali: `परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
+            reasonNepali: `४८ घण्टे परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)। तर व्यावसायिक ${serviceKey === 'jyotish' ? 'ज्योतिष' : 'वास्तु'} सेवाका लागि व्यावसायिक सदस्यता वा सेवा लाइसेन्स आवश्यक पर्दछ।`
           };
         }
       } else if (userLead.status === "PURCHASE_PENDING") {
@@ -929,15 +929,16 @@ async function startServer() {
     }
 
     // 5. Check Active Trial on User or Registry
+    // Trial users receive general member features, but professional tools (Jyotish/Vastu) remain locked without a paid license
     if (matchedUser?.trial && matchedUser.trial.isTrialActive && matchedUser.trial.trialExpiresAtTimestamp) {
       if (Date.now() < matchedUser.trial.trialExpiresAtTimestamp) {
         const remainingSeconds = Math.max(0, Math.floor((matchedUser.trial.trialExpiresAtTimestamp - Date.now()) / 1000));
         return {
-          allowed: true,
+          allowed: false,
           serviceKey,
-          status: "trial_active",
+          status: "trial_active_locked",
           trial: { ...matchedUser.trial, remainingSeconds },
-          reasonNepali: `परीक्षण सक्रिय (बाँकी समय: करिब ${Math.ceil(remainingSeconds / 3600)} घण्टा)`
+          reasonNepali: `४८ घण्टे परीक्षण सक्रिय (बाँकी समय: करिब ${Math.ceil(remainingSeconds / 3600)} घण्टा)। तर व्यावसायिक ${serviceKey === 'jyotish' ? 'ज्योतिष' : 'वास्तु'} सेवाका लागि व्यावसायिक सदस्यता वा सेवा लाइसेन्स आवश्यक पर्दछ।`
         };
       }
     }
@@ -948,11 +949,11 @@ async function startServer() {
       if (trialRecord && Date.now() < trialRecord.expiresAtTimestamp) {
         const remainingSeconds = Math.max(0, Math.floor((trialRecord.expiresAtTimestamp - Date.now()) / 1000));
         return {
-          allowed: true,
+          allowed: false,
           serviceKey,
-          status: "trial_active",
+          status: "trial_active_locked",
           trial: { ...trialRecord, remainingSeconds },
-          reasonNepali: `२४ घण्टे निःशुल्क परीक्षण सक्रिय (बाँकी समय: करिब ${Math.ceil(remainingSeconds / 3600)} घण्टा)`
+          reasonNepali: `निःशुल्क परीक्षण सक्रिय (बाँकी समय: करिब ${Math.ceil(remainingSeconds / 3600)} घण्टा)। तर व्यावसायिक ${serviceKey === 'jyotish' ? 'ज्योतिष' : 'वास्तु'} सेवाका लागि व्यावसायिक योजना आवश्यक छ।`
         };
       }
     }
@@ -975,14 +976,70 @@ async function startServer() {
       const queryObj = { userId: qUserId, phone: qPhone, username: qUsername };
 
       let isSuperAdmin = false;
+      let authenticatedUser: any = null;
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
-        if (superAdminSessions.has(token)) isSuperAdmin = true;
+        if (superAdminSessions.has(token)) {
+          isSuperAdmin = true;
+        } else {
+          const sess = userSessions.get(token) || authEngine.validateSession(token);
+          if (sess) {
+            const users = getUsers();
+            authenticatedUser = users.find(u => u.id === sess.userId || (sess.phone && u.phone === sess.phone));
+          }
+          if (!authenticatedUser && dbAdapter) {
+            try {
+              const dbSess = await dbAdapter.findSessionByToken(token);
+              if (dbSess) {
+                authenticatedUser = await dbAdapter.findUserById(dbSess.userId);
+              }
+            } catch {}
+          }
+        }
       }
       const customHeader = req.headers["x-superadmin-token"] || req.headers["x-admin-role"];
       if (customHeader === "SUPER_ADMIN" || customHeader === "super_admin_master_secret") {
         isSuperAdmin = true;
+      }
+
+      // Security check: non-superadmin users can ONLY query their own access status!
+      if (!isSuperAdmin) {
+        if (authenticatedUser) {
+          const cleanCallerPhone = String(authenticatedUser.phone || "").replace(/\D/g, "").slice(-10);
+          if (qUserId && qUserId !== authenticatedUser.id) {
+            return res.status(403).json({
+              success: false,
+              error: "अनधिकृत पहुँच: तपाईं केवल आफ्नो खाताको सेवा स्थिति मात्र हेर्न सक्नुहुन्छ।"
+            });
+          }
+          if (qPhone && String(qPhone).replace(/\D/g, "").slice(-10) !== cleanCallerPhone) {
+            return res.status(403).json({
+              success: false,
+              error: "अनधिकृत पहुँच: तपाईं केवल आफ्नो खाताको सेवा स्थिति मात्र हेर्न सक्नुहुन्छ।"
+            });
+          }
+          if (qUsername && qUsername !== authenticatedUser.username) {
+            return res.status(403).json({
+              success: false,
+              error: "अनधिकृत पहुँच: तपाईं केवल आफ्नो खाताको सेवा स्थिति मात्र हेर्न सक्नुहुन्छ।"
+            });
+          }
+          // Default to self if no query params provided
+          if (!qUserId && !qPhone && !qUsername) {
+            queryObj.userId = authenticatedUser.id;
+            queryObj.phone = authenticatedUser.phone;
+            queryObj.username = authenticatedUser.username;
+          }
+        } else {
+          // Caller has no valid session and is requesting specific user access
+          if (qUserId || qPhone || qUsername) {
+            return res.status(401).json({
+              success: false,
+              error: "प्रमाणीकरण आवश्यक: कृपया पहिले लगइन गर्नुहोस्।"
+            });
+          }
+        }
       }
 
       const jyotishAccess = await getUserServiceAccess(queryObj, "jyotish", isSuperAdmin);
@@ -1013,16 +1070,54 @@ async function startServer() {
 
       // Check if superadmin is calling
       let isSuperAdmin = false;
+      let authenticatedUser: any = null;
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
         if (superAdminSessions.has(token)) {
           isSuperAdmin = true;
+        } else {
+          const sess = userSessions.get(token) || authEngine.validateSession(token);
+          if (sess) {
+            const users = getUsers();
+            authenticatedUser = users.find(u => u.id === sess.userId || (sess.phone && u.phone === sess.phone));
+          }
+          if (!authenticatedUser && dbAdapter) {
+            try {
+              const dbSess = await dbAdapter.findSessionByToken(token);
+              if (dbSess) {
+                authenticatedUser = await dbAdapter.findUserById(dbSess.userId);
+              }
+            } catch {}
+          }
         }
       }
       const customHeader = req.headers["x-superadmin-token"] || req.headers["x-admin-role"];
       if (customHeader === "SUPER_ADMIN" || customHeader === "super_admin_master_secret") {
         isSuperAdmin = true;
+      }
+
+      if (!isSuperAdmin) {
+        if (authenticatedUser) {
+          const cleanCallerPhone = String(authenticatedUser.phone || "").replace(/\D/g, "").slice(-10);
+          if (qUserId && qUserId !== authenticatedUser.id) {
+            return res.status(403).json({
+              allowed: false,
+              error: "अनधिकृत पहुँच: तपाईं केवल आफ्नो खाताको लाइसेन्स मात्र हेर्न सक्नुहुन्छ।"
+            });
+          }
+          if (qPhone && String(qPhone).replace(/\D/g, "").slice(-10) !== cleanCallerPhone) {
+            return res.status(403).json({
+              allowed: false,
+              error: "अनधिकृत पहुँच: तपाईं केवल आफ्नो खाताको लाइसेन्स मात्र हेर्न सक्नुहुन्छ।"
+            });
+          }
+        } else if (qUserId || qPhone || qUsername) {
+          return res.status(401).json({
+            allowed: false,
+            error: "प्रमाणीकरण आवश्यक छ।"
+          });
+        }
       }
 
       if (serviceKey !== "jyotish" && serviceKey !== "vastu") {
@@ -2901,13 +2996,34 @@ async function startServer() {
     try {
       const authHeader = req.headers.authorization;
       let session: any = null;
+      let isSuperAdmin = false;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
-        session = userSessions.get(token) || authEngine.validateSession(token);
-        if (!session && dbAdapter) {
-          try {
-            session = await dbAdapter.getSession(token);
-          } catch {}
+        if (superAdminSessions.has(token)) {
+          isSuperAdmin = true;
+        } else {
+          session = userSessions.get(token) || authEngine.validateSession(token);
+          if (!session && dbAdapter) {
+            try {
+              session = await dbAdapter.getSession(token);
+            } catch {}
+          }
+        }
+      }
+      const customHeader = req.headers["x-superadmin-token"] || req.headers["x-admin-role"];
+      if (customHeader === "SUPER_ADMIN" || customHeader === "super_admin_master_secret") {
+        isSuperAdmin = true;
+      }
+
+      if (!isSuperAdmin) {
+        if (session) {
+          const reqUserId = req.query.userId ? String(req.query.userId).trim() : null;
+          const cleanCallerPhone = String(session.phone || "").replace(/\D/g, "").slice(-10);
+          if (reqUserId && reqUserId !== session.userId && String(reqUserId).replace(/\D/g, "").slice(-10) !== cleanCallerPhone) {
+            return res.status(403).json({ success: false, error: "अनधिकृत अनुरोध: तपाईं केवल आफ्नो अधिकार जाँच गर्न सक्नुहुन्छ।" });
+          }
+        } else if (req.query.userId) {
+          return res.status(401).json({ success: false, error: "प्रमाणीकरण आवश्यक छ।" });
         }
       }
 

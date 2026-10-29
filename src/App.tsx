@@ -921,7 +921,7 @@ export default function App() {
       ))
     : isClientPurchaseApproved());
 
-  const isFullyUnlocked = isSuperOrStoreAdmin || isSessionApproved || (!isRegisteredOnlyUser && (hasFullAccess || isUserTrialActive || isUserPurchaseApproved));
+  const isFullyUnlocked = isSuperOrStoreAdmin || isSessionApproved || (!isRegisteredOnlyUser && (hasFullAccess || isUserPurchaseApproved));
 
   // Track page view for Analytics
   useEffect(() => {
@@ -1401,7 +1401,7 @@ export default function App() {
 
     // 3-Tier Access Control Enforcement
     const userCategory = rbacSession
-      ? (rbacSession.role === 'SUPER_ADMIN' ? 'professional' : ((localStorage.getItem('balananda_user_category') || (rbacSession as any).userCategory || 'visitor') as string))
+      ? (rbacSession.role === 'SUPER_ADMIN' ? 'professional' : ((rbacSession as any).userCategory || 'visitor') as string)
       : 'visitor';
 
     // Unauthenticated anonymous visitor
@@ -1434,6 +1434,9 @@ export default function App() {
           alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
           return;
         }
+        if (isUserTrialActive) {
+          alert('निःशुल्क परीक्षणमा पञ्चाङ्ग, राशिफल तथा व्यक्तिगत कुण्डली फलादेश उपलब्ध छन्। व्यावसायिक ज्योतिष कार्यक्षेत्र प्रयोग गर्न व्यावसायिक सदस्यता वा सेवा लाइसेन्स सक्रिय गर्नुहोस्।');
+        }
         setLockedFeatureName('ज्योतिष सेवा');
         setIsClientPurchaseLeadModalOpen(true);
         return;
@@ -1456,6 +1459,9 @@ export default function App() {
         if (vastuAccess.status === 'suspended') {
           alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
           return;
+        }
+        if (isUserTrialActive) {
+          alert('निःशुल्क परीक्षणमा पञ्चाङ्ग, राशिफल तथा व्यक्तिगत कुण्डली फलादेश उपलब्ध छन्। व्यावसायिक वास्तु कार्यक्षेत्र प्रयोग गर्न व्यावसायिक सदस्यता वा सेवा लाइसेन्स सक्रिय गर्नुहोस्।');
         }
         setLockedFeatureName('वास्तु सेवा');
         setIsClientPurchaseLeadModalOpen(true);

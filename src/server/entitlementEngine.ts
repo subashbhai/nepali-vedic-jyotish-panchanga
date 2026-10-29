@@ -138,18 +138,19 @@ export function resolveUserEntitlement(params: {
   }
 
   const u = params.user || {};
-  const m = params.membership;
+  const m = params.membership || (params as any).activeMembership;
   const trial = params.trial || u.trial;
+  const userLicenses = params.userLicenses || (params as any).licenses || [];
 
   const hasSpecificJyotish = Boolean(
     u?.jyotishAccess === true ||
     (u?.jyotishAccess && typeof u.jyotishAccess === 'object' && u.jyotishAccess.unlocked && (!u.jyotishAccess.expiresAtTimestamp || Date.now() < u.jyotishAccess.expiresAtTimestamp)) ||
-    (Array.isArray(params.userLicenses) && params.userLicenses.some((l: any) => l.serviceKey === 'jyotish' && (l.status === 'unlocked' || l.status === 'active') && (!l.expiresAtTimestamp || Date.now() < l.expiresAtTimestamp)))
+    (Array.isArray(userLicenses) && userLicenses.some((l: any) => l.serviceKey === 'jyotish' && (l.status === 'unlocked' || l.status === 'active') && (!l.expiresAtTimestamp || Date.now() < l.expiresAtTimestamp)))
   );
   const hasSpecificVastu = Boolean(
     u?.vastuAccess === true ||
     (u?.vastuAccess && typeof u.vastuAccess === 'object' && u.vastuAccess.unlocked && (!u.vastuAccess.expiresAtTimestamp || Date.now() < u.vastuAccess.expiresAtTimestamp)) ||
-    (Array.isArray(params.userLicenses) && params.userLicenses.some((l: any) => l.serviceKey === 'vastu' && (l.status === 'unlocked' || l.status === 'active') && (!l.expiresAtTimestamp || Date.now() < l.expiresAtTimestamp)))
+    (Array.isArray(userLicenses) && userLicenses.some((l: any) => l.serviceKey === 'vastu' && (l.status === 'unlocked' || l.status === 'active') && (!l.expiresAtTimestamp || Date.now() < l.expiresAtTimestamp)))
   );
 
   // 3. Active Paid Membership Check
@@ -181,11 +182,26 @@ export function resolveUserEntitlement(params: {
       planIdStr === 'lifetime_both';
 
     const now = Date.now();
-    const expiryTime = mem.expiresAtTimestamp || (mem.expiresAtISO ? new Date(mem.expiresAtISO).getTime() : (u.subscriptionExpiresAt ? new Date(u.subscriptionExpiresAt).getTime() : undefined));
+    const expiryTime = mem.expiresAtTimestamp || (mem.expiresAtISO ? new Date(mem.expiresAtISO).getTime() : (mem.validUntilISO ? new Date(mem.validUntilISO).getTime() : (u.subscriptionExpiresAt ? new Date(u.subscriptionExpiresAt).getTime() : undefined)));
     const remainingMs = expiryTime ? expiryTime - now : Infinity;
     const remainingDays = isLifetime ? 99999 : Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
 
     if (isProfessional) {
+      const planAllowsJyotish = !planIdStr.includes('vastu_only') && !planIdStr.includes('only_vastu');
+      const planAllowsVastu = !planIdStr.includes('jyotish_only') && !planIdStr.includes('only_jyotish');
+      const isJyotish = planAllowsJyotish || hasSpecificJyotish;
+      const isVastu = planAllowsVastu || hasSpecificVastu;
+
+      const proServices: Array<'panchanga' | 'jyotish' | 'vastu' | 'karmakanda' | 'personal_faladesh' | 'professional_tools'> = ['panchanga', 'personal_faladesh'];
+      if (isJyotish) proServices.push('jyotish');
+      if (isVastu) proServices.push('vastu');
+      if (isJyotish || isVastu) proServices.push('professional_tools', 'karmakanda');
+
+      const proTabs = [...REGISTERED_BASE_TABS];
+      if (isJyotish) proTabs.push('jyotishi', 'kundali', 'dasha', 'aarje', 'neema', 'kp', 'muhurta', 'anka');
+      if (isVastu) proTabs.push('vastu');
+      if (isJyotish || isVastu) proTabs.push('apply_expert');
+
       return {
         lifecycleState: 'PROFESSIONAL_MEMBER',
         stateNepali: 'पेशागत सदस्य (Professional Member)',
@@ -196,16 +212,16 @@ export function resolveUserEntitlement(params: {
         isExpired: false,
         isPendingPayment: false,
         planNameNepali: mem.planNameNepali || 'पेशागत सदस्यता (प्रो)',
-        allowedServices: ['panchanga', 'jyotish', 'vastu', 'karmakanda', 'personal_faladesh', 'professional_tools'],
-        isJyotishAllowed: true,
-        isVastuAllowed: true,
-        isProfessionalToolsAllowed: true,
+        allowedServices: proServices,
+        isJyotishAllowed: isJyotish,
+        isVastuAllowed: isVastu,
+        isProfessionalToolsAllowed: isJyotish && isVastu,
         isMemberDashboardAllowed: true,
         canAccessPersonalFaladesh: true,
         remainingDays,
         expiresAtBS: mem.expiresAtBS || (isLifetime ? 'आजीवन' : null),
-        messageNepali: `${mem.planNameNepali || 'पेशागत सदस्यता'} सक्रिय छ। पेशागत ज्योतिष तथा वास्तु सेवाहरू पूर्ण रूपमा उपलब्ध छन्।`,
-        allowedNavTabs: PROFESSIONAL_SERVICE_TABS
+        messageNepali: `${mem.planNameNepali || 'पेशागत सदस्यता'} सक्रिय छ। पेशागत ज्योतिष तथा वास्तु सेवाहरू उपलब्ध छन्।`,
+        allowedNavTabs: proTabs
       };
     }
 
@@ -264,23 +280,27 @@ export function resolveUserEntitlement(params: {
       isExpired: false,
       isPendingPayment: false,
       planNameNepali: '४८ घण्टा निःशुल्क परीक्षण',
-      allowedServices: ['panchanga', 'personal_faladesh', 'jyotish', 'vastu', 'professional_tools'],
-      isJyotishAllowed: true,
-      isVastuAllowed: true,
-      isProfessionalToolsAllowed: true,
+      allowedServices: hasSpecificJyotish || hasSpecificVastu
+        ? ['panchanga', 'personal_faladesh', ...(hasSpecificJyotish ? ['jyotish' as const] : []), ...(hasSpecificVastu ? ['vastu' as const] : [])]
+        : ['panchanga', 'personal_faladesh'],
+      isJyotishAllowed: hasSpecificJyotish,
+      isVastuAllowed: hasSpecificVastu,
+      isProfessionalToolsAllowed: false,
       isMemberDashboardAllowed: true,
       canAccessPersonalFaladesh: true,
       remainingDays: Math.max(1, Math.ceil(remainingHours / 24)),
       expiresAtBS: '४८ घण्टा',
-      messageNepali: `४८ घण्टे निःशुल्क परीक्षण सक्रिय छ (बाँकी करिब ${remainingHours} घण्टा)।`,
-      allowedNavTabs: [...PROFESSIONAL_SERVICE_TABS]
+      messageNepali: `४८ घण्टे निःशुल्क परीक्षण सक्रिय छ (बाँकी करिब ${remainingHours} घण्टा)। सामान्य सदस्य सुविधाहरू उपलब्ध छन्।`,
+      allowedNavTabs: hasSpecificJyotish || hasSpecificVastu
+        ? [...REGISTERED_BASE_TABS, ...(hasSpecificJyotish ? ['jyotishi', 'kundali', 'dasha'] : []), ...(hasSpecificVastu ? ['vastu'] : [])]
+        : [...REGISTERED_BASE_TABS]
     };
   }
 
   // 5. Expired Membership / Trial (Gated Personal Faladesh!)
   const isTrialActuallyExpired = (trialExpiryTime > 0 && Date.now() >= trialExpiryTime) ||
     (trial && trial.hasUsedTrial && !trial.isTrialActive) ||
-    (m && m.membershipStatus === 'EXPIRED') ||
+    (m && (m.membershipStatus === 'EXPIRED' || m.status === 'EXPIRED')) ||
     (u?.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt).getTime() <= Date.now());
 
   if (isTrialActuallyExpired) {

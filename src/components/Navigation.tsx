@@ -428,9 +428,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     if (!rbacSession) return 'visitor';
     if (rbacSession.role === 'SUPER_ADMIN') return 'professional';
     if (rbacSession.userCategory === 'professional' || (rbacSession as any).lifecycleState === 'PROFESSIONAL_MEMBER') return 'professional';
-    const localCat = (localStorage.getItem('balananda_user_category') || (rbacSession as any).userCategory || 'visitor') as any;
-    if (localCat === 'professional' || (rbacSession as any).userCategory === 'professional') return 'professional';
-    if (localCat === 'member' || (rbacSession as any).userCategory === 'member') return 'member';
+    if (rbacSession.userCategory === 'member' || rbacSession.role === 'MEMBER' || (rbacSession as any).lifecycleState === 'ACTIVE_MEMBER') return 'member';
     return 'visitor';
   }, [rbacSession, licenseRevision]);
 
