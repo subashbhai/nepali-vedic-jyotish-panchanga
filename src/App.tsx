@@ -773,9 +773,7 @@ export default function App() {
       setActiveModule('MAIN');
       setActiveTab(resolved);
 
-      if (hash === 'calendar' || hash === 'patro') {
-        setPanchangaSubTab('patro');
-      } else if (hash === 'date_converter' || hash === 'converter') {
+      if (hash === 'date_converter' || hash === 'converter') {
         setPanchangaSubTab('converter');
       } else if (hash === 'rashifal') {
         setPanchangaSubTab('rashifal');
@@ -1472,8 +1470,7 @@ export default function App() {
     // Sub-route handling
     let targetHash = TAB_TO_HASH[resolved] || (resolved as string);
     if (targetTab === 'calendar' || targetTab === 'patro') {
-      setPanchangaSubTab('patro');
-      resolved = 'panchanga';
+      resolved = 'calendar';
       targetHash = 'calendar';
     } else if (targetTab === 'date_converter') {
       setPanchangaSubTab('converter');

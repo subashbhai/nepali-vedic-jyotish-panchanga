@@ -81,8 +81,8 @@ export const DEFAULT_PAGES: PageControlItem[] = [
   {
     id: 'page_panchanga',
     tabKey: 'panchanga',
-    titleNepali: 'वैदिक पञ्चाङ्ग तथा पात्रो',
-    titleEnglish: 'Nepali Panchanga & Patro',
+    titleNepali: 'वैदिक पञ्चाङ्ग',
+    titleEnglish: 'Nepali Panchanga',
     category: 'core',
     icon: 'Clock',
     status: 'active',
@@ -90,6 +90,19 @@ export const DEFAULT_PAGES: PageControlItem[] = [
     hideInNavigation: false,
     badge: 'दैनिक',
     descriptionNepali: 'दैनिक पञ्चाङ्ग, तिथि, नक्षत्र, योग, करण, चाडपर्व र घडीपला गणना।'
+  },
+  {
+    id: 'page_calendar',
+    tabKey: 'calendar',
+    titleNepali: 'पात्रो (Calendar)',
+    titleEnglish: 'Nepali Patro Calendar',
+    category: 'core',
+    icon: 'Calendar',
+    status: 'active',
+    accessLevel: 'public',
+    hideInNavigation: false,
+    badge: 'पात्रो',
+    descriptionNepali: 'आधिकारिक नेपाली भित्तेपात्रो, चाडपर्व, बिदा, विवाह तथा व्रतबन्ध लगन।'
   },
   {
     id: 'page_jyotish',

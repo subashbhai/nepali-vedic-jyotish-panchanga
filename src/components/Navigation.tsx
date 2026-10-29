@@ -74,6 +74,7 @@ import { mobileHybridSync } from '../services/mobileHybridSync';
 export const VISITOR_ALLOWED_TABS = new Set<NavTab>([
   'home',
   'panchanga',
+  'calendar',
   'membership',
   'kharedi',
   'vivah',
@@ -277,6 +278,7 @@ export const MAIN_NAV_ITEMS: Array<{
 }> = [
   { id: 'home', labelNepali: 'गृहपृष्ठ', icon: Home },
   { id: 'panchanga', labelNepali: 'पञ्चाङ्ग', icon: Clock },
+  { id: 'calendar', labelNepali: 'पात्रो (Calendar)', icon: Calendar },
   { id: 'membership', labelNepali: 'सदस्यता', icon: Crown, highlight: true },
   { id: 'vivah', labelNepali: 'विवाह', icon: HeartHandshake },
   { id: 'yajaman', labelNepali: 'यजमान', icon: Users },
@@ -1915,6 +1917,29 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       <div className="min-w-0">
                         <span className="text-xs font-bold block truncate">पञ्चाङ्ग</span>
                         <span className="text-[10px] opacity-75 block truncate">दैनिक तिथि/मुहूर्त</span>
+                      </div>
+                    </button>
+                  )}
+
+                  {isTabVisibleInNavigation('calendar').visible && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileDrawerOpen(false);
+                        onTabChange('calendar');
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer ${
+                        activeTab === 'calendar' && activeModule === 'MAIN'
+                          ? 'bg-[#7A1C1C] text-white border-[#5C1515] shadow-xs'
+                          : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-50 text-stone-800 dark:text-stone-200 border-stone-200 dark:border-stone-700'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-700 dark:text-teal-400 flex items-center justify-center shrink-0">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold block truncate">पात्रो (Calendar)</span>
+                        <span className="text-[10px] opacity-75 block truncate">नेपाली क्यालेन्डर</span>
                       </div>
                     </button>
                   )}

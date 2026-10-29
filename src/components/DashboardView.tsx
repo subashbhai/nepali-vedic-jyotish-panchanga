@@ -70,7 +70,6 @@ import { SocialShareModal } from './SocialShareModal';
 import { sanitizeCloneForCanvas } from '../utils/pdfGenerator';
 import { ReportActionToolbar } from './common/ReportActionToolbar';
 import { RBACSession } from '../db/rbacStore';
-import { PersonalizedMemberAstrologyHub } from './dashboard/PersonalizedMemberAstrologyHub';
 import { getUserPersonalBirthProfile } from '../db/profileStore';
 import { 
   generateDailyVedicSankalpa,
@@ -89,6 +88,7 @@ import { getPreciseNepalLandmark, isPrivateOrInstitutionalName } from '../utils/
 import { MahaSankalpaModal } from './sankalpa/MahaSankalpaModal';
 import { LocationSelectorModal } from './LocationSelectorModal';
 import { DailyPanchangaPrintModal } from './panchanga/DailyPanchangaPrintModal';
+import { DailyWhatsAppDispatchManager } from './admin/DailyWhatsAppDispatchManager';
 import { 
   isSoftwareFullAccessUnlocked, 
   is3DayTrialActive, 
@@ -608,81 +608,6 @@ export const DashboardView: React.FC<DashboardViewProps> = memo(({
 
   return (
     <div id="dashboard-printable-area" className="space-y-5 flex flex-col flex-1 w-full min-h-0">
-      {/* Top Dashboard Utility & PDF Export Bar - Only visible after software purchase */}
-      {isPurchasedOrUnlocked && (
-        <div className="no-print flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-stone-900 px-5 sm:px-6 py-4 sm:py-4.5 rounded-2xl border-2 border-amber-500/30 dark:border-amber-500/25 shadow-md">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-400/40 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-xs">
-              📊
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-lg sm:text-xl md:text-2xl font-black text-[#1A1A1A] dark:text-stone-100 font-serif tracking-wide">
-                  ज्योतिष तथा पञ्चाङ्ग
-                </h2>
-              </div>
-              <p className="text-xs sm:text-sm font-bold text-stone-600 dark:text-stone-300 mt-0.5 leading-relaxed">
-                दैनिक पञ्चाङ्ग, ग्रह गोचर, कुण्डली चक्र तथा आधिकारिक वैदिक सेवाहरूको प्रत्यक्ष विवरण
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Daily 7:00 AM WhatsApp Automated Dispatch Manager Button */}
-            <button
-              onClick={() => setIsWhatsAppManagerOpen(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white text-xs sm:text-sm font-black px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
-              title="दैनिक बिहान ७:०० बजे ग्राहकहरूलाई स्वचालित राशिफल तथा पञ्चाङ्ग WhatsApp मा पठाउने सुपर एडमिन प्रणाली"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>दैनिक ७ बजे WhatsApp सेवा</span>
-            </button>
-
-            {/* Official Balananda Panchanga Actions (Print, Download, WhatsApp) */}
-            <button
-              type="button"
-              onClick={() => setIsDailyPanchangaModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-xs sm:text-sm shadow-xs transition-all cursor-pointer active:scale-95 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700"
-              title="ॐ को भव्य बोर्डर र बालानन्द लेटरहेडमा बार स्वामी भगवान्‌को तस्बिर सहितको पञ्चाङ्ग प्रिन्ट गर्नुहोस्"
-            >
-              <Printer className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>प्रिन्ट</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsDailyPanchangaModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-xs sm:text-sm shadow-xs transition-all cursor-pointer active:scale-95 bg-[#D97706] hover:bg-[#b45309] text-white"
-              title="उच्च गुणस्तरको आधिकारिक A4 PDF वा PNG डाउनलोड गर्नुहोस्"
-            >
-              <Download className="w-4 h-4 text-white" />
-              <span>डाउनलोड</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsDailyPanchangaModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-xs sm:text-sm shadow-xs transition-all cursor-pointer active:scale-95 text-white bg-emerald-600 hover:bg-emerald-500"
-              title="पञ्चाङ्ग सेयर गर्नुहोस् (WhatsApp, Facebook, Messenger)"
-            >
-              <Share2 className="w-4 h-4 text-white" />
-              <span>सेयर</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 🌟 PERSONALIZED MEMBER ASTROLOGICAL HUB (जब सदस्य लगइन भएको हुन्छ) */}
-      {rbacSession && (
-        <PersonalizedMemberAstrologyHub
-          profile={effectiveProfile || activeProfile!}
-          todayPanchanga={todayPanchanga}
-          todayAD={todayAD}
-          todayBS={todayBS}
-          transitPlanets={transitPlanets || planets}
-        />
-      )}
-
       {/* Today's Vedic Insight Widget - Automated Daily Auspicious Suggestions & Rahukaal/Choghadiya Alerts */}
       <VedicInsightWidget panchanga={todayPanchanga} onNavigate={onNavigate} />
 
