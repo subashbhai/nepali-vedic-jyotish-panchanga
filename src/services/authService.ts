@@ -100,7 +100,12 @@ class AuthService {
           phone: user.phone,
           birthDetails: canonicalBirth as any,
           createdAtISO: user.createdAtISO || new Date().toISOString(),
-          lastActivityISO: new Date().toISOString()
+          lastActivityISO: new Date().toISOString(),
+          userCategory: user.userCategory || 'visitor',
+          lifecycleState: user.lifecycleState,
+          jyotishAccess: user.jyotishAccess,
+          vastuAccess: user.vastuAccess,
+          trial: user.trial
         };
 
         if (canonicalBirth && user.id) {
@@ -196,7 +201,12 @@ class AuthService {
           phone: user.phone,
           birthDetails: canonicalBirth as any,
           createdAtISO: user.createdAtISO || new Date().toISOString(),
-          lastActivityISO: new Date().toISOString()
+          lastActivityISO: new Date().toISOString(),
+          userCategory: user.userCategory || (isSuperAdmin ? 'professional' : 'visitor'),
+          lifecycleState: user.lifecycleState,
+          jyotishAccess: user.jyotishAccess,
+          vastuAccess: user.vastuAccess,
+          trial: user.trial
         };
 
         if (canonicalBirth && user.id) {
@@ -372,7 +382,12 @@ class AuthService {
             role: user.role || local.role,
             roleNameNepali: user.roleNameNepali || local.roleNameNepali,
             status: user.status || local.status,
-            permissions: user.permissions || local.permissions
+            permissions: user.permissions || local.permissions,
+            userCategory: user.userCategory || local.userCategory,
+            lifecycleState: user.lifecycleState || local.lifecycleState,
+            jyotishAccess: user.jyotishAccess !== undefined ? user.jyotishAccess : local.jyotishAccess,
+            vastuAccess: user.vastuAccess !== undefined ? user.vastuAccess : local.vastuAccess,
+            trial: user.trial || local.trial
           };
           setRBACSession(updatedSession);
         }

@@ -409,8 +409,8 @@ export const Navigation: React.FC<NavigationProps> = memo(({
 
     // Initial server sync for user licenses and client leads if user is logged in
     const userPhone = rbacSession?.phone || rbacSession?.username;
-    if (userPhone) {
-      syncUserLicensesFromServer(userPhone);
+    if (userPhone || rbacSession?.userId) {
+      syncUserLicensesFromServer(rbacSession?.userId || userPhone!, rbacSession);
       syncClientLeadsFromServer();
     }
 
@@ -427,6 +427,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const userCategory = useMemo<'visitor' | 'member' | 'professional'>(() => {
     if (!rbacSession) return 'visitor';
     if (rbacSession.role === 'SUPER_ADMIN') return 'professional';
+    if (rbacSession.userCategory === 'professional' || (rbacSession as any).lifecycleState === 'PROFESSIONAL_MEMBER') return 'professional';
     const localCat = (localStorage.getItem('balananda_user_category') || (rbacSession as any).userCategory || 'visitor') as any;
     if (localCat === 'professional' || (rbacSession as any).userCategory === 'professional') return 'professional';
     if (localCat === 'member' || (rbacSession as any).userCategory === 'member') return 'member';
@@ -434,14 +435,12 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   }, [rbacSession, licenseRevision]);
 
   const isJyotishUnlocked = useMemo(() => {
-    if (userCategory === 'visitor' || userCategory === 'member') return false;
     if (rbacSession?.role === 'SUPER_ADMIN') return true;
     if (userCategory === 'professional') return true;
     return checkServiceAccess('jyotish', rbacSession).allowed;
   }, [rbacSession, licenseRevision, userCategory]);
 
   const isVastuUnlocked = useMemo(() => {
-    if (userCategory === 'visitor' || userCategory === 'member') return false;
     if (rbacSession?.role === 'SUPER_ADMIN') return true;
     if (userCategory === 'professional') return true;
     return checkServiceAccess('vastu', rbacSession).allowed;
@@ -863,13 +862,27 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                 return;
               }
 
-              if (rbacSession && (isJyotishi || isVastu) && !isJyotishUnlocked && rbacSession.role !== 'SUPER_ADMIN') {
-                alert('ज्योतिष तथा वास्तु सम्बन्धी सम्पूर्ण व्यावसायिक सुविधाहरू प्रयोग गर्न व्यावसायिक सदस्यता (Professional Plan) मा अपग्रेड गर्नुहोस्।');
-                onTabChange('membership');
-                return;
-              }
-
               if (isJyotishi) {
+                const isSuper = rbacSession?.role === 'SUPER_ADMIN';
+                const jAccess = checkServiceAccess('jyotish', rbacSession);
+                if (!isSuper && !jAccess.allowed) {
+                  if (jAccess.status === 'pending_approval') {
+                    alert('तपाईंको भुक्तानी तथा सेवा अनुरोध रुजु (Verification) हुँदैछ। प्रशासकबाट रुजु सम्पन्न हुनासाथ सेवा तुरुन्त सक्रिय हुनेछ।');
+                    return;
+                  }
+                  if (jAccess.status === 'expired') {
+                    alert('तपाईंको ज्योतिष सेवा म्याद समाप्त भएको छ। सेवा पुनः सुरु गर्न कृपया सदस्यता नवीकरण (Renewal) गर्नुहोस्।');
+                    onTabChange('membership');
+                    return;
+                  }
+                  if (jAccess.status === 'suspended') {
+                    alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
+                    return;
+                  }
+                  alert('ज्योतिष सम्बन्धी सम्पूर्ण व्यावसायिक सुविधाहरू प्रयोग गर्न व्यावसायिक सदस्यता वा सेवा लाइसेन्स सक्रिय गर्नुहोस्।');
+                  onTabChange('membership');
+                  return;
+                }
                 if (onEnterJyotish) {
                   onEnterJyotish();
                 } else {
@@ -879,6 +892,26 @@ export const Navigation: React.FC<NavigationProps> = memo(({
               }
 
               if (isVastu) {
+                const isSuper = rbacSession?.role === 'SUPER_ADMIN';
+                const vAccess = checkServiceAccess('vastu', rbacSession);
+                if (!isSuper && !vAccess.allowed) {
+                  if (vAccess.status === 'pending_approval') {
+                    alert('तपाईंको भुक्तानी तथा सेवा अनुरोध रुजु (Verification) हुँदैछ। प्रशासकबाट रुजु सम्पन्न हुनासाथ सेवा तुरुन्त सक्रिय हुनेछ।');
+                    return;
+                  }
+                  if (vAccess.status === 'expired') {
+                    alert('तपाईंको वास्तु सेवा म्याद समाप्त भएको छ। सेवा पुनः सुरु गर्न कृपया सदस्यता नवीकरण (Renewal) गर्नुहोस्।');
+                    onTabChange('membership');
+                    return;
+                  }
+                  if (vAccess.status === 'suspended') {
+                    alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
+                    return;
+                  }
+                  alert('वास्तु सम्बन्धी सम्पूर्ण व्यावसायिक सुविधाहरू प्रयोग गर्न व्यावसायिक सदस्यता वा सेवा लाइसेन्स सक्रिय गर्नुहोस्।');
+                  onTabChange('membership');
+                  return;
+                }
                 onTabChange('vastu');
                 return;
               }

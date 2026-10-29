@@ -628,7 +628,11 @@ async function startServer() {
   // CENTRAL SERVICE ACCESS ENGINE (JYOTISH & VASTU SEWA)
   // Single Central Truth across Database, Super Admin & Client
   // ==============================================================
-  const getUserServiceAccess = (userIdOrPhone: string, serviceKey: "jyotish" | "vastu", isSuperAdmin: boolean = false) => {
+  const getUserServiceAccess = async (
+    query: string | { userId?: string; phone?: string; username?: string },
+    serviceKey: "jyotish" | "vastu",
+    isSuperAdmin: boolean = false
+  ) => {
     if (isSuperAdmin) {
       return {
         allowed: true,
@@ -639,8 +643,12 @@ async function startServer() {
       };
     }
 
-    const cleanInput = String(userIdOrPhone || "").trim();
-    if (!cleanInput) {
+    const qUserId = typeof query === "object" ? query.userId : query;
+    const qPhone = typeof query === "object" ? query.phone : query;
+    const qUsername = typeof query === "object" ? query.username : query;
+
+    const rawInput = String(qUserId || qPhone || qUsername || "").trim();
+    if (!rawInput) {
       return {
         allowed: false,
         serviceKey,
@@ -649,12 +657,175 @@ async function startServer() {
       };
     }
 
-    const cleanDigits = cleanInput.replace(/\D/g, "").slice(-10);
-    const cleanLower = cleanInput.toLowerCase();
+    // Resolve user object first from PostgreSQL (dbAdapter) or local JSON
+    let users: any[] = [];
+    if (dbAdapter) {
+      try {
+        users = await dbAdapter.getUsers();
+      } catch {
+        users = getUsers();
+      }
+    }
+    if (!Array.isArray(users) || users.length === 0) {
+      users = getUsers();
+    }
 
-    // 0. Authoritative Check: Membership Engine (data/memberships.json)
-    const memAccess = membershipEngine.checkServiceAccess(cleanDigits || cleanLower, serviceKey as any);
-    if (memAccess.hasAccess) {
+    const cleanInputPhone = String(qPhone || rawInput).replace(/\D/g, "").slice(-10);
+    const cleanLowerId = String(qUserId || rawInput).toLowerCase();
+    const cleanLowerUser = String(qUsername || rawInput).toLowerCase();
+
+    // Match user by id, phone, or username
+    const matchedUser = users.find((u: any) => {
+      const uId = String(u.id || "").toLowerCase();
+      const uPhone = String(u.phone || "").replace(/\D/g, "").slice(-10);
+      const uUser = String(u.username || "").toLowerCase();
+
+      if (cleanLowerId && uId === cleanLowerId) return true;
+      if (cleanInputPhone.length >= 7 && uPhone === cleanInputPhone) return true;
+      if (cleanLowerUser && uUser === cleanLowerUser) return true;
+      return false;
+    });
+
+    // Effective identifiers across all tables
+    const effectiveUserId = (matchedUser?.id || qUserId || rawInput).toLowerCase();
+    const effectivePhone = String(matchedUser?.phone || qPhone || cleanInputPhone).replace(/\D/g, "").slice(-10);
+    const effectiveUsername = String(matchedUser?.username || qUsername || "").toLowerCase();
+
+    // 0. Super Admin / Store Admin
+    if (matchedUser?.role === "SUPER_ADMIN" || matchedUser?.role === "STORE_ADMIN" || matchedUser?.role === "POS_STAFF") {
+      return {
+        allowed: true,
+        serviceKey,
+        status: "unlocked",
+        isSuperAdmin: true,
+        reasonNepali: "प्रशासक पूर्ण पहुँच"
+      };
+    }
+
+    // 1. Check User Object explicit jyotishAccess / vastuAccess
+    if (matchedUser) {
+      const userAccess = serviceKey === "jyotish" ? matchedUser.jyotishAccess : matchedUser.vastuAccess;
+      if (userAccess && userAccess.unlocked) {
+        if (userAccess.expiresAtTimestamp && Date.now() > userAccess.expiresAtTimestamp) {
+          return {
+            allowed: false,
+            serviceKey,
+            status: "expired",
+            reasonNepali: "यस सेवाको म्याद समाप्त भइसकेको छ। कृपया नवीकरण गर्नुहोस्।"
+          };
+        }
+        return {
+          allowed: true,
+          serviceKey,
+          status: "unlocked",
+          userAccess,
+          reasonNepali: "प्रयोगकर्ता खातामा आधिकारिक रूपमा अनलक गरिएको सेवा"
+        };
+      }
+      if (matchedUser.userCategory === "professional") {
+        return {
+          allowed: true,
+          serviceKey,
+          status: "unlocked",
+          reasonNepali: "व्यावसायिक प्रयोगकर्ता पहुँच"
+        };
+      }
+    }
+
+    // 2. Check Service Licenses (from dbAdapter and service_licenses.json)
+    let licenses: any[] = [];
+    if (dbAdapter) {
+      try {
+        licenses = await dbAdapter.getServiceLicenses();
+      } catch {
+        licenses = getServiceLicenses();
+      }
+    }
+    if (!Array.isArray(licenses) || licenses.length === 0) {
+      licenses = getServiceLicenses();
+    }
+
+    const userLicense = licenses.find((l: any) => {
+      if (l.serviceKey !== serviceKey) return false;
+      const lUserId = String(l.userId || "").toLowerCase();
+      const lUsername = String(l.username || "").toLowerCase();
+      const lPhone = String(l.phone || "").replace(/\D/g, "").slice(-10);
+
+      if (effectiveUserId && (lUserId === effectiveUserId || lUsername === effectiveUserId)) return true;
+      if (effectivePhone && effectivePhone.length >= 7 && lPhone === effectivePhone) return true;
+      if (effectiveUsername && (lUsername === effectiveUsername || lUserId === effectiveUsername)) return true;
+      return false;
+    });
+
+    if (userLicense) {
+      if (userLicense.status === "unlocked") {
+        if (userLicense.expiresAtTimestamp && Date.now() > userLicense.expiresAtTimestamp) {
+          return {
+            allowed: false,
+            serviceKey,
+            status: "expired",
+            license: userLicense,
+            reasonNepali: `यस सेवाको म्याद समाप्त भइसकेको छ (${userLicense.expiresAtBS || ""})। कृपया नवीकरण गर्नुहोस्।`
+          };
+        }
+        return {
+          allowed: true,
+          serviceKey,
+          status: "unlocked",
+          license: userLicense,
+          reasonNepali: "सुपरएडमिनबाट आधिकारिक रूपमा अनलक गरिएको सेवा"
+        };
+      } else if (userLicense.status === "locked") {
+        return {
+          allowed: false,
+          serviceKey,
+          status: "locked",
+          license: userLicense,
+          reasonNepali: "सुपरएडमिन द्वारा यो सेवा हाल लक गरिएको छ।"
+        };
+      }
+    }
+
+    // 3. Check Memberships (from dbAdapter and memberships.json)
+    let memberships: any[] = [];
+    if (dbAdapter) {
+      try {
+        memberships = await dbAdapter.getMemberships();
+      } catch {
+        memberships = [];
+      }
+    }
+    const memAccess = membershipEngine.checkServiceAccess(effectivePhone || effectiveUserId, serviceKey as any);
+    const dbActiveMem = memberships.find((m: any) => {
+      const mId = String(m.userId || "").toLowerCase();
+      const mPhone = String(m.phone || "").replace(/\D/g, "").slice(-10);
+      const isMatch = (effectiveUserId && mId === effectiveUserId) || (effectivePhone && mPhone === effectivePhone);
+      const status = String(m.membershipStatus || m.status || "").toUpperCase();
+      return isMatch && status === "ACTIVE";
+    });
+
+    if (dbActiveMem) {
+      const planId = String(dbActiveMem.planId || "").toLowerCase();
+      const isPro = dbActiveMem.tier === "professional" || planId.startsWith("pro_") || planId.includes("professional") || planId === "yearly_both" || planId === "lifetime_both" || (Array.isArray(dbActiveMem.includedServices) && dbActiveMem.includedServices.includes(serviceKey));
+      const expTime = dbActiveMem.expiresAtTimestamp || (dbActiveMem.expiresAtISO ? new Date(dbActiveMem.expiresAtISO).getTime() : 0);
+      if (expTime > 0 && Date.now() > expTime) {
+        return {
+          allowed: false,
+          serviceKey,
+          status: "expired",
+          reasonNepali: "सदस्यता म्याद समाप्त भइसकेको छ। कृपया नवीकरण गर्नुहोस्।"
+        };
+      }
+      if (isPro) {
+        return {
+          allowed: true,
+          serviceKey,
+          status: "unlocked",
+          planNameNepali: dbActiveMem.planNameNepali || "पेशागत सदस्यता",
+          reasonNepali: "सक्रिय पेशागत सदस्यता"
+        };
+      }
+    } else if (memAccess.hasAccess) {
       return {
         allowed: true,
         serviceKey,
@@ -683,55 +854,25 @@ async function startServer() {
       };
     }
 
-    // 1. Check Service Licenses (service_licenses.json)
-    const licenses = getServiceLicenses();
-    const userLicense = licenses.find((l: any) => {
-      if (l.serviceKey !== serviceKey) return false;
-      const lUserId = String(l.userId || "").toLowerCase();
-      const lUsername = String(l.username || "").toLowerCase();
-      const lPhone = String(l.phone || "").replace(/\D/g, "").slice(-10);
-
-      if (cleanLower && (lUserId === cleanLower || lUsername === cleanLower)) return true;
-      if (cleanDigits.length >= 7 && lPhone === cleanDigits) return true;
-      return false;
-    });
-
-    if (userLicense) {
-      if (userLicense.status === "unlocked") {
-        if (userLicense.expiresAtTimestamp && Date.now() > userLicense.expiresAtTimestamp) {
-          return {
-            allowed: false,
-            serviceKey,
-            status: "expired",
-            license: userLicense,
-            reasonNepali: `यस सेवाको म्याद समाप्त भइसकेको छ (${userLicense.expiresAtBS || ""})।`
-          };
-        }
-        return {
-          allowed: true,
-          serviceKey,
-          status: "unlocked",
-          license: userLicense,
-          reasonNepali: "सुपरएडमिनबाट आधिकारिक रूपमा अनलक गरिएको सेवा"
-        };
-      } else if (userLicense.status === "locked") {
-        return {
-          allowed: false,
-          serviceKey,
-          status: "locked",
-          license: userLicense,
-          reasonNepali: "सुपरएडमिन द्वारा यो सेवा हाल लक गरिएको छ।"
-        };
+    // 4. Check Client Purchase Leads (dbAdapter and client_purchase_leads.json)
+    let leads: any[] = [];
+    if (dbAdapter) {
+      try {
+        leads = await dbAdapter.getClientLeads();
+      } catch {
+        leads = getClientLeads();
       }
     }
+    if (!Array.isArray(leads) || leads.length === 0) {
+      leads = getClientLeads();
+    }
 
-    // 2. Check Client Purchase Leads (client_purchase_leads.json)
-    const leads = getClientLeads();
     const userLead = leads.find((l: any) => {
       const lPhone = String(l.mobile || l.whatsapp || "").replace(/\D/g, "").slice(-10);
       const lId = String(l.id || "").toLowerCase();
-      if (cleanDigits.length >= 7 && lPhone === cleanDigits) return true;
-      if (cleanLower && lId === cleanLower) return true;
+      const lUserId = String(l.userId || "").toLowerCase();
+      if (effectivePhone && effectivePhone.length >= 7 && lPhone === effectivePhone) return true;
+      if (effectiveUserId && (lId === effectiveUserId || lUserId === effectiveUserId)) return true;
       return false;
     });
 
@@ -752,7 +893,7 @@ async function startServer() {
                 serviceKey,
                 status: "expired",
                 lead: userLead,
-                reasonNepali: "१ वर्षको सदस्यता म्याद समाप्त भएको छ।"
+                reasonNepali: "१ वर्षको सदस्यता म्याद समाप्त भएको छ। कृपया नवीकरण गर्नुहोस्।"
               };
             }
           }
@@ -764,80 +905,56 @@ async function startServer() {
             reasonNepali: `प्रमाणित ग्राहक लाइसेन्स (${userLead.planNameNepali || "स्वीकृत"})`
           };
         }
-      }
-    }
-
-    // 3. Check 24-Hour Trial Registry (trial_registry.json)
-    if (cleanDigits.length >= 7) {
-      const registry = getTrialRegistry();
-      const trialRecord = registry[cleanDigits];
-      if (trialRecord) {
-        if (Date.now() < trialRecord.expiresAtTimestamp) {
-          const remainingSeconds = Math.max(0, Math.floor((trialRecord.expiresAtTimestamp - Date.now()) / 1000));
+      } else if (userLead.status === "TRIAL_ACTIVE") {
+        const expTime = userLead.trialExpiresAtISO ? new Date(userLead.trialExpiresAtISO).getTime() : 0;
+        if (expTime > 0 && Date.now() < expTime) {
+          const remainingHours = Math.max(1, Math.ceil((expTime - Date.now()) / (3600 * 1000)));
           return {
             allowed: true,
             serviceKey,
             status: "trial_active",
-            trial: { ...trialRecord, remainingSeconds },
-            reasonNepali: `२४ घण्टे निःशुल्क परीक्षण सक्रिय (बाँकी समय: करिब ${Math.ceil(remainingSeconds / 3600)} घण्टा)`
+            lead: userLead,
+            reasonNepali: `परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
           };
         }
+      } else if (userLead.status === "PURCHASE_PENDING") {
+        return {
+          allowed: false,
+          serviceKey,
+          status: "pending_approval",
+          lead: userLead,
+          reasonNepali: "तपाईंको खरिद आवेदन समीक्षामा छ। सुपरएडमिनले रकम प्रमाणीकरण गरेपछि स्वतः अनलक हुनेछ।"
+        };
       }
     }
 
-    // 4. Check Registered User State (users.json)
-    const users = getUsers();
-    const userObj = users.find((u: any) => {
-      const uPhone = String(u.phone || "").replace(/\D/g, "").slice(-10);
-      const uId = String(u.id || "").toLowerCase();
-      const uUser = String(u.username || "").toLowerCase();
-      if (cleanDigits.length >= 7 && uPhone === cleanDigits) return true;
-      if (cleanLower && (uId === cleanLower || uUser === cleanLower)) return true;
-      return false;
-    });
-
-    if (userObj) {
-      const userAccess = serviceKey === "jyotish" ? userObj.jyotishAccess : userObj.vastuAccess;
-      if (userAccess && userAccess.unlocked) {
-        if (userAccess.expiresAtTimestamp && Date.now() > userAccess.expiresAtTimestamp) {
-          return {
-            allowed: false,
-            serviceKey,
-            status: "expired",
-            reasonNepali: "यस सेवाको म्याद समाप्त भइसकेको छ।"
-          };
-        }
+    // 5. Check Active Trial on User or Registry
+    if (matchedUser?.trial && matchedUser.trial.isTrialActive && matchedUser.trial.trialExpiresAtTimestamp) {
+      if (Date.now() < matchedUser.trial.trialExpiresAtTimestamp) {
+        const remainingSeconds = Math.max(0, Math.floor((matchedUser.trial.trialExpiresAtTimestamp - Date.now()) / 1000));
         return {
           allowed: true,
           serviceKey,
-          status: "unlocked",
-          userAccess,
-          reasonNepali: "प्रयोगकर्ता खातामा अनलक गरिएको सेवा"
+          status: "trial_active",
+          trial: { ...matchedUser.trial, remainingSeconds },
+          reasonNepali: `परीक्षण सक्रिय (बाँकी समय: करिब ${Math.ceil(remainingSeconds / 3600)} घण्टा)`
         };
-      }
-      if (userObj.trial && userObj.trial.isTrialActive && userObj.trial.trialExpiresAtTimestamp) {
-        if (Date.now() < userObj.trial.trialExpiresAtTimestamp) {
-          const remainingSeconds = Math.max(0, Math.floor((userObj.trial.trialExpiresAtTimestamp - Date.now()) / 1000));
-          return {
-            allowed: true,
-            serviceKey,
-            status: "trial_active",
-            trial: { ...userObj.trial, remainingSeconds },
-            reasonNepali: "२४ घण्टे निःशुल्क परीक्षण सक्रिय"
-          };
-        }
       }
     }
 
-    // 5. Check if purchase lead is currently pending approval
-    if (userLead && userLead.status === "PURCHASE_PENDING") {
-      return {
-        allowed: false,
-        serviceKey,
-        status: "pending_approval",
-        lead: userLead,
-        reasonNepali: "तपाईंको खरिद आवेदन समीक्षामा छ। सुपरएडमिनले रकम प्रमाणीकरण गरेपछि स्वतः अनलक हुनेछ।"
-      };
+    if (effectivePhone.length >= 7) {
+      const registry = getTrialRegistry();
+      const trialRecord = registry[effectivePhone];
+      if (trialRecord && Date.now() < trialRecord.expiresAtTimestamp) {
+        const remainingSeconds = Math.max(0, Math.floor((trialRecord.expiresAtTimestamp - Date.now()) / 1000));
+        return {
+          allowed: true,
+          serviceKey,
+          status: "trial_active",
+          trial: { ...trialRecord, remainingSeconds },
+          reasonNepali: `२४ घण्टे निःशुल्क परीक्षण सक्रिय (बाँकी समय: करिब ${Math.ceil(remainingSeconds / 3600)} घण्टा)`
+        };
+      }
     }
 
     // 6. Otherwise: locked
@@ -850,9 +967,12 @@ async function startServer() {
   };
 
   // Central unified service-access endpoint
-  app.get("/api/service-access", (req, res) => {
+  app.get("/api/service-access", async (req, res) => {
     try {
-      const userIdOrPhone = String(req.query.userId || req.query.phone || req.query.username || "").trim();
+      const qUserId = req.query.userId ? String(req.query.userId).trim() : undefined;
+      const qPhone = req.query.phone ? String(req.query.phone).trim() : undefined;
+      const qUsername = req.query.username ? String(req.query.username).trim() : undefined;
+      const queryObj = { userId: qUserId, phone: qPhone, username: qUsername };
 
       let isSuperAdmin = false;
       const authHeader = req.headers.authorization;
@@ -865,12 +985,12 @@ async function startServer() {
         isSuperAdmin = true;
       }
 
-      const jyotishAccess = getUserServiceAccess(userIdOrPhone, "jyotish", isSuperAdmin);
-      const vastuAccess = getUserServiceAccess(userIdOrPhone, "vastu", isSuperAdmin);
+      const jyotishAccess = await getUserServiceAccess(queryObj, "jyotish", isSuperAdmin);
+      const vastuAccess = await getUserServiceAccess(queryObj, "vastu", isSuperAdmin);
 
       return res.json({
         success: true,
-        userIdOrPhone,
+        query: queryObj,
         isSuperAdmin,
         jyotish: jyotishAccess,
         vastu: vastuAccess,
@@ -883,10 +1003,13 @@ async function startServer() {
 
   // 1. GET /api/licenses/check?userId=...&serviceKey=...
   // Public check endpoint: verifies access strictly for that specific user and serviceKey
-  app.get("/api/licenses/check", (req, res) => {
+  app.get("/api/licenses/check", async (req, res) => {
     try {
-      const userId = String(req.query.userId || req.query.phone || req.query.username || "").trim();
+      const qUserId = req.query.userId ? String(req.query.userId).trim() : undefined;
+      const qPhone = req.query.phone ? String(req.query.phone).trim() : undefined;
+      const qUsername = req.query.username ? String(req.query.username).trim() : undefined;
       const serviceKey = String(req.query.serviceKey || "").trim().toLowerCase();
+      const queryObj = { userId: qUserId, phone: qPhone, username: qUsername };
 
       // Check if superadmin is calling
       let isSuperAdmin = false;
@@ -910,7 +1033,7 @@ async function startServer() {
         });
       }
 
-      const access = getUserServiceAccess(userId, serviceKey as any, isSuperAdmin);
+      const access = await getUserServiceAccess(queryObj, serviceKey as any, isSuperAdmin);
       return res.json(access);
     } catch (err: any) {
       return res.status(500).json({ allowed: false, error: err.message });
@@ -2874,6 +2997,7 @@ async function startServer() {
         phone: userIdOrPhone,
         user: effectiveUserObj || userObj,
         membership: effectiveMembership || userLead,
+        userLicenses,
         isSuperAdmin: session?.role === "SUPER_ADMIN" || userObj?.role === "SUPER_ADMIN"
       });
 
@@ -3772,7 +3896,7 @@ async function startServer() {
   });
 
   // 5.4 POST /api/superadmin/users/:id/status (Account Activation / Suspension / Reactivation)
-  app.post("/api/superadmin/users/:id/status", requireSuperAdminAuth, (req, res) => {
+  app.post("/api/superadmin/users/:id/status", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { status, reason } = req.body;
@@ -3800,6 +3924,18 @@ async function startServer() {
       });
 
       saveUsers(users);
+
+      if (dbAdapter) {
+        try {
+          await dbAdapter.updateUser(user.id, {
+            status: user.status,
+            statusReason: user.statusReason,
+            statusUpdatedAtISO: user.statusUpdatedAtISO
+          });
+        } catch (dbErr: any) {
+          console.warn("[SuperAdmin User Status DB Update Notice]:", dbErr.message);
+        }
+      }
 
       if (status === "suspended" || status === "inactive") {
         broadcastRealtimeEvent("USER_FORCE_SIGNOUT", {
@@ -3937,7 +4073,7 @@ async function startServer() {
   });
 
   // 5.6.1 POST /api/superadmin/users/:id/activate-membership (Manual SuperAdmin Activation & Plan Assignment)
-  app.post("/api/superadmin/users/:id/activate-membership", requireSuperAdminAuth, (req, res) => {
+  app.post("/api/superadmin/users/:id/activate-membership", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const {
@@ -3992,8 +4128,37 @@ async function startServer() {
         return res.status(400).json(result);
       }
 
-      // Sync user profile status
+      // Sync user profile status & category
       user.status = "active";
+      const isProPlan = String(planId).toLowerCase().includes("pro") || result.membership?.tier === "professional";
+      if (isProPlan) {
+        user.userCategory = "professional";
+        user.roleNameNepali = "व्यावसायिक प्रयोगकर्ता (Professional)";
+        const now = new Date();
+        user.jyotishAccess = {
+          unlocked: true,
+          period: result.membership?.duration || "1_year",
+          expiresAtTimestamp: result.membership?.expiresAtTimestamp,
+          expiresAtBS: result.membership?.expiresAtBS,
+          approvedAtISO: now.toISOString()
+        };
+        user.vastuAccess = {
+          unlocked: true,
+          period: result.membership?.duration || "1_year",
+          expiresAtTimestamp: result.membership?.expiresAtTimestamp,
+          expiresAtBS: result.membership?.expiresAtBS,
+          approvedAtISO: now.toISOString()
+        };
+      } else {
+        user.userCategory = "member";
+        user.roleNameNepali = "सदस्य प्रयोगकर्ता";
+      }
+      user.subscriptionPlan = result.membership?.planNameNepali || planId;
+      user.subscriptionStartAt = result.membership?.activatedAtISO || new Date().toISOString();
+      user.subscriptionExpiresAt = result.membership?.expiresAtISO;
+      user.paymentStatus = "paid";
+      user.paymentAmountNPR = result.membership?.amountNPR || (verifiedAmount ? Number(verifiedAmount) : 0);
+
       if (!user.history) user.history = [];
       user.history.unshift({
         action: "membership_activated",
@@ -4002,6 +4167,25 @@ async function startServer() {
         details: `सदस्यता सक्रिय गरियो: ${result.membership?.planNameNepali || planId}`
       });
       saveUsers(users);
+
+      if (dbAdapter) {
+        try {
+          await dbAdapter.updateUser(user.id, {
+            status: user.status,
+            userCategory: user.userCategory,
+            roleNameNepali: user.roleNameNepali,
+            subscriptionPlan: user.subscriptionPlan,
+            subscriptionStartAt: user.subscriptionStartAt,
+            subscriptionExpiresAt: user.subscriptionExpiresAt,
+            paymentStatus: user.paymentStatus,
+            paymentAmountNPR: user.paymentAmountNPR,
+            jyotishAccess: user.jyotishAccess,
+            vastuAccess: user.vastuAccess
+          });
+        } catch (dbErr: any) {
+          console.warn("[activate-membership User DB Notice]:", dbErr.message);
+        }
+      }
 
       // Sync client leads & licenses
       const leads = getClientLeads();
@@ -4020,7 +4204,7 @@ async function startServer() {
         };
         leads.unshift(lead);
       }
-      applyLeadApproval(lead, adminId, result.membership?.approvedAtBS || getNepaliBSDate(new Date()), "both", {
+      await applyLeadApproval(lead, adminId, result.membership?.approvedAtBS || getNepaliBSDate(new Date()), "both", {
         cashVerified: Boolean(cashVerified),
         verifiedAmount: result.membership?.amountNPR,
         adminNotes: adminNotes || "सुपरएडमिन द्वारा सक्रिय",
@@ -4036,6 +4220,16 @@ async function startServer() {
         phone: cleanPhone,
         membership: result.membership,
         user: sanitized
+      });
+      broadcastRealtimeEvent("USER_STATUS_CHANGED", {
+        userId: user.id,
+        phone: cleanPhone,
+        status: user.status,
+        userCategory: user.userCategory
+      });
+      broadcastRealtimeEvent("SERVICE_LICENSE_UPDATED", {
+        userId: user.id,
+        phone: cleanPhone
       });
 
       return res.json({
@@ -4121,7 +4315,7 @@ async function startServer() {
   });
 
   // 5.6.3 POST /api/superadmin/users/:id/toggle-service (Toggle Specific Services)
-  app.post("/api/superadmin/users/:id/toggle-service", requireSuperAdminAuth, (req, res) => {
+  app.post("/api/superadmin/users/:id/toggle-service", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { services, reason = "सेवा पहुँच अद्यावधिक गरियो" } = req.body;
@@ -4138,6 +4332,7 @@ async function startServer() {
 
       const adminSession = (req as any).superAdmin;
       const adminId = adminSession?.username || "SuperAdmin";
+      const cleanPhone = String(user.phone || "").replace(/\D/g, "").slice(-10);
 
       const result = membershipEngine.mutateMembership(user.id, adminId, {
         action: "toggle_service",
@@ -4149,13 +4344,105 @@ async function startServer() {
         return res.status(400).json(result);
       }
 
-      const leads = getClientLeads();
+      const isJyotish = services.includes("jyotish");
+      const isVastu = services.includes("vastu");
+      const now = new Date();
+      const schedule = calculateMembershipDateSchedule(now, "1_year");
+
+      user.jyotishAccess = {
+        unlocked: isJyotish,
+        period: isJyotish ? "1_year" : null,
+        expiresAtTimestamp: isJyotish ? schedule.expiresAtTimestamp : null,
+        expiresAtBS: isJyotish ? schedule.expiresAtBS : null,
+        approvedAtISO: isJyotish ? now.toISOString() : null
+      };
+
+      user.vastuAccess = {
+        unlocked: isVastu,
+        period: isVastu ? "1_year" : null,
+        expiresAtTimestamp: isVastu ? schedule.expiresAtTimestamp : null,
+        expiresAtBS: isVastu ? schedule.expiresAtBS : null,
+        approvedAtISO: isVastu ? now.toISOString() : null
+      };
+
+      saveUsers(users);
+
+      // Upsert into service_licenses
       const licenses = getServiceLicenses();
+      const targetServices: Array<"jyotish" | "vastu"> = ["jyotish", "vastu"];
+      for (const sKey of targetServices) {
+        const isUnlock = services.includes(sKey);
+        const licId = `${cleanPhone || user.id}_${sKey}`;
+        const existingIdx = licenses.findIndex((l: any) =>
+          l.serviceKey === sKey && (l.id === licId || l.userId === user.id || (l.phone && String(l.phone).replace(/\D/g, "").slice(-10) === cleanPhone))
+        );
+
+        const licRecord = {
+          id: licId,
+          userId: user.id,
+          username: user.phone || user.username,
+          fullName: user.fullName,
+          phone: user.phone,
+          email: user.email || "",
+          serviceKey: sKey,
+          serviceNameNepali: sKey === "jyotish" ? "वैदिक ज्योतिष सफ्टवेयर" : "वास्तुशास्त्र सफ्टवेयर",
+          softwareName: "नेपाली वैदिक ज्योतिष तथा वास्तु सफ्टवेयर",
+          planNameNepali: "प्रशासक सेवा अनुमति",
+          amountNPR: 0,
+          paymentStatus: "VERIFIED",
+          paymentMethod: "admin_grant",
+          transactionId: "",
+          status: isUnlock ? "unlocked" : "locked",
+          duration: "1_year",
+          startsAtISO: now.toISOString(),
+          startsAtBS: schedule.activatedAtBS,
+          expiresAtTimestamp: isUnlock ? schedule.expiresAtTimestamp : null,
+          expiresAtISO: isUnlock ? schedule.expiresAtISO : null,
+          expiresAtBS: isUnlock ? schedule.expiresAtBS : null,
+          unlockedBy: adminId,
+          unlockedAtISO: isUnlock ? now.toISOString() : null,
+          notes: String(reason).trim(),
+          updatedAtISO: now.toISOString()
+        };
+
+        if (existingIdx > -1) {
+          licenses[existingIdx] = { ...licenses[existingIdx], ...licRecord };
+        } else {
+          licenses.unshift(licRecord);
+        }
+
+        if (dbAdapter) {
+          try {
+            await dbAdapter.createLicense(licRecord);
+          } catch (e: any) {
+            console.warn("[toggle-service License DB Notice]:", e.message);
+          }
+        }
+      }
+      saveServiceLicenses(licenses);
+
+      if (dbAdapter) {
+        try {
+          await dbAdapter.updateUser(user.id, {
+            jyotishAccess: user.jyotishAccess,
+            vastuAccess: user.vastuAccess
+          });
+        } catch (dbErr: any) {
+          console.warn("[toggle-service User DB Notice]:", dbErr.message);
+        }
+      }
+
+      const leads = getClientLeads();
       const sanitized = sanitizeAndEnrichUser(user, leads, licenses);
 
       broadcastRealtimeEvent("USER_SERVICES_UPDATED", {
         userId: user.id,
+        phone: cleanPhone,
         user: sanitized
+      });
+      broadcastRealtimeEvent("SERVICE_LICENSE_UPDATED", {
+        userId: user.id,
+        phone: cleanPhone
       });
 
       return res.json({

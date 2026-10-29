@@ -67,6 +67,17 @@ export interface RBACSession {
   photoUrl?: string;
   createdAtISO: string;
   lastActivityISO: string;
+  userCategory?: 'visitor' | 'member' | 'professional';
+  lifecycleState?: string;
+  jyotishAccess?: boolean | { unlocked?: boolean; expiresAtTimestamp?: number | null; expiresAtBS?: string | null };
+  vastuAccess?: boolean | { unlocked?: boolean; expiresAtTimestamp?: number | null; expiresAtBS?: string | null };
+  trial?: {
+    hasUsedTrial?: boolean;
+    isTrialActive?: boolean;
+    trialStartedAtISO?: string;
+    trialExpiresAtISO?: string;
+    trialExpiresAtTimestamp?: number;
+  };
 }
 
 export interface RBACAuditLog {

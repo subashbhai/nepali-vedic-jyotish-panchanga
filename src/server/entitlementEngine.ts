@@ -84,6 +84,7 @@ export function resolveUserEntitlement(params: {
   user?: any;
   membership?: any;
   trial?: any;
+  userLicenses?: any[];
   isSuperAdmin?: boolean;
 }): UserEntitlement {
   // 1. Super Admin: Unrestricted Full Authority
@@ -139,6 +140,17 @@ export function resolveUserEntitlement(params: {
   const u = params.user || {};
   const m = params.membership;
   const trial = params.trial || u.trial;
+
+  const hasSpecificJyotish = Boolean(
+    u?.jyotishAccess === true ||
+    (u?.jyotishAccess && typeof u.jyotishAccess === 'object' && u.jyotishAccess.unlocked && (!u.jyotishAccess.expiresAtTimestamp || Date.now() < u.jyotishAccess.expiresAtTimestamp)) ||
+    (Array.isArray(params.userLicenses) && params.userLicenses.some((l: any) => l.serviceKey === 'jyotish' && (l.status === 'unlocked' || l.status === 'active') && (!l.expiresAtTimestamp || Date.now() < l.expiresAtTimestamp)))
+  );
+  const hasSpecificVastu = Boolean(
+    u?.vastuAccess === true ||
+    (u?.vastuAccess && typeof u.vastuAccess === 'object' && u.vastuAccess.unlocked && (!u.vastuAccess.expiresAtTimestamp || Date.now() < u.vastuAccess.expiresAtTimestamp)) ||
+    (Array.isArray(params.userLicenses) && params.userLicenses.some((l: any) => l.serviceKey === 'vastu' && (l.status === 'unlocked' || l.status === 'active') && (!l.expiresAtTimestamp || Date.now() < l.expiresAtTimestamp)))
+  );
 
   // 3. Active Paid Membership Check
   const mStatus = m?.membershipStatus || m?.status;
@@ -197,6 +209,18 @@ export function resolveUserEntitlement(params: {
       };
     }
 
+
+    const normalServices: Array<'panchanga' | 'jyotish' | 'vastu' | 'karmakanda' | 'personal_faladesh' | 'professional_tools'> = ['panchanga', 'personal_faladesh'];
+    const normalTabs = [...REGISTERED_BASE_TABS];
+    if (hasSpecificJyotish) {
+      normalServices.push('jyotish');
+      normalTabs.push('jyotishi', 'kundali', 'dasha');
+    }
+    if (hasSpecificVastu) {
+      normalServices.push('vastu');
+      normalTabs.push('vastu');
+    }
+
     return {
       lifecycleState: 'NORMAL_MEMBER',
       stateNepali: 'साधारण सशुल्क सदस्य (Normal Member)',
@@ -207,16 +231,16 @@ export function resolveUserEntitlement(params: {
       isExpired: false,
       isPendingPayment: false,
       planNameNepali: mem.planNameNepali || 'साधारण सदस्यता योजना',
-      allowedServices: ['panchanga', 'personal_faladesh'],
-      isJyotishAllowed: false,
-      isVastuAllowed: false,
-      isProfessionalToolsAllowed: false,
+      allowedServices: normalServices,
+      isJyotishAllowed: hasSpecificJyotish,
+      isVastuAllowed: hasSpecificVastu,
+      isProfessionalToolsAllowed: hasSpecificJyotish && hasSpecificVastu,
       isMemberDashboardAllowed: true,
       canAccessPersonalFaladesh: true,
       remainingDays,
       expiresAtBS: mem.expiresAtBS,
       messageNepali: `${mem.planNameNepali || 'साधारण सदस्यता'} सक्रिय छ। व्यक्तिगत राशिफल तथा कुण्डली फलादेश उपलब्ध छ।`,
-      allowedNavTabs: REGISTERED_BASE_TABS
+      allowedNavTabs: normalTabs
     };
   }
 
@@ -240,16 +264,16 @@ export function resolveUserEntitlement(params: {
       isExpired: false,
       isPendingPayment: false,
       planNameNepali: '४८ घण्टा निःशुल्क परीक्षण',
-      allowedServices: ['panchanga', 'personal_faladesh'],
-      isJyotishAllowed: false,
-      isVastuAllowed: false,
-      isProfessionalToolsAllowed: false,
+      allowedServices: ['panchanga', 'personal_faladesh', 'jyotish', 'vastu', 'professional_tools'],
+      isJyotishAllowed: true,
+      isVastuAllowed: true,
+      isProfessionalToolsAllowed: true,
       isMemberDashboardAllowed: true,
       canAccessPersonalFaladesh: true,
-      remainingDays: 2,
+      remainingDays: Math.max(1, Math.ceil(remainingHours / 24)),
       expiresAtBS: '४८ घण्टा',
       messageNepali: `४८ घण्टे निःशुल्क परीक्षण सक्रिय छ (बाँकी करिब ${remainingHours} घण्टा)।`,
-      allowedNavTabs: REGISTERED_BASE_TABS
+      allowedNavTabs: [...PROFESSIONAL_SERVICE_TABS]
     };
   }
 
@@ -309,6 +333,17 @@ export function resolveUserEntitlement(params: {
   }
 
   // 7. Normal Registered User Without Paid Plan (Visitor Account)
+  const regServices: Array<'panchanga' | 'jyotish' | 'vastu' | 'karmakanda' | 'personal_faladesh' | 'professional_tools'> = ['panchanga', 'personal_faladesh'];
+  const regTabs = [...REGISTERED_BASE_TABS];
+  if (hasSpecificJyotish) {
+    regServices.push('jyotish');
+    regTabs.push('jyotishi', 'kundali', 'dasha');
+  }
+  if (hasSpecificVastu) {
+    regServices.push('vastu');
+    regTabs.push('vastu');
+  }
+
   return {
     lifecycleState: 'REGISTERED_USER',
     stateNepali: 'दर्ता भएको प्रयोगकर्ता (Registered User)',
@@ -319,15 +354,15 @@ export function resolveUserEntitlement(params: {
     isExpired: false,
     isPendingPayment: false,
     planNameNepali: 'साधारण खाता (योजना छैन)',
-    allowedServices: ['panchanga', 'personal_faladesh'],
-    isJyotishAllowed: false,
-    isVastuAllowed: false,
-    isProfessionalToolsAllowed: false,
+    allowedServices: regServices,
+    isJyotishAllowed: hasSpecificJyotish,
+    isVastuAllowed: hasSpecificVastu,
+    isProfessionalToolsAllowed: hasSpecificJyotish && hasSpecificVastu,
     isMemberDashboardAllowed: true,
     canAccessPersonalFaladesh: true,
     remainingDays: 0,
     expiresAtBS: null,
     messageNepali: 'तपाईंको साधारण खाता सक्रिय छ। थप सेवाहरूको लागि सदस्यता लिनुहोस्।',
-    allowedNavTabs: REGISTERED_BASE_TABS
+    allowedNavTabs: regTabs
   };
 }

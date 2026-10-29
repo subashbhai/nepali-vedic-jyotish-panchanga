@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { 
   Compass, 
   Sparkles, 
@@ -101,6 +101,22 @@ export const Header: React.FC<HeaderProps> = memo(({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const displayRoleNepali = useMemo(() => {
+    if (!rbacSession) return 'साधारण प्रयोगकर्ता';
+    if (rbacSession.role === 'SUPER_ADMIN') return 'मुख्य प्रशासक (Super Admin)';
+    if (rbacSession.role === 'STORE_ADMIN') return 'व्यवस्थापक (Store Admin)';
+    if (rbacSession.userCategory === 'professional' || (rbacSession as any).lifecycleState === 'PROFESSIONAL_MEMBER') {
+      return 'व्यावसायिक सदस्य (Professional)';
+    }
+    if (rbacSession.trial?.isTrialActive) {
+      return 'परीक्षण प्रयोगकर्ता (Trial)';
+    }
+    if (rbacSession.userCategory === 'member' || rbacSession.role === 'MEMBER') {
+      return 'साधारण सदस्य (Member)';
+    }
+    return rbacSession.roleNameNepali || 'दर्ता भएको प्रयोगकर्ता';
+  }, [rbacSession]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -249,7 +265,7 @@ export const Header: React.FC<HeaderProps> = memo(({
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
                   </div>
                   <span className="text-[10px] font-mono text-[var(--header-subtitle,#D97706)] font-bold block">
-                    {rbacSession.roleNameNepali}
+                    {displayRoleNepali}
                   </span>
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 text-stone-400 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180 text-amber-600' : 'group-hover:translate-y-0.5'}`} />
@@ -279,7 +295,7 @@ export const Header: React.FC<HeaderProps> = memo(({
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="सक्रिय सत्र (Online)" />
                         </div>
                         <span className="text-[10px] font-bold text-[#7A1C1C] dark:text-amber-300 block truncate">
-                          {rbacSession.roleNameNepali}
+                          {displayRoleNepali}
                         </span>
                         <span className="text-[10px] text-stone-500 dark:text-stone-400 block truncate font-mono">
                           @{rbacSession.username}

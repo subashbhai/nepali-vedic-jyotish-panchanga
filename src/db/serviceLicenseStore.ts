@@ -144,7 +144,41 @@ export function checkServiceAccess(
     const userId = (session.userId || '').toLowerCase();
     const username = (session.username || '').toLowerCase();
 
-    // Check Stored Client Leads for this specific user
+    // A. Check if user is Professional Member or SuperAdmin
+    const isPro =
+      (session as any)?.userCategory === 'professional' ||
+      (session as any)?.lifecycleState === 'PROFESSIONAL_MEMBER' ||
+      (session as any)?.role === 'SUPER_ADMIN' ||
+      (typeof window !== 'undefined' && localStorage.getItem('balananda_user_category') === 'professional');
+    if (isPro) {
+      return {
+        allowed: true,
+        serviceKey,
+        status: 'unlocked',
+        reasonNepali: 'व्यावसायिक सदस्यता (Professional Member)'
+      };
+    }
+
+    // B. Check if User has explicit jyotishAccess / vastuAccess granted by admin
+    const uAccess = serviceKey === 'jyotish' ? (session as any)?.jyotishAccess : (session as any)?.vastuAccess;
+    if (uAccess && uAccess.unlocked) {
+      if (uAccess.expiresAtTimestamp && Date.now() > uAccess.expiresAtTimestamp) {
+        return {
+          allowed: false,
+          serviceKey,
+          status: 'expired',
+          reasonNepali: 'यस सेवाको म्याद समाप्त भइसकेको छ। कृपया नवीकरण गर्नुहोस्।'
+        };
+      }
+      return {
+        allowed: true,
+        serviceKey,
+        status: 'unlocked',
+        reasonNepali: 'प्रशासकबाट अनलक गरिएको सेवा'
+      };
+    }
+
+    // C. Check Stored Client Leads for this specific user
     const leads = getStoredClientLeads();
     const userLead = leads.find((l) => {
       const lPhone = (l.mobile || l.whatsapp || '').replace(/\D/g, '').slice(-10);
@@ -155,7 +189,7 @@ export function checkServiceAccess(
     });
 
     if (userLead) {
-      // A. Approved purchase
+      // Approved purchase
       if (userLead.status === 'PURCHASE_APPROVED') {
         const planId = (userLead.planId || '').toLowerCase();
         let planAllows = true;
@@ -186,40 +220,30 @@ export function checkServiceAccess(
         }
       }
 
-      // B. Active 24-hr trial for this user
+      // Active 24-hr trial for this user
       if (userLead.status === 'TRIAL_ACTIVE') {
         if (userLead.trialExpiresAtISO) {
           const expTime = new Date(userLead.trialExpiresAtISO).getTime();
           if (Date.now() < expTime) {
-            const remainingHours = Math.ceil((expTime - Date.now()) / (1000 * 60 * 60));
+            const remainingHours = Math.max(1, Math.ceil((expTime - Date.now()) / (1000 * 60 * 60)));
             return {
               allowed: true,
               serviceKey,
               status: 'unlocked',
-              reasonNepali: `२४ घण्टे निःशुल्क परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
+              reasonNepali: `परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
             };
           } else {
             return {
               allowed: false,
               serviceKey,
               status: 'expired',
-              reasonNepali: '२४ घण्टे निःशुल्क परीक्षण समाप्त भइसकेको छ। कृपया सफ्टवेयर खरिद गर्नुहोस्।'
+              reasonNepali: 'परीक्षण म्याद समाप्त भइसकेको छ। कृपया सफ्टवेयर खरिद गर्नुहोस्।'
             };
           }
         }
       }
 
-      // C. Registered only user (REGISTERED_USER) - STRICTLY LOCKED
-      if (userLead.status === 'REGISTERED_USER') {
-        return {
-          allowed: false,
-          serviceKey,
-          status: 'locked',
-          reasonNepali: 'यो सेवा प्रयोग गर्न २४ घण्टे निःशुल्क परीक्षण सुरु गर्नुहोस् वा सफ्टवेयर खरिद गर्नुहोस्।'
-        };
-      }
-
-      // D. Purchase pending approval
+      // Purchase pending approval
       if (userLead.status === 'PURCHASE_PENDING') {
         return {
           allowed: false,
@@ -230,7 +254,7 @@ export function checkServiceAccess(
       }
     }
 
-    // Check user-specific licenses in local cache (granted directly or via sync)
+    // D. Check user-specific licenses in local cache
     const licenses = getLocalLicenses();
     const matchedLicense = licenses.find((l) => {
       if (l.serviceKey !== serviceKey) return false;
@@ -262,14 +286,28 @@ export function checkServiceAccess(
       };
     }
 
-    // Check if device trial was started specifically by this user's mobile
+    // E. Check user trial in session object
+    if ((session as any)?.trial?.isTrialActive) {
+      const exp = (session as any).trial.trialExpiresAtTimestamp || ((session as any).trial.trialExpiresAtISO ? new Date((session as any).trial.trialExpiresAtISO).getTime() : 0);
+      if (exp > 0 && Date.now() < exp) {
+        const remainingHours = Math.max(1, Math.ceil((exp - Date.now()) / (3600 * 1000)));
+        return {
+          allowed: true,
+          serviceKey,
+          status: 'unlocked',
+          reasonNepali: `निःशुल्क परीक्षण सक्रिय (बाँकी करिब ${remainingHours} घण्टा)`
+        };
+      }
+    }
+
+    // F. Check if device trial was started specifically by this user's mobile
     const devTrial = getDeviceTrialRecord();
     if (devTrial && devTrial.leadMobile) {
       const trialPhone = devTrial.leadMobile.replace(/\D/g, '').slice(-10);
       if (cleanPhone.length >= 7 && trialPhone === cleanPhone) {
         const expTime = new Date(devTrial.expiresAtISO).getTime();
         if (Date.now() < expTime) {
-          const remainingHours = Math.ceil((expTime - Date.now()) / (1000 * 60 * 60));
+          const remainingHours = Math.max(1, Math.ceil((expTime - Date.now()) / (1000 * 60 * 60)));
           return {
             allowed: true,
             serviceKey,
@@ -285,6 +323,16 @@ export function checkServiceAccess(
           };
         }
       }
+    }
+
+    // G. Purchase pending approval check
+    if ((session as any)?.paymentStatus === 'pending_approval' || (session as any)?.membershipStatus === 'PENDING_PAYMENT') {
+      return {
+        allowed: false,
+        serviceKey,
+        status: 'pending_approval',
+        reasonNepali: 'तपाईंको खरिद आवेदन समीक्षामा छ। सुपरएडमिनले रकम प्रमाणीकरण गरेपछि स्वतः अनलक हुनेछ।'
+      };
     }
 
     // For any other registered user who has neither active trial nor purchase:
@@ -320,26 +368,36 @@ export function checkServiceAccess(
 /**
  * Fetch and synchronize user licenses from the server
  */
-export async function syncUserLicensesFromServer(userIdOrPhone: string): Promise<UserServiceLicense[]> {
-  if (!userIdOrPhone) return [];
-  const cleanDigits = userIdOrPhone.replace(/\D/g, '').slice(-10) || userIdOrPhone;
+export async function syncUserLicensesFromServer(
+  userIdOrPhone: string,
+  session?: RBACSession | null
+): Promise<UserServiceLicense[]> {
+  if (!userIdOrPhone && !session) return [];
+  const cleanDigits = (session?.phone || userIdOrPhone || '').replace(/\D/g, '').slice(-10);
+  const userId = session?.userId || (userIdOrPhone && !userIdOrPhone.match(/^\d+$/) ? userIdOrPhone : '');
+  const username = session?.username || '';
   try {
-    const res = await fetch(`/api/service-access?phone=${encodeURIComponent(cleanDigits)}&userId=${encodeURIComponent(userIdOrPhone)}`);
+    const url = apiClient.resolveUrl(
+      `/api/service-access?phone=${encodeURIComponent(cleanDigits)}&userId=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}`
+    );
+    const res = await fetch(url);
     const accessData = await res.json();
 
     const currentLicenses = getLocalLicenses();
     const updated = [...currentLicenses];
 
     const upsert = (sKey: LockableServiceKey, isAllowed: boolean, lic?: any) => {
-      const targetId = `${cleanDigits}_${sKey}`;
-      const idx = updated.findIndex((l) => l.serviceKey === sKey && (l.id === targetId || l.userId === cleanDigits || (l.phone && l.phone.replace(/\D/g, '').slice(-10) === cleanDigits)));
+      const targetId = `${cleanDigits || userId}_${sKey}`;
+      const idx = updated.findIndex((l) =>
+        l.serviceKey === sKey && (l.id === targetId || (userId && l.userId === userId) || (cleanDigits && l.phone && l.phone.replace(/\D/g, '').slice(-10) === cleanDigits))
+      );
       if (isAllowed) {
         const item: UserServiceLicense = {
           id: lic?.id || targetId,
-          userId: lic?.userId || cleanDigits,
-          username: lic?.username || cleanDigits,
-          fullName: lic?.fullName || cleanDigits,
-          phone: cleanDigits,
+          userId: lic?.userId || userId || cleanDigits,
+          username: lic?.username || username || cleanDigits,
+          fullName: lic?.fullName || session?.fullName || cleanDigits,
+          phone: cleanDigits || session?.phone || '',
           serviceKey: sKey,
           status: 'unlocked',
           duration: lic?.duration || '1_year',
@@ -364,16 +422,23 @@ export async function syncUserLicensesFromServer(userIdOrPhone: string): Promise
       if (accessData.jyotish?.allowed) {
         upsert('jyotish', true, accessData.jyotish.license);
       } else {
-        const jIdx = updated.findIndex((l) => l.serviceKey === 'jyotish' && (l.userId === cleanDigits || (l.phone && l.phone.replace(/\D/g, '').slice(-10) === cleanDigits)));
+        const jIdx = updated.findIndex((l) => l.serviceKey === 'jyotish' && ((userId && l.userId === userId) || (cleanDigits && l.phone && l.phone.replace(/\D/g, '').slice(-10) === cleanDigits)));
         if (jIdx > -1) updated[jIdx] = { ...updated[jIdx], status: 'locked' };
       }
       if (accessData.vastu?.allowed) {
         upsert('vastu', true, accessData.vastu.license);
       } else {
-        const vIdx = updated.findIndex((l) => l.serviceKey === 'vastu' && (l.userId === cleanDigits || (l.phone && l.phone.replace(/\D/g, '').slice(-10) === cleanDigits)));
+        const vIdx = updated.findIndex((l) => l.serviceKey === 'vastu' && ((userId && l.userId === userId) || (cleanDigits && l.phone && l.phone.replace(/\D/g, '').slice(-10) === cleanDigits)));
         if (vIdx > -1) updated[vIdx] = { ...updated[vIdx], status: 'locked' };
       }
       saveLocalLicenses(updated);
+
+      if (accessData.jyotish?.allowed || accessData.vastu?.allowed) {
+        try {
+          localStorage.setItem('balananda_user_category', 'professional');
+        } catch {}
+      }
+
       broadcastLicenseChange();
     }
 

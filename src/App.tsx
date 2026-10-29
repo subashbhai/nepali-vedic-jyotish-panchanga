@@ -694,9 +694,31 @@ export default function App() {
       if (hash === 'jyotish' || hash === 'jyotishi' || hash === 'aarje') {
         const session = getActiveRBACSession();
         const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
-        const cat = session ? (isSuper ? 'professional' : (localStorage.getItem('balananda_user_category') || (session as any).userCategory || 'visitor')) : 'visitor';
         const jAccess = checkServiceAccess('jyotish', session);
-        if (!isSuper && (cat === 'visitor' || cat === 'member' || !jAccess.allowed)) {
+        if (!isSuper && !jAccess.allowed) {
+          if (jAccess.status === 'pending_approval') {
+            alert('तपाईंको भुक्तानी तथा सेवा अनुरोध रुजु (Verification) हुँदैछ। प्रशासकबाट रुजु सम्पन्न हुनासाथ सेवा तुरुन्त सक्रिय हुनेछ।');
+            setActiveModule('MAIN');
+            setActiveTab('home');
+            document.title = TAB_PAGE_TITLES.home;
+            return;
+          }
+          if (jAccess.status === 'expired') {
+            alert('तपाईंको ज्योतिष सेवा म्याद समाप्त भएको छ। सेवा पुनः सुरु गर्न कृपया सदस्यता नवीकरण (Renewal) गर्नुहोस्।');
+            setActiveModule('MAIN');
+            setActiveTab('home');
+            document.title = TAB_PAGE_TITLES.home;
+            setLockedFeatureName('ज्योतिष सेवा (नवीकरण आवश्यक)');
+            setIsClientPurchaseLeadModalOpen(true);
+            return;
+          }
+          if (jAccess.status === 'suspended') {
+            alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
+            setActiveModule('MAIN');
+            setActiveTab('home');
+            document.title = TAB_PAGE_TITLES.home;
+            return;
+          }
           setActiveModule('MAIN');
           setActiveTab('home');
           document.title = TAB_PAGE_TITLES.home;
@@ -713,9 +735,31 @@ export default function App() {
       if (hash === 'vastu') {
         const session = getActiveRBACSession();
         const isSuper = session?.role === 'SUPER_ADMIN' || session?.role === 'STORE_ADMIN';
-        const cat = session ? (isSuper ? 'professional' : (localStorage.getItem('balananda_user_category') || (session as any).userCategory || 'visitor')) : 'visitor';
         const vAccess = checkServiceAccess('vastu', session);
-        if (!isSuper && (cat === 'visitor' || cat === 'member' || !vAccess.allowed)) {
+        if (!isSuper && !vAccess.allowed) {
+          if (vAccess.status === 'pending_approval') {
+            alert('तपाईंको भुक्तानी तथा सेवा अनुरोध रुजु (Verification) हुँदैछ। प्रशासकबाट रुजु सम्पन्न हुनासाथ सेवा तुरुन्त सक्रिय हुनेछ।');
+            setActiveModule('MAIN');
+            setActiveTab('home');
+            document.title = TAB_PAGE_TITLES.home;
+            return;
+          }
+          if (vAccess.status === 'expired') {
+            alert('तपाईंको वास्तु सेवा म्याद समाप्त भएको छ। सेवा पुनः सुरु गर्न कृपया सदस्यता नवीकरण (Renewal) गर्नुहोस्।');
+            setActiveModule('MAIN');
+            setActiveTab('home');
+            document.title = TAB_PAGE_TITLES.home;
+            setLockedFeatureName('वास्तु सेवा (नवीकरण आवश्यक)');
+            setIsClientPurchaseLeadModalOpen(true);
+            return;
+          }
+          if (vAccess.status === 'suspended') {
+            alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
+            setActiveModule('MAIN');
+            setActiveTab('home');
+            document.title = TAB_PAGE_TITLES.home;
+            return;
+          }
           setActiveModule('MAIN');
           setActiveTab('home');
           document.title = TAB_PAGE_TITLES.home;
@@ -846,22 +890,38 @@ export default function App() {
 
   const userPhoneDigits = (rbacSession?.phone || rbacSession?.username || '').replace(/\D/g, '').slice(-10);
   const userLeads = getStoredClientLeads();
-  const currentUserLead = userPhoneDigits
-    ? userLeads.find((l) => (l.mobile || l.whatsapp || '').replace(/\D/g, '').slice(-10) === userPhoneDigits)
+  const currentUserLead = rbacSession
+    ? userLeads.find((l) => (
+        (userPhoneDigits && (l.mobile || l.whatsapp || '').replace(/\D/g, '').slice(-10) === userPhoneDigits) ||
+        (l.userId && l.userId === rbacSession.userId) ||
+        l.id === rbacSession.userId
+      ))
     : null;
   const isRegisteredOnlyUser = currentUserLead?.status === 'REGISTERED_USER';
-  const isUserTrialActive = currentUserLead
+  const isSessionTrialActive = Boolean(
+    rbacSession?.trial?.isTrialActive &&
+    (!rbacSession.trial.trialExpiresAtISO || new Date(rbacSession.trial.trialExpiresAtISO).getTime() > Date.now())
+  );
+  const isUserTrialActive = isSessionTrialActive || (currentUserLead
     ? (currentUserLead.status === 'TRIAL_ACTIVE' && !!currentUserLead.trialExpiresAtISO && new Date(currentUserLead.trialExpiresAtISO).getTime() > Date.now())
-    : (rbacSession ? false : (is24HourTrialActive() || is7DayTrialActive()));
-  const isUserPurchaseApproved = currentUserLead
+    : (is24HourTrialActive() || is7DayTrialActive()));
+
+  const isSessionApproved = Boolean(
+    rbacSession?.role === 'SUPER_ADMIN' ||
+    (rbacSession as any)?.userCategory === 'professional' ||
+    (rbacSession as any)?.lifecycleState === 'PROFESSIONAL_MEMBER' ||
+    (rbacSession as any)?.jyotishAccess === true ||
+    ((rbacSession as any)?.jyotishAccess?.unlocked === true)
+  );
+  const isUserPurchaseApproved = isSessionApproved || (currentUserLead
     ? (currentUserLead.status === 'PURCHASE_APPROVED' && (
         currentUserLead.expiresAtTimestamp
           ? !isLicenseExpired(currentUserLead.expiresAtTimestamp)
           : (currentUserLead.expiresAtISO ? !isLicenseExpired(new Date(currentUserLead.expiresAtISO).getTime()) : true)
       ))
-    : isClientPurchaseApproved();
+    : isClientPurchaseApproved());
 
-  const isFullyUnlocked = isSuperOrStoreAdmin || (!isRegisteredOnlyUser && (hasFullAccess || isUserTrialActive || isUserPurchaseApproved));
+  const isFullyUnlocked = isSuperOrStoreAdmin || isSessionApproved || (!isRegisteredOnlyUser && (hasFullAccess || isUserTrialActive || isUserPurchaseApproved));
 
   // Track page view for Analytics
   useEffect(() => {
@@ -985,8 +1045,10 @@ export default function App() {
     };
 
     const handleSessionSynced = () => {
-      handleFullAccessUpdate();
-      handleTrialUpdate();
+      authService.syncUserSessionFromServer().finally(() => {
+        handleFullAccessUpdate();
+        handleTrialUpdate();
+      });
     };
 
     window.addEventListener('software-full-access-updated', handleFullAccessUpdate);
@@ -998,6 +1060,9 @@ export default function App() {
     window.addEventListener('user-force-logout', handleForceSignoutEvent);
     window.addEventListener('rbac-session-changed', handleSessionChangedEvent);
     window.addEventListener('balananda_user_session_synced', handleSessionSynced);
+    window.addEventListener('service-license-updated', handleSessionSynced);
+    window.addEventListener('subscription-status-updated', handleSessionSynced);
+    window.addEventListener('client-leads-updated', handleSessionSynced);
 
     // Initial server session sync to ensure user entitlements and license changes from Super Admin are active
     authService.syncUserSessionFromServer().then(() => {
@@ -1015,6 +1080,9 @@ export default function App() {
       window.removeEventListener('user-force-logout', handleForceSignoutEvent);
       window.removeEventListener('rbac-session-changed', handleSessionChangedEvent);
       window.removeEventListener('balananda_user_session_synced', handleSessionSynced);
+      window.removeEventListener('service-license-updated', handleSessionSynced);
+      window.removeEventListener('subscription-status-updated', handleSessionSynced);
+      window.removeEventListener('client-leads-updated', handleSessionSynced);
     };
   }, []);
 
@@ -1348,32 +1416,24 @@ export default function App() {
       }
     }
 
-    // Authenticated user without professional plan attempting to access professional tools
-    if (rbacSession && userCategory !== 'professional' && rbacSession.role !== 'SUPER_ADMIN') {
-      if (resolved === 'jyotishi' || resolved === 'aarje' || resolved === 'vastu') {
-        setLockedFeatureName(
-          resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' : 'वास्तु सेवा'
-        );
-        setIsClientPurchaseLeadModalOpen(true);
-        return;
-      }
-    }
-
-    if (rbacSession && !isFullyUnlocked && !NORMAL_USER_ALLOWED_TABS.has(resolved)) {
-      setLockedFeatureName(
-        resolved === 'jyotishi' || resolved === 'aarje' ? 'ज्योतिष सेवा' :
-        resolved === 'vastu' ? 'वास्तु सेवा' :
-        resolved === 'rashifal' ? 'दैनिक राशिफल' :
-        resolved === 'home' ? 'गृहपृष्ठ' : 'यो सेवा'
-      );
-      setIsClientPurchaseLeadModalOpen(true);
-      return;
-    }
-
-    // Specific service licensing check for Jyotish and Vastu (both registered and visitors)
+    // Specific service licensing check for Jyotish and Vastu
     if (resolved === 'jyotishi' || resolved === 'aarje') {
       const jyotishAccess = checkServiceAccess('jyotish', rbacSession);
       if (!isSuperOrStoreAdmin && !jyotishAccess.allowed) {
+        if (jyotishAccess.status === 'pending_approval') {
+          alert('तपाईंको भुक्तानी तथा सेवा अनुरोध रुजु (Verification) हुँदैछ। प्रशासकबाट रुजु सम्पन्न हुनासाथ सेवा तुरुन्त सक्रिय हुनेछ।');
+          return;
+        }
+        if (jyotishAccess.status === 'expired') {
+          alert('तपाईंको ज्योतिष सेवा म्याद समाप्त भएको छ। सेवा पुनः सुरु गर्न कृपया सदस्यता नवीकरण (Renewal) गर्नुहोस्।');
+          setLockedFeatureName('ज्योतिष सेवा (नवीकरण आवश्यक)');
+          setIsClientPurchaseLeadModalOpen(true);
+          return;
+        }
+        if (jyotishAccess.status === 'suspended') {
+          alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
+          return;
+        }
         setLockedFeatureName('ज्योतिष सेवा');
         setIsClientPurchaseLeadModalOpen(true);
         return;
@@ -1383,6 +1443,20 @@ export default function App() {
     if (resolved === 'vastu') {
       const vastuAccess = checkServiceAccess('vastu', rbacSession);
       if (!isSuperOrStoreAdmin && !vastuAccess.allowed) {
+        if (vastuAccess.status === 'pending_approval') {
+          alert('तपाईंको भुक्तानी तथा सेवा अनुरोध रुजु (Verification) हुँदैछ। प्रशासकबाट रुजु सम्पन्न हुनासाथ सेवा तुरुन्त सक्रिय हुनेछ।');
+          return;
+        }
+        if (vastuAccess.status === 'expired') {
+          alert('तपाईंको वास्तु सेवा म्याद समाप्त भएको छ। सेवा पुनः सुरु गर्न कृपया सदस्यता नवीकरण (Renewal) गर्नुहोस्।');
+          setLockedFeatureName('वास्तु सेवा (नवीकरण आवश्यक)');
+          setIsClientPurchaseLeadModalOpen(true);
+          return;
+        }
+        if (vastuAccess.status === 'suspended') {
+          alert('तपाईंको सेवा खाता हाल स्थगित गरिएको छ। कृपया मुख्य प्रशासकसँग सम्पर्क गर्नुहोस्।');
+          return;
+        }
         setLockedFeatureName('वास्तु सेवा');
         setIsClientPurchaseLeadModalOpen(true);
         return;
