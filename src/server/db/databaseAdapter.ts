@@ -1885,11 +1885,15 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       ORDER BY created_at_iso DESC
     `);
 
-    const usersRes = await this.pool.query('SELECT id, phone, membership_tier FROM users');
+    const usersRes = await this.pool.query('SELECT id, phone, user_category, subscription_plan FROM users');
     const validUserIds = new Set(usersRes.rows.map((u: any) => u.id));
     const proUserIds = new Set(
       usersRes.rows
-        .filter((u: any) => u.membership_tier && u.membership_tier.toLowerCase().includes('pro'))
+        .filter((u: any) =>
+          u.user_category === 'professional' ||
+          (u.subscription_plan && String(u.subscription_plan).toLowerCase().includes('pro')) ||
+          (u.subscription_plan && String(u.subscription_plan).toLowerCase().includes('both'))
+        )
         .map((u: any) => u.id)
     );
 
