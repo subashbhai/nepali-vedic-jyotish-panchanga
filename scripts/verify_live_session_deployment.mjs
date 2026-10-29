@@ -1,6 +1,6 @@
 // scripts/verify_live_session_deployment.mjs
 const BASE_URL = 'https://balananda-api.onrender.com';
-const TARGET_COMMIT = '4ce4c42';
+const TARGET_COMMIT = 'bc2f31d';
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
