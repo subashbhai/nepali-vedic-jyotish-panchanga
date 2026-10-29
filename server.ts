@@ -9,7 +9,7 @@ import dotenv from "dotenv";
 import { authEngine } from "./src/server/authEngine";
 import { membershipEngine, MEMBERSHIP_PLANS } from "./src/server/membershipEngine";
 import { calculateMembershipDateSchedule, getNepaliBSDate } from "./src/server/membershipDateEngine";
-import { getDatabaseAdapter } from "./src/server/db/databaseAdapter";
+import { getDatabaseAdapter, maskToken, maskPhone } from "./src/server/db/databaseAdapter";
 import { visitorAnalyticsEngine } from "./src/server/analyticsEngine";
 import { culturalMasterStore } from "./src/server/culturalMasterStore";
 import { passwordResetEngine } from "./src/server/passwordResetEngine";
@@ -35,10 +35,12 @@ async function startServer() {
     }
   }
 
-  // Periodic Subscription Expiry Sweep (Phase 10: runs every 6 hours)
+  // Periodic Subscription Expiry & Session Cleanup Sweep (Phase 10: runs every 6 hours)
   setInterval(() => {
     try {
       authEngine.runExpiryAndNotificationCheck();
+      dbAdapter.cleanupSessions({ cleanExpired: true, cleanOrphaned: true, revokedBy: 'SYSTEM_PERIODIC_SWEEP' })
+        .catch((e: any) => console.warn('[Scheduler] Periodic session cleanup notice:', e.message));
     } catch (e: any) {
       console.error('[Scheduler] Automatic expiry check error:', e.message);
     }
@@ -93,26 +95,35 @@ async function startServer() {
       // 1. Check if ordinary customer/user token is being used (Strict Server-Side RBAC Rejection)
       const userSession = userSessions.get(token);
       if (userSession) {
-        if (userSession.role === "SUPER_ADMIN" || userSession.role === "super_admin") {
+        if (userSession.expiresAt && userSession.expiresAt < Date.now()) {
+          userSessions.delete(token);
+        } else if (userSession.role === "SUPER_ADMIN" || userSession.role === "super_admin") {
+          (req as any).currentAdminToken = token;
           (req as any).superAdmin = { adminId: userSession.userId, username: userSession.phone, expiresAt: userSession.expiresAt };
           return next();
+        } else {
+          // Ordinary visitor / customer trying to access Super Admin endpoint
+          return res.status(403).json({
+            success: false,
+            error: "निषेध (403 Forbidden): यो प्रशासनिक विवरण हेर्न केवल मुख्य प्रशासक (Super Admin) लाई मात्र अधिकार छ।"
+          });
         }
-        // Ordinary visitor / customer trying to access Super Admin endpoint
-        return res.status(403).json({
-          success: false,
-          error: "निषेध (403 Forbidden): यो प्रशासनिक विवरण हेर्न केवल मुख्य प्रशासक (Super Admin) लाई मात्र अधिकार छ।"
-        });
       }
 
       // 2. Check active Super Admin sessions in memory
       const session = superAdminSessions.get(token);
-      if (session && session.expiresAt >= Date.now()) {
-        session.expiresAt = Date.now() + 2 * 60 * 60 * 1000;
-        (req as any).superAdmin = session;
-        return next();
+      if (session) {
+        if (session.expiresAt >= Date.now()) {
+          session.expiresAt = Date.now() + 2 * 60 * 60 * 1000;
+          (req as any).currentAdminToken = token;
+          (req as any).superAdmin = session;
+          return next();
+        } else {
+          superAdminSessions.delete(token);
+        }
       }
 
-      // 3. Fallback: Check persistent central database session
+      // 3. Fallback: Check persistent central database session (excludes expired and revoked)
       try {
         const dbSession = await dbAdapter.getSession(token);
         if (dbSession && (dbSession.role === 'SUPER_ADMIN' || dbSession.role === 'super_admin')) {
@@ -122,6 +133,7 @@ async function startServer() {
             expiresAt: Date.now() + 2 * 60 * 60 * 1000
           };
           superAdminSessions.set(token, renewed);
+          (req as any).currentAdminToken = token;
           (req as any).superAdmin = renewed;
           return next();
         }
@@ -136,6 +148,7 @@ async function startServer() {
 
     if (customHeader) {
       if (customHeader === prodSecret || (superAdminSessions.has(customHeader) && (superAdminSessions.get(customHeader)?.expiresAt ?? 0) >= Date.now())) {
+        (req as any).currentAdminToken = customHeader;
         (req as any).superAdmin = { adminId: "admin_super_01", username: "superadmin", expiresAt: Date.now() + 3600000 };
         return next();
       }
@@ -185,6 +198,16 @@ async function startServer() {
       // Clear failed attempts on success
       superAdminFailedAttempts.delete(clientIp);
 
+      // Pre-login cleanup: clean expired sessions to avoid accumulation
+      try {
+        await dbAdapter.cleanupSessions({
+          cleanExpired: true,
+          cleanOrphaned: false
+        });
+      } catch (cleanErr: any) {
+        console.warn("[SuperAdmin Login] Pre-login session cleanup notice:", cleanErr.message);
+      }
+
       // Generate cryptographically secure token
       const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = Date.now() + 2 * 60 * 60 * 1000; // 2 hours
@@ -210,7 +233,9 @@ async function startServer() {
           phone: "9800000000",
           role: "SUPER_ADMIN",
           userCategory: "professional",
-          expiresAtISO: new Date(expiresAt).toISOString()
+          expiresAtISO: new Date(expiresAt).toISOString(),
+          ipAddress: clientIp,
+          userAgent: String(req.headers["user-agent"] || "SuperAdmin Web")
         });
       } catch (sessErr: any) {
         console.warn("[SuperAdmin Login] Session persist notice:", sessErr.message);
@@ -236,13 +261,121 @@ async function startServer() {
   });
 
   // POST /api/superadmin/logout
-  app.post("/api/superadmin/logout", (req, res) => {
+  app.post("/api/superadmin/logout", async (req, res) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
       superAdminSessions.delete(token);
+      try {
+        await dbAdapter.deleteSession(token);
+      } catch (e: any) {
+        console.warn("[SuperAdmin Logout] Session delete notice:", e.message);
+      }
     }
     return res.json({ success: true, message: "लगआउट सफल भयो।" });
+  });
+
+  // ── SUPER ADMIN SESSION MANAGEMENT (PHASES 1, 3, 4, 6) ──
+  // GET /api/superadmin/sessions/audit (Phase 1: Read-Only Session Audit)
+  app.get("/api/superadmin/sessions/audit", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const currentToken = (req as any).currentAdminToken;
+      const curMask = currentToken ? maskToken(currentToken) : '';
+      const report = await dbAdapter.auditSessions();
+      if (curMask) {
+        for (const item of report.sessionsList) {
+          if (item.tokenMasked === curMask) {
+            item.isCurrentSession = true;
+          }
+        }
+      }
+      return res.json({ success: true, ...report });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/superadmin/sessions (Phase 6: Session Management List)
+  app.get("/api/superadmin/sessions", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const currentToken = (req as any).currentAdminToken;
+      const curMask = currentToken ? maskToken(currentToken) : '';
+      const report = await dbAdapter.auditSessions();
+      if (curMask) {
+        for (const item of report.sessionsList) {
+          if (item.tokenMasked === curMask) {
+            item.isCurrentSession = true;
+          }
+        }
+      }
+      return res.json({ success: true, report });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/superadmin/sessions/cleanup (Phase 3: Cleanup Expired & Orphaned Sessions)
+  app.post("/api/superadmin/sessions/cleanup", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const currentToken = (req as any).currentAdminToken;
+      const adminUsername = (req as any).superAdmin?.username || 'SUPER_ADMIN';
+      const result = await dbAdapter.cleanupSessions({
+        cleanExpired: true,
+        cleanOrphaned: true,
+        preserveAdminTokens: currentToken ? [currentToken] : [],
+        revokedBy: adminUsername
+      });
+
+      // Synchronize in-memory active session stores
+      const now = Date.now();
+      for (const [tok, s] of superAdminSessions.entries()) {
+        if (tok !== currentToken && s.expiresAt <= now) {
+          superAdminSessions.delete(tok);
+        }
+      }
+      for (const [tok, s] of userSessions.entries()) {
+        if (s.expiresAt && s.expiresAt <= now) {
+          userSessions.delete(tok);
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: `सत्र सरसफाइ सम्पन्न भयो। (म्याद सकिएका: ${result.deletedExpired}, अनाथ: ${result.deletedOrphaned})`,
+        ...result
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/superadmin/sessions/:id/revoke (Phase 4 & 6: Revoke specific session)
+  app.post("/api/superadmin/sessions/:id/revoke", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const currentToken = (req as any).currentAdminToken;
+      const adminUsername = (req as any).superAdmin?.username || 'SUPER_ADMIN';
+
+      // Disallow revoking caller's own current session
+      const currentMask = currentToken ? maskToken(currentToken) : '';
+      const report = await dbAdapter.auditSessions();
+      const targetSession = report.sessionsList.find(s => s.sessionId === id);
+      if (targetSession && currentMask && targetSession.tokenMasked === currentMask) {
+        return res.status(400).json({
+          success: false,
+          error: "तपाईंले आफ्नो हालको सक्रिय सत्र बन्द गर्न सक्नुहुन्न (Cannot revoke current administrative session)."
+        });
+      }
+
+      const result = await dbAdapter.revokeSessionById(id, adminUsername);
+      if (!result.success) {
+        return res.status(404).json(result);
+      }
+
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // ==============================================================
@@ -1789,6 +1922,14 @@ async function startServer() {
           phone: result.user.phone,
           expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
         });
+        dbAdapter.saveSession(result.token, {
+          userId: result.user.id,
+          username: result.user.username,
+          phone: result.user.phone,
+          role: result.user.role || 'user',
+          userCategory: result.user.userCategory || 'visitor',
+          expiresAtISO: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        }).catch(e => console.warn('[Register Session DB Notice]:', e.message));
         broadcastRealtimeEvent("USER_SIGNUP", { user: result.user, token: result.token });
       }
 
@@ -2093,13 +2234,18 @@ async function startServer() {
   });
 
   // 7. POST /api/auth/logout (Revoke current session)
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
         userSessions.delete(token);
         authEngine.revokeSession(token);
+        try {
+          await dbAdapter.deleteSession(token);
+        } catch (sessErr: any) {
+          console.warn("[Auth Logout] DB session delete notice:", sessErr.message);
+        }
       }
       return res.json({ success: true, message: "लगआउट सफल भयो।" });
     } catch (err: any) {
@@ -2963,6 +3109,16 @@ async function startServer() {
         dbAdapter.deleteUser(target?.id || id).catch(e => console.warn("[DeleteUser DB Notice]:", e.message));
       } catch (e: any) {
         console.warn("[DeleteUser DB Notice]:", e.message);
+      }
+
+      // Invalidate active sessions in memory
+      const targetUserId = target?.id || id;
+      const targetPhone = target?.phone || (cleanDigits && cleanDigits.length >= 7 ? cleanDigits : id);
+      for (const [tok, s] of userSessions.entries()) {
+        if (s.userId === targetUserId || s.phone === targetPhone) {
+          userSessions.delete(tok);
+          authEngine.revokeSession(tok);
+        }
       }
 
       // Clean up client leads
@@ -5664,6 +5820,11 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
       }
 
       const sweepResult = authEngine.runExpiryAndNotificationCheck();
+      try {
+        dbAdapter.cleanupSessions({ cleanExpired: true, cleanOrphaned: true, revokedBy: 'CRON_EXPIRY_SWEEP' })
+          .catch((e: any) => console.warn('[Cron] Session cleanup notice:', e.message));
+      } catch (cleanErr: any) {}
+
       return res.json({
         success: true,
         message: "सदस्यता म्याद जाँच तथा १ महिना अगावै चेतावनी सूचना स्वचालित रूपमा सम्पन्न भयो।",

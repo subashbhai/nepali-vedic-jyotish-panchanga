@@ -14,7 +14,40 @@
 
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { getNepaliBSDate } from '../membershipDateEngine';
+
+export interface SessionAuditItem {
+  sessionId: string;
+  userId: string;
+  username: string;
+  phoneMasked: string;
+  role: string;
+  userCategory: string;
+  createdAtISO: string;
+  expiresAtISO: string;
+  lastActiveISO: string;
+  status: 'VALID' | 'EXPIRED' | 'REVOKED' | 'ORPHANED';
+  tokenMasked: string;
+  deviceFingerprint?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  isCurrentSession?: boolean;
+}
+
+export interface SessionAuditReport {
+  totalRows: number;
+  validSuperAdmin: number;
+  expiredSuperAdmin: number;
+  revokedSuperAdmin: number;
+  validOrdinaryUsers: number;
+  expiredOrdinaryUsers: number;
+  orphanedUserSessions: number;
+  duplicateStaleSessions: number;
+  proSessions: number;
+  indeterminateSessions: number;
+  sessionsList: SessionAuditItem[];
+}
 
 export interface DatabaseHealth {
   ok: boolean;
@@ -43,6 +76,19 @@ export interface BackupSnapshot {
   backupFile: string;
   counts: TableCounts;
   snapshot: Record<string, any>;
+}
+
+export function maskToken(token: string): string {
+  if (!token) return '••••••••';
+  if (token.length <= 4) return '••••••••';
+  return '••••••••' + token.substring(token.length - 4);
+}
+
+export function maskPhone(phone: string): string {
+  if (!phone) return '••••••••';
+  const clean = phone.trim();
+  if (clean.length <= 4) return '••••' + clean;
+  return clean.substring(0, 2) + '••••' + clean.substring(clean.length - 4);
 }
 
 export interface ResetUserDataResult {
@@ -85,10 +131,24 @@ export interface IDatabaseAdapter {
   getPayments(): Promise<any[]>;
   createPayment(payment: any): Promise<any>;
 
-  // Active Sessions
+  // Active Sessions & Lifecycle Management
   getSession(token: string): Promise<any | null>;
   saveSession(token: string, session: any): Promise<void>;
   deleteSession(token: string): Promise<void>;
+  auditSessions(): Promise<SessionAuditReport>;
+  cleanupSessions(options: {
+    cleanExpired?: boolean;
+    cleanOrphaned?: boolean;
+    preserveAdminTokens?: string[];
+    revokedBy?: string;
+  }): Promise<{
+    deletedExpired: number;
+    deletedOrphaned: number;
+    totalDeleted: number;
+    remainingTotal: number;
+    remainingActive: number;
+  }>;
+  revokeSessionById(sessionId: string, revokedBy?: string): Promise<{ success: boolean; message: string }>;
 
   // Notifications
   getNotifications(): Promise<any[]>;
@@ -291,9 +351,23 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
 
   public async deleteUser(id: string): Promise<boolean> {
     const users = await this.getUsers();
+    const target = users.find(u => u.id === id || u.phone === id);
     const filtered = users.filter(u => u.id !== id && u.phone !== id);
     if (filtered.length === users.length) return false;
     this.atomicWriteSync(this.usersFile, filtered);
+    // Delete associated active sessions
+    try {
+      const sessions = this.readSessionsSync();
+      let changed = false;
+      for (const t of Object.keys(sessions)) {
+        const s = sessions[t];
+        if (s?.userId === id || (target && (s?.userId === target.id || s?.phone === target.phone))) {
+          delete sessions[t];
+          changed = true;
+        }
+      }
+      if (changed) this.atomicWriteSync(this.sessionsFile, sessions);
+    } catch {}
     return true;
   }
 
@@ -393,7 +467,12 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     try {
       if (!fs.existsSync(this.sessionsFile)) return null;
       const data = JSON.parse(fs.readFileSync(this.sessionsFile, 'utf-8'));
-      return data[token] || null;
+      const s = data[token];
+      if (!s) return null;
+      if (s.isRevoked) return null;
+      const expiresAt = s.expiresAt ? new Date(s.expiresAt).getTime() : (s.expiresAtISO ? new Date(s.expiresAtISO).getTime() : 0);
+      if (expiresAt <= Date.now()) return null;
+      return s;
     } catch {
       return null;
     }
@@ -406,7 +485,18 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
         data = JSON.parse(fs.readFileSync(this.sessionsFile, 'utf-8'));
       }
     } catch {}
-    data[token] = session;
+    const sessionId = session.id || ('sess_' + crypto.createHash('sha256').update(token).digest('hex').substring(0, 16));
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    data[token] = {
+      ...session,
+      id: sessionId,
+      token,
+      tokenHash,
+      isRevoked: false,
+      createdAtISO: session.createdAtISO || new Date().toISOString(),
+      expiresAtISO: session.expiresAtISO || (session.expiresAt ? new Date(session.expiresAt).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
+      lastActiveISO: new Date().toISOString()
+    };
     this.atomicWriteSync(this.sessionsFile, data);
   }
 
@@ -418,6 +508,203 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
         this.atomicWriteSync(this.sessionsFile, data);
       }
     } catch {}
+  }
+
+  public async auditSessions(): Promise<SessionAuditReport> {
+    const data = this.readSessionsSync();
+    const users = await this.getUsers();
+    const validUserIds = new Set(users.map(u => u.id));
+    const proUserIds = new Set(
+      users.filter(u => u.membershipTier && u.membershipTier.toLowerCase().includes('pro')).map(u => u.id)
+    );
+
+    const now = Date.now();
+    let validSuperAdmin = 0;
+    let expiredSuperAdmin = 0;
+    let revokedSuperAdmin = 0;
+    let validOrdinaryUsers = 0;
+    let expiredOrdinaryUsers = 0;
+    let orphanedUserSessions = 0;
+    let duplicateStaleSessions = 0;
+    let proSessions = 0;
+    let indeterminateSessions = 0;
+
+    const userActiveCounts = new Map<string, number>();
+    const sessionsList: SessionAuditItem[] = [];
+
+    const tokens = Object.keys(data);
+    for (const token of tokens) {
+      const s = data[token];
+      const sid = s.id || ('sess_' + crypto.createHash('sha256').update(token).digest('hex').substring(0, 16));
+      const tokenMasked = maskToken(token);
+      const phoneMasked = maskPhone(s.phone || '');
+      const isRevoked = Boolean(s.isRevoked);
+      const expMs = s.expiresAt ? new Date(s.expiresAt).getTime() : (s.expiresAtISO ? new Date(s.expiresAtISO).getTime() : 0);
+      const isExpired = expMs <= now;
+
+      let status: 'VALID' | 'EXPIRED' | 'REVOKED' | 'ORPHANED' = 'VALID';
+      if (isRevoked) {
+        status = 'REVOKED';
+      } else if (isExpired) {
+        status = 'EXPIRED';
+      } else if (s.role !== 'SUPER_ADMIN' && s.role !== 'super_admin' && !validUserIds.has(s.userId)) {
+        status = 'ORPHANED';
+      }
+
+      if (!s.userId && !s.role) {
+        indeterminateSessions++;
+      } else if (s.role === 'SUPER_ADMIN' || s.role === 'super_admin') {
+        if (isRevoked) revokedSuperAdmin++;
+        else if (isExpired) expiredSuperAdmin++;
+        else validSuperAdmin++;
+      } else {
+        if (!validUserIds.has(s.userId)) {
+          orphanedUserSessions++;
+        } else if (isRevoked) {
+          // revoked
+        } else if (isExpired) {
+          expiredOrdinaryUsers++;
+        } else {
+          const c = userActiveCounts.get(s.userId) || 0;
+          if (c > 0) duplicateStaleSessions++;
+          else validOrdinaryUsers++;
+          userActiveCounts.set(s.userId, c + 1);
+
+          if (s.userCategory === 'pro' || proUserIds.has(s.userId)) {
+            proSessions++;
+          }
+        }
+      }
+
+      sessionsList.push({
+        sessionId: sid,
+        userId: s.userId || 'unknown',
+        username: s.username || 'unknown',
+        phoneMasked,
+        role: s.role || 'user',
+        userCategory: s.userCategory || 'visitor',
+        createdAtISO: s.createdAtISO || new Date().toISOString(),
+        expiresAtISO: s.expiresAtISO || (s.expiresAt ? new Date(s.expiresAt).toISOString() : new Date().toISOString()),
+        lastActiveISO: s.lastActiveISO || new Date().toISOString(),
+        status,
+        tokenMasked,
+        deviceFingerprint: s.deviceFingerprint,
+        ipAddress: s.ipAddress,
+        userAgent: s.userAgent
+      });
+    }
+
+    return {
+      totalRows: tokens.length,
+      validSuperAdmin,
+      expiredSuperAdmin,
+      revokedSuperAdmin,
+      validOrdinaryUsers,
+      expiredOrdinaryUsers,
+      orphanedUserSessions,
+      duplicateStaleSessions,
+      proSessions,
+      indeterminateSessions,
+      sessionsList
+    };
+  }
+
+  public async cleanupSessions(options: {
+    cleanExpired?: boolean;
+    cleanOrphaned?: boolean;
+    preserveAdminTokens?: string[];
+    revokedBy?: string;
+  }): Promise<{
+    deletedExpired: number;
+    deletedOrphaned: number;
+    totalDeleted: number;
+    remainingTotal: number;
+    remainingActive: number;
+  }> {
+    const cleanExpired = options.cleanExpired !== false;
+    const cleanOrphaned = options.cleanOrphaned !== false;
+    const preserve = new Set(options.preserveAdminTokens || []);
+    const revokedBy = options.revokedBy || 'SUPER_ADMIN';
+
+    const data = this.readSessionsSync();
+    const users = await this.getUsers();
+    const validUserIds = new Set(users.map(u => u.id));
+    const now = Date.now();
+
+    let deletedExpired = 0;
+    let deletedOrphaned = 0;
+
+    for (const token of Object.keys(data)) {
+      if (preserve.has(token)) continue;
+      const s = data[token];
+      const expMs = s.expiresAt ? new Date(s.expiresAt).getTime() : (s.expiresAtISO ? new Date(s.expiresAtISO).getTime() : 0);
+      const isExpired = expMs <= now;
+      const isOrphaned = (s.role !== 'SUPER_ADMIN' && s.role !== 'super_admin') && !validUserIds.has(s.userId);
+
+      if (cleanExpired && isExpired) {
+        delete data[token];
+        deletedExpired++;
+      } else if (cleanOrphaned && isOrphaned) {
+        delete data[token];
+        deletedOrphaned++;
+      }
+    }
+
+    this.atomicWriteSync(this.sessionsFile, data);
+
+    const remainingTokens = Object.keys(data);
+    const remainingActive = remainingTokens.filter(t => {
+      const s = data[t];
+      const expMs = s.expiresAt ? new Date(s.expiresAt).getTime() : (s.expiresAtISO ? new Date(s.expiresAtISO).getTime() : 0);
+      return expMs > now && !s.isRevoked;
+    }).length;
+
+    await this.createAuditLog({
+      id: `audit_sess_clean_${Date.now()}`,
+      action: 'SESSION_CLEANUP',
+      performedBy: revokedBy,
+      details: `Session cleanup performed. Expired deleted: ${deletedExpired}, Orphaned deleted: ${deletedOrphaned}. Remaining active: ${remainingActive}, total: ${remainingTokens.length}.`
+    });
+
+    return {
+      deletedExpired,
+      deletedOrphaned,
+      totalDeleted: deletedExpired + deletedOrphaned,
+      remainingTotal: remainingTokens.length,
+      remainingActive
+    };
+  }
+
+  public async revokeSessionById(sessionId: string, revokedBy?: string): Promise<{ success: boolean; message: string }> {
+    const data = this.readSessionsSync();
+    let foundToken: string | null = null;
+    for (const token of Object.keys(data)) {
+      const s = data[token];
+      const sid = s.id || ('sess_' + crypto.createHash('sha256').update(token).digest('hex').substring(0, 16));
+      if (sid === sessionId || s.tokenHash === sessionId || token === sessionId) {
+        foundToken = token;
+        break;
+      }
+    }
+    if (!foundToken) {
+      return { success: false, message: 'सत्र फेला परेन (Session not found)' };
+    }
+
+    data[foundToken].isRevoked = true;
+    data[foundToken].revokedAtISO = new Date().toISOString();
+    data[foundToken].revokedBy = revokedBy || 'SUPER_ADMIN';
+    data[foundToken].expiresAtISO = new Date().toISOString();
+    this.atomicWriteSync(this.sessionsFile, data);
+
+    await this.createAuditLog({
+      id: `audit_sess_rev_${Date.now()}`,
+      action: 'SESSION_REVOCATION',
+      performedBy: revokedBy || 'SUPER_ADMIN',
+      targetId: sessionId,
+      details: `Session ${sessionId} was revoked by ${revokedBy || 'SUPER_ADMIN'}`
+    });
+
+    return { success: true, message: 'सत्र सफलतापूर्वक बन्द गरियो (Session revoked successfully)' };
   }
 
   // --- Notifications ---
@@ -525,13 +812,20 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     const visitorAnalytics = this.readArraySync(this.visitorAnalyticsFile).length;
     const resetTokens = this.readArraySync(this.passwordResetTokensFile).length;
     const culturalItems = this.readArraySync(this.culturalMasterFile).length;
+
+    const now = Date.now();
+    const activeSessionsCount = Object.values(sessions).filter((s: any) => {
+      const expMs = s?.expiresAt ? new Date(s.expiresAt).getTime() : (s?.expiresAtISO ? new Date(s.expiresAtISO).getTime() : 0);
+      return expMs > now && !s?.isRevoked;
+    }).length;
+
     return {
       users: users.length,
       leads: leads.length,
       memberships: memberships.length,
       licenses: licenses.length,
       payments: payments.length,
-      sessions: Object.keys(sessions).length,
+      sessions: activeSessionsCount,
       notifications: notifications.length,
       auditLogs: auditLogs.length,
       visitorAnalytics,
@@ -580,12 +874,16 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     this.atomicWriteSync(this.visitorAnalyticsFile, []);
     this.atomicWriteSync(this.passwordResetTokensFile, []);
 
-    // Filter sessions: keep only SUPER_ADMIN
+    // Filter sessions: keep only active, unexpired SUPER_ADMIN
     const sessions = this.readSessionsSync();
     const cleanSessions: Record<string, any> = {};
+    const now = Date.now();
     for (const [k, v] of Object.entries(sessions)) {
       if ((v as any)?.role === 'SUPER_ADMIN') {
-        cleanSessions[k] = v;
+        const expMs = (v as any)?.expiresAt ? new Date((v as any).expiresAt).getTime() : ((v as any)?.expiresAtISO ? new Date((v as any).expiresAtISO).getTime() : 0);
+        if (expMs > now && !(v as any)?.isRevoked) {
+          cleanSessions[k] = v;
+        }
       }
     }
     this.atomicWriteSync(this.sessionsFile, cleanSessions);
@@ -891,7 +1189,15 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
             user_category VARCHAR(32) NOT NULL DEFAULT 'visitor',
             created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             expires_at_iso TIMESTAMPTZ NOT NULL,
-            last_active_iso TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            last_active_iso TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            id VARCHAR(64),
+            token_hash VARCHAR(64),
+            device_fingerprint VARCHAR(128),
+            ip_address VARCHAR(45),
+            user_agent TEXT,
+            is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+            revoked_at_iso TIMESTAMPTZ,
+            revoked_by VARCHAR(64)
           );
 
           CREATE TABLE IF NOT EXISTS notifications (
@@ -974,6 +1280,20 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
             ALTER TABLE service_licenses ADD COLUMN IF NOT EXISTS expires_at_iso TIMESTAMPTZ;
             ALTER TABLE service_licenses ADD COLUMN IF NOT EXISTS expires_at_timestamp BIGINT;
             ALTER TABLE service_licenses ALTER COLUMN service_name_nepali DROP NOT NULL;
+
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS id VARCHAR(64);
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS token_hash VARCHAR(64);
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS device_fingerprint VARCHAR(128);
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45);
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS user_agent TEXT;
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS is_revoked BOOLEAN NOT NULL DEFAULT FALSE;
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS revoked_at_iso TIMESTAMPTZ;
+            ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS revoked_by VARCHAR(64);
+
+            CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON active_sessions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON active_sessions(expires_at_iso);
+            CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON active_sessions(token_hash);
+            CREATE INDEX IF NOT EXISTS idx_sessions_id ON active_sessions(id);
           `);
         } catch (migErr: any) {
           console.warn('[Postgres Schema Migration Notice]:', migErr.message);
@@ -1239,6 +1559,9 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   }
 
   public async deleteUser(id: string): Promise<boolean> {
+    try {
+      await this.pool.query('DELETE FROM active_sessions WHERE user_id = $1', [id]);
+    } catch {}
     const res = await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
     return (res.rowCount || 0) > 0;
   }
@@ -1497,7 +1820,10 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
 
   // --- Sessions ---
   public async getSession(token: string): Promise<any | null> {
-    const res = await this.pool.query('SELECT * FROM active_sessions WHERE token = $1 AND expires_at_iso > CURRENT_TIMESTAMP LIMIT 1', [token]);
+    const res = await this.pool.query(
+      'SELECT * FROM active_sessions WHERE token = $1 AND expires_at_iso > CURRENT_TIMESTAMP AND (is_revoked IS NULL OR is_revoked = FALSE) LIMIT 1',
+      [token]
+    );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
     return {
@@ -1506,20 +1832,28 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       username: r.username,
       phone: r.phone,
       role: r.role,
-      userCategory: r.user_category
+      userCategory: r.user_category,
+      createdAtISO: r.created_at_iso,
+      expiresAtISO: r.expires_at_iso
     };
   }
 
   public async saveSession(token: string, session: any): Promise<void> {
+    const sessionId = session.id || ('sess_' + crypto.createHash('sha256').update(token).digest('hex').substring(0, 16));
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const expiresAt = session.expiresAtISO || (session.expiresAt ? new Date(session.expiresAt).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
     const query = `
       INSERT INTO active_sessions (
-        token, user_id, username, phone, role, user_category, created_at_iso, expires_at_iso
-      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7)
+        token, user_id, username, phone, role, user_category, created_at_iso, expires_at_iso,
+        id, token_hash, device_fingerprint, ip_address, user_agent, is_revoked
+      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7, $8, $9, $10, $11, $12, FALSE)
       ON CONFLICT (token) DO UPDATE SET
         expires_at_iso = EXCLUDED.expires_at_iso,
-        last_active_iso = CURRENT_TIMESTAMP;
+        last_active_iso = CURRENT_TIMESTAMP,
+        is_revoked = FALSE,
+        revoked_at_iso = NULL,
+        revoked_by = NULL;
     `;
-    const expiresAt = session.expiresAtISO || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     await this.pool.query(query, [
       token,
       session.userId,
@@ -1527,12 +1861,241 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       session.phone,
       session.role,
       session.userCategory || 'visitor',
-      expiresAt
+      expiresAt,
+      sessionId,
+      tokenHash,
+      session.deviceFingerprint || null,
+      session.ipAddress || null,
+      session.userAgent || null
     ]);
   }
 
   public async deleteSession(token: string): Promise<void> {
     await this.pool.query('DELETE FROM active_sessions WHERE token = $1', [token]);
+  }
+
+  public async auditSessions(): Promise<SessionAuditReport> {
+    const sessionsRes = await this.pool.query(`
+      SELECT 
+        token, user_id, username, phone, role, user_category, 
+        created_at_iso, expires_at_iso, last_active_iso,
+        id, token_hash, device_fingerprint, ip_address, user_agent,
+        is_revoked, revoked_at_iso, revoked_by
+      FROM active_sessions
+      ORDER BY created_at_iso DESC
+    `);
+
+    const usersRes = await this.pool.query('SELECT id, phone, membership_tier FROM users');
+    const validUserIds = new Set(usersRes.rows.map((u: any) => u.id));
+    const proUserIds = new Set(
+      usersRes.rows
+        .filter((u: any) => u.membership_tier && u.membership_tier.toLowerCase().includes('pro'))
+        .map((u: any) => u.id)
+    );
+
+    const now = Date.now();
+    let validSuperAdmin = 0;
+    let expiredSuperAdmin = 0;
+    let revokedSuperAdmin = 0;
+    let validOrdinaryUsers = 0;
+    let expiredOrdinaryUsers = 0;
+    let orphanedUserSessions = 0;
+    let duplicateStaleSessions = 0;
+    let proSessions = 0;
+    let indeterminateSessions = 0;
+
+    const userActiveCounts = new Map<string, number>();
+    const sessionsList: SessionAuditItem[] = [];
+
+    for (const r of sessionsRes.rows) {
+      const rawToken = r.token || '';
+      const sid = r.id || ('sess_' + crypto.createHash('sha256').update(rawToken).digest('hex').substring(0, 16));
+      const tokenMasked = maskToken(rawToken);
+      const phoneMasked = maskPhone(r.phone || '');
+      const isRevoked = Boolean(r.is_revoked);
+      const expMs = r.expires_at_iso ? new Date(r.expires_at_iso).getTime() : 0;
+      const isExpired = expMs <= now;
+
+      let status: 'VALID' | 'EXPIRED' | 'REVOKED' | 'ORPHANED' = 'VALID';
+      if (isRevoked) {
+        status = 'REVOKED';
+      } else if (isExpired) {
+        status = 'EXPIRED';
+      } else if (r.role !== 'SUPER_ADMIN' && r.role !== 'super_admin' && !validUserIds.has(r.user_id)) {
+        status = 'ORPHANED';
+      }
+
+      if (!r.user_id && !r.role) {
+        indeterminateSessions++;
+      } else if (r.role === 'SUPER_ADMIN' || r.role === 'super_admin') {
+        if (isRevoked) revokedSuperAdmin++;
+        else if (isExpired) expiredSuperAdmin++;
+        else validSuperAdmin++;
+      } else {
+        if (!validUserIds.has(r.user_id)) {
+          orphanedUserSessions++;
+        } else if (isRevoked) {
+          // revoked user
+        } else if (isExpired) {
+          expiredOrdinaryUsers++;
+        } else {
+          const c = userActiveCounts.get(r.user_id) || 0;
+          if (c > 0) duplicateStaleSessions++;
+          else validOrdinaryUsers++;
+          userActiveCounts.set(r.user_id, c + 1);
+
+          if (r.user_category === 'pro' || proUserIds.has(r.user_id)) {
+            proSessions++;
+          }
+        }
+      }
+
+      sessionsList.push({
+        sessionId: sid,
+        userId: r.user_id || 'unknown',
+        username: r.username || 'unknown',
+        phoneMasked,
+        role: r.role || 'user',
+        userCategory: r.user_category || 'visitor',
+        createdAtISO: r.created_at_iso ? new Date(r.created_at_iso).toISOString() : new Date().toISOString(),
+        expiresAtISO: r.expires_at_iso ? new Date(r.expires_at_iso).toISOString() : new Date().toISOString(),
+        lastActiveISO: r.last_active_iso ? new Date(r.last_active_iso).toISOString() : new Date().toISOString(),
+        status,
+        tokenMasked,
+        deviceFingerprint: r.device_fingerprint || undefined,
+        ipAddress: r.ip_address || undefined,
+        userAgent: r.user_agent || undefined
+      });
+    }
+
+    return {
+      totalRows: sessionsRes.rows.length,
+      validSuperAdmin,
+      expiredSuperAdmin,
+      revokedSuperAdmin,
+      validOrdinaryUsers,
+      expiredOrdinaryUsers,
+      orphanedUserSessions,
+      duplicateStaleSessions,
+      proSessions,
+      indeterminateSessions,
+      sessionsList
+    };
+  }
+
+  public async cleanupSessions(options: {
+    cleanExpired?: boolean;
+    cleanOrphaned?: boolean;
+    preserveAdminTokens?: string[];
+    revokedBy?: string;
+  }): Promise<{
+    deletedExpired: number;
+    deletedOrphaned: number;
+    totalDeleted: number;
+    remainingTotal: number;
+    remainingActive: number;
+  }> {
+    const cleanExpired = options.cleanExpired !== false;
+    const cleanOrphaned = options.cleanOrphaned !== false;
+    const preserveTokens = (options.preserveAdminTokens || []).filter(Boolean);
+    const revokedBy = options.revokedBy || 'SUPER_ADMIN';
+
+    let deletedExpired = 0;
+    let deletedOrphaned = 0;
+
+    // 1. Clean expired sessions, preserving caller's admin tokens
+    if (cleanExpired) {
+      if (preserveTokens.length > 0) {
+        const res = await this.pool.query(
+          'DELETE FROM active_sessions WHERE expires_at_iso <= CURRENT_TIMESTAMP AND NOT (token = ANY($1)) RETURNING token',
+          [preserveTokens]
+        );
+        deletedExpired = res.rowCount || 0;
+      } else {
+        const res = await this.pool.query(
+          'DELETE FROM active_sessions WHERE expires_at_iso <= CURRENT_TIMESTAMP RETURNING token'
+        );
+        deletedExpired = res.rowCount || 0;
+      }
+    }
+
+    // 2. Clean orphaned sessions (user_id not in users table AND role not SUPER_ADMIN)
+    if (cleanOrphaned) {
+      const res = await this.pool.query(`
+        DELETE FROM active_sessions
+        WHERE role != 'SUPER_ADMIN' AND role != 'super_admin'
+          AND user_id NOT IN (SELECT id FROM users)
+        RETURNING token
+      `);
+      deletedOrphaned = res.rowCount || 0;
+    }
+
+    const remainingRes = await this.pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE expires_at_iso > CURRENT_TIMESTAMP AND (is_revoked IS NULL OR is_revoked = FALSE)) as active
+      FROM active_sessions
+    `);
+    const remainingTotal = parseInt(remainingRes.rows[0]?.total || '0', 10);
+    const remainingActive = parseInt(remainingRes.rows[0]?.active || '0', 10);
+
+    try {
+      await this.pool.query(
+        `INSERT INTO audit_logs (id, action, performed_by, details, timestamp_iso)
+         VALUES ($1, 'SESSION_CLEANUP', $2, $3, CURRENT_TIMESTAMP)`,
+        [
+          `audit_sess_clean_${Date.now()}`,
+          revokedBy,
+          `Session cleanup performed. Expired deleted: ${deletedExpired}, Orphaned deleted: ${deletedOrphaned}. Remaining active: ${remainingActive}, total: ${remainingTotal}.`
+        ]
+      );
+    } catch (auditErr: any) {
+      console.warn('[PostgresDatabaseAdapter] audit_logs insert notice:', auditErr.message);
+    }
+
+    return {
+      deletedExpired,
+      deletedOrphaned,
+      totalDeleted: deletedExpired + deletedOrphaned,
+      remainingTotal,
+      remainingActive
+    };
+  }
+
+  public async revokeSessionById(sessionId: string, revokedBy?: string): Promise<{ success: boolean; message: string }> {
+    if (!sessionId) return { success: false, message: 'Invalid session ID' };
+
+    const all = await this.pool.query('SELECT token, user_id, role, id, token_hash FROM active_sessions');
+    const matched = all.rows.find((r: any) => {
+      const sid = r.id || ('sess_' + crypto.createHash('sha256').update(r.token).digest('hex').substring(0, 16));
+      return sid === sessionId || r.token_hash === sessionId || r.token === sessionId || r.id === sessionId;
+    });
+
+    if (!matched) {
+      return { success: false, message: 'सत्र फेला परेन (Session not found)' };
+    }
+
+    await this.pool.query(
+      `UPDATE active_sessions 
+       SET is_revoked = TRUE, revoked_at_iso = CURRENT_TIMESTAMP, revoked_by = $1, expires_at_iso = CURRENT_TIMESTAMP
+       WHERE token = $2`,
+      [revokedBy || 'SUPER_ADMIN', matched.token]
+    );
+
+    try {
+      await this.pool.query(
+        `INSERT INTO audit_logs (id, action, performed_by, target_id, details, timestamp_iso)
+         VALUES ($1, 'SESSION_REVOCATION', $2, $3, $4, CURRENT_TIMESTAMP)`,
+        [
+          `audit_sess_rev_${Date.now()}`,
+          revokedBy || 'SUPER_ADMIN',
+          sessionId,
+          `Session ${sessionId} was revoked by ${revokedBy || 'SUPER_ADMIN'}`
+        ]
+      );
+    } catch {}
+
+    return { success: true, message: 'सत्र सफलतापूर्वक बन्द गरियो (Session revoked successfully)' };
   }
 
   // --- Notifications ---
@@ -1747,7 +2310,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
           (SELECT COUNT(*) FROM memberships) as memberships,
           (SELECT COUNT(*) FROM service_licenses) as licenses,
           (SELECT COUNT(*) FROM payments) as payments,
-          (SELECT COUNT(*) FROM active_sessions) as sessions,
+          (SELECT COUNT(*) FROM active_sessions WHERE expires_at_iso > CURRENT_TIMESTAMP AND (is_revoked IS NULL OR is_revoked = FALSE)) as sessions,
           (SELECT COUNT(*) FROM notifications) as notifications,
           (SELECT COUNT(*) FROM audit_logs) as audit_logs,
           (SELECT COUNT(*) FROM visitor_analytics) as visitor_analytics,
@@ -1847,7 +2410,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
         TRUNCATE TABLE payments, notifications, service_licenses, memberships, client_purchase_leads, users, visitor_analytics, password_reset_tokens CASCADE;
       `);
       await client.query(`
-        DELETE FROM active_sessions WHERE role != 'SUPER_ADMIN';
+        DELETE FROM active_sessions WHERE (role != 'SUPER_ADMIN' AND role != 'super_admin') OR expires_at_iso <= CURRENT_TIMESTAMP;
       `);
       await client.query(`
         INSERT INTO audit_logs (id, action, performed_by, details, timestamp_iso)

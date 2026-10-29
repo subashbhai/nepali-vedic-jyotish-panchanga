@@ -237,6 +237,83 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     setTimeout(() => setToastMessage(null), 4500);
   };
 
+  // ── SUPER ADMIN SESSION MANAGEMENT STATE ──
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState<boolean>(false);
+  const [sessionReport, setSessionReport] = useState<any | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState<boolean>(false);
+  const [revokingSessionId, setRevokingSessionId] = useState<string | null>(null);
+  const [cleaningSessions, setCleaningSessions] = useState<boolean>(false);
+  const [sessionConfirmModal, setSessionConfirmModal] = useState<{
+    action: 'revoke' | 'cleanup';
+    sessionId?: string;
+    sessionName?: string;
+  } | null>(null);
+
+  const fetchSessionAudit = async () => {
+    setLoadingSessions(true);
+    try {
+      const res = await fetch(apiClient.resolveUrl('/api/superadmin/sessions/audit'), {
+        headers: getAdminHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSessionReport(data);
+      } else {
+        showToast(data.error || 'सत्र अडिट प्राप्त गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const handleCleanupSessions = async () => {
+    setCleaningSessions(true);
+    try {
+      const res = await fetch(apiClient.resolveUrl('/api/superadmin/sessions/cleanup'), {
+        method: 'POST',
+        headers: getAdminHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'सत्र सरसफाइ सम्पन्न भयो!', 'success');
+        fetchSessionAudit();
+        fetchUsers(true);
+      } else {
+        showToast(data.error || 'सरसफाइ गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setCleaningSessions(false);
+      setSessionConfirmModal(null);
+    }
+  };
+
+  const handleRevokeSingleSession = async (sessionId: string) => {
+    setRevokingSessionId(sessionId);
+    try {
+      const res = await fetch(apiClient.resolveUrl(`/api/superadmin/sessions/${sessionId}/revoke`), {
+        method: 'POST',
+        headers: getAdminHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('सत्र सफलतापूर्वक बन्द गरियो!', 'success');
+        fetchSessionAudit();
+        fetchUsers(true);
+      } else {
+        showToast(data.error || 'सत्र बन्द गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setRevokingSessionId(null);
+      setSessionConfirmModal(null);
+    }
+  };
+
   // ── 16-COLUMN SPREADSHEET INLINE ACTIONS ──
   const [editingPaymentAmounts, setEditingPaymentAmounts] = useState<Record<string, number | string>>({});
   const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
@@ -863,6 +940,17 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
           </div>
 
           <div className="flex items-center gap-2.5 self-start lg:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSessionModalOpen(true);
+                fetchSessionAudit();
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600/25 to-amber-700/25 hover:from-amber-600/35 hover:to-amber-700/35 text-amber-200 border border-amber-500/40 text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span>सत्र व्यवस्थापन (Sessions)</span>
+            </button>
             <button
               type="button"
               onClick={() => fetchUsers(true)}
@@ -2232,6 +2320,249 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SUPER ADMIN SESSION MANAGEMENT MODAL ── */}
+      {isSessionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="bg-stone-950 border border-stone-800 rounded-3xl w-full max-w-5xl shadow-2xl max-h-[92vh] flex flex-col overflow-hidden text-stone-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4.5 bg-stone-900/90 border-b border-stone-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-sm">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-bold text-stone-100 font-serif">
+                      सत्र सुरक्षा तथा व्यवस्थापन (Session Security & Audit)
+                    </h2>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Super Admin Only
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    प्रशासक तथा प्रयोगकर्ताका सम्पूर्ण सक्रिय, म्याद सकिएका र अनाथ सत्रहरूको प्रत्यक्ष निरीक्षण
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSessionModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Stats KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-stone-900/60 border border-emerald-900/50 rounded-2xl p-3.5">
+                  <div className="text-[11px] text-emerald-400 font-medium">१. सक्रिय मुख्य प्रशासक</div>
+                  <div className="text-xl font-black text-emerald-300 mt-1 font-mono">
+                    {toDevanagariNumerals(sessionReport?.validSuperAdmin ?? 0)}
+                  </div>
+                  <div className="text-[10px] text-emerald-500/80 mt-0.5">Valid Super Admin</div>
+                </div>
+
+                <div className="bg-stone-900/60 border border-blue-900/50 rounded-2xl p-3.5">
+                  <div className="text-[11px] text-blue-400 font-medium">२. सक्रिय प्रयोगकर्ता सत्र</div>
+                  <div className="text-xl font-black text-blue-300 mt-1 font-mono">
+                    {toDevanagariNumerals(sessionReport?.validOrdinaryUsers ?? 0)}
+                  </div>
+                  <div className="text-[10px] text-blue-500/80 mt-0.5">साधारण + प्रो सदस्य</div>
+                </div>
+
+                <div className="bg-stone-900/60 border border-stone-800 rounded-2xl p-3.5">
+                  <div className="text-[11px] text-stone-400 font-medium">३. म्याद सकिएका सत्र</div>
+                  <div className="text-xl font-black text-stone-300 mt-1 font-mono">
+                    {toDevanagariNumerals((sessionReport?.expiredSuperAdmin ?? 0) + (sessionReport?.expiredOrdinaryUsers ?? 0))}
+                  </div>
+                  <div className="text-[10px] text-stone-500 mt-0.5">Expired Sessions</div>
+                </div>
+
+                <div className="bg-stone-900/60 border border-amber-900/50 rounded-2xl p-3.5">
+                  <div className="text-[11px] text-amber-400 font-medium">४. अनाथ सत्रहरू</div>
+                  <div className="text-xl font-black text-amber-300 mt-1 font-mono">
+                    {toDevanagariNumerals(sessionReport?.orphanedUserSessions ?? 0)}
+                  </div>
+                  <div className="text-[10px] text-amber-500/80 mt-0.5">मेटिएका खाताका सत्र</div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-stone-900/70 border border-stone-800 rounded-2xl">
+                <div className="text-xs text-stone-300">
+                  कुल अभिलेख: <span className="font-mono font-bold text-amber-400">{toDevanagariNumerals(sessionReport?.totalRows ?? 0)}</span> सत्रहरू
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={fetchSessionAudit}
+                    disabled={loadingSessions}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 text-xs font-semibold cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loadingSessions ? 'animate-spin' : ''}`} />
+                    <span>ताजा गर्नुहोस्</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSessionConfirmModal({ action: 'cleanup' })}
+                    disabled={cleaningSessions}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-900/60 hover:bg-rose-900 text-rose-200 border border-rose-700/60 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>म्याद सकिएका र अनाथ सत्रहरू सफा गर्नुहोस्</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sessions Table */}
+              <div className="border border-stone-800 rounded-2xl overflow-hidden bg-stone-950">
+                <div className="overflow-x-auto max-h-96">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-stone-900/90 text-stone-400 text-[11px] sticky top-0 border-b border-stone-800 z-10">
+                      <tr>
+                        <th className="p-3">प्रयोगकर्ता / भूमिका</th>
+                        <th className="p-3">सम्पर्क (फोन)</th>
+                        <th className="p-3">सत्र ID</th>
+                        <th className="p-3">टोकन (मास्क गरिएको)</th>
+                        <th className="p-3">स्थिति</th>
+                        <th className="p-3">सत्र म्याद</th>
+                        <th className="p-3 text-right">कार्य</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-850">
+                      {loadingSessions ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-10 text-stone-400">
+                            <RefreshCw className="w-5 h-5 text-amber-400 animate-spin inline mr-2" />
+                            सत्र विवरण लोड हुँदैछ...
+                          </td>
+                        </tr>
+                      ) : !sessionReport?.sessionsList || sessionReport.sessionsList.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-10 text-stone-500 italic">
+                            कुनै सत्र फेला परेन।
+                          </td>
+                        </tr>
+                      ) : (
+                        sessionReport.sessionsList.map((sess: any) => (
+                          <tr key={sess.sessionId} className="hover:bg-stone-900/50 transition-colors">
+                            <td className="p-3">
+                              <div className="font-semibold text-stone-200">{sess.username || 'अज्ञात'}</div>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                                  sess.role === 'SUPER_ADMIN' || sess.role === 'super_admin'
+                                    ? 'bg-amber-950 text-amber-300 border border-amber-800/60'
+                                    : sess.userCategory === 'pro' || sess.userCategory === 'professional'
+                                    ? 'bg-purple-950 text-purple-300 border border-purple-800/60'
+                                    : 'bg-stone-850 text-stone-400'
+                                }`}>
+                                  {sess.role === 'SUPER_ADMIN' || sess.role === 'super_admin' ? 'Super Admin' : (sess.userCategory === 'pro' || sess.userCategory === 'professional' ? 'पेशागत प्रो' : 'साधारण प्रयोगकर्ता')}
+                                </span>
+                                {sess.isCurrentSession && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 font-bold animate-pulse">
+                                    ★ हालको सक्रिय सत्र
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 font-mono text-stone-300">{sess.phoneMasked || '—'}</td>
+                            <td className="p-3 font-mono text-[11px] text-stone-400">{sess.sessionId}</td>
+                            <td className="p-3 font-mono text-[11px] text-stone-500">{sess.tokenMasked}</td>
+                            <td className="p-3">
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                                sess.status === 'VALID'
+                                  ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                                  : sess.status === 'EXPIRED'
+                                  ? 'bg-stone-900 text-stone-400 border-stone-800'
+                                  : sess.status === 'REVOKED'
+                                  ? 'bg-red-950 text-red-300 border-red-800'
+                                  : 'bg-amber-950 text-amber-300 border-amber-800'
+                              }`}>
+                                {sess.status === 'VALID' ? 'सक्रिय' : sess.status === 'EXPIRED' ? 'म्याद सकिएको' : sess.status === 'REVOKED' ? 'बन्द गरिएको' : 'अनाथ सत्र'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-[11px] text-stone-400 font-mono">
+                              {sess.expiresAtISO ? new Date(sess.expiresAtISO).toLocaleString('ne-NP') : '—'}
+                            </td>
+                            <td className="p-3 text-right">
+                              {sess.isCurrentSession ? (
+                                <span className="text-[11px] text-stone-500 italic">हालको सत्र</span>
+                              ) : sess.status === 'REVOKED' ? (
+                                <span className="text-[11px] text-stone-500">बन्द भइसकेको</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setSessionConfirmModal({
+                                    action: 'revoke',
+                                    sessionId: sess.sessionId,
+                                    sessionName: sess.username
+                                  })}
+                                  disabled={revokingSessionId === sess.sessionId}
+                                  className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-red-950 text-stone-400 hover:text-red-300 border border-stone-700 hover:border-red-800 text-[11px] font-semibold transition-all cursor-pointer"
+                                >
+                                  {revokingSessionId === sess.sessionId ? 'बन्द हुँदै...' : 'सत्र बन्द गर्नुहोस्'}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SESSION ACTION CONFIRMATION MODAL ── */}
+      {sessionConfirmModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl p-6 max-w-md w-full shadow-2xl text-stone-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-stone-100">
+                {sessionConfirmModal.action === 'revoke' ? 'सत्र बन्द गर्ने पुष्टि गर्नुहोस्' : 'म्याद सकिएका सत्रहरू सरसफाइ'}
+              </h3>
+            </div>
+            <p className="text-xs text-stone-300 leading-relaxed">
+              {sessionConfirmModal.action === 'revoke'
+                ? `के तपाईं "${sessionConfirmModal.sessionName || sessionConfirmModal.sessionId}" को यो सक्रिय सत्र तत्काल बन्द गर्न निश्चित हुनुहुन्छ? प्रयोगकर्ता पुनः लगइन गर्न बाध्य हुनेछन्।`
+                : 'के तपाईं सबै म्याद सकिएका र अनाथ सत्रहरू डेटाबेसबाट स्थायी रूपमा सफा गर्न निश्चित हुनुहुन्छ? मुख्य प्रशासकको हालको सक्रिय सत्र पूर्ण रूपमा सुरक्षित रहनेछ।'}
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSessionConfirmModal(null)}
+                className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold cursor-pointer"
+              >
+                रद्द गर्नुहोस्
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (sessionConfirmModal.action === 'revoke' && sessionConfirmModal.sessionId) {
+                    handleRevokeSingleSession(sessionConfirmModal.sessionId);
+                  } else {
+                    handleCleanupSessions();
+                  }
+                }}
+                disabled={cleaningSessions || Boolean(revokingSessionId)}
+                className="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+              >
+                {sessionConfirmModal.action === 'revoke' ? 'हो, बन्द गर्नुहोस्' : 'हो, सफा गर्नुहोस्'}
+              </button>
             </div>
           </div>
         </div>
