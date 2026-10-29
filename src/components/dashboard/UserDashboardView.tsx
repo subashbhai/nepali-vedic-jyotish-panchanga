@@ -49,7 +49,20 @@ import {
   OrganizationProfile 
 } from '../../types/astrology';
 import { RBACSession, updateRBACUserProfile, getStoredRBACUsers } from '../../db/rbacStore';
-import { saveUserPersonalBirthProfile, getUserPersonalBirthProfile, saveProfile, getLiveCurrentMomentProfile } from '../../db/profileStore';
+import { 
+  saveUserPersonalBirthProfile, 
+  getUserPersonalBirthProfile, 
+  saveProfile, 
+  getLiveCurrentMomentProfile, 
+  syncUserProfileFromBackend,
+  enrichProfileWithAstroCalculations
+} from '../../db/profileStore';
+import { 
+  normalizeBirthDateBS, 
+  normalizeBirthTime, 
+  buildCanonicalBirthProfile, 
+  resolveLocationDetails 
+} from '../../utils/birthProfileCanonical';
 import { RASHI_DATA } from '../../utils/astroCalculations';
 import { getCachedAstroCalculation } from '../../utils/astroCache';
 import { WORLD_LOCATIONS_DATA } from '../../data/worldLocations';
@@ -123,15 +136,14 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
   const userAstroCalc = useMemo(() => {
     let ad = profileState.dateAD;
     if (!ad && profileState.dateBS) {
-      try {
-        const parts = profileState.dateBS.split('-').map((p) => parseInt(p, 10));
-        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-          ad = convertBSToADFull(parts[0], parts[1], parts[2]);
-        }
-      } catch {}
+      const normDate = normalizeBirthDateBS(profileState.dateBS);
+      if (normDate.isValid && normDate.dateAD) {
+        ad = normDate.dateAD;
+      }
     }
     if (!ad) return null;
-    const timeStr = profileState.time && profileState.time.trim() !== '' ? profileState.time : '12:00';
+    const timeNorm = normalizeBirthTime(profileState.time);
+    const timeStr = timeNorm.isValid ? timeNorm.time24 : '12:00';
     const lat = profileState.location?.latitude ?? 27.7172;
     const lng = profileState.location?.longitude ?? 85.3240;
     const tz = profileState.location?.timeZone ?? 5.75;
@@ -193,6 +205,29 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       setPhotoUrl(rbacSession.photoUrl);
     }
   }, [rbacSession?.photoUrl]);
+
+  // ── Authoritative Profile Synchronization from Central Server ──
+  useEffect(() => {
+    let isMounted = true;
+    const syncAuthoritativeProfile = async () => {
+      if (!currentUserId || currentUserId === 'user_self' || currentUserId === 'client_self' || currentUserId === 'visitor') {
+        return;
+      }
+      try {
+        const token = rbacSession?.token || localStorage.getItem('balananda_user_session_token');
+        const updatedProf = await syncUserProfileFromBackend(currentUserId, token || undefined);
+        if (updatedProf && isMounted) {
+          setProfileState(updatedProf);
+          if (updatedProf.photoUrl) setPhotoUrl(updatedProf.photoUrl);
+          onUpdateProfile(updatedProf);
+        }
+      } catch (err) {
+        console.warn('Failed to sync authoritative user profile in dashboard:', err);
+      }
+    };
+    syncAuthoritativeProfile();
+    return () => { isMounted = false; };
+  }, [currentUserId, rbacSession?.token]);
 
   // ── User Entitlement & 48-Hour Trial Countdown State ──
   const [entitlement, setEntitlement] = useState<any>(null);
@@ -286,13 +321,14 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
 
   // Profile Edit Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [editForm, setEditForm] = useState({
     name: profileState.name || currentUserName,
     phone: currentUserPhone,
     email: currentUserEmail,
     gender: profileState.gender || 'पुरुष',
-    dateBS: profileState.dateBS || '२०४६-०५-१५',
-    time: profileState.time || '०६:३०',
+    dateBS: profileState.dateBS || '',
+    time: profileState.time || '',
     district: profileState.location?.district || profileState.location?.name || 'काठमाडौँ',
     moonRashi: computedMoonRashiName,
     gotra: profileState.gotra || ''
@@ -301,33 +337,16 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
   // Real-time Astro calculation inside Edit Modal
   const editCalculatedAstro = useMemo(() => {
     let ad = '';
-    try {
-      const parts = editForm.dateBS.split('-').map((p) => parseInt(p, 10));
-      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-        ad = convertBSToADFull(parts[0], parts[1], parts[2]);
-      }
-    } catch {}
-    if (!ad) return null;
-    const timeStr = editForm.time && editForm.time.trim() !== '' ? editForm.time : '12:00';
-    let lat = profileState.location?.latitude || 27.7172;
-    let lng = profileState.location?.longitude || 85.3240;
-    let tz = profileState.location?.timeZone || 5.75;
-    if (editForm.district) {
-      const cleanDist = editForm.district.trim().toLowerCase();
-      const matched = WORLD_LOCATIONS_DATA.find(
-        (l) =>
-          (l.district && l.district.toLowerCase() === cleanDist) ||
-          (l.name && l.name.toLowerCase().includes(cleanDist)) ||
-          (l.englishName && l.englishName.toLowerCase().includes(cleanDist))
-      );
-      if (matched) {
-        lat = matched.latitude;
-        lng = matched.longitude;
-        tz = matched.timeZone || 5.75;
-      }
+    const normDate = normalizeBirthDateBS(editForm.dateBS);
+    if (normDate.isValid && normDate.dateAD) {
+      ad = normDate.dateAD;
     }
+    if (!ad) return null;
+    const timeNorm = normalizeBirthTime(editForm.time);
+    const timeStr = timeNorm.isValid ? timeNorm.time24 : '12:00';
+    const loc = resolveLocationDetails(editForm.district || profileState.location?.name || 'काठमाडौँ');
     try {
-      return getCachedAstroCalculation(ad, timeStr, lat, lng, tz, 'Lahiri');
+      return getCachedAstroCalculation(ad, timeStr, loc.latitude, loc.longitude, loc.timeZone, 'Lahiri');
     } catch {
       return null;
     }
@@ -335,14 +354,13 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
 
   const handleOpenEditModal = () => {
     const currentLocDistrict = profileState.location?.district || profileState.location?.name || 'काठमाडौँ';
-    const liveProf = getLiveCurrentMomentProfile();
     setEditForm({
       name: profileState.name || currentUserName,
       phone: currentUserPhone,
       email: currentUserEmail,
       gender: profileState.gender || 'पुरुष',
-      dateBS: profileState.dateBS || liveProf.dateBS,
-      time: profileState.time || liveProf.time || '०६:३०',
+      dateBS: profileState.dateBS || '',
+      time: profileState.time || '',
       district: currentLocDistrict,
       moonRashi: computedMoonRashiName,
       gotra: profileState.gotra || ''
@@ -350,37 +368,12 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
     setIsEditModalOpen(true);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let convertedAD = profileState.dateAD || getLiveCurrentMomentProfile().dateAD;
-    try {
-      const parts = editForm.dateBS.split('-').map((p) => parseInt(p, 10));
-      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-        convertedAD = convertBSToADFull(parts[0], parts[1], parts[2]);
-      }
-    } catch {}
-
-    let lat = profileState.location?.latitude || 27.7172;
-    let lng = profileState.location?.longitude || 85.3240;
-    let tz = profileState.location?.timeZone || 5.75;
-    let locName = `${editForm.district}, नेपाल`;
-
-    if (editForm.district) {
-      const cleanDist = editForm.district.trim().toLowerCase();
-      const matched = WORLD_LOCATIONS_DATA.find(
-        (l) =>
-          (l.district && l.district.toLowerCase() === cleanDist) ||
-          (l.name && l.name.toLowerCase().includes(cleanDist)) ||
-          (l.englishName && l.englishName.toLowerCase().includes(cleanDist))
-      );
-      if (matched) {
-        lat = matched.latitude;
-        lng = matched.longitude;
-        tz = matched.timeZone || 5.75;
-        locName = matched.name;
-      }
-    }
+    const normDate = normalizeBirthDateBS(editForm.dateBS, profileState.dateAD);
+    const normTime = normalizeBirthTime(editForm.time);
+    const loc = resolveLocationDetails(editForm.district);
 
     const calcResult = editCalculatedAstro;
     const finalMoonRashi = calcResult?.moon?.rashiName || editForm.moonRashi || profileState.moonRashi;
@@ -393,18 +386,11 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       phone: editForm.phone.trim(),
       email: editForm.email.trim(),
       gender: editForm.gender as any,
-      dateBS: editForm.dateBS.trim(),
-      dateAD: convertedAD,
-      time: editForm.time.trim() || '०६:३०',
-      location: {
-        ...profileState.location,
-        name: locName,
-        district: editForm.district,
-        country: 'नेपाल',
-        latitude: lat,
-        longitude: lng,
-        timeZone: tz
-      },
+      dateBS: normDate.isValid ? normDate.dateBS : editForm.dateBS.trim(),
+      dateAD: normDate.isValid ? normDate.dateAD : (profileState.dateAD || ''),
+      time: normTime.isValid ? normTime.display12 : (editForm.time.trim() || '12:00 PM'),
+      time24: normTime.time24,
+      location: loc,
       moonRashi: finalMoonRashi,
       lagnaRashi: finalLagnaRashi,
       nakshatra: finalNakshatra,
@@ -430,7 +416,33 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
       });
     }
 
-    setIsEditModalOpen(false);
+    // Persist directly to central PostgreSQL database on Render
+    try {
+      setIsSavingProfile(true);
+      const token = rbacSession?.token || localStorage.getItem('balananda_user_session_token');
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`/api/users/${encodeURIComponent(currentUserId)}/profile`, {
+        method: 'PUT',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.birthDetails) {
+          const canonical = buildCanonicalBirthProfile(data.birthDetails);
+          const enriched = enrichProfileWithAstroCalculations({ ...canonical, category: 'Self' } as any);
+          setProfileState(enriched);
+          saveUserPersonalBirthProfile(currentUserId, enriched);
+          saveProfile(enriched);
+          onUpdateProfile(enriched);
+        }
+      }
+    } catch (err) {
+      console.warn('Network sync error while updating profile to backend:', err);
+    } finally {
+      setIsSavingProfile(false);
+      setIsEditModalOpen(false);
+    }
   };
 
   const handleSaveCroppedPhoto = (newPhotoUrl: string) => {
@@ -732,15 +744,15 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
                 )}
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                  जन्म मिति: <strong className="text-amber-200">{profileState.dateBS || 'वि.सं. २०४६-०५-१५'}</strong>
+                  जन्म मिति: <strong className="text-amber-200">{profileState.dateBS ? (profileState.dateBS.startsWith('वि.सं.') ? profileState.dateBS : `वि.सं. ${profileState.dateBS}`) : 'प्रविष्ट नगरिएको'}</strong>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  समय: <strong className="text-amber-200">{profileState.time || '०६:३०'}</strong>
+                  समय: <strong className="text-amber-200">{profileState.time || 'प्रविष्ट नगरिएको'}</strong>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                  स्थान: <strong className="text-amber-200">{profileState.location?.name || 'काठमाडौँ'}</strong>
+                  स्थान: <strong className="text-amber-200">{profileState.location?.name || 'प्रविष्ट नगरिएको'}</strong>
                 </span>
               </div>
 
@@ -1334,19 +1346,19 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
           <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
             <span className="text-[10px] text-stone-400 block font-bold">जन्म मिति (वि.सं.)</span>
             <strong className="text-stone-900 dark:text-stone-100 text-sm mt-0.5 block font-serif">
-              {profileState.dateBS || '२०४६-०५-१५'}
+              {profileState.dateBS ? (profileState.dateBS.startsWith('वि.सं.') ? profileState.dateBS : `वि.सं. ${profileState.dateBS}`) : 'प्रविष्ट नगरिएको'}
             </strong>
           </div>
           <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
             <span className="text-[10px] text-stone-400 block font-bold">जन्म समय</span>
             <strong className="text-stone-900 dark:text-stone-100 text-sm mt-0.5 block font-serif">
-              {profileState.time || '०६:३०'}
+              {profileState.time || 'प्रविष्ट नगरिएको'}
             </strong>
           </div>
           <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
             <span className="text-[10px] text-stone-400 block font-bold">स्थान (जन्म शहर)</span>
             <strong className="text-stone-900 dark:text-stone-100 text-sm mt-0.5 block truncate font-serif">
-              {profileState.location?.name || 'काठमाडौँ'}
+              {profileState.location?.name || 'प्रविष्ट नगरिएको'}
             </strong>
           </div>
         </div>

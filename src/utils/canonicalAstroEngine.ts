@@ -3,6 +3,8 @@
 // Udaya Tithi determination (Nepal Panchanga Nirnayak Bikas Samiti & Hamro Patro standards),
 // Exact Sunrise/Sunset with atmospheric refraction, and root-finding for Tithi/Nakshatra/Yoga/Karana transitions.
 
+import { normalizeBirthTime } from './birthProfileCanonical';
+
 export interface CanonicalSunMoon {
   sunTropicalLong: number;
   sunSiderealLong: number;
@@ -237,10 +239,22 @@ export function canonicalJulianDay(
   let m = parseInt(mStr, 10);
   let d = parseInt(dStr, 10);
 
-  const tParts = timeStr.split(':');
-  const h = parseInt(tParts[0] || '0', 10);
-  const min = parseInt(tParts[1] || '0', 10);
-  const sec = parseFloat(tParts[2] || '0');
+  let h = 0;
+  let min = 0;
+  let sec = 0;
+  if (timeStr) {
+    const norm = normalizeBirthTime(timeStr);
+    if (norm.isValid) {
+      const parts = norm.time24.split(':');
+      h = parseInt(parts[0], 10);
+      min = parseInt(parts[1], 10);
+    } else {
+      const tParts = timeStr.split(':');
+      h = parseInt(tParts[0] || '0', 10);
+      min = parseInt(tParts[1] || '0', 10);
+      sec = parseFloat(tParts[2] || '0');
+    }
+  }
 
   // Convert local civil time to UTC date & fractional day safely via Date.UTC
   // Local civil time in ms from UTC epoch

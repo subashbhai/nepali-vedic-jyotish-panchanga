@@ -41,7 +41,8 @@ export interface BirthDetails {
   dateAD: string; // YYYY-MM-DD
   dateBS?: string; // YYYY-MM-DD Nepali date
   entryCalendarType?: 'BS' | 'AD'; // Primary calendar type chosen by user (BS vs AD)
-  time: string; // HH:mm 24hr
+  time: string; // HH:mm 24hr or display
+  time24?: string; // Canonical 24-hr format e.g. '16:30'
   timeSeconds?: string; // ss
   timeAccuracy?: 'exact' | 'estimated' | 'unclear';
   isTimeUncertain?: boolean;

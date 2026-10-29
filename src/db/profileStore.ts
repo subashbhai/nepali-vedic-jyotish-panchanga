@@ -21,6 +21,12 @@ const STORAGE_KEY_VASTU_EXPERTS = 'sukdev_vastu_experts_v1';
 const STORAGE_KEY_PATRIKA_RECORDS = 'sukdev_patrika_records_v1';
 import { getCachedAstroCalculation } from '../utils/astroCache';
 import { convertBSToADFull } from '../utils/bsCalendarData';
+import { 
+  buildCanonicalBirthProfile, 
+  normalizeBirthDateBS, 
+  normalizeBirthTime, 
+  resolveLocationDetails 
+} from '../utils/birthProfileCanonical';
 
 /**
  * Ensures birth profile is enriched with authentic Vedic astronomical calculation
@@ -31,29 +37,36 @@ export function enrichProfileWithAstroCalculations(profile: BirthDetails): Birth
     return profile;
   }
 
-  // 1. Resolve AD birth date if missing but BS is provided
+  // 1. Resolve dateBS and dateAD using robust canonical normalizer
   let adDate = profile.dateAD;
-  if (!adDate && profile.dateBS) {
-    try {
-      const match = profile.dateBS.match(/\d+/g);
-      if (match && match.length >= 3) {
-        adDate = convertBSToADFull(parseInt(match[0], 10), parseInt(match[1], 10), parseInt(match[2], 10));
+  let bsDate = profile.dateBS;
+  if (bsDate) {
+    const normDate = normalizeBirthDateBS(bsDate, adDate);
+    if (normDate.isValid) {
+      bsDate = normDate.dateBS;
+      if (!adDate || normDate.dateAD) {
+        adDate = normDate.dateAD;
       }
-    } catch {}
+    }
   }
 
-  const timeStr = profile.time && profile.time.trim() !== '' ? profile.time : '12:00';
+  // 2. Normalize birth time to exact 24-hr string for astronomical ephemeris calculation
+  const timeNorm = normalizeBirthTime(profile.time);
+  const time24 = timeNorm.isValid ? timeNorm.time24 : '12:00';
   const lat = profile.location?.latitude ?? 27.7172;
   const lng = profile.location?.longitude ?? 85.3240;
   const tz = profile.location?.timeZone ?? profile.location?.timezone ?? 5.75;
 
   if (adDate) {
     try {
-      const calc = getCachedAstroCalculation(adDate, timeStr, lat, lng, tz, 'Lahiri');
+      const calc = getCachedAstroCalculation(adDate, time24, lat, lng, tz, 'Lahiri');
       if (calc?.moon) {
         return {
           ...profile,
+          dateBS: bsDate || profile.dateBS,
           dateAD: adDate,
+          time: profile.time,
+          time24: time24,
           moonRashi: calc.moon.rashiName,
           lagnaRashi: calc.lagna?.rashiName,
           nakshatra: calc.moon.nakshatraName,
@@ -318,7 +331,7 @@ export function getUserPersonalBirthProfile(
   userPhone?: string | null
 ): BirthDetails | null {
   // Strictly return null if no authenticated user ID or if visitor identifier
-  if (!userId || userId === 'user_self' || userId === 'client_self') {
+  if (!userId || userId === 'user_self' || userId === 'client_self' || userId === 'visitor') {
     return null;
   }
 
@@ -326,37 +339,31 @@ export function getUserPersonalBirthProfile(
   const currentSession = getActiveRBACSession();
   if (currentSession && (currentSession.userId === userId || currentSession.username === userId || (userPhone && currentSession.phone === userPhone))) {
     if (currentSession.birthDetails && currentSession.birthDetails.id !== 'live_current_moment') {
+      const canonical = buildCanonicalBirthProfile(currentSession.birthDetails);
       const bDet: BirthDetails = {
-        ...currentSession.birthDetails,
+        ...canonical,
         id: currentSession.birthDetails.id || `user_profile_${currentSession.userId}`,
-        name: currentSession.fullName || currentSession.birthDetails.name,
-        customerId: currentSession.customerId || currentSession.birthDetails.customerId || 'सदस्य',
+        name: currentSession.fullName || canonical.name,
+        customerId: currentSession.customerId || canonical.customerId || 'सदस्य',
         clientId: currentSession.userId,
         category: 'Self'
-      };
+      } as any;
       return enrichProfileWithAstroCalculations(bDet);
     }
 
-    // Check if session user has registered dobBS, birthTime, or birthPlace
+    // Check if session user has registered dobBS, birthTime, or birthPlace/address
     const sessAny = currentSession as any;
     if (sessAny.dobBS || sessAny.birthTime || sessAny.birthPlace || sessAny.address) {
+      const canonical = buildCanonicalBirthProfile(currentSession);
       const bDet: BirthDetails = {
+        ...canonical,
         id: `user_profile_${currentSession.userId}`,
-        name: currentSession.fullName,
+        name: currentSession.fullName || canonical.name,
         customerId: currentSession.customerId || 'सदस्य',
         clientId: currentSession.userId,
-        gender: (sessAny.gender === 'female' ? 'female' : 'male') as any,
-        dateBS: sessAny.dobBS || '2040-02-17',
-        time: sessAny.birthTime || '11:30 PM',
-        location: {
-          name: sessAny.birthPlace || sessAny.address || 'झापा नेपाल',
-          district: sessAny.district || 'झापा',
-          province: sessAny.province || 'कोशी प्रदेश',
-          country: 'नेपाल'
-        },
         category: 'Self',
         notes: 'प्रयोगकर्ताको दर्ता गरिएको आधिकारिक जन्म विवरण'
-      };
+      } as any;
       return enrichProfileWithAstroCalculations(bDet);
     }
   }
@@ -372,7 +379,8 @@ export function getUserPersonalBirthProfile(
           if (currentSession?.customerId && !parsed.customerId) {
             parsed.customerId = currentSession.customerId;
           }
-          return enrichProfileWithAstroCalculations(parsed);
+          const canonical = buildCanonicalBirthProfile(parsed);
+          return enrichProfileWithAstroCalculations(canonical as any);
         }
       }
     } catch {}
@@ -388,7 +396,8 @@ export function getUserPersonalBirthProfile(
       if (currentSession?.customerId && !userProfile.customerId) {
         userProfile.customerId = currentSession.customerId;
       }
-      return enrichProfileWithAstroCalculations(userProfile);
+      const canonical = buildCanonicalBirthProfile(userProfile);
+      return enrichProfileWithAstroCalculations(canonical as any);
     }
   }
 
@@ -401,11 +410,12 @@ export function getUserPersonalBirthProfile(
       if (currentSession?.customerId && !matchedByName.customerId) {
         matchedByName.customerId = currentSession.customerId;
       }
-      return enrichProfileWithAstroCalculations(matchedByName);
+      const canonical = buildCanonicalBirthProfile(matchedByName);
+      return enrichProfileWithAstroCalculations(canonical as any);
     }
   }
 
-  // 3. Guarantee user profile is synthesized under their own authentic name
+  // 3. Fallback: return authentic profile shell without fake birth dates (NEVER fake 2040-02-17 or 11:30 PM!)
   const effectiveName = currentSession?.fullName || userName;
   const effectiveId = currentSession?.userId || userId;
   if (effectiveName) {
@@ -415,20 +425,44 @@ export function getUserPersonalBirthProfile(
       customerId: currentSession?.customerId || 'सदस्य',
       clientId: effectiveId,
       gender: 'male',
-      dateBS: '2040-02-17',
-      time: '11:30 PM',
-      location: {
-        name: 'झापा नेपाल',
-        district: 'झापा',
-        province: 'कोशी प्रदेश',
-        country: 'नेपाल'
-      },
+      dateBS: '',
+      dateAD: '',
+      time: '',
+      location: resolveLocationDetails((currentSession as any)?.address || (currentSession as any)?.birthPlace || ''),
       category: 'Self',
-      notes: 'लगइन गरिएको सदस्यको व्यक्तिगत प्रोफाइल'
+      notes: 'लगइन गरिएको सदस्यको व्यक्तिगत प्रोफाइल (जन्म विवरण प्रविष्ट हुन बाँकी)'
     };
     return enrichProfileWithAstroCalculations(fallbackProfile);
   }
 
+  return null;
+}
+
+/**
+ * Asynchronously fetch and sync authoritative profile from backend PostgreSQL
+ */
+export async function syncUserProfileFromBackend(userId: string, token?: string): Promise<BirthDetails | null> {
+  if (typeof window === 'undefined' || !userId) return null;
+  try {
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(`/api/users/${encodeURIComponent(userId)}/profile`, {
+      headers: { ...authHeader, 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.success && (data.birthDetails || data.user)) {
+      const canonical = buildCanonicalBirthProfile(data.birthDetails || data.user);
+      const bDet: BirthDetails = {
+        ...canonical,
+        category: 'Self'
+      } as any;
+      const enriched = enrichProfileWithAstroCalculations(bDet);
+      saveUserPersonalBirthProfile(userId, enriched);
+      return enriched;
+    }
+  } catch (err) {
+    console.warn('syncUserProfileFromBackend error:', err);
+  }
   return null;
 }
 

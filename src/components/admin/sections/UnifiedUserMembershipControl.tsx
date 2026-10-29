@@ -47,6 +47,7 @@ import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unifiedUserSyncService';
 import { authService } from '../../../services/authService';
 import { apiClient } from '../../../services/apiClient';
+import { normalizeBirthDateBS, normalizeBirthTime } from '../../../utils/birthProfileCanonical';
 
 const getAdminHeaders = (): Record<string, string> => {
   return apiClient.getHeaders();
@@ -532,11 +533,25 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const handleDobBSChange = (val: string) => {
+    setEditDobBS(val);
+    const norm = normalizeBirthDateBS(val);
+    if (norm.isValid && norm.dateAD) {
+      setEditDobAD(norm.dateAD);
+    }
+  };
+
   // ── SAVE PROFILE (Tab 1) ──
   const handleSaveProfile = async () => {
     if (!selectedUser) return;
     setSavingProfile(true);
     try {
+      const normDate = normalizeBirthDateBS(editDobBS, editDobAD);
+      const normTime = normalizeBirthTime(editBirthTime);
+      const finalDobBS = normDate.isValid ? normDate.dateBS : editDobBS;
+      const finalDobAD = normDate.isValid ? normDate.dateAD : editDobAD;
+      const finalBirthTime = normTime.isValid ? normTime.display12 : editBirthTime;
+
       const res = await fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}`), {
         method: 'PATCH',
         headers: getAdminHeaders(),
@@ -546,9 +561,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
           email: editEmail,
           whatsapp: editWhatsapp,
           address: editAddress,
-          dobBS: editDobBS,
-          dobAD: editDobAD,
-          birthTime: editBirthTime
+          dobBS: finalDobBS,
+          dobAD: finalDobAD,
+          birthTime: finalBirthTime
         })
       });
 
@@ -1689,9 +1704,20 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                       <input
                         type="text"
                         value={editDobBS}
-                        onChange={(e) => setEditDobBS(e.target.value)}
-                        placeholder="२०५२-०४-१५"
-                        className="w-full px-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-amber-500"
+                        onChange={(e) => handleDobBSChange(e.target.value)}
+                        placeholder="२०४९-०४-०९"
+                        className="w-full px-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-400 mb-1">जन्म मिति ई.सं. (DOB AD - स्वतः गणना)</label>
+                      <input
+                        type="text"
+                        value={editDobAD}
+                        onChange={(e) => setEditDobAD(e.target.value)}
+                        placeholder="1992-07-24"
+                        className="w-full px-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-300 focus:outline-none focus:border-amber-500 font-mono"
                       />
                     </div>
 
@@ -1701,7 +1727,7 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         type="text"
                         value={editBirthTime}
                         onChange={(e) => setEditBirthTime(e.target.value)}
-                        placeholder="०८:३० AM"
+                        placeholder="०४:३० PM वा 16:30"
                         className="w-full px-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-amber-500"
                       />
                     </div>

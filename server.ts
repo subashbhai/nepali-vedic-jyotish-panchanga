@@ -14,6 +14,7 @@ import { visitorAnalyticsEngine } from "./src/server/analyticsEngine";
 import { culturalMasterStore } from "./src/server/culturalMasterStore";
 import { passwordResetEngine } from "./src/server/passwordResetEngine";
 import { resolveUserEntitlement } from "./src/server/entitlementEngine";
+import { normalizeBirthDateBS, normalizeBirthTime, buildCanonicalBirthProfile } from "./src/utils/birthProfileCanonical";
 
 dotenv.config();
 
@@ -1916,12 +1917,24 @@ async function startServer() {
       }
 
       if (result.token && result.user) {
-        userSessions.set(result.token, {
+        const sessionPayload = {
+          token: result.token,
           userId: result.user.id,
-          role: result.user.role || "user",
+          username: result.user.username,
           phone: result.user.phone,
+          fullName: result.user.fullName || result.user.username || 'प्रयोगकर्ता',
+          role: result.user.role || "user",
+          userCategory: result.user.userCategory || "visitor",
+          dobBS: result.user.dobBS || result.user.birthDetails?.dateBS || '',
+          dobAD: result.user.dobAD || result.user.birthDetails?.dateAD || '',
+          birthTime: result.user.birthTime || result.user.birthDetails?.time || '',
+          birthPlace: result.user.birthPlace || result.user.address || result.user.birthDetails?.location?.name || '',
+          address: result.user.address || '',
+          gender: result.user.gender || 'male',
+          birthDetails: result.user.birthDetails,
           expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-        });
+        };
+        userSessions.set(result.token, sessionPayload);
         dbAdapter.saveSession(result.token, {
           userId: result.user.id,
           username: result.user.username,
@@ -1931,6 +1944,7 @@ async function startServer() {
           expiresAtISO: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }).catch(e => console.warn('[Register Session DB Notice]:', e.message));
         broadcastRealtimeEvent("USER_SIGNUP", { user: result.user, token: result.token });
+        (result as any).session = sessionPayload;
       }
 
       return res.json(result);
@@ -2009,6 +2023,13 @@ async function startServer() {
           fullName: result.user.fullName || result.user.username || 'प्रयोगकर्ता',
           role: result.user.role || "user",
           userCategory: result.user.userCategory || "visitor",
+          dobBS: result.user.dobBS || result.user.birthDetails?.dateBS || '',
+          dobAD: result.user.dobAD || result.user.birthDetails?.dateAD || '',
+          birthTime: result.user.birthTime || result.user.birthDetails?.time || '',
+          birthPlace: result.user.birthPlace || result.user.address || result.user.birthDetails?.location?.name || '',
+          address: result.user.address || '',
+          gender: result.user.gender || 'male',
+          birthDetails: result.user.birthDetails,
           expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
         };
         userSessions.set(result.token, sessionPayload);
@@ -3624,17 +3645,31 @@ async function startServer() {
   });
 
   // 5.3 PATCH /api/superadmin/users/:id (Edit User Details & Sync Leads)
-  app.patch("/api/superadmin/users/:id", requireSuperAdminAuth, (req, res) => {
+  app.patch("/api/superadmin/users/:id", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { fullName, address, phone, email, whatsapp, dobBS, dobAD, birthTime } = req.body;
+      
+      let user: any = null;
+      if (dbAdapter) {
+        try {
+          user = await dbAdapter.getUserById(id);
+          if (!user) user = await dbAdapter.getUserByPhone(id);
+        } catch (e: any) {
+          console.warn("[SuperAdmin User Patch DB Read Notice]:", e.message);
+        }
+      }
+
       const users = getUsers();
-      const userIdx = users.findIndex(u => u.id === id || u.phone === id);
-      if (userIdx === -1) {
+      let userIdx = users.findIndex(u => u.id === id || u.phone === id);
+      if (!user && userIdx !== -1) {
+        user = users[userIdx];
+      }
+
+      if (!user) {
         return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
       }
 
-      const user = users[userIdx];
       const prevPhone = user.phone;
 
       if (fullName !== undefined) user.fullName = String(fullName).trim();
@@ -3646,24 +3681,27 @@ async function startServer() {
       }
       if (email !== undefined) user.email = String(email).trim().toLowerCase();
       if (whatsapp !== undefined) user.whatsapp = String(whatsapp).trim();
-      if (dobBS !== undefined) {
-        user.dobBS = String(dobBS).trim();
-        if (!user.birthDetails) user.birthDetails = {};
-        user.birthDetails.dateBS = String(dobBS).trim();
-      }
-      if (dobAD !== undefined) {
-        user.dobAD = String(dobAD).trim();
-        if (!user.birthDetails) user.birthDetails = {};
-        user.birthDetails.dateAD = String(dobAD).trim();
-      }
-      if (birthTime !== undefined) {
-        user.birthTime = String(birthTime).trim();
-        if (!user.birthDetails) user.birthDetails = {};
-        user.birthDetails.time = String(birthTime).trim();
-      }
-      if (address !== undefined && user.birthDetails) {
-        if (!user.birthDetails.location) user.birthDetails.location = {};
-        user.birthDetails.location.name = String(address).trim();
+      if (dobBS !== undefined || dobAD !== undefined || birthTime !== undefined || address !== undefined) {
+        const rawBS = dobBS !== undefined ? String(dobBS).trim() : (user.dobBS || user.birthDetails?.dateBS || '');
+        const rawAD = dobAD !== undefined ? String(dobAD).trim() : (user.dobAD || user.birthDetails?.dateAD || '');
+        const rawTime = birthTime !== undefined ? String(birthTime).trim() : (user.birthTime || user.birthDetails?.time || '');
+        const rawAddr = address !== undefined ? String(address).trim() : (user.address || user.birthDetails?.location?.name || '');
+
+        const normDate = normalizeBirthDateBS(rawBS, rawAD);
+        const normTime = normalizeBirthTime(rawTime);
+
+        user.dobBS = normDate.isValid ? normDate.dateBS : rawBS;
+        user.dobAD = normDate.isValid ? normDate.dateAD : rawAD;
+        user.birthTime = normTime.isValid ? normTime.display12 : rawTime;
+
+        const canonical = buildCanonicalBirthProfile({
+          ...user,
+          dobBS: user.dobBS,
+          dobAD: user.dobAD,
+          birthTime: user.birthTime,
+          birthPlace: rawAddr
+        });
+        user.birthDetails = canonical;
       }
 
       // Record in user history
@@ -3675,10 +3713,34 @@ async function startServer() {
         details: "व्यक्तिगत विवरण सुपरएडमिन द्वारा सम्पादन गरियो।"
       });
 
-      users[userIdx] = user;
+      // Persist to central PostgreSQL database
+      if (dbAdapter) {
+        try {
+          await dbAdapter.updateUser(user.id, {
+            fullName: user.fullName,
+            address: user.address,
+            phone: user.phone,
+            email: user.email,
+            whatsapp: user.whatsapp,
+            dobBS: user.dobBS,
+            dobAD: user.dobAD,
+            birthTime: user.birthTime,
+            birthDetails: user.birthDetails,
+            history: user.history
+          });
+        } catch (dbErr: any) {
+          console.warn("[SuperAdmin User Patch DB Commit Notice]:", dbErr.message);
+        }
+      }
+
+      if (userIdx !== -1) {
+        users[userIdx] = user;
+      } else {
+        users.unshift(user);
+      }
       saveUsers(users);
 
-      // Also sync matching client_purchase_leads.json
+      // Also sync matching client_purchase_leads
       const leads = getClientLeads();
       const leadIdx = leads.findIndex(l => 
         l.mobile === prevPhone || 
@@ -4729,27 +4791,200 @@ async function startServer() {
     }
   });
 
-  // 9. PUT /api/users/:id/profile (Update Profile & Birth Details)
-  app.put("/api/users/:id/profile", (req, res) => {
+  // 8.9 GET /api/users/:id/profile & /api/users/me/profile (Fetch Authoritative Profile & Canonical Birth Details)
+  app.get(["/api/users/:id/profile", "/api/users/me/profile"], async (req, res) => {
     try {
-      const { id } = req.params;
-      const { fullName, email, gender, address, birthDetails, photoUrl } = req.body;
-      const users = getUsers();
-      const user = users.find(u => u.id === id || u.phone === id);
+      let { id } = req.params;
+
+      if (!id || id === 'me' || id === 'undefined') {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.split(' ')[1];
+          const memSess = userSessions.get(token);
+          if (memSess?.userId) {
+            id = memSess.userId;
+          }
+        }
+      }
+
+      if (!id) {
+        return res.status(400).json({ success: false, error: "प्रयोगकर्ता पहिचान आवश्यक छ।" });
+      }
+
+      let user: any = null;
+      if (dbAdapter) {
+        try {
+          user = await dbAdapter.getUserById(id);
+          if (!user) user = await dbAdapter.getUserByPhone(id);
+        } catch (e: any) {
+          console.warn("[GET Profile DB Notice]:", e.message);
+        }
+      }
+      if (!user) {
+        const users = getUsers();
+        user = users.find(u => u.id === id || u.phone === id);
+      }
 
       if (!user) {
         return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
       }
 
+      const canonicalBirth = user.birthDetails || {
+        dateBS: user.dobBS || '',
+        dateAD: user.dobAD || '',
+        time: user.birthTime || '',
+        location: typeof user.birthPlace === 'object' && user.birthPlace ? user.birthPlace : {
+          name: user.birthPlace || user.address || 'काठमाडौँ, नेपाल',
+          district: user.district || 'काठमाडौँ',
+          country: 'नेपाल'
+        },
+        gender: user.gender || 'male'
+      };
+
+      const sanitized = { ...user };
+      delete sanitized.passwordHash;
+      delete sanitized.password;
+
+      return res.json({
+        success: true,
+        user: sanitized,
+        birthDetails: canonicalBirth
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 9. PUT /api/users/:id/profile (Update Profile & Birth Details — Central Database Synchronized)
+  app.put("/api/users/:id/profile", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { fullName, email, gender, address, birthDetails, photoUrl, dobBS, dobAD, birthTime, birthPlace, gotra } = req.body;
+      
+      let user: any = null;
+      let targetUserId = id;
+
+      // 1. Check database adapter first
+      if (dbAdapter) {
+        try {
+          user = await dbAdapter.getUserById(id);
+          if (!user) user = await dbAdapter.getUserByPhone(id);
+        } catch (dbErr: any) {
+          console.warn("[Profile Update DB Read Notice]:", dbErr.message);
+        }
+      }
+
+      // 2. Check disk users.json
+      const users = getUsers();
+      const diskIdx = users.findIndex(u => u.id === id || u.phone === id);
+      if (!user && diskIdx !== -1) {
+        user = users[diskIdx];
+      }
+
+      if (!user) {
+        return res.status(404).json({ success: false, error: "प्रयोगकर्ता फेला परेन।" });
+      }
+
+      targetUserId = user.id;
+
+      // Resolve canonical birth details without ever using fake fallback dates
+      const effectiveDOBBS = dobBS !== undefined ? String(dobBS).trim() : (birthDetails?.dateBS || user.dobBS || user.birthDetails?.dateBS || '');
+      const effectiveDOBAD = dobAD !== undefined ? String(dobAD).trim() : (birthDetails?.dateAD || user.dobAD || user.birthDetails?.dateAD || '');
+      const effectiveTime = birthTime !== undefined ? String(birthTime).trim() : (birthDetails?.time || user.birthTime || user.birthDetails?.time || '');
+      const effectivePlace = birthPlace || address || birthDetails?.location?.name || user.address || 'काठमाडौँ, नेपाल';
+
+      const normDate = normalizeBirthDateBS(effectiveDOBBS, effectiveDOBAD);
+      const normTime = normalizeBirthTime(effectiveTime);
+
+      const canonicalLoc = typeof birthDetails?.location === 'object' && birthDetails?.location?.name
+        ? birthDetails.location
+        : (typeof birthPlace === 'object' && birthPlace?.name ? birthPlace : {
+            name: typeof effectivePlace === 'string' ? effectivePlace : (effectivePlace?.name || 'काठमाडौँ, नेपाल'),
+            district: birthDetails?.location?.district || user.district || 'काठमाडौँ',
+            country: 'नेपाल'
+          });
+
+      const updatedBirthDetails = {
+        ...(user.birthDetails || {}),
+        ...(birthDetails || {}),
+        name: fullName ? String(fullName).trim() : (user.fullName || ''),
+        dateBS: normDate.isValid ? normDate.dateBS : effectiveDOBBS,
+        dateAD: normDate.isValid ? normDate.dateAD : effectiveDOBAD,
+        time: normTime.isValid ? normTime.display12 : effectiveTime,
+        time24: normTime.time24,
+        location: canonicalLoc,
+        gender: gender || user.gender || 'male',
+        gotra: gotra !== undefined ? String(gotra).trim() : (user.gotra || ''),
+        updatedAt: new Date().toISOString()
+      };
+
       if (fullName) user.fullName = String(fullName).trim();
-      if (email !== undefined) user.email = String(email).trim();
+      if (email !== undefined) user.email = String(email).trim().toLowerCase();
       if (gender) user.gender = gender;
       if (address) user.address = String(address).trim();
-      if (birthDetails) user.birthDetails = birthDetails;
       if (photoUrl !== undefined) user.photoUrl = photoUrl;
+      if (gotra !== undefined) user.gotra = String(gotra).trim();
+      user.dobBS = updatedBirthDetails.dateBS;
+      user.dobAD = updatedBirthDetails.dateAD;
+      user.birthTime = updatedBirthDetails.time;
+      user.birthDetails = updatedBirthDetails;
+      user.lastUpdatedISO = new Date().toISOString();
 
+      // 3. Persist to authoritative central PostgreSQL database
+      if (dbAdapter) {
+        try {
+          await dbAdapter.updateUser(targetUserId, {
+            fullName: user.fullName,
+            email: user.email,
+            address: user.address,
+            gender: user.gender,
+            photoUrl: user.photoUrl,
+            dobBS: effectiveDOBBS,
+            dobAD: effectiveDOBAD,
+            birthTime: effectiveTime,
+            birthDetails: updatedBirthDetails,
+            gotra: user.gotra
+          });
+        } catch (dbErr: any) {
+          console.warn("[Profile Update DB Commit Notice]:", dbErr.message);
+        }
+      }
+
+      // 4. Update disk users.json
+      if (diskIdx !== -1) {
+        users[diskIdx] = user;
+      } else {
+        users.unshift(user);
+      }
       saveUsers(users);
-      return res.json({ success: true, message: "प्रोफाइल सफलतापूर्वक अद्यावधिक गरियो।", user });
+
+      // 5. Update active session store
+      for (const [token, sess] of userSessions.entries()) {
+        if (sess.userId === targetUserId) {
+          (sess as any).fullName = user.fullName;
+          (sess as any).birthDetails = updatedBirthDetails;
+          (sess as any).dobBS = updatedBirthDetails.dateBS;
+          (sess as any).dobAD = updatedBirthDetails.dateAD;
+          (sess as any).birthTime = updatedBirthDetails.time;
+          (sess as any).address = user.address;
+        }
+      }
+
+      broadcastRealtimeEvent("USER_PROFILE_UPDATED", {
+        userId: targetUserId,
+        user
+      });
+
+      const sanitized = { ...user };
+      delete sanitized.passwordHash;
+      delete sanitized.password;
+
+      return res.json({
+        success: true,
+        message: "प्रोफाइल सफलतापूर्वक अद्यावधिक गरियो।",
+        user: sanitized,
+        birthDetails: updatedBirthDetails
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }

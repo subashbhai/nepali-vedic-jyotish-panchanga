@@ -13,6 +13,8 @@ import { RBACSession, setRBACSession, clearRBACSession, getActiveRBACSession, ge
 import { getStoredClientLeads, saveClientLeads } from '../db/clientLeadStore';
 import { hashPasswordSync, verifyPassword } from '../utils/cryptoUtils';
 import { unifiedUserSyncService } from './unifiedUserSyncService';
+import { buildCanonicalBirthProfile } from '../utils/birthProfileCanonical';
+import { saveUserPersonalBirthProfile } from '../db/profileStore';
 
 export interface SignupInput {
   fullName: string;
@@ -79,6 +81,12 @@ class AuthService {
         const user = payload.user;
         const token = payload.token || `session_${Date.now()}`;
 
+        const canonicalBirth = user.birthDetails 
+          ? buildCanonicalBirthProfile(user.birthDetails)
+          : (user.dobBS || user.birthTime || user.birthPlace || user.address)
+            ? buildCanonicalBirthProfile(user)
+            : undefined;
+
         const session: RBACSession = {
           token,
           userId: user.id,
@@ -90,9 +98,17 @@ class AuthService {
           permissions: user.permissions || ['visitor.view'],
           customerId: user.customerId,
           phone: user.phone,
+          birthDetails: canonicalBirth as any,
           createdAtISO: user.createdAtISO || new Date().toISOString(),
           lastActivityISO: new Date().toISOString()
         };
+
+        if (canonicalBirth && user.id) {
+          try {
+            saveUserPersonalBirthProfile(user.id, canonicalBirth as any);
+            localStorage.setItem(`balananda_user_birth_profile_${user.id}`, JSON.stringify(canonicalBirth));
+          } catch {}
+        }
 
         // Cache locally for offline session liveness
         const storedUsers = getStoredRBACUsers();
@@ -161,6 +177,12 @@ class AuthService {
         const token = payload.token || `session_${Date.now()}`;
 
         const isSuperAdmin = user.role === 'SUPER_ADMIN' || user.role === 'super_admin';
+        const canonicalBirth = user.birthDetails 
+          ? buildCanonicalBirthProfile(user.birthDetails)
+          : (user.dobBS || user.birthTime || user.birthPlace || user.address)
+            ? buildCanonicalBirthProfile(user)
+            : undefined;
+
         const session: RBACSession = {
           token,
           userId: user.id,
@@ -172,9 +194,17 @@ class AuthService {
           permissions: user.permissions || (isSuperAdmin ? ['*'] : ['visitor.view']),
           customerId: user.customerId,
           phone: user.phone,
+          birthDetails: canonicalBirth as any,
           createdAtISO: user.createdAtISO || new Date().toISOString(),
           lastActivityISO: new Date().toISOString()
         };
+
+        if (canonicalBirth && user.id) {
+          try {
+            saveUserPersonalBirthProfile(user.id, canonicalBirth as any);
+            localStorage.setItem(`balananda_user_birth_profile_${user.id}`, JSON.stringify(canonicalBirth));
+          } catch {}
+        }
 
         setRBACSession(session);
         try {
