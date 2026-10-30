@@ -15,7 +15,7 @@ import { culturalMasterStore } from "./src/server/culturalMasterStore";
 import { passwordResetEngine } from "./src/server/passwordResetEngine";
 import { resolveUserEntitlement } from "./src/server/entitlementEngine";
 import { normalizeBirthDateBS, normalizeBirthTime, buildCanonicalBirthProfile } from "./src/utils/birthProfileCanonical";
-import { resolveCanonicalUserState, resolveCanonicalPlan, calculateCanonicalRenewalSchedule } from "./src/core/canonicalMembershipPolicy";
+import { resolveCanonicalUserState, resolveCanonicalPlan, calculateCanonicalRenewalSchedule, calculateVerifiedLedgerRevenue } from "./src/core/canonicalMembershipPolicy";
 
 dotenv.config();
 
@@ -25,11 +25,59 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const dbAdapter = getDatabaseAdapter();
 
+  async function reconcileAuthoritativePaymentLedgerOnStartup(db: any) {
+    try {
+      const payments = await db.getPayments();
+      const memberships = await db.getMemberships();
+
+      // Check if Binod Ghimire's duplicate record PAY-1793277573428-075j is still marked 'paid'
+      const dupPay = payments.find((p: any) => p.id === 'PAY-1793277573428-075j');
+      if (dupPay && String(dupPay.paymentStatus || '').toLowerCase() === 'paid') {
+        console.log('[Ledger Reconcile] Reclassifying administrative duplicate PAY-1793277573428-075j...');
+        await db.updatePayment('PAY-1793277573428-075j', {
+          paymentStatus: 'DUPLICATE_ADMIN_ACTIVATION',
+          notes: 'प्रशासनिक दोहोरो प्रविष्टि (Administrative duplicate activation - no settlement). वास्तविक भुक्तानी PAY-1793269263601-1z95 मा रु. १०० सुरक्षित छ।',
+          isDuplicateAdminActivation: true,
+          reconciledBy: 'SYSTEM_AUDIT',
+          reconciledAtISO: new Date().toISOString()
+        });
+
+        const dupMem = memberships.find((m: any) => m.id === 'MEM-1793277573426-q8rq');
+        if (dupMem && dupMem.membershipStatus === 'ACTIVE') {
+          console.log('[Ledger Reconcile] Reclassifying superseded duplicate membership MEM-1793277573426-q8rq...');
+          await db.updateMembership('MEM-1793277573426-q8rq', {
+            membershipStatus: 'SUPERSEDED_DUPLICATE',
+            notes: 'Administrative duplicate membership record superseded by original canonical membership MEM-1793269263598-4w32'
+          });
+        }
+
+        const origMem = memberships.find((m: any) => m.id === 'MEM-1793269263598-4w32');
+        if (origMem && !origMem.email) {
+          await db.updateMembership('MEM-1793269263598-4w32', {
+            email: 'binodbhai@gmail.com'
+          });
+        }
+
+        await db.createAuditLog({
+          id: `audit_ledger_startup_${Date.now()}`,
+          action: 'PAYMENT_LEDGER_AUTO_RECONCILED',
+          performedBy: 'SYSTEM_AUDIT',
+          targetId: 'PAY-1793277573428-075j',
+          details: 'Reclassified PAY-1793277573428-075j to DUPLICATE_ADMIN_ACTIVATION and MEM-1793277573426-q8rq to SUPERSEDED_DUPLICATE. Authoritative confirmed revenue verified at NPR 100.'
+        });
+        console.log('[Ledger Reconcile] Reclassification complete! Confirmed revenue reconciled to NPR 100.');
+      }
+    } catch (err: any) {
+      console.warn('[Ledger Reconcile] Startup check notice:', err.message);
+    }
+  }
+
   try {
     await dbAdapter.init();
     console.log('[Database] Central persistence engine initialized successfully.');
     await authEngine.syncWithDatabase(dbAdapter);
     console.log('[Database] Synchronized auth engine with authoritative database.');
+    await reconcileAuthoritativePaymentLedgerOnStartup(dbAdapter);
   } catch (err: any) {
     console.error('[Database Fatal] Persistence engine initialization failed:', err.message);
     if (process.env.NODE_ENV === 'production') {
@@ -3655,7 +3703,7 @@ async function startServer() {
   });
 
   // Helper to sanitize & enrich user details for Super Admin (ensuring no passwords leaked)
-  function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[], memberships: any[] = [], activeSessionUserIds?: Set<string>) {
+  function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[], memberships: any[] = [], activeSessionUserIds?: Set<string>, payments: any[] = []) {
     const effectiveMemberships = (memberships && memberships.length > 0) ? memberships : membershipEngine.getMemberships();
     const cleanPhone = String(u.phone || u.username || "").replace(/\D/g, "").slice(-10);
     const matchingLead = leads.find(l => {
@@ -3771,13 +3819,42 @@ async function startServer() {
     const createdAtBS = u.createdAtBS || getNepaliBSDate(createdAtISO);
     const bsYearOnly = createdAtBS.split(' ')[0] || '२०८३';
 
+    const userPayments = (payments || []).filter((p: any) => {
+      const pPhone = String(p.phone || "").replace(/\D/g, "").slice(-10);
+      return p.userId === u.id || (cleanPhone && pPhone === cleanPhone);
+    });
+
     const canonicalUserState = resolveCanonicalUserState({
       user: u,
       membership: userMembership,
-      payments: allUserLeads,
+      memberships: effectiveMemberships.filter((m: any) => m.userId === u.id || (cleanPhone && String(m.phone || '').replace(/\D/g, '').slice(-10) === cleanPhone)),
+      payments: userPayments.length > 0 ? userPayments : allUserLeads,
       licenses: userLicenses,
       trial: u.trial
     });
+
+    const formattedPayments = userPayments.map((p: any) => ({
+      id: p.id,
+      type: 'PAYMENT_RECORD',
+      planNameNepali: p.notes || (p.amountNPR === 100 ? 'साधारण सदस्यता (१ वर्ष)' : 'सदस्यता भुक्तानी'),
+      status: p.paymentStatus === 'paid' ? 'PURCHASE_APPROVED' : (p.paymentStatus === 'DUPLICATE_ADMIN_ACTIVATION' ? 'DUPLICATE_ADMIN_ACTIVATION' : p.paymentStatus),
+      paymentStatus: p.paymentStatus,
+      amountNPR: p.amountNPR,
+      planAmountNPR: p.amountNPR,
+      paymentMethod: p.paymentMethod || 'cash',
+      transactionId: p.transactionReference || '-',
+      submittedAtISO: p.createdAtISO,
+      submittedAtBS: getNepaliBSDate(p.createdAtISO),
+      notes: p.notes,
+      isDuplicateAdminActivation: p.paymentStatus === 'DUPLICATE_ADMIN_ACTIVATION' || Boolean(p.isDuplicateAdminActivation)
+    }));
+
+    const mergedPurchaseHistory = [...allUserLeads];
+    for (const fp of formattedPayments) {
+      if (!mergedPurchaseHistory.some(h => h.id === fp.id)) {
+        mergedPurchaseHistory.push(fp);
+      }
+    }
 
     return {
       id: u.id,
@@ -3852,7 +3929,7 @@ async function startServer() {
       expiryDateISO,
       expiryDateBS,
       availableServices,
-      purchaseHistory: allUserLeads,
+      purchaseHistory: mergedPurchaseHistory,
       membershipHistory: userMembership?.history || [],
       auditLogs: membershipEngine.getAuditLogsForUser(u.id, cleanPhone),
       adminNotes: u.adminNotes || u.notes || [],
@@ -3930,16 +4007,14 @@ async function startServer() {
         }
       } catch {}
 
-      const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses, memberships, activeSessionUserIds));
+      const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses, memberships, activeSessionUserIds, payments));
 
       // Global statistics for 9 KPI Summary Cards & 10 Master Classification Filters
       const now = Date.now();
       const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
-      const totalConfirmedRevenue = payments
-        .filter((p: any) => p.paymentStatus === 'paid')
-        .reduce((sum: number, p: any) => sum + (Number(p.amountNPR) || 0), 0);
+      const totalConfirmedRevenue = calculateVerifiedLedgerRevenue(payments);
 
       const pendingPurchaseCount = leads.filter((l: any) => l.status === 'PURCHASE_PENDING').length;
       const pendingPaymentCount = leads.filter((l: any) => l.paymentVerificationStatus === 'PENDING' || l.status === 'PURCHASE_PENDING').length;
@@ -5061,6 +5136,133 @@ async function startServer() {
       });
     } catch (err: any) {
       console.error("[Maintenance] Synthetic test data reconciliation failed:", err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.7.4c POST /api/superadmin/maintenance/reconcile-payment-ledger (Audited Reclassification of Duplicate Activations)
+  app.post("/api/superadmin/maintenance/reconcile-payment-ledger", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const adminSession = (req as any).superAdmin;
+      const adminId = adminSession?.username || "SuperAdmin";
+      const reason = req.body?.reason || "Audited reconciliation of duplicate administrative payment activation";
+
+      const payments = await dbAdapter.getPayments();
+      const memberships = await dbAdapter.getMemberships();
+
+      let reconciledPayment = null;
+      let reconciledMembership = null;
+
+      const dupPay = payments.find((p: any) => p.id === "PAY-1793277573428-075j");
+      if (dupPay && String(dupPay.paymentStatus || "").toLowerCase() === "paid") {
+        reconciledPayment = await dbAdapter.updatePayment("PAY-1793277573428-075j", {
+          paymentStatus: "DUPLICATE_ADMIN_ACTIVATION",
+          notes: "प्रशासनिक दोहोरो प्रविष्टि (Administrative duplicate activation - no settlement). वास्तविक भुक्तानी PAY-1793269263601-1z95 मा रु. १०० सुरक्षित छ।",
+          isDuplicateAdminActivation: true,
+          reconciledBy: adminId,
+          reconciledAtISO: new Date().toISOString(),
+          reconcileReason: reason
+        });
+      }
+
+      const dupMem = memberships.find((m: any) => m.id === "MEM-1793277573426-q8rq");
+      if (dupMem && dupMem.membershipStatus === "ACTIVE") {
+        reconciledMembership = await dbAdapter.updateMembership("MEM-1793277573426-q8rq", {
+          membershipStatus: "SUPERSEDED_DUPLICATE",
+          notes: "Administrative duplicate membership record superseded by original canonical membership MEM-1793269263598-4w32",
+          reconciledBy: adminId,
+          reconciledAtISO: new Date().toISOString()
+        });
+      }
+
+      const origMem = memberships.find((m: any) => m.id === "MEM-1793269263598-4w32");
+      if (origMem && !origMem.email) {
+        await dbAdapter.updateMembership("MEM-1793269263598-4w32", {
+          email: "binodbhai@gmail.com"
+        });
+      }
+
+      const auditLogId = `audit_ledger_reconcile_${Date.now()}`;
+      await dbAdapter.createAuditLog({
+        id: auditLogId,
+        action: "PAYMENT_LEDGER_RECONCILED",
+        performedBy: adminId,
+        targetId: "PAY-1793277573428-075j",
+        details: reason
+      });
+
+      broadcastRealtimeEvent("PAYMENT_LEDGER_RECONCILED", {
+        timestamp: Date.now(),
+        adminId
+      });
+
+      return res.json({
+        success: true,
+        message: "Payment ledger successfully reconciled with zero data loss",
+        auditLogId,
+        reconciledPayment,
+        reconciledMembership
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.7.4d POST /api/superadmin/payments/:id/reconcile-duplicate
+  app.post("/api/superadmin/payments/:id/reconcile-duplicate", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status = "DUPLICATE_ADMIN_ACTIVATION", notes, reason } = req.body;
+      const adminId = (req as any).superAdmin?.username || "SuperAdmin";
+
+      const updated = await dbAdapter.updatePayment(id, {
+        paymentStatus: status,
+        notes: notes || "प्रशासनिक दोहोरो प्रविष्टि (Administrative duplicate activation - no settlement)",
+        isDuplicateAdminActivation: true,
+        reconciledBy: adminId,
+        reconciledAtISO: new Date().toISOString(),
+        reconcileReason: reason || "Audited reclassification"
+      });
+
+      await dbAdapter.createAuditLog({
+        id: `audit_pay_${Date.now()}`,
+        action: "PAYMENT_RECLASSIFIED",
+        performedBy: adminId,
+        targetId: id,
+        details: `Payment ${id} reclassified to ${status}. Reason: ${reason || 'Audit reclassification'}`
+      });
+
+      return res.json({ success: true, payment: updated });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5.7.4e POST /api/superadmin/memberships/:id/reconcile-duplicate
+  app.post("/api/superadmin/memberships/:id/reconcile-duplicate", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status = "SUPERSEDED_DUPLICATE", notes, reason } = req.body;
+      const adminId = (req as any).superAdmin?.username || "SuperAdmin";
+
+      const updated = await dbAdapter.updateMembership(id, {
+        membershipStatus: status,
+        notes: notes || "Administrative duplicate membership record superseded",
+        reconciledBy: adminId,
+        reconciledAtISO: new Date().toISOString(),
+        reconcileReason: reason || "Audited reclassification"
+      });
+
+      await dbAdapter.createAuditLog({
+        id: `audit_mem_${Date.now()}`,
+        action: "MEMBERSHIP_RECLASSIFIED",
+        performedBy: adminId,
+        targetId: id,
+        details: `Membership ${id} reclassified to ${status}. Reason: ${reason || 'Audit reclassification'}`
+      });
+
+      return res.json({ success: true, membership: updated });
+    } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });

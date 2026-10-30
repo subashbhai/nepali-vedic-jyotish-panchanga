@@ -2551,19 +2551,28 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                                   <span>{lead.planNameNepali || lead.planId || 'सदस्यता योजना'}</span>
                                   <span
                                     className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                      isPending
+                                      lead.status === 'DUPLICATE_ADMIN_ACTIVATION' || lead.isDuplicateAdminActivation
+                                        ? 'bg-stone-800 text-amber-300 border border-stone-600'
+                                        : isPending
                                         ? 'bg-amber-950 text-amber-300 border border-amber-800 animate-pulse'
                                         : lead.status === 'PURCHASE_APPROVED'
                                         ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                                         : 'bg-red-950 text-red-300 border border-red-800'
                                     }`}
                                   >
-                                    {lead.status || 'SUBMITTED'}
+                                    {lead.status === 'DUPLICATE_ADMIN_ACTIVATION' || lead.isDuplicateAdminActivation
+                                      ? 'प्रशासनिक दोहोरो प्रविष्टि (No Settlement)'
+                                      : lead.status || 'SUBMITTED'}
                                   </span>
                                 </div>
                                 <div className="text-[10px] text-stone-500 mt-0.5 font-mono">
                                   मिति: {lead.submittedAtBS || lead.createdAtBS || '-'} • भुक्तानी: {lead.paymentMethod?.toUpperCase()} • रकम: रु. {lead.planAmountNPR || lead.amountNPR || '-'}
                                 </div>
+                                {lead.notes && (
+                                  <div className="text-[10.5px] text-amber-400/90 bg-amber-950/20 px-2.5 py-1 rounded-lg border border-amber-800/30 mt-1">
+                                    📝 {lead.notes}
+                                  </div>
+                                )}
                               </div>
 
                               {isPending && (

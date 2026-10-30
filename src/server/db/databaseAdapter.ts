@@ -130,6 +130,7 @@ export interface IDatabaseAdapter {
   // Payments
   getPayments(): Promise<any[]>;
   createPayment(payment: any): Promise<any>;
+  updatePayment(id: string, updates: any): Promise<any | null>;
 
   // Active Sessions & Lifecycle Management
   getSession(token: string): Promise<any | null>;
@@ -460,6 +461,15 @@ export class JsonFileDatabaseAdapter implements IDatabaseAdapter {
     payments.unshift(payment);
     this.atomicWriteSync(this.paymentsFile, payments);
     return payment;
+  }
+
+  public async updatePayment(id: string, updates: any): Promise<any | null> {
+    const payments = await this.getPayments();
+    const idx = payments.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    payments[idx] = { ...payments[idx], ...updates };
+    this.atomicWriteSync(this.paymentsFile, payments);
+    return payments[idx];
   }
 
   // --- Active Sessions ---
@@ -1794,6 +1804,7 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
       ...(r.raw_data || {}),
       id: r.id,
       userId: r.user_id,
+      subscriptionId: r.subscription_id || (r.raw_data && r.raw_data.subscriptionId) || null,
       amountNPR: r.amount_npr,
       currency: r.currency,
       paymentMethod: r.payment_method,
@@ -1808,24 +1819,42 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
   public async createPayment(payment: any): Promise<any> {
     const query = `
       INSERT INTO payments (
-        id, user_id, amount_npr, currency, payment_method,
-        payment_status, recorded_by, created_at_iso, raw_data
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (id) DO NOTHING;
+        id, user_id, subscription_id, amount_npr, currency, payment_method,
+        payment_status, transaction_reference, recorded_by, notes, created_at_iso, raw_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (id) DO UPDATE SET
+        payment_status = EXCLUDED.payment_status,
+        notes = EXCLUDED.notes,
+        raw_data = EXCLUDED.raw_data;
     `;
     const values = [
       payment.id,
       payment.userId,
+      payment.subscriptionId || null,
       payment.amountNPR,
       payment.currency || 'NPR',
       payment.paymentMethod,
       payment.paymentStatus || 'paid',
+      payment.transactionReference || payment.transactionId || null,
       payment.recordedBy,
+      payment.notes || null,
       payment.createdAtISO || new Date().toISOString(),
       JSON.stringify(payment)
     ];
     await this.pool.query(query, values);
     return payment;
+  }
+
+  public async updatePayment(id: string, updates: any): Promise<any | null> {
+    await this.pool.query(
+      `UPDATE payments SET
+        payment_status = COALESCE($2, payment_status),
+        notes = COALESCE($3, notes),
+        raw_data = raw_data || $4::jsonb
+      WHERE id = $1`,
+      [id, updates.paymentStatus || null, updates.notes || null, JSON.stringify(updates)]
+    );
+    return updates;
   }
 
   // --- Sessions ---

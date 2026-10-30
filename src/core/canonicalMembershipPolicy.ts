@@ -159,6 +159,72 @@ export interface CanonicalUserState {
 }
 
 /**
+ * Authoritative Payment Ledger Revenue Calculator
+ * Calculates verified, settled NPR revenue strictly from confirmed payment records.
+ * 
+ * Rules:
+ * 1. Only counts positive settlements: 'paid', 'verified', 'confirmed', 'purchase_approved'.
+ * 2. Explicitly excludes non-revenue states: 'duplicate_admin_activation', 'duplicate_activation',
+ *    'no_settlement', 'refunded', 'failed', 'cancelled', 'voided', 'pending', 'pending_verification'.
+ * 3. Deduplicates by unique payment ID (`p.id`) to prevent double-counting.
+ * 4. Deduplicates by unique external transaction reference (`transactionReference` / `transactionId`) when present.
+ * 5. Excludes records explicitly flagged as duplicate administrative activations.
+ * 6. NEVER discards genuine distinct payments simply because expiry dates or plans match.
+ */
+export function calculateVerifiedLedgerRevenue(payments: any[]): number {
+  if (!Array.isArray(payments) || payments.length === 0) return 0;
+  let totalNPR = 0;
+  const seenPaymentIds = new Set<string>();
+  const seenTxRefs = new Set<string>();
+
+  for (const p of payments) {
+    if (!p) continue;
+    const pId = String(p.id || '').trim();
+    if (pId) {
+      if (seenPaymentIds.has(pId)) continue;
+      seenPaymentIds.add(pId);
+    }
+
+    const rawStatus = String(p.paymentStatus || p.status || p.paymentVerificationStatus || '').toUpperCase();
+    
+    // Explicitly exclude non-revenue states:
+    // 1. Administrative duplicate activations / no-settlement records
+    // 2. Refunds
+    // 3. Failures, cancellations, voided entries
+    // 4. Pending / unverified requests
+    if (
+      rawStatus.includes('DUPLICATE') ||
+      rawStatus.includes('NO_SETTLEMENT') ||
+      rawStatus.includes('REFUND') ||
+      rawStatus.includes('FAIL') ||
+      rawStatus.includes('CANCEL') ||
+      rawStatus.includes('VOID') ||
+      rawStatus.includes('PENDING') ||
+      Boolean(p.isDuplicate) ||
+      Boolean(p.isDuplicateAdminActivation)
+    ) {
+      continue;
+    }
+
+    // Only count confirmed positive settlements
+    if (rawStatus === 'PAID' || rawStatus === 'VERIFIED' || rawStatus === 'CONFIRMED' || rawStatus === 'PURCHASE_APPROVED') {
+      // Deduplicate by external reference if genuine non-empty reference is provided
+      const txRef = String(p.transactionReference || p.transactionId || '').trim();
+      if (txRef && txRef.toLowerCase() !== 'null' && txRef.toLowerCase() !== 'undefined' && txRef.length >= 4) {
+        if (seenTxRefs.has(txRef)) continue;
+        seenTxRefs.add(txRef);
+      }
+
+      const amt = Number(p.amountNPR || p.amount || p.planAmountNPR || 0);
+      if (amt > 0) {
+        totalNPR += amt;
+      }
+    }
+  }
+  return totalNPR;
+}
+
+/**
  * Authoritative Canonical User State Resolver
  * Single Source of Truth for Header, Dashboard, SuperAdmin, and backend APIs.
  */
@@ -255,36 +321,7 @@ export function resolveCanonicalUserState(params: {
   );
 
   // 4. Calculate Total Confirmed Amount Paid from verified payment records
-  let totalConfirmedAmountPaidNPR = 0;
-  if (Array.isArray(payments) && payments.length > 0) {
-    const seenTermKeys = new Set<string>();
-
-    for (const p of payments) {
-      const pStatus = String(p.paymentStatus || p.status || p.paymentVerificationStatus || '').toLowerCase();
-      if (pStatus === 'paid' || pStatus === 'verified' || pStatus === 'confirmed' || pStatus === 'purchase_approved') {
-        const amt = Number(p.amountNPR || p.amount || p.planAmountNPR || 0);
-        if (amt > 0) {
-          // If payment is linked to a membership, ensure duplicate re-activations of the same term are deduplicated
-          let isDuplicate = false;
-          if (p.subscriptionId && allMemberships.length > 0) {
-            const linkedMem = allMemberships.find((m: any) => m.id === p.subscriptionId);
-            if (linkedMem) {
-              const expKey = linkedMem.expiresAtISO ? linkedMem.expiresAtISO.slice(0, 10) : (linkedMem.duration || 'std');
-              const termKey = `${linkedMem.planId || 'plan'}_${expKey}`;
-              if (seenTermKeys.has(termKey)) {
-                isDuplicate = true;
-              } else {
-                seenTermKeys.add(termKey);
-              }
-            }
-          }
-          if (!isDuplicate) {
-            totalConfirmedAmountPaidNPR += amt;
-          }
-        }
-      }
-    }
-  }
+  let totalConfirmedAmountPaidNPR = calculateVerifiedLedgerRevenue(payments);
 
   // 5. Active Membership Resolution
   const rawPlanId = mem?.planId || u.subscriptionPlan;
@@ -325,8 +362,8 @@ export function resolveCanonicalUserState(params: {
 
   const hasConfirmedActiveMembership = !isRevoked && !isExpired && (isPaymentConfirmed || isApprovedByAdmin) && Boolean(canonicalPlan);
 
-  // If totalConfirmedAmountPaidNPR wasn't computable from array, use verified membership amount
-  if (totalConfirmedAmountPaidNPR === 0) {
+  // If totalConfirmedAmountPaidNPR wasn't computable because payments array wasn't provided, use verified membership amount
+  if (totalConfirmedAmountPaidNPR === 0 && (!Array.isArray(payments) || payments.length === 0)) {
     if (isPaymentConfirmed || isApprovedByAdmin) {
       totalConfirmedAmountPaidNPR = Number(mem?.amountNPR || u.paymentAmountNPR || canonicalPlan?.priceNPR || 0);
     }
