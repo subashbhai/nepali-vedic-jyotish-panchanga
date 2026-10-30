@@ -5,7 +5,7 @@
  * Defines the complete 8-state user lifecycle and maps each state to exact
  * permissions, accessible navigation tabs, and service authorizations.
  */
-import { resolveCanonicalPlan } from '../core/canonicalMembershipPolicy';
+import { resolveCanonicalPlan } from '../core/canonicalMembershipPolicy.ts';
 
 export type UserLifecycleState =
   | 'ANONYMOUS_VISITOR'

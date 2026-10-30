@@ -16,7 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDatabaseAdapter, IDatabaseAdapter } from './db/databaseAdapter';
 import { getNepaliBSDate } from './membershipDateEngine';
-import { resolveCanonicalUserState } from '../core/canonicalMembershipPolicy';
+import { resolveCanonicalUserState } from '../core/canonicalMembershipPolicy.ts';
 
 export type UserCategory = 'visitor' | 'member' | 'professional';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
