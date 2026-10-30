@@ -107,6 +107,7 @@ async function auditAndReconcile() {
     const canonicalState = resolveCanonicalUserState({
       user,
       membership: activeMem,
+      memberships: userMemberships,
       payments: user.purchaseHistory || [],
       licenses: user.licenses || [],
       trial: user.trial

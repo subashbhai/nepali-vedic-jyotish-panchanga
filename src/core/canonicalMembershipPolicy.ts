@@ -165,6 +165,7 @@ export interface CanonicalUserState {
 export function resolveCanonicalUserState(params: {
   user?: any;
   membership?: any;
+  memberships?: any[];
   payments?: any[];
   licenses?: any[];
   trial?: any;
@@ -172,6 +173,7 @@ export function resolveCanonicalUserState(params: {
 }): CanonicalUserState {
   const u = params.user || {};
   const mem = params.membership || params.activeMembership || u.membership;
+  const allMemberships = Array.isArray(params.memberships) ? params.memberships : (mem ? [mem] : (u.memberships || []));
   const payments = params.payments || u.payments || [];
   const licenses = params.licenses || u.licenses || [];
   const trial = params.trial || u.trial;
@@ -255,11 +257,31 @@ export function resolveCanonicalUserState(params: {
   // 4. Calculate Total Confirmed Amount Paid from verified payment records
   let totalConfirmedAmountPaidNPR = 0;
   if (Array.isArray(payments) && payments.length > 0) {
+    const seenTermKeys = new Set<string>();
+
     for (const p of payments) {
       const pStatus = String(p.paymentStatus || p.status || p.paymentVerificationStatus || '').toLowerCase();
       if (pStatus === 'paid' || pStatus === 'verified' || pStatus === 'confirmed' || pStatus === 'purchase_approved') {
         const amt = Number(p.amountNPR || p.amount || p.planAmountNPR || 0);
-        if (amt > 0) totalConfirmedAmountPaidNPR += amt;
+        if (amt > 0) {
+          // If payment is linked to a membership, ensure duplicate re-activations of the same term are deduplicated
+          let isDuplicate = false;
+          if (p.subscriptionId && allMemberships.length > 0) {
+            const linkedMem = allMemberships.find((m: any) => m.id === p.subscriptionId);
+            if (linkedMem) {
+              const expKey = linkedMem.expiresAtISO ? linkedMem.expiresAtISO.slice(0, 10) : (linkedMem.duration || 'std');
+              const termKey = `${linkedMem.planId || 'plan'}_${expKey}`;
+              if (seenTermKeys.has(termKey)) {
+                isDuplicate = true;
+              } else {
+                seenTermKeys.add(termKey);
+              }
+            }
+          }
+          if (!isDuplicate) {
+            totalConfirmedAmountPaidNPR += amt;
+          }
+        }
       }
     }
   }
