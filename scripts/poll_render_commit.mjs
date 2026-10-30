@@ -1,7 +1,7 @@
 // scripts/poll_render_commit.mjs
 import https from 'https';
 
-const targetCommit = 'a0daee3';
+const targetCommit = process.argv[2] || '266fc16';
 let attempts = 0;
 
 function check() {
