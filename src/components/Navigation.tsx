@@ -449,7 +449,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const [isSewaMenuOpen, setIsSewaMenuOpen] = useState(false);
   const [sewaDropdownPosition, setSewaDropdownPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
-  const [isUnifiedSettingsOpen, setIsUnifiedSettingsOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloadDropdownOpen, setIsDownloadDropdownOpen] = useState(false);
@@ -478,7 +477,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const sewaButtonRef = useRef<HTMLButtonElement>(null);
   const sewaMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
-  const unifiedSettingsRef = useRef<HTMLDivElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   const isSuperOrStoreAdmin =
@@ -519,7 +517,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
   const toggleSewaMenu = () => {
     if (!isSewaMenuOpen) {
       updateSewaPosition();
-      setIsUnifiedSettingsOpen(false);
     }
     setIsSewaMenuOpen((prev) => !prev);
   };
@@ -536,9 +533,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
       }
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target as Node)) {
         setIsSettingsMenuOpen(false);
-      }
-      if (unifiedSettingsRef.current && !unifiedSettingsRef.current.contains(e.target as Node)) {
-        setIsUnifiedSettingsOpen(false);
       }
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
         setIsDownloadDropdownOpen(false);
@@ -1132,325 +1126,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
             )}
           </div>
 
-          {/* एकीकृत सेटिङ, मद्दत, क्लाउड सिंक तथा सुपरएडमिन Dropdown Menu */}
-          <div className="relative shrink-0 z-50" ref={unifiedSettingsRef}>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => setIsUnifiedSettingsOpen(!isUnifiedSettingsOpen)}
-              className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-colors duration-150 border shrink-0 ${
-                isUnifiedSettingsOpen || activeTab === 'settings' || activeTab === 'help'
-                  ? 'bg-[#7A1C1C] text-white border-[#5C1515] ring-2 ring-[#7A1C1C]/30 shadow-md'
-                  : 'bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700/80 text-[#2D241E] dark:text-stone-200 border-[#E6E0D5] dark:border-stone-700 shadow-2xs'
-              }`}
-              title="प्रणाली सेटिङ, लेटरहेड, मद्दत तथा क्लाउड सिंक"
-            >
-              <Settings className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isUnifiedSettingsOpen || activeTab === 'settings' || activeTab === 'help' ? 'text-amber-300' : 'text-[#7A1C1C] dark:text-amber-400'}`} />
-              <span>सेटिङ</span>
-              {/* Green status indicator dot for healthy cloud sync */}
-              <span className="relative flex h-2 w-2 ml-0.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isUnifiedSettingsOpen ? 'rotate-180 text-amber-400' : 'opacity-70'}`} />
-            </motion.button>
 
-            {isUnifiedSettingsOpen && (
-              <div className="absolute right-0 mt-1.5 w-[calc(100vw-24px)] max-w-sm sm:w-96 bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border-2 border-amber-400/80 dark:border-stone-700 p-2.5 z-[100] animate-in fade-in slide-in-from-top-1">
-                {/* Header */}
-                <div className="px-3 py-2 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-[#7A1C1C]/10 dark:bg-amber-500/15 flex items-center justify-center text-[#7A1C1C] dark:text-amber-400">
-                      <Settings className="w-4 h-4" />
-                    </div>
-                    <span className="font-bold text-xs sm:text-sm text-stone-800 dark:text-stone-100">
-                      प्रणाली सेटिङ तथा सेवा
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/60 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    क्लाउड सुरक्षित
-                  </span>
-                </div>
-
-                {/* Options List */}
-                <div className="py-1.5 space-y-1">
-                  {/* 1. Jyotish & System Settings */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      if (onOpenSettingsModal) onOpenSettingsModal('astro');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <Settings className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm">१. प्रणाली तथा ज्योतिष गणना</span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-stone-800 text-amber-900 dark:text-amber-300">
-                          गणना
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        अयनांश, ग्रह स्पष्ट विधि, पञ्चाङ्ग तथा मुद्रण लेआउट मिलाउने
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 2. Letterhead Banner Settings */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      if (onOpenSettingsModal) onOpenSettingsModal('letterhead');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-red-500/15 text-[#7A1C1C] dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm">२. लेटरहेड ब्यानर सेटिङ</span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-red-100 dark:bg-stone-800 text-red-800 dark:text-red-300">
-                          ब्यानर
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        आफ्नो नाम, ठेगाना, संस्था लोगो र आधिकारिक ब्यानर मिलाउने
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 3. Cloud Sync & Backup */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      setIsCloudSyncModalOpen(true);
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-emerald-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <CloudCheck className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm">३. क्लाउड सिंक तथा ब्याकअप</span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-stone-800 text-emerald-800 dark:text-emerald-300">
-                          क्लाउड
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        कुण्डली डेटा, ब्याकअप, पुनर्स्थापना (Restore) र सुरक्षित सिंक
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 4. Help & Documentation */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      onTabChange('help');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <HelpCircle className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm">४. मद्दत तथा ट्यूटोरियल</span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-stone-800 text-amber-900 dark:text-amber-300">
-                          मद्दत
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        सफ्टवेयर प्रयोग विधि, ट्यूटोरियल तथा प्रायः सोधिने प्रश्नहरू (FAQ)
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 5. Software Theme & Client Customization */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      if (onOpenThemeModal) onOpenThemeModal();
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <Palette className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm">५. सफ्टवेयर थिम र यजमान सूचना</span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-stone-800 text-amber-900 dark:text-amber-300">
-                          थिम
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        ५ वटा वैदिक रङ्ग, पृष्ठभूमि तथा यजमानलाई सन्देश प्रसारण
-                      </p>
-                    </div>
-                  </button>
-                  {/* 7. Store & Digital Library Admin */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      onTabChange('store_admin');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/30"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-600/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <ShoppingBag className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-[#7A1C1C] dark:text-amber-300">
-                          ७. स्टोर एवं डिजिटल पुस्तकालय एडमिन
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-stone-800 text-amber-900 dark:text-amber-300">
-                          Store Admin
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        सामग्री, अर्डर, भुक्तानी, PDF ग्रन्थ तथा अटो-कभर व्यवस्थापन
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 8. POS Billing Terminal */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      onTabChange('pos');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <ShoppingBag className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
-                          ८. काउन्टर POS बिलिङ टर्मिनल
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
-                          POS
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        काउन्टर प्रत्यक्ष बिक्री, इनभ्वाइस तथा रसिद प्रिन्ट
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 9. News Editor Dashboard */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      onTabChange('news_editor');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <Newspaper className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
-                          ९. समाचार तथा लेख सम्पादक
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                          News
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        पञ्चाङ्ग, चाडपर्व, खगोल तथा ज्योतिष समाचार प्रकाशन
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 10. Vivah Supervisor Dashboard */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      onTabChange('vivah_admin');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <HeartHandshake className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
-                          १०. विवाह बायोडाटा सुपरभाइजर
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
-                          Marriage
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        वैवाहिक प्रोफाइल प्रमाणीकरण तथा वर-वधु म्याचिङ
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 11. Daily WhatsApp Dispatch Manager */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUnifiedSettingsOpen(false);
-                      onTabChange('whatsapp_admin');
-                    }}
-                    className="w-full text-left p-2 rounded-xl flex items-start gap-2.5 transition-all cursor-pointer hover:bg-amber-500/10 dark:hover:bg-amber-950/40 text-stone-800 dark:text-stone-200 group border border-amber-500/20"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-green-500/20 text-green-700 dark:text-green-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                      <Bot className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm text-stone-900 dark:text-stone-100">
-                          ११. दैनिक ह्वाट्सएप डिस्प्याच व्यवस्थापक
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-300">
-                          WhatsApp
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1">
-                        दैनिक पञ्चाङ्ग, राशिफल तथा उत्सव सन्देश स्वचालित प्रसारण
-                      </p>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Footer with support info */}
-                <div className="mt-1 pt-2 border-t border-stone-200 dark:border-stone-800 flex items-center justify-between text-[10px] text-stone-500 dark:text-stone-400 px-1">
-                  <span>सम्पर्क / WhatsApp: 9764400533</span>
-                  <a
-                    href="https://wa.me/9779764400533"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-emerald-700 dark:text-emerald-400 font-bold hover:underline"
-                  >
-                    सम्पर्क गर्नुहोस् ↗
-                  </a>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Controlled Cloud Sync & Backup Modal */}
           <SyncStatusIndicator 
@@ -2655,7 +2331,7 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-300">
-                      ६ उपकरण
+                      {rbacSession?.role === 'SUPER_ADMIN' ? '६ उपकरण' : '३ उपकरण'}
                     </span>
                     <ChevronDown
                       className={`w-4 h-4 text-stone-700 dark:text-stone-400 transition-transform duration-200 ${
@@ -2689,40 +2365,6 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       type="button"
                       onClick={() => {
                         setIsMobileDrawerOpen(false);
-                        if (onOpenSettingsModal) onOpenSettingsModal('astro');
-                      }}
-                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0">
-                        <Settings className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold block truncate">प्रणाली तथा ज्योतिष गणना सेटिङ</span>
-                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">अयनांश, स्थान र ग्रह गणना</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileDrawerOpen(false);
-                        if (onOpenSettingsModal) onOpenSettingsModal('letterhead');
-                      }}
-                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold block truncate">लेटरहेड ब्यानर सेटिङ</span>
-                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">व्यक्तिगत नाम, लोगो र ब्यानर</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileDrawerOpen(false);
                         if (onOpenThemeModal) onOpenThemeModal();
                       }}
                       className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
@@ -2736,22 +2378,60 @@ export const Navigation: React.FC<NavigationProps> = memo(({
                       </div>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileDrawerOpen(false);
-                        setIsCloudSyncModalOpen(true);
-                      }}
-                      className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <CloudCheck className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold block truncate">क्लाउड सिंक तथा ब्याकअप</span>
-                        <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">डेटा सुरक्षित भण्डारण र रिस्टोर</span>
-                      </div>
-                    </button>
+                    {rbacSession?.role === 'SUPER_ADMIN' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileDrawerOpen(false);
+                            if (onOpenSettingsModal) onOpenSettingsModal('astro');
+                          }}
+                          className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0">
+                            <Settings className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold block truncate">प्रणाली तथा ज्योतिष गणना सेटिङ</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">अयनांश, स्थान र ग्रह गणना</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileDrawerOpen(false);
+                            if (onOpenSettingsModal) onOpenSettingsModal('letterhead');
+                          }}
+                          className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold block truncate">लेटरहेड ब्यानर सेटिङ</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">व्यक्तिगत नाम, लोगो र ब्यानर</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileDrawerOpen(false);
+                            setIsCloudSyncModalOpen(true);
+                          }}
+                          className="w-full min-h-[44px] flex items-center gap-2.5 p-2 rounded-xl text-left cursor-pointer transition-colors border bg-white/90 dark:bg-stone-800/90 border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-100"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <CloudCheck className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold block truncate">क्लाउड सिंक तथा ब्याकअप</span>
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate block">डेटा सुरक्षित भण्डारण र रिस्टोर</span>
+                          </div>
+                        </button>
+                      </>
+                    )}
 
                     <button
                       type="button"
