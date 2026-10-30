@@ -25,59 +25,11 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const dbAdapter = getDatabaseAdapter();
 
-  async function reconcileAuthoritativePaymentLedgerOnStartup(db: any) {
-    try {
-      const payments = await db.getPayments();
-      const memberships = await db.getMemberships();
-
-      // Check if Binod Ghimire's duplicate record PAY-1793277573428-075j is still marked 'paid'
-      const dupPay = payments.find((p: any) => p.id === 'PAY-1793277573428-075j');
-      if (dupPay && String(dupPay.paymentStatus || '').toLowerCase() === 'paid') {
-        console.log('[Ledger Reconcile] Reclassifying administrative duplicate PAY-1793277573428-075j...');
-        await db.updatePayment('PAY-1793277573428-075j', {
-          paymentStatus: 'DUPLICATE_ADMIN_ACTIVATION',
-          notes: 'प्रशासनिक दोहोरो प्रविष्टि (Administrative duplicate activation - no settlement). वास्तविक भुक्तानी PAY-1793269263601-1z95 मा रु. १०० सुरक्षित छ।',
-          isDuplicateAdminActivation: true,
-          reconciledBy: 'SYSTEM_AUDIT',
-          reconciledAtISO: new Date().toISOString()
-        });
-
-        const dupMem = memberships.find((m: any) => m.id === 'MEM-1793277573426-q8rq');
-        if (dupMem && dupMem.membershipStatus === 'ACTIVE') {
-          console.log('[Ledger Reconcile] Reclassifying superseded duplicate membership MEM-1793277573426-q8rq...');
-          await db.updateMembership('MEM-1793277573426-q8rq', {
-            membershipStatus: 'SUPERSEDED_DUPLICATE',
-            notes: 'Administrative duplicate membership record superseded by original canonical membership MEM-1793269263598-4w32'
-          });
-        }
-
-        const origMem = memberships.find((m: any) => m.id === 'MEM-1793269263598-4w32');
-        if (origMem && !origMem.email) {
-          await db.updateMembership('MEM-1793269263598-4w32', {
-            email: 'binodbhai@gmail.com'
-          });
-        }
-
-        await db.createAuditLog({
-          id: `audit_ledger_startup_${Date.now()}`,
-          action: 'PAYMENT_LEDGER_AUTO_RECONCILED',
-          performedBy: 'SYSTEM_AUDIT',
-          targetId: 'PAY-1793277573428-075j',
-          details: 'Reclassified PAY-1793277573428-075j to DUPLICATE_ADMIN_ACTIVATION and MEM-1793277573426-q8rq to SUPERSEDED_DUPLICATE. Authoritative confirmed revenue verified at NPR 100.'
-        });
-        console.log('[Ledger Reconcile] Reclassification complete! Confirmed revenue reconciled to NPR 100.');
-      }
-    } catch (err: any) {
-      console.warn('[Ledger Reconcile] Startup check notice:', err.message);
-    }
-  }
-
   try {
     await dbAdapter.init();
     console.log('[Database] Central persistence engine initialized successfully.');
     await authEngine.syncWithDatabase(dbAdapter);
     console.log('[Database] Synchronized auth engine with authoritative database.');
-    await reconcileAuthoritativePaymentLedgerOnStartup(dbAdapter);
   } catch (err: any) {
     console.error('[Database Fatal] Persistence engine initialization failed:', err.message);
     if (process.env.NODE_ENV === 'production') {
@@ -5146,18 +5098,19 @@ async function startServer() {
       const adminSession = (req as any).superAdmin;
       const adminId = adminSession?.username || "SuperAdmin";
       const reason = req.body?.reason || "Audited reconciliation of duplicate administrative payment activation";
-
-      const payments = await dbAdapter.getPayments();
-      const memberships = await dbAdapter.getMemberships();
+      const targetPaymentId = req.body?.paymentId || req.body?.targetPaymentId;
+      const targetMembershipId = req.body?.membershipId || req.body?.targetMembershipId;
+      const newPaymentStatus = req.body?.paymentStatus || req.body?.status || "DUPLICATE_ADMIN_ACTIVATION";
+      const newMembershipStatus = req.body?.membershipStatus || "SUPERSEDED_DUPLICATE";
+      const paymentNotes = req.body?.notes || "प्रशासनिक दोहोरो प्रविष्टि (Administrative duplicate activation - no settlement)";
 
       let reconciledPayment = null;
       let reconciledMembership = null;
 
-      const dupPay = payments.find((p: any) => p.id === "PAY-1793277573428-075j");
-      if (dupPay && String(dupPay.paymentStatus || "").toLowerCase() === "paid") {
-        reconciledPayment = await dbAdapter.updatePayment("PAY-1793277573428-075j", {
-          paymentStatus: "DUPLICATE_ADMIN_ACTIVATION",
-          notes: "प्रशासनिक दोहोरो प्रविष्टि (Administrative duplicate activation - no settlement). वास्तविक भुक्तानी PAY-1793269263601-1z95 मा रु. १०० सुरक्षित छ।",
+      if (targetPaymentId) {
+        reconciledPayment = await dbAdapter.updatePayment(targetPaymentId, {
+          paymentStatus: newPaymentStatus,
+          notes: paymentNotes,
           isDuplicateAdminActivation: true,
           reconciledBy: adminId,
           reconciledAtISO: new Date().toISOString(),
@@ -5165,20 +5118,12 @@ async function startServer() {
         });
       }
 
-      const dupMem = memberships.find((m: any) => m.id === "MEM-1793277573426-q8rq");
-      if (dupMem && dupMem.membershipStatus === "ACTIVE") {
-        reconciledMembership = await dbAdapter.updateMembership("MEM-1793277573426-q8rq", {
-          membershipStatus: "SUPERSEDED_DUPLICATE",
-          notes: "Administrative duplicate membership record superseded by original canonical membership MEM-1793269263598-4w32",
+      if (targetMembershipId) {
+        reconciledMembership = await dbAdapter.updateMembership(targetMembershipId, {
+          membershipStatus: newMembershipStatus,
+          notes: req.body?.membershipNotes || "Administrative duplicate membership record superseded",
           reconciledBy: adminId,
           reconciledAtISO: new Date().toISOString()
-        });
-      }
-
-      const origMem = memberships.find((m: any) => m.id === "MEM-1793269263598-4w32");
-      if (origMem && !origMem.email) {
-        await dbAdapter.updateMembership("MEM-1793269263598-4w32", {
-          email: "binodbhai@gmail.com"
         });
       }
 
@@ -5187,7 +5132,7 @@ async function startServer() {
         id: auditLogId,
         action: "PAYMENT_LEDGER_RECONCILED",
         performedBy: adminId,
-        targetId: "PAY-1793277573428-075j",
+        targetId: targetPaymentId || targetMembershipId || "MANUAL_MAINTENANCE",
         details: reason
       });
 
@@ -5198,7 +5143,7 @@ async function startServer() {
 
       return res.json({
         success: true,
-        message: "Payment ledger successfully reconciled with zero data loss",
+        message: targetPaymentId || targetMembershipId ? "Payment ledger record successfully reconciled" : "Reconciliation endpoint ready (pass paymentId or membershipId to reconcile)",
         auditLogId,
         reconciledPayment,
         reconciledMembership

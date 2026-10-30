@@ -238,7 +238,7 @@ export function resolveCanonicalUserState(params: {
   activeMembership?: any;
 }): CanonicalUserState {
   const u = params.user || {};
-  const mem = params.membership || params.activeMembership || u.membership;
+  const mem = params.membership || params.activeMembership || u.membership || (Array.isArray(params.memberships) ? params.memberships.find((m: any) => m.userId === (u.id || u.userId) || (u.phone && m.phone && String(m.phone).replace(/\D/g, '').slice(-10) === String(u.phone).replace(/\D/g, '').slice(-10))) : null);
   const allMemberships = Array.isArray(params.memberships) ? params.memberships : (mem ? [mem] : (u.memberships || []));
   const payments = params.payments || u.payments || [];
   const licenses = params.licenses || u.licenses || [];
