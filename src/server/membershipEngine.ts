@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { calculateMembershipDateSchedule, getNepaliBSDate } from './membershipDateEngine';
+import { getDatabaseAdapter } from './db/databaseAdapter';
+import { resolveCanonicalPlan, calculateCanonicalRenewalSchedule, CANONICAL_MEMBERSHIP_PLANS } from '../core/canonicalMembershipPolicy';
 
 export type PlanDuration = '1_year' | 'lifetime' | 'trial' | '1_month' | '3_months';
 export type DeviceType = 'mobile_only' | 'computer_only' | 'both';
@@ -221,28 +223,34 @@ export const MEMBERSHIP_PLANS: Record<string, {
   }
 };
 
-class MembershipEngine {
+export class MembershipEngine {
   private memberships: MembershipRecord[] = [];
   private auditLogs: MembershipAuditLog[] = [];
+  private dataDir: string;
+  private membershipsFile: string;
+  private auditLogsFile: string;
 
-  constructor() {
+  constructor(customDataDir?: string) {
+    this.dataDir = customDataDir || DATA_DIR;
+    this.membershipsFile = path.join(this.dataDir, 'memberships.json');
+    this.auditLogsFile = path.join(this.dataDir, 'membership_audit_logs.json');
     this.loadFromDisk();
   }
 
   public loadFromDisk(): void {
     try {
-      if (fs.existsSync(MEMBERSHIPS_FILE)) {
-        this.memberships = JSON.parse(fs.readFileSync(MEMBERSHIPS_FILE, 'utf-8'));
+      if (fs.existsSync(this.membershipsFile)) {
+        this.memberships = JSON.parse(fs.readFileSync(this.membershipsFile, 'utf-8'));
       } else {
         this.memberships = [];
-        writeJsonAtomic(MEMBERSHIPS_FILE, []);
+        writeJsonAtomic(this.membershipsFile, []);
       }
 
-      if (fs.existsSync(AUDIT_LOGS_FILE)) {
-        this.auditLogs = JSON.parse(fs.readFileSync(AUDIT_LOGS_FILE, 'utf-8'));
+      if (fs.existsSync(this.auditLogsFile)) {
+        this.auditLogs = JSON.parse(fs.readFileSync(this.auditLogsFile, 'utf-8'));
       } else {
         this.auditLogs = [];
-        writeJsonAtomic(AUDIT_LOGS_FILE, []);
+        writeJsonAtomic(this.auditLogsFile, []);
       }
     } catch (err) {
       console.warn('[MembershipEngine] Error reading memberships from disk:', err);
@@ -252,11 +260,11 @@ class MembershipEngine {
   }
 
   private persistMemberships(): void {
-    writeJsonAtomic(MEMBERSHIPS_FILE, this.memberships);
+    writeJsonAtomic(this.membershipsFile, this.memberships);
   }
 
   private persistAuditLogs(): void {
-    writeJsonAtomic(AUDIT_LOGS_FILE, this.auditLogs);
+    writeJsonAtomic(this.auditLogsFile, this.auditLogs);
   }
 
   private logAudit(membershipId: string, userId: string, action: string, performedBy: string, details: string) {
@@ -757,16 +765,19 @@ class MembershipEngine {
    */
   public mutateMembership(
     membershipIdOrUserId: string,
-    adminId: string,
-    options: {
-      action: 'activate' | 'suspend' | 'deactivate' | 'renew' | 'extend' | 'change_plan' | 'toggle_service';
-      duration?: PlanDuration;
-      newPlanId?: string;
-      services?: Array<'jyotish' | 'vastu' | 'karmakanda' | 'panchanga'>;
-      customExpiresAtTimestamp?: number | null;
-      reason: string;
+    adminIdOrOptions: string | any,
+    maybeOptions?: any
+  ): { success: boolean; membership?: MembershipRecord; isIdempotentReplay?: boolean; message: string } {
+    let adminId = 'SuperAdmin';
+    let options: any;
+    if (typeof adminIdOrOptions === 'object' && adminIdOrOptions !== null) {
+      options = adminIdOrOptions;
+      adminId = options.adminId || 'SuperAdmin';
+    } else {
+      adminId = adminIdOrOptions;
+      options = maybeOptions || {};
     }
-  ): { success: boolean; membership?: MembershipRecord; message: string } {
+
     const membership =
       this.memberships.find(m => m.id === membershipIdOrUserId || m.userId === membershipIdOrUserId) ||
       this.getMembershipByPhoneOrId(membershipIdOrUserId);
@@ -775,13 +786,17 @@ class MembershipEngine {
       return { success: false, message: 'सदस्यता रेकर्ड फेला परेन।' };
     }
 
+    if (!membership.history) {
+      membership.history = [];
+    }
+
     const now = new Date();
     const action = options.action;
 
     if (action === 'suspend' || action === 'deactivate') {
       membership.membershipStatus = 'CANCELLED';
       membership.adminNotes = options.reason;
-      membership.history?.push({
+      membership.history.push({
         action: 'MEMBERSHIP_SUSPENDED',
         status: 'CANCELLED',
         timestampISO: now.toISOString(),
@@ -792,7 +807,7 @@ class MembershipEngine {
     } else if (action === 'activate') {
       membership.membershipStatus = 'ACTIVE';
       membership.adminNotes = options.reason;
-      membership.history?.push({
+      membership.history.push({
         action: 'MEMBERSHIP_REACTIVATED',
         status: 'ACTIVE',
         timestampISO: now.toISOString(),
@@ -801,35 +816,77 @@ class MembershipEngine {
       });
       this.logAudit(membership.id, membership.userId, 'MEMBERSHIP_REACTIVATED', adminId, options.reason);
     } else if (action === 'renew' || action === 'extend') {
-      const dur = options.duration || '1_year';
+      if (action === 'renew' && membership.duration === 'lifetime') {
+        return { success: false, message: 'आजीवन सदस्यताको वार्षिक नवीकरण आवश्यक छैन।' };
+      }
+
+      // Idempotency check against duplicate submissions (within 10 seconds)
+      const lastRenewal = membership.history.slice().reverse().find(h => h.action === 'MEMBERSHIP_RENEWED');
+      if (action === 'renew' && lastRenewal) {
+        const timeSince = now.getTime() - new Date(lastRenewal.timestampISO).getTime();
+        if (timeSince < 10000) {
+          return {
+            success: true,
+            isIdempotentReplay: true,
+            membership,
+            message: 'नवीकरण पहिले नै सफलतापूर्वक दर्ता भइसकेको छ (Idempotent)।'
+          };
+        }
+      }
+
+      const dur = options.duration || (action === 'renew' ? '1_year' : (membership.duration || '1_year'));
       membership.duration = dur;
       membership.membershipStatus = 'ACTIVE';
 
-      let currentBase = membership.expiresAtTimestamp && membership.expiresAtTimestamp > now.getTime()
-        ? membership.expiresAtTimestamp
-        : now.getTime();
+      const canonicalPlan = resolveCanonicalPlan(membership.planId) || resolveCanonicalPlan(membership.planNameNepali) || CANONICAL_MEMBERSHIP_PLANS.normal_yearly;
+      const renewalSchedule = calculateCanonicalRenewalSchedule(membership.expiresAtTimestamp, canonicalPlan, now.getTime());
 
-      let newExp: number | null = null;
-      if (dur === 'lifetime') {
-        newExp = null;
-        membership.expiresAtBS = 'आजीवन (Lifetime)';
-      } else if (dur === '1_year') {
-        newExp = currentBase + 365 * 24 * 60 * 60 * 1000;
-        membership.expiresAtBS = '२०८३';
-      } else if (dur === '1_month') {
-        newExp = currentBase + 30 * 24 * 60 * 60 * 1000;
-        membership.expiresAtBS = '१ महिना थप';
-      } else if (dur === '3_months') {
-        newExp = currentBase + 90 * 24 * 60 * 60 * 1000;
-        membership.expiresAtBS = '३ महिना थप';
-      } else {
-        newExp = currentBase + 365 * 24 * 60 * 60 * 1000;
-        membership.expiresAtBS = '२०८३';
-      }
-
-      membership.expiresAtTimestamp = newExp;
-      membership.expiresAtISO = newExp ? new Date(newExp).toISOString() : null;
+      membership.expiresAtTimestamp = renewalSchedule.newExpiresAtTimestamp;
+      membership.expiresAtISO = renewalSchedule.newExpiresAtISO;
+      membership.expiresAtBS = renewalSchedule.newExpiresAtTimestamp ? getNepaliBSDate(renewalSchedule.newExpiresAtTimestamp) : 'आजीवन (Lifetime)';
       membership.renewalCount = (membership.renewalCount || 0) + 1;
+
+      // Record verified payment record for confirmed renewal
+      if (action === 'renew') {
+        const renewalAmt = canonicalPlan.priceNPR;
+        const paymentRecord = {
+          id: `pay_renew_${membership.userId}_${Date.now()}`,
+          userId: membership.userId,
+          amountNPR: renewalAmt,
+          amount: renewalAmt,
+          planAmountNPR: renewalAmt,
+          currency: 'NPR',
+          paymentMethod: membership.paymentMethod || 'cash',
+          paymentStatus: 'paid',
+          status: 'paid',
+          recordedBy: adminId,
+          notes: `सदस्यता नवीकरण (${canonicalPlan.nameNepali}): रू. ${renewalAmt}`,
+          createdAtISO: now.toISOString()
+        };
+        try {
+          const paymentsFile = path.join(this.dataDir, 'payments.json');
+          if (fs.existsSync(paymentsFile)) {
+            const rawP = JSON.parse(fs.readFileSync(paymentsFile, 'utf-8'));
+            rawP.unshift(paymentRecord);
+            writeJsonAtomic(paymentsFile, rawP);
+          }
+        } catch {}
+
+        try {
+          const db = getDatabaseAdapter();
+          db.createPayment(paymentRecord).catch(e => console.warn('[Renewal Payment DB Notice]:', e.message));
+        } catch {}
+
+        try {
+          const db = getDatabaseAdapter();
+          db.updateUser(membership.userId, {
+            userCategory: canonicalPlan.targetCategory,
+            roleNameNepali: canonicalPlan.roleNameNepali,
+            subscriptionExpiresAt: membership.expiresAtISO,
+            paymentStatus: 'paid'
+          }).catch(e => console.warn('[Renewal User Update Notice]:', e.message));
+        } catch {}
+      }
 
       membership.history?.push({
         action: action === 'renew' ? 'MEMBERSHIP_RENEWED' : 'MEMBERSHIP_EXTENDED',

@@ -39,7 +39,8 @@ import {
   Plus,
   Sliders,
   Upload,
-  Key
+  Key,
+  AlertCircle
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { unifiedUserSyncService, REALTIME_SSE_URL, getRealtimeSSEUrl, isLocalhostEnvironment } from '../../../services/unifiedUserSyncService';

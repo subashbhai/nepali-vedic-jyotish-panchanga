@@ -15,6 +15,7 @@ import { hashPasswordSync, verifyPassword } from '../utils/cryptoUtils';
 import { unifiedUserSyncService } from './unifiedUserSyncService';
 import { buildCanonicalBirthProfile } from '../utils/birthProfileCanonical';
 import { saveUserPersonalBirthProfile } from '../db/profileStore';
+import { resolveCanonicalUserState } from '../core/canonicalMembershipPolicy';
 
 export interface SignupInput {
   fullName: string;
@@ -188,13 +189,20 @@ class AuthService {
             ? buildCanonicalBirthProfile(user)
             : undefined;
 
+        const canonical = resolveCanonicalUserState({
+          user,
+          membership: user.membership,
+          trial: user.trial,
+          licenses: user.licenses
+        });
+
         const session: RBACSession = {
           token,
           userId: user.id,
           username: user.username,
           fullName: user.fullName,
           role: (user.role || 'CUSTOMER') as any,
-          roleNameNepali: user.roleNameNepali || (isSuperAdmin ? 'मुख्य प्रशासक (Super Admin)' : user.userCategory === 'professional' ? 'व्यावसायिक प्रयोगकर्ता' : user.userCategory === 'member' ? 'सदस्य प्रयोगकर्ता' : 'साधारण प्रयोगकर्ता (विजिटर)'),
+          roleNameNepali: canonical.roleNameNepali,
           status: user.status || 'active',
           permissions: user.permissions || (isSuperAdmin ? ['*'] : ['visitor.view']),
           customerId: user.customerId,
@@ -202,7 +210,7 @@ class AuthService {
           birthDetails: canonicalBirth as any,
           createdAtISO: user.createdAtISO || new Date().toISOString(),
           lastActivityISO: new Date().toISOString(),
-          userCategory: user.userCategory || (isSuperAdmin ? 'professional' : 'visitor'),
+          userCategory: canonical.userCategory,
           lifecycleState: user.lifecycleState,
           jyotishAccess: user.jyotishAccess,
           vastuAccess: user.vastuAccess,
@@ -219,7 +227,7 @@ class AuthService {
         setRBACSession(session);
         try {
           localStorage.setItem('balananda_user_session_token', token);
-          localStorage.setItem('balananda_user_category', user.userCategory || (isSuperAdmin ? 'professional' : 'visitor'));
+          localStorage.setItem('balananda_user_category', canonical.userCategory);
           if (isSuperAdmin) {
             localStorage.setItem('balananda_superadmin_auth_token', token);
             localStorage.setItem('balananda_superadmin_jwt_v2', token);
@@ -297,18 +305,19 @@ class AuthService {
 
       if (isPassValid) {
         const token = `session_${Date.now()}`;
-        const userCat = (matchedUser as any).userCategory || 'visitor';
+        const canonical = resolveCanonicalUserState({ user: matchedUser });
         const session: RBACSession = {
           token,
           userId: matchedUser.id,
           username: matchedUser.username,
           fullName: matchedUser.fullName,
           role: (matchedUser.role || 'CUSTOMER') as any,
-          roleNameNepali: matchedUser.roleNameNepali || (userCat === 'professional' ? 'व्यावसायिक प्रयोगकर्ता' : userCat === 'member' ? 'सदस्य प्रयोगकर्ता' : 'साधारण प्रयोगकर्ता (विजिटर)'),
+          roleNameNepali: canonical.roleNameNepali,
           status: matchedUser.status || 'active',
           permissions: matchedUser.permissions || ['visitor.view'],
           customerId: matchedUser.customerId,
           phone: matchedUser.phone,
+          userCategory: canonical.userCategory,
           createdAtISO: matchedUser.createdAtISO || new Date().toISOString(),
           lastActivityISO: new Date().toISOString()
         };
@@ -316,13 +325,13 @@ class AuthService {
         setRBACSession(session);
         try {
           localStorage.setItem('balananda_user_session_token', token);
-          localStorage.setItem('balananda_user_category', userCat);
+          localStorage.setItem('balananda_user_category', canonical.userCategory);
         } catch {}
 
         return {
           success: true,
           message: 'लगइन सफल भयो!',
-          user: { ...matchedUser, userCategory: userCat },
+          user: { ...matchedUser, userCategory: canonical.userCategory, roleNameNepali: canonical.roleNameNepali },
           token,
           session
         };
@@ -375,15 +384,22 @@ class AuthService {
       });
       const user = res.user || res.data?.user;
       if (res.success && user) {
+        const canonical = resolveCanonicalUserState({
+          user,
+          membership: user.membership,
+          trial: user.trial,
+          licenses: user.licenses
+        });
+
         if (local) {
           const updatedSession: RBACSession = {
             ...local,
             fullName: user.fullName || local.fullName,
             role: user.role || local.role,
-            roleNameNepali: user.roleNameNepali || local.roleNameNepali,
+            roleNameNepali: canonical.roleNameNepali,
             status: user.status || local.status,
             permissions: user.permissions || local.permissions,
-            userCategory: user.userCategory || local.userCategory,
+            userCategory: canonical.userCategory,
             lifecycleState: user.lifecycleState || local.lifecycleState,
             jyotishAccess: user.jyotishAccess !== undefined ? user.jyotishAccess : local.jyotishAccess,
             vastuAccess: user.vastuAccess !== undefined ? user.vastuAccess : local.vastuAccess,
@@ -392,11 +408,9 @@ class AuthService {
           setRBACSession(updatedSession);
         }
 
-        if (user.userCategory) {
-          try {
-            localStorage.setItem('balananda_user_category', user.userCategory);
-          } catch {}
-        }
+        try {
+          localStorage.setItem('balananda_user_category', canonical.userCategory);
+        } catch {}
 
         // Check if user has active membership or license
         const isApproved = user.membershipStatus === 'ACTIVE' || (user.jyotishAccess && user.jyotishAccess.unlocked);

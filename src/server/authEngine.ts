@@ -16,6 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDatabaseAdapter, IDatabaseAdapter } from './db/databaseAdapter';
 import { getNepaliBSDate } from './membershipDateEngine';
+import { resolveCanonicalUserState } from '../core/canonicalMembershipPolicy';
 
 export type UserCategory = 'visitor' | 'member' | 'professional';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
@@ -718,11 +719,15 @@ export class AuthEngine {
     user.lastLoginISO = new Date().toISOString();
     this.persistUsers();
 
+    // Canonical User State Resolution:
+    const canonical = resolveCanonicalUserState({
+      user,
+      trial: user.trial
+    });
+
     // Professional Single-Device Session Enforcement:
-    // When a professional user logs in, atomically invalidate previous active session(s)
-    const isProfessional = user.userCategory === 'professional' ||
-      String(user.subscriptionPlan || '').toLowerCase().includes('pro') ||
-      String(user.subscriptionPlan || '').toLowerCase().includes('both');
+    // When a confirmed professional user logs in, atomically invalidate previous active session(s)
+    const isProfessional = canonical.isProfessional;
 
     if (isProfessional) {
       for (const [sTok, sVal] of this.activeSessions.entries()) {
@@ -740,7 +745,7 @@ export class AuthEngine {
       phone: user.phone,
       fullName: user.fullName,
       role: user.role,
-      userCategory: user.userCategory || 'visitor',
+      userCategory: canonical.userCategory,
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
     };
     this.activeSessions.set(token, sessionData);
@@ -748,6 +753,8 @@ export class AuthEngine {
 
     const sanitized = { ...user };
     delete (sanitized as any).passwordHash;
+    sanitized.userCategory = canonical.userCategory;
+    sanitized.roleNameNepali = canonical.roleNameNepali;
 
     return {
       success: true,
@@ -819,9 +826,9 @@ export class AuthEngine {
 
     // Update role display
     if (category === 'professional') {
-      user.roleNameNepali = 'व्यावसायिक प्रयोगकर्ता (Professional)';
+      user.roleNameNepali = 'व्यावसायिक सदस्य (Professional)';
     } else if (category === 'member') {
-      user.roleNameNepali = 'सदस्य प्रयोगकर्ता (Member)';
+      user.roleNameNepali = 'साधारण सदस्य (Member)';
     } else {
       user.roleNameNepali = 'साधारण प्रयोगकर्ता (विजिटर)';
     }
@@ -957,10 +964,10 @@ export class AuthEngine {
     user.lastUpdatedISO = now.toISOString();
 
     if (params.category === 'professional') {
-      user.roleNameNepali = 'व्यावसायिक प्रयोगकर्ता (Professional)';
+      user.roleNameNepali = 'व्यावसायिक सदस्य (Professional)';
       user.permissions = ['*'];
     } else {
-      user.roleNameNepali = 'सदस्य प्रयोगकर्ता (Member)';
+      user.roleNameNepali = 'साधारण सदस्य (Member)';
       user.permissions = ['member.view', 'member.dashboard', 'rashifal.personal', 'panchanga.view', 'faladesh.view'];
     }
 

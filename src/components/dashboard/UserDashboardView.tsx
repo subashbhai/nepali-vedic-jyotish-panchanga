@@ -86,6 +86,7 @@ import { calculateGocharAndSadeSati } from '../../utils/gocharEngine';
 import { PersonalizedMemberAstrologyHub } from './PersonalizedMemberAstrologyHub';
 import { DailyPanchangaPrintModal } from '../panchanga/DailyPanchangaPrintModal';
 import { DailyWhatsAppDispatchManager } from '../admin/DailyWhatsAppDispatchManager';
+import { resolveCanonicalUserState } from '../../core/canonicalMembershipPolicy';
 
 interface UserDashboardViewProps {
   rbacSession: RBACSession | null;
@@ -260,22 +261,19 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
     return () => { isMounted = false; };
   }, [currentUserId, rbacSession?.token]);
 
-  const isProfessional = useMemo(() => {
-    return (
-      (rbacSession as any)?.userCategory === 'professional' ||
-      entitlement?.lifecycleState === 'PROFESSIONAL_MEMBER' ||
-      String(entitlement?.planNameNepali || '').toLowerCase().includes('पेशागत') ||
-      String(entitlement?.planNameNepali || '').toLowerCase().includes('pro') ||
-      rbacSession?.role === 'SUPER_ADMIN'
-    );
-  }, [rbacSession, entitlement]);
+  const canonicalUserState = useMemo(() => {
+    return resolveCanonicalUserState({
+      user: rbacSession,
+      membership: (rbacSession as any)?.membership,
+      trial: rbacSession?.trial
+    });
+  }, [rbacSession]);
 
-  const isSuperAdmin = rbacSession?.role === 'SUPER_ADMIN' || entitlement?.isSuperAdmin;
-  const isPaidMember = entitlement?.hasActiveMembership && !entitlement?.isTrialActive;
-  const isTrialActive = Boolean(entitlement?.isTrialActive ?? (!isPaidMember && !isSuperAdmin));
-  const isTrialExpired = Boolean(
-    entitlement ? (entitlement.lifecycleState === 'TRIAL_EXPIRED' || (!entitlement.isTrialActive && !entitlement.hasActiveMembership)) : false
-  );
+  const isProfessional = canonicalUserState.isProfessional;
+  const isSuperAdmin = canonicalUserState.isSuperAdmin;
+  const isPaidMember = canonicalUserState.isPaidMember;
+  const isTrialActive = canonicalUserState.isTrialActive;
+  const isTrialExpired = canonicalUserState.isMembershipExpired;
 
   // Pro username badge: e.g. "username-pro"
   const proUsername = useMemo(() => {

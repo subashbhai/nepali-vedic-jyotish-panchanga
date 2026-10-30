@@ -37,6 +37,7 @@ import { LogoUploadModal } from './common/LogoUploadModal';
 import { ChangePasswordModal } from './auth/ChangePasswordModal';
 import { getStoredCustomLogo, APP_LOGO_CHANGED_EVENT } from '../utils/logoManager';
 import { getStoredClientTheme } from '../utils/themeStore';
+import { resolveCanonicalUserState } from '../core/canonicalMembershipPolicy';
 
 interface HeaderProps {
   activeProfile?: BirthDetails | null;
@@ -104,18 +105,12 @@ export const Header: React.FC<HeaderProps> = memo(({
 
   const displayRoleNepali = useMemo(() => {
     if (!rbacSession) return 'साधारण प्रयोगकर्ता';
-    if (rbacSession.role === 'SUPER_ADMIN') return 'मुख्य प्रशासक (Super Admin)';
-    if (rbacSession.role === 'STORE_ADMIN') return 'व्यवस्थापक (Store Admin)';
-    if (rbacSession.userCategory === 'professional' || (rbacSession as any).lifecycleState === 'PROFESSIONAL_MEMBER') {
-      return 'व्यावसायिक सदस्य (Professional)';
-    }
-    if (rbacSession.trial?.isTrialActive) {
-      return 'परीक्षण प्रयोगकर्ता (Trial)';
-    }
-    if (rbacSession.userCategory === 'member' || rbacSession.role === 'MEMBER') {
-      return 'साधारण सदस्य (Member)';
-    }
-    return rbacSession.roleNameNepali || 'दर्ता भएको प्रयोगकर्ता';
+    const canonical = resolveCanonicalUserState({
+      user: rbacSession,
+      membership: (rbacSession as any).membership,
+      trial: rbacSession.trial
+    });
+    return canonical.roleNameNepali;
   }, [rbacSession]);
 
   useEffect(() => {

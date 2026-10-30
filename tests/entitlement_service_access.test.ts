@@ -62,18 +62,6 @@ function checkClientServiceAccess(serviceKey: 'jyotish' | 'vastu', session: any,
     };
   }
 
-  // Active trial
-  if (session?.trial?.isTrialActive) {
-    const expMs = session.trial.trialExpiresAtISO ? new Date(session.trial.trialExpiresAtISO).getTime() : (session.trial.trialExpiresAtTimestamp || 0);
-    if (!expMs || expMs > Date.now()) {
-      return {
-        allowed: true,
-        status: 'unlocked',
-        reasonNepali: 'निःशुल्क परीक्षण अवधि सक्रिय छ।'
-      };
-    }
-  }
-
   // Specific service licenses
   const cleanPhone = String(session?.phone || session?.username || '').replace(/\D/g, '').slice(-10);
   const matchedLicense = clientLicenses.find(lic => {
@@ -113,6 +101,15 @@ function checkClientServiceAccess(serviceKey: 'jyotish' | 'vastu', session: any,
         reasonNepali: 'सेवा सक्रिय छ।'
       };
     }
+  }
+
+  // Active trial - grants member features only, pro tools are locked
+  if (session?.trial?.isTrialActive) {
+    return {
+      allowed: false,
+      status: 'locked',
+      reasonNepali: 'परीक्षण अवधिमा सामान्य सदस्य सुविधाहरू मात्र उपलब्ध छन्।'
+    };
   }
 
   // Default locked
@@ -216,8 +213,8 @@ runTest(2, 'Professional Active User: Direct workspace entry without purchase mo
   assert.strictEqual(backend.isVastuAllowed, true);
 });
 
-// ── Test 3: Valid Trial User direct access ──
-runTest(3, 'Trial User: Direct workspace entry within trial window with countdown banner', () => {
+// ── Test 3: Valid Trial User access (Member tools active, Pro tools locked) ──
+runTest(3, 'Trial User: Member features active within trial window, Professional tools locked', () => {
   const futureExp = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
   const trialSession = {
     userId: 'usr_trial_01',
@@ -233,8 +230,8 @@ runTest(3, 'Trial User: Direct workspace entry within trial window with countdow
   };
 
   const jyotishAccess = checkClientServiceAccess('jyotish', trialSession);
-  assert.strictEqual(jyotishAccess.allowed, true, 'Trial user must have access to Jyotish workspace');
-  assert.strictEqual(jyotishAccess.status, 'unlocked');
+  assert.strictEqual(jyotishAccess.allowed, false, 'Trial user must have professional Jyotish locked');
+  assert.strictEqual(jyotishAccess.status, 'locked');
 
   const backend = resolveUserEntitlement({
     user: {
@@ -245,10 +242,11 @@ runTest(3, 'Trial User: Direct workspace entry within trial window with countdow
     }
   });
   assert.strictEqual(backend.lifecycleState, LIFECYCLE_STATES.TRIAL_USER);
-  assert.strictEqual(backend.isJyotishAllowed, true);
-  assert.strictEqual(backend.isVastuAllowed, true);
-  assert.ok(backend.allowedServices.includes('jyotish'));
-  assert.ok(backend.allowedServices.includes('vastu'));
+  assert.strictEqual(backend.isJyotishAllowed, false);
+  assert.strictEqual(backend.isVastuAllowed, false);
+  assert.strictEqual(backend.canAccessPersonalFaladesh, true);
+  assert.ok(backend.allowedServices.includes('panchanga'));
+  assert.ok(backend.allowedServices.includes('personal_faladesh'));
   assert.ok(backend.isTrialActive);
   assert.ok(backend.remainingDays >= 1);
 });

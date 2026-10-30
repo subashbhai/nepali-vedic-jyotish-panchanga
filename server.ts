@@ -15,6 +15,7 @@ import { culturalMasterStore } from "./src/server/culturalMasterStore";
 import { passwordResetEngine } from "./src/server/passwordResetEngine";
 import { resolveUserEntitlement } from "./src/server/entitlementEngine";
 import { normalizeBirthDateBS, normalizeBirthTime, buildCanonicalBirthProfile } from "./src/utils/birthProfileCanonical";
+import { resolveCanonicalUserState, resolveCanonicalPlan, calculateCanonicalRenewalSchedule } from "./src/core/canonicalMembershipPolicy";
 
 dotenv.config();
 
@@ -2212,11 +2213,23 @@ async function startServer() {
       }
 
       if (result.token && result.user) {
+        const cleanUserPhone = String(result.user.phone || "").replace(/\D/g, "").slice(-10);
+        const userMem = membershipEngine.getMembershipByUserId(result.user.id) || (cleanUserPhone ? membershipEngine.getMembershipByPhoneOrId(cleanUserPhone) : undefined);
+        const userLicenses = getServiceLicenses().filter((l: any) => l.userId === result.user.id || (l.phone && String(l.phone).replace(/\D/g, "").slice(-10) === cleanUserPhone));
+
+        const canonical = resolveCanonicalUserState({
+          user: result.user,
+          membership: userMem,
+          licenses: userLicenses,
+          trial: result.user.trial
+        });
+
+        result.user.userCategory = canonical.userCategory;
+        result.user.roleNameNepali = canonical.roleNameNepali;
+
         // Professional Single-Device Session Enforcement:
-        // Automatically invalidate previous active sessions for this professional user
-        const isProUser = result.user.userCategory === 'professional' ||
-          (result.user.subscriptionPlan && String(result.user.subscriptionPlan).toLowerCase().includes('pro')) ||
-          (result.user.subscriptionPlan && String(result.user.subscriptionPlan).toLowerCase().includes('both'));
+        // Automatically invalidate previous active sessions ONLY for verified professional users
+        const isProUser = canonical.isProfessional;
 
         if (isProUser) {
           for (const [sTok, sVal] of userSessions.entries()) {
@@ -2240,7 +2253,8 @@ async function startServer() {
           phone: result.user.phone,
           fullName: result.user.fullName || result.user.username || 'प्रयोगकर्ता',
           role: result.user.role || "user",
-          userCategory: result.user.userCategory || "visitor",
+          roleNameNepali: canonical.roleNameNepali,
+          userCategory: canonical.userCategory,
           dobBS: result.user.dobBS || result.user.birthDetails?.dateBS || '',
           dobAD: result.user.dobAD || result.user.birthDetails?.dateAD || '',
           birthTime: result.user.birthTime || result.user.birthDetails?.time || '',
@@ -2256,7 +2270,7 @@ async function startServer() {
           username: result.user.username,
           phone: result.user.phone,
           role: result.user.role || 'user',
-          userCategory: result.user.userCategory || 'visitor',
+          userCategory: canonical.userCategory,
           expiresAtISO: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }).catch(e => console.warn('[Session DB Notice]:', e.message));
         broadcastRealtimeEvent("USER_LOGIN", { user: result.user, token: result.token });
@@ -3451,6 +3465,7 @@ async function startServer() {
 
   // Helper to sanitize & enrich user details for Super Admin (ensuring no passwords leaked)
   function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[], memberships: any[] = [], activeSessionUserIds?: Set<string>) {
+    const effectiveMemberships = (memberships && memberships.length > 0) ? memberships : membershipEngine.getMemberships();
     const cleanPhone = String(u.phone || u.username || "").replace(/\D/g, "").slice(-10);
     const matchingLead = leads.find(l => {
       const leadPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);
@@ -3460,7 +3475,7 @@ async function startServer() {
     const userLicenses = licenses.filter(lic => lic.userId === u.id || (lic.phone && String(lic.phone).replace(/\D/g, "").slice(-10) === cleanPhone));
 
     // Membership & service entitlement from central engine and DB
-    const dbMem = memberships.find((m: any) => {
+    const dbMem = effectiveMemberships.find((m: any) => {
       const mPhone = String(m.phone || "").replace(/\D/g, "").slice(-10);
       return (cleanPhone && mPhone === cleanPhone) || m.userId === u.id;
     });
@@ -3565,6 +3580,14 @@ async function startServer() {
     const createdAtBS = u.createdAtBS || getNepaliBSDate(createdAtISO);
     const bsYearOnly = createdAtBS.split(' ')[0] || '२०८३';
 
+    const canonicalUserState = resolveCanonicalUserState({
+      user: u,
+      membership: userMembership,
+      payments: allUserLeads,
+      licenses: userLicenses,
+      trial: u.trial
+    });
+
     return {
       id: u.id,
       customerId: u.customerId || `सदस्य-${bsYearOnly}-${String(u.id).slice(-4)}`,
@@ -3572,8 +3595,9 @@ async function startServer() {
       address: birthLocation,
       phone: u.phone || u.username || "उपलब्ध छैन",
       username: u.username || u.phone || "",
-      userCategory: u.userCategory || (u.role === 'SUPER_ADMIN' ? 'professional' : 'visitor'),
-      paymentAmountNPR: u.paymentAmountNPR !== undefined ? u.paymentAmountNPR : (userMembership?.amountNPR || matchingLead?.planAmountNPR || 0),
+      userCategory: canonicalUserState.userCategory,
+      paymentAmountNPR: canonicalUserState.confirmedPaymentAmountNPR,
+      totalConfirmedAmountPaidNPR: canonicalUserState.totalConfirmedAmountPaidNPR,
       email: u.email || matchingLead?.email || "उपलब्ध छैन",
       whatsapp,
       dobBS,
@@ -3581,7 +3605,7 @@ async function startServer() {
       birthTime,
       gender: u.gender || u.birthDetails?.gender || "not_specified",
       role: u.role || "CUSTOMER",
-      roleNameNepali: u.roleNameNepali || "यजमान / ग्राहक",
+      roleNameNepali: canonicalUserState.roleNameNepali,
       status: u.status || "active",
       statusReason: u.statusReason || null,
       statusUpdatedAtISO: u.statusUpdatedAtISO || null,
@@ -3607,10 +3631,12 @@ async function startServer() {
         submittedAtBS: matchingLead.submittedAtBS
       } : null,
       membership: userMembership || null,
-      membershipStatus,
-      purchasedPlan: purchasedPlanName,
+      membershipStatus: canonicalUserState.membershipStatus,
+      purchasedPlan: canonicalUserState.planNameNepali || purchasedPlanName,
       paymentStatus,
-      remainingDays,
+      remainingDays: canonicalUserState.remainingDays,
+      isProfessional: canonicalUserState.isProfessional,
+      isPaidMember: canonicalUserState.isPaidMember,
       showWarning30Days,
       activationDateISO,
       activationDateBS,
@@ -3888,7 +3914,7 @@ async function startServer() {
   app.patch("/api/superadmin/users/:id", requireSuperAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const { fullName, address, phone, email, whatsapp, dobBS, dobAD, birthTime } = req.body;
+      const { fullName, address, phone, email, whatsapp, dobBS, dobAD, birthTime, userCategory, roleNameNepali, paymentAmountNPR } = req.body;
       
       let user: any = null;
       if (dbAdapter) {
@@ -3921,6 +3947,9 @@ async function startServer() {
       }
       if (email !== undefined) user.email = String(email).trim().toLowerCase();
       if (whatsapp !== undefined) user.whatsapp = String(whatsapp).trim();
+      if (userCategory !== undefined) user.userCategory = String(userCategory).trim();
+      if (roleNameNepali !== undefined) user.roleNameNepali = String(roleNameNepali).trim();
+      if (paymentAmountNPR !== undefined) user.paymentAmountNPR = Number(paymentAmountNPR);
       if (dobBS !== undefined || dobAD !== undefined || birthTime !== undefined || address !== undefined) {
         const rawBS = dobBS !== undefined ? String(dobBS).trim() : (user.dobBS || user.birthDetails?.dateBS || '');
         const rawAD = dobAD !== undefined ? String(dobAD).trim() : (user.dobAD || user.birthDetails?.dateAD || '');
@@ -3966,6 +3995,9 @@ async function startServer() {
             dobAD: user.dobAD,
             birthTime: user.birthTime,
             birthDetails: user.birthDetails,
+            userCategory: user.userCategory,
+            roleNameNepali: user.roleNameNepali,
+            paymentAmountNPR: user.paymentAmountNPR,
             history: user.history
           });
         } catch (dbErr: any) {
@@ -4246,10 +4278,11 @@ async function startServer() {
 
       // Sync user profile status & category
       user.status = "active";
-      const isProPlan = String(planId).toLowerCase().includes("pro") || result.membership?.tier === "professional";
+      const canonicalPlan = resolveCanonicalPlan(planId);
+      const isProPlan = canonicalPlan?.tier === "professional";
       if (isProPlan) {
         user.userCategory = "professional";
-        user.roleNameNepali = "व्यावसायिक प्रयोगकर्ता (Professional)";
+        user.roleNameNepali = "व्यावसायिक सदस्य (Professional)";
         const now = new Date();
         user.jyotishAccess = {
           unlocked: true,
@@ -4267,7 +4300,7 @@ async function startServer() {
         };
       } else {
         user.userCategory = "member";
-        user.roleNameNepali = "सदस्य प्रयोगकर्ता";
+        user.roleNameNepali = "साधारण सदस्य (Member)";
       }
       user.subscriptionPlan = result.membership?.planNameNepali || planId;
       user.subscriptionStartAt = result.membership?.activatedAtISO || new Date().toISOString();

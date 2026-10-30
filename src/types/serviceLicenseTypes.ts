@@ -1,6 +1,6 @@
 export type LockableServiceKey = 'jyotish' | 'vastu';
 
-export type ServiceLicenseStatus = 'unlocked' | 'locked' | 'expired' | 'pending_approval';
+export type ServiceLicenseStatus = 'unlocked' | 'locked' | 'expired' | 'pending_approval' | 'suspended';
 
 export type ServiceLicenseDuration = 'trial' | '1_month' | '3_months' | '6_months' | '1_year' | '2_years' | '5_years' | 'lifetime' | 'custom';
 

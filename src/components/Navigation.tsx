@@ -69,6 +69,7 @@ import { checkFeatureAccess } from '../db/menuControlStore';
 import { checkServiceAccess, syncUserLicensesFromServer } from '../db/serviceLicenseStore';
 import { ChangePasswordModal } from './auth/ChangePasswordModal';
 import { mobileHybridSync } from '../services/mobileHybridSync';
+import { resolveCanonicalUserState } from '../core/canonicalMembershipPolicy';
 
 // Public menus visible on the first screen before login (Jyotish & Vastu require active trial or purchase license)
 export const VISITOR_ALLOWED_TABS = new Set<NavTab>([
@@ -426,25 +427,27 @@ export const Navigation: React.FC<NavigationProps> = memo(({
     };
   }, [rbacSession]);
 
-  const userCategory = useMemo<'visitor' | 'member' | 'professional'>(() => {
-    if (!rbacSession) return 'visitor';
-    if (rbacSession.role === 'SUPER_ADMIN') return 'professional';
-    if (rbacSession.userCategory === 'professional' || (rbacSession as any).lifecycleState === 'PROFESSIONAL_MEMBER') return 'professional';
-    if (rbacSession.userCategory === 'member' || rbacSession.role === 'MEMBER' || (rbacSession as any).lifecycleState === 'ACTIVE_MEMBER') return 'member';
-    return 'visitor';
+  const canonicalUserState = useMemo(() => {
+    return resolveCanonicalUserState({
+      user: rbacSession,
+      membership: (rbacSession as any)?.membership,
+      trial: rbacSession?.trial
+    });
   }, [rbacSession, licenseRevision]);
+
+  const userCategory = canonicalUserState.userCategory;
 
   const isJyotishUnlocked = useMemo(() => {
     if (rbacSession?.role === 'SUPER_ADMIN') return true;
-    if (userCategory === 'professional') return true;
+    if (userCategory === 'professional' && canonicalUserState.isPaidMember) return true;
     return checkServiceAccess('jyotish', rbacSession).allowed;
-  }, [rbacSession, licenseRevision, userCategory]);
+  }, [rbacSession, licenseRevision, userCategory, canonicalUserState.isPaidMember]);
 
   const isVastuUnlocked = useMemo(() => {
     if (rbacSession?.role === 'SUPER_ADMIN') return true;
-    if (userCategory === 'professional') return true;
+    if (userCategory === 'professional' && canonicalUserState.isPaidMember) return true;
     return checkServiceAccess('vastu', rbacSession).allowed;
-  }, [rbacSession, licenseRevision, userCategory]);
+  }, [rbacSession, licenseRevision, userCategory, canonicalUserState.isPaidMember]);
 
   const [isSewaMenuOpen, setIsSewaMenuOpen] = useState(false);
   const [sewaDropdownPosition, setSewaDropdownPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });

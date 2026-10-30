@@ -437,12 +437,6 @@ export async function syncUserLicensesFromServer(
       }
       saveLocalLicenses(updated);
 
-      if (accessData.jyotish?.allowed || accessData.vastu?.allowed) {
-        try {
-          localStorage.setItem('balananda_user_category', 'professional');
-        } catch {}
-      }
-
       broadcastLicenseChange();
     }
 

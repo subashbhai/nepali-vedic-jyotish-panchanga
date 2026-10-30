@@ -5,6 +5,7 @@
  * Defines the complete 8-state user lifecycle and maps each state to exact
  * permissions, accessible navigation tabs, and service authorizations.
  */
+import { resolveCanonicalPlan } from '../core/canonicalMembershipPolicy';
 
 export type UserLifecycleState =
   | 'ANONYMOUS_VISITOR'
@@ -83,8 +84,12 @@ export function resolveUserEntitlement(params: {
   phone?: string;
   user?: any;
   membership?: any;
+  activeMembership?: any;
+  payments?: any[];
   trial?: any;
+  trialExpiresAtISO?: string;
   userLicenses?: any[];
+  licenses?: any[];
   isSuperAdmin?: boolean;
 }): UserEntitlement {
   // 1. Super Admin: Unrestricted Full Authority
@@ -141,6 +146,7 @@ export function resolveUserEntitlement(params: {
   const m = params.membership || (params as any).activeMembership;
   const trial = params.trial || u.trial;
   const userLicenses = params.userLicenses || (params as any).licenses || [];
+  const payments = params.payments || (params as any).leads || [];
 
   const hasSpecificJyotish = Boolean(
     u?.jyotishAccess === true ||
@@ -173,13 +179,25 @@ export function resolveUserEntitlement(params: {
     };
     const isLifetime = mem.duration === 'lifetime';
     const planIdStr = String(mem.planId || '').toLowerCase();
-    const isProfessional = u.userCategory === 'professional' ||
+    const resolvedPlan = resolveCanonicalPlan(planIdStr) || resolveCanonicalPlan(mem.planNameNepali);
+
+    // Strict business rule: Normal packages (normal_yearly, normal_lifetime) NEVER grant professional access
+    const isNormalPlan = (resolvedPlan && resolvedPlan.tier === 'normal') ||
+      planIdStr.startsWith('normal_') ||
+      planIdStr.includes('normal') ||
+      planIdStr.includes('साधारण') ||
+      planIdStr.includes('सामान्य');
+
+    const isProfessional = !isNormalPlan && (
+      (resolvedPlan && resolvedPlan.tier === 'professional') ||
+      u.userCategory === 'professional' ||
       mem.tier === 'professional' ||
       mem.planType === 'PROFESSIONAL' ||
       planIdStr.startsWith('pro_') ||
       planIdStr.includes('professional') ||
       planIdStr === 'yearly_both' ||
-      planIdStr === 'lifetime_both';
+      planIdStr === 'lifetime_both'
+    );
 
     const now = Date.now();
     const expiryTime = mem.expiresAtTimestamp || (mem.expiresAtISO ? new Date(mem.expiresAtISO).getTime() : (mem.validUntilISO ? new Date(mem.validUntilISO).getTime() : (u.subscriptionExpiresAt ? new Date(u.subscriptionExpiresAt).getTime() : undefined)));
@@ -328,7 +346,13 @@ export function resolveUserEntitlement(params: {
   }
 
   // 6. Purchase Request Pending Approval
-  if (m?.membershipStatus === 'PENDING_PAYMENT' || m?.status === 'PURCHASE_PENDING' || u.paymentStatus === 'pending_approval') {
+  const hasPendingPayment = Boolean(
+    m?.membershipStatus === 'PENDING_PAYMENT' || 
+    m?.status === 'PURCHASE_PENDING' || 
+    u.paymentStatus === 'pending_approval' ||
+    (Array.isArray(payments) && payments.some((p: any) => String(p.status || p.paymentVerificationStatus || '').toUpperCase().includes('PENDING')))
+  );
+  if (hasPendingPayment) {
     return {
       lifecycleState: 'PURCHASE_PENDING',
       stateNepali: 'खरिद रुजु हुन बाँकी (Purchase Pending)',

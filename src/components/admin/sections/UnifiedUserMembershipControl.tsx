@@ -48,6 +48,7 @@ import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unif
 import { authService } from '../../../services/authService';
 import { apiClient } from '../../../services/apiClient';
 import { normalizeBirthDateBS, normalizeBirthTime } from '../../../utils/birthProfileCanonical';
+import { resolveCanonicalUserState } from '../../../core/canonicalMembershipPolicy';
 
 const getAdminHeaders = (): Record<string, string> => {
   return apiClient.getHeaders();
@@ -1237,9 +1238,16 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                   const isPendingPayment = u.membershipStatus === 'PENDING_PAYMENT' || u.purchaseHistory?.some(p => p.status === 'PURCHASE_PENDING');
                   const isExpired = u.membershipStatus === 'EXPIRED';
                   const serialNum = (currentPage - 1) * pageSize + idx + 1;
-                  const currentCategory = u.userCategory || (u.role === 'SUPER_ADMIN' ? 'professional' : (u.membershipStatus === 'ACTIVE' ? 'member' : 'visitor'));
-                  const isPro = currentCategory === 'professional' || u.purchasedPlan?.includes('पेशागत') || u.purchasedPlan?.toLowerCase().includes('pro');
-                  const currentPaymentAmt = editingPaymentAmounts[u.id] !== undefined ? editingPaymentAmounts[u.id] : (u.paymentAmountNPR !== undefined ? u.paymentAmountNPR : (u.membership?.amountNPR || 0));
+                  const canonical = resolveCanonicalUserState({
+                    user: u,
+                    membership: u.membership,
+                    payments: u.purchaseHistory,
+                    licenses: u.licenses,
+                    trial: u.trial
+                  });
+                  const currentCategory = canonical.userCategory;
+                  const isPro = canonical.isProfessional;
+                  const currentPaymentAmt = editingPaymentAmounts[u.id] !== undefined ? editingPaymentAmounts[u.id] : (canonical.confirmedPaymentAmountNPR || u.paymentAmountNPR || 0);
 
                   return (
                     <tr
