@@ -15,7 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { getNepaliBSDate } from '../membershipDateEngine';
+import { getNepaliBSDate } from '../membershipDateEngine.ts';
 
 export interface SessionAuditItem {
   sessionId: string;
@@ -1211,8 +1211,14 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
             status VARCHAR(32) NOT NULL DEFAULT 'pending',
             scheduled_at TIMESTAMPTZ NOT NULL,
             sent_at TIMESTAMPTZ,
-            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at_iso TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            raw_data JSONB DEFAULT '{}'::jsonb
           );
+          ALTER TABLE notifications ADD COLUMN IF NOT EXISTS raw_data JSONB DEFAULT '{}'::jsonb;
+          ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type VARCHAR(32) DEFAULT 'general';
+          ALTER TABLE notifications ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(64);
+          CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id);
+          CREATE INDEX IF NOT EXISTS idx_notif_scheduled ON notifications(scheduled_at DESC);
 
           CREATE TABLE IF NOT EXISTS audit_logs (
             id VARCHAR(64) PRIMARY KEY,
@@ -2112,37 +2118,54 @@ export class PostgresDatabaseAdapter implements IDatabaseAdapter {
     return res.rows.map((r: any) => ({
       id: r.id,
       userId: r.user_id,
+      subscriptionId: r.subscription_id,
+      type: r.type || 'general',
       title: r.title,
       message: r.message,
       stage: r.stage,
       status: r.status,
-      scheduledAt: r.scheduled_at ? new Date(r.scheduled_at).toISOString() : null
+      scheduledAt: r.scheduled_at ? new Date(r.scheduled_at).toISOString() : null,
+      sentAt: r.sent_at ? new Date(r.sent_at).toISOString() : null,
+      createdAtISO: r.created_at_iso ? new Date(r.created_at_iso).toISOString() : null,
+      rawData: r.raw_data || {}
     }));
   }
 
   public async createNotification(notification: any): Promise<any> {
     const query = `
       INSERT INTO notifications (
-        id, user_id, title, message, stage, status, scheduled_at, created_at_iso
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
-      ON CONFLICT (id) DO NOTHING;
+        id, user_id, subscription_id, type, title, message, stage, status, scheduled_at, created_at_iso, raw_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, $10)
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        message = EXCLUDED.message,
+        stage = EXCLUDED.stage,
+        status = EXCLUDED.status,
+        raw_data = EXCLUDED.raw_data;
     `;
     await this.pool.query(query, [
       notification.id,
       notification.userId,
+      notification.subscriptionId || null,
+      notification.type || 'general',
       notification.title,
       notification.message,
       notification.stage || 'general',
       notification.status || 'pending',
-      notification.scheduledAt || new Date().toISOString()
+      notification.scheduledAt || new Date().toISOString(),
+      JSON.stringify(notification.rawData || {})
     ]);
     return notification;
   }
 
   public async updateNotification(id: string, updates: any): Promise<any | null> {
+    const rawDataParam = updates.rawData !== undefined ? JSON.stringify(updates.rawData) : null;
     await this.pool.query(
-      `UPDATE notifications SET status = COALESCE($2, status) WHERE id = $1`,
-      [id, updates.status]
+      `UPDATE notifications SET 
+        status = COALESCE($2, status),
+        raw_data = CASE WHEN $3::text IS NOT NULL THEN $3::jsonb ELSE raw_data END
+       WHERE id = $1`,
+      [id, updates.status || null, rawDataParam]
     );
     return updates;
   }

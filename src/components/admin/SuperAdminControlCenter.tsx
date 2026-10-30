@@ -1347,6 +1347,26 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
             {timeString || '२०८१'}
           </span>
 
+          {/* खरिद अनुरोध Quick Notification Button */}
+          <button
+            type="button"
+            onClick={() => handleOpenBlock('block_users_experts', 'user_membership_control')}
+            className={`relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs sm:text-[13px] whitespace-nowrap cursor-pointer transition-all border shrink-0 ${
+              (stats?.pendingPurchases || 0) > 0
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 border-amber-400 ring-2 ring-amber-400/40 shadow-md font-black animate-pulse'
+                : 'bg-stone-900 hover:bg-stone-800 text-stone-300 border-stone-800'
+            }`}
+            title="स्वीकृति पर्खिरहेका खरिद अनुरोधहरू (Pending Purchase Requests)"
+          >
+            <Bell className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${(stats?.pendingPurchases || 0) > 0 ? 'text-stone-950 animate-bounce' : 'text-stone-400'}`} />
+            <span className="hidden sm:inline">खरिद अनुरोध</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              (stats?.pendingPurchases || 0) > 0 ? 'bg-stone-950 text-amber-400' : 'bg-stone-800 text-stone-400'
+            }`}>
+              {toDevanagariNumerals(stats?.pendingPurchases || 0)}
+            </span>
+          </button>
+
           {/* सुपरएडमिन एकीकृत सेटिङ, सेवा तथा मोड्युल Dropdown Menu */}
           <div className="relative shrink-0 z-50" ref={superAdminSettingsRef}>
             <button

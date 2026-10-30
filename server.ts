@@ -1697,7 +1697,25 @@ async function startServer() {
             approvedAtISO: now.toISOString()
           };
         }
-        users[uIdx].subscriptionPlan = target.planNameNepali || "सदस्यता योजना";
+
+        const canonicalPlan = resolveCanonicalPlan(target.planId || target.planNameNepali);
+        if (canonicalPlan) {
+          if (canonicalPlan.tier === 'professional' || canonicalPlan.isProfessional) {
+            if (users[uIdx].role !== 'SUPER_ADMIN') {
+              users[uIdx].role = 'professional';
+            }
+            users[uIdx].userCategory = 'professional';
+            users[uIdx].roleNameNepali = 'व्यावसायिक सदस्य (Professional)';
+          } else if (canonicalPlan.tier === 'normal') {
+            if (users[uIdx].role !== 'SUPER_ADMIN') {
+              users[uIdx].role = 'user';
+            }
+            users[uIdx].userCategory = 'member';
+            users[uIdx].roleNameNepali = 'साधारण सदस्य (Member)';
+          }
+        }
+
+        users[uIdx].subscriptionPlan = target.planNameNepali || (canonicalPlan?.nameNepali) || "सदस्यता योजना";
         users[uIdx].subscriptionStartAt = schedule.activatedAtISO;
         users[uIdx].subscriptionExpiresAt = schedule.expiresAtISO;
         users[uIdx].paymentStatus = "paid";
@@ -1706,6 +1724,9 @@ async function startServer() {
 
         try {
           await dbAdapter.updateUser(users[uIdx].id, {
+            role: users[uIdx].role,
+            userCategory: users[uIdx].userCategory,
+            roleNameNepali: users[uIdx].roleNameNepali,
             subscriptionPlan: users[uIdx].subscriptionPlan,
             subscriptionStartAt: users[uIdx].subscriptionStartAt,
             subscriptionExpiresAt: users[uIdx].subscriptionExpiresAt,
@@ -1719,6 +1740,38 @@ async function startServer() {
         }
       }
     }
+
+    // 7. Persist In-App User Notification
+    const userNotif = {
+      id: `notif_user_appr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId: effectiveUserId,
+      subscriptionId: target.id,
+      type: 'PURCHASE_APPROVED',
+      title: 'सदस्यता तथा सेवा स्वीकृत भयो!',
+      message: `नमस्ते ${target.fullName}, तपाईंको ${target.planNameNepali || 'सदस्यता'} खरिद अनुरोध सफलतापूर्वक स्वीकृत भएको छ। सबै सुविधाहरू अनलक गरिएका छन्। (म्याद: ${schedule.expiresAtBS || 'आजीवन'})`,
+      stage: 'membership_active',
+      status: 'unread',
+      scheduledAt: now.toISOString(),
+      rawData: {
+        leadId: target.id,
+        planName: target.planNameNepali,
+        amountNPR: target.verifiedAmount || target.planAmountNPR,
+        expiresAtBS: schedule.expiresAtBS,
+        expiresAtISO: schedule.expiresAtISO
+      }
+    };
+    try {
+      await dbAdapter.createNotification(userNotif);
+      authEngine.addNotification(userNotif);
+    } catch (unErr: any) {
+      console.warn("[User In-App Approval Notification Notice]:", unErr.message);
+    }
+
+    // 8. Update Admin Notification for this purchase request to ACTIONED
+    try {
+      await dbAdapter.updateNotification(`notif_lead_${target.id}`, { status: 'ACTIONED' });
+      authEngine.markNotificationRead(`notif_lead_${target.id}`);
+    } catch {}
   };
 
   // GET /api/client-leads (Fetch all client purchase leads & trials)
@@ -1846,8 +1899,39 @@ async function startServer() {
         console.warn("[ClientLeads DB Commit Notice]:", dbErr.message);
       }
 
-      broadcastRealtimeEvent("PURCHASE_REQUEST", { lead: record });
-      return res.json({ success: true, lead: record, message: "आवेदन सफलतापूर्वक सुरक्षित भयो।" });
+      // Persist Admin Notification for Super Admin
+      const notifId = `notif_lead_${record.id}`;
+      const adminNotif = {
+        id: notifId,
+        userId: 'superadmin',
+        subscriptionId: record.id,
+        type: 'PURCHASE_REQUEST',
+        title: `खरिद अनुरोध: ${record.fullName}`,
+        message: `${record.fullName} (${record.mobile}) ले ${record.planNameNepali} (रु. ${record.planAmountNPR}) का लागि ${record.paymentMethod} मार्फत खरिद अनुरोध पेश गर्नुभएको छ।`,
+        stage: 'purchase_pending',
+        status: 'unread',
+        scheduledAt: new Date().toISOString(),
+        rawData: {
+          leadId: record.id,
+          fullName: record.fullName,
+          mobile: record.mobile,
+          planId: record.planId,
+          planNameNepali: record.planNameNepali,
+          planAmountNPR: record.planAmountNPR,
+          paymentMethod: record.paymentMethod,
+          transactionId: record.transactionId,
+          submittedAtISO: record.submittedAtISO
+        }
+      };
+      try {
+        await dbAdapter.createNotification(adminNotif);
+        authEngine.addNotification(adminNotif);
+      } catch (notifErr: any) {
+        console.warn("[ClientLeads Notification Notice]:", notifErr.message);
+      }
+
+      broadcastRealtimeEvent("PURCHASE_REQUEST", { lead: record, notification: adminNotif });
+      return res.json({ success: true, lead: record, notification: adminNotif, message: "आवेदन सफलतापूर्वक सुरक्षित भयो।" });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -1980,8 +2064,9 @@ async function startServer() {
         return res.status(404).json({ success: false, error: "आवेदन फेला परेन।" });
       }
 
+      const rejectReason = String(reason || "").trim() || "रकम रुजु हुन सकेन।";
       target.status = "PURCHASE_REJECTED";
-      target.rejectionReason = reason || "रकम रुजु हुन सकेन।";
+      target.rejectionReason = rejectReason;
 
       saveClientLeads(leads);
       try {
@@ -1990,11 +2075,62 @@ async function startServer() {
         console.warn("[ClientLeads Reject DB Notice]:", dbErr.message);
       }
 
+      // Invariant: User's prior active membership (if any) is preserved.
+      const cleanPhone = String(target.mobile || "").replace(/\D/g, "").slice(-10);
+      const users = getUsers();
+      const matchedUser = users.find((u: any) => 
+        (cleanPhone && u.phone && String(u.phone).replace(/\D/g, "").slice(-10) === cleanPhone) ||
+        (target.userId && u.id === target.userId)
+      );
+      const effectiveUserId = target.userId || (matchedUser ? matchedUser.id : `usr_${cleanPhone || target.id}`);
+
+      // 1. Persist User In-App Rejection Notification
+      const userNotif = {
+        id: `notif_user_rej_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        userId: effectiveUserId,
+        subscriptionId: target.id,
+        type: 'PURCHASE_REJECTED',
+        title: 'खरिद अनुरोध अस्वीकृत भएको छ',
+        message: `नमस्ते ${target.fullName}, तपाईंको ${target.planNameNepali || 'सदस्यता'} खरिद अनुरोध अस्वीकृत भएको छ। कारण: ${rejectReason}`,
+        stage: 'purchase_rejected',
+        status: 'unread',
+        scheduledAt: new Date().toISOString(),
+        rawData: {
+          leadId: target.id,
+          planName: target.planNameNepali,
+          reason: rejectReason
+        }
+      };
+      try {
+        await dbAdapter.createNotification(userNotif);
+        authEngine.addNotification(userNotif);
+      } catch (unErr: any) {
+        console.warn("[User In-App Rejection Notification Notice]:", unErr.message);
+      }
+
+      // 2. Update Admin Notification status
+      try {
+        await dbAdapter.updateNotification(`notif_lead_${target.id}`, { status: 'REJECTED' });
+        authEngine.markNotificationRead(`notif_lead_${target.id}`);
+      } catch {}
+
+      // 3. Persist Audit Log
+      try {
+        await dbAdapter.createAuditLog({
+          id: `audit_rej_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          action: "MEMBERSHIP_REJECTED",
+          performedBy: (req as any).superAdmin?.username || "SuperAdmin",
+          targetId: target.id,
+          details: `Rejected purchase request for ${target.fullName} (${target.mobile}). Reason: ${rejectReason}`
+        });
+      } catch {}
+
       broadcastRealtimeEvent("PURCHASE_REJECTED", {
         lead: target,
         leadId: target.id,
         mobile: target.mobile,
-        status: "PURCHASE_REJECTED"
+        status: "PURCHASE_REJECTED",
+        reason: rejectReason
       });
       return res.json({ success: true, lead: target, message: `${target.fullName} को आवेदन अस्वीकृत गरियो।` });
     } catch (err: any) {
@@ -2388,7 +2524,7 @@ async function startServer() {
   });
 
   // 6. GET /api/user/notifications (Targeted In-App Notifications for User)
-  app.get("/api/user/notifications", (req, res) => {
+  app.get("/api/user/notifications", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -2400,19 +2536,74 @@ async function startServer() {
         return res.status(401).json({ success: false, error: "सत्र म्याद समाप्त भयो वा अवैध छ।" });
       }
 
-      const notifications = authEngine.getUserNotifications(session.userId);
+      let notifications: any[] = [];
+      try {
+        const allNotifs = await dbAdapter.getNotifications();
+        notifications = allNotifs.filter(n => n.userId === session.userId || n.userId === 'all');
+      } catch (dbErr: any) {
+        console.warn("[User Notifications DB Notice]:", dbErr.message);
+        notifications = authEngine.getUserNotifications(session.userId);
+      }
       return res.json({ success: true, notifications });
-    } catch (err) {
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 6.1 POST /api/user/notifications/:id/mark-read
+  app.post("/api/user/notifications/:id/mark-read", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "Unauthorized: No session token." });
+      }
+      const token = authHeader.split(" ")[1];
+      const session = userSessions.get(token) || authEngine.validateSession(token);
+      if (!session) {
+        return res.status(401).json({ success: false, error: "सत्र म्याद समाप्त भयो वा अवैध छ।" });
+      }
+      const { id } = req.params;
+      try {
+        await dbAdapter.updateNotification(id, { status: 'read' });
+      } catch (dbErr: any) {
+        console.warn("[User Mark Read DB Notice]:", dbErr.message);
+      }
+      authEngine.markNotificationRead(id);
+      return res.json({ success: true, message: "सूचना पढिएको चिन्ह लगाइयो।" });
+    } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
 
   // 7. GET /api/admin/notifications (Super Admin Notifications & Expiry Alerts)
-  app.get("/api/admin/notifications", requireSuperAdminAuth, (req, res) => {
+  app.get("/api/admin/notifications", requireSuperAdminAuth, async (req, res) => {
     try {
-      const notifications = authEngine.getAdminNotifications();
+      let notifications: any[] = [];
+      try {
+        const allNotifs = await dbAdapter.getNotifications();
+        notifications = allNotifs.filter(n => n.userId === 'superadmin' || n.userId === 'all');
+      } catch (dbErr: any) {
+        console.warn("[Admin Notifications DB Notice]:", dbErr.message);
+        notifications = authEngine.getAdminNotifications();
+      }
       return res.json({ success: true, notifications });
-    } catch (err) {
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 7.1 POST /api/admin/notifications/:id/mark-read
+  app.post("/api/admin/notifications/:id/mark-read", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      try {
+        await dbAdapter.updateNotification(id, { status: 'read' });
+      } catch (dbErr: any) {
+        console.warn("[Admin Mark Read DB Notice]:", dbErr.message);
+      }
+      authEngine.markNotificationRead(id);
+      return res.json({ success: true, message: "सूचना पढिएको चिन्ह लगाइयो।" });
+    } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3604,6 +3795,24 @@ async function startServer() {
       dobAD,
       birthTime,
       gender: u.gender || u.birthDetails?.gender || "not_specified",
+      gotra: u.gotra || u.birthDetails?.gotra || "विवरण बाँकी",
+      jaatBarna: u.jaatBarna || u.birthDetails?.jaatBarna || "विवरण बाँकी",
+      birthDetails: {
+        dateBS: dobBS,
+        dateAD: dobAD,
+        time: birthTime,
+        gender: u.gender || u.birthDetails?.gender || "not_specified",
+        gotra: u.gotra || u.birthDetails?.gotra || "विवरण बाँकी",
+        jaatBarna: u.jaatBarna || u.birthDetails?.jaatBarna || "विवरण बाँकी",
+        location: {
+          name: birthLocation,
+          district: u.birthDetails?.location?.district || u.district || birthLocation,
+          province: u.birthDetails?.location?.province || u.province || "विवरण बाँकी",
+          latitude: u.birthDetails?.location?.latitude || u.latitude || null,
+          longitude: u.birthDetails?.location?.longitude || u.longitude || null,
+          timezone: u.birthDetails?.location?.timezone || "+05:45 (Nepal Standard Time)"
+        }
+      },
       role: u.role || "CUSTOMER",
       roleNameNepali: canonicalUserState.roleNameNepali,
       status: u.status || "active",
@@ -3697,6 +3906,13 @@ async function startServer() {
         memberships = [];
       }
 
+      let payments: any[] = [];
+      try {
+        payments = await dbAdapter.getPayments();
+      } catch {
+        payments = [];
+      }
+
       // Collect active session user IDs across memory and database
       const activeSessionUserIds = new Set<string>();
       for (const sess of userSessions.values()) {
@@ -3716,29 +3932,44 @@ async function startServer() {
 
       const enriched = users.map(u => sanitizeAndEnrichUser(u, leads, licenses, memberships, activeSessionUserIds));
 
-      // Global statistics for 8 Master Classification Filters
+      // Global statistics for 9 KPI Summary Cards & 10 Master Classification Filters
       const now = Date.now();
+      const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
+
+      const totalConfirmedRevenue = payments
+        .filter((p: any) => p.paymentStatus === 'paid')
+        .reduce((sum: number, p: any) => sum + (Number(p.amountNPR) || 0), 0);
+
+      const pendingPurchaseCount = leads.filter((l: any) => l.status === 'PURCHASE_PENDING').length;
+      const pendingPaymentCount = leads.filter((l: any) => l.paymentVerificationStatus === 'PENDING' || l.status === 'PURCHASE_PENDING').length;
+
       const stats = {
         totalUsers: enriched.length,
+        newUsers30Days: enriched.filter(u => new Date(u.createdAtISO).getTime() >= thirtyDaysAgo).length,
+        pendingPurchases: pendingPurchaseCount,
+        normalPaid: enriched.filter(u => u.membershipStatus === "ACTIVE" && u.userCategory === "member" && u.role !== "SUPER_ADMIN").length,
+        proMembers: enriched.filter(u => u.userCategory === "professional" || u.role === "SUPER_ADMIN").length,
         active48hTrial: enriched.filter(u => u.trial?.isTrialActive && (u.remainingDays > 0 || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() > now))).length,
-        trialExpired: enriched.filter(u => (u.trial?.hasUsedTrial || u.trial?.trialExpiresAtISO) && (!u.trial?.isTrialActive || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() <= now)) && u.membershipStatus !== "ACTIVE").length,
-        normalPaid: enriched.filter(u => u.membershipStatus === "ACTIVE" && u.userCategory !== "professional" && !String(u.purchasedPlan || "").toLowerCase().includes("pro") && u.role !== "SUPER_ADMIN").length,
-        proMembers: enriched.filter(u => u.userCategory === "professional" || String(u.purchasedPlan || "").toLowerCase().includes("pro") || u.role === "SUPER_ADMIN").length,
-        pendingPurchases: enriched.filter(u => u.membershipStatus === "PENDING_PAYMENT" || u.purchaseLead?.status === "PURCHASE_PENDING").length,
         expiredMembers: enriched.filter(u => u.membershipStatus === "EXPIRED" && !u.trial?.isTrialActive).length,
-        suspendedInactiveUsers: enriched.filter(u => u.status === "suspended" || u.status === "inactive").length,
-        // Legacy keys for backwards compatibility:
+        pendingPayments: pendingPaymentCount,
+        totalConfirmedRevenue,
+        renewalRequests: enriched.filter(u => (u.remainingDays > 0 && u.remainingDays <= 30) || u.purchaseHistory?.some((p: any) => p.status === 'PURCHASE_PENDING' && (p.isRenewal || String(p.clientNotes || '').includes('नवीकरण')))).length,
+        rejectedRequests: leads.filter((l: any) => l.status === 'PURCHASE_REJECTED').length,
+
+        // Legacy compatibility keys
         trialUsers: enriched.filter(u => u.trial?.isTrialActive).length,
+        trialExpired: enriched.filter(u => (u.trial?.hasUsedTrial || u.trial?.trialExpiresAtISO) && (!u.trial?.isTrialActive || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() <= now)) && u.membershipStatus !== "ACTIVE").length,
         activeMembers: enriched.filter(u => u.membershipStatus === "ACTIVE").length,
         contactVerifiedUsers: enriched.filter(u => u.mobileVerified && u.emailVerified).length,
         regularLoginUsers: enriched.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended").length,
         paymentVerifiedUsers: enriched.filter(u => u.paymentStatus === "VERIFIED").length,
         todaySignups: enriched.filter(u => new Date(u.createdAtISO).getTime() >= oneDayAgo).length,
-        expiringIn30Days: enriched.filter(u => u.remainingDays > 0 && u.remainingDays <= 30).length
+        expiringIn30Days: enriched.filter(u => u.remainingDays > 0 && u.remainingDays <= 30).length,
+        suspendedInactiveUsers: enriched.filter(u => u.status === "suspended" || u.status === "inactive").length
       };
 
-      // Filter by the 8 Master Categories
+      // Filter by the 10 Master Categories
       let filtered = enriched;
       const s = String(search).trim().toLowerCase();
       if (s) {
@@ -3759,49 +3990,59 @@ async function startServer() {
       if (filter === "all") {
         // No extra filtering
       }
-      // 2. Active 48h Trial (सक्रिय ४८ घण्टे परीक्षण)
-      else if (filter === "trial_active" || filter === "trial_user" || filter === "in_trial") {
+      // 2. New Users within 30 days (नयाँ दर्ता)
+      else if (filter === "new_users" || filter === "new_signups" || filter === "today") {
+        filtered = filtered.filter(u => new Date(u.createdAtISO).getTime() >= (filter === "today" ? oneDayAgo : thirtyDaysAgo));
+      }
+      // 3. Pending Purchases (स्वीकृति पर्खिरहेका खरिद अनुरोध)
+      else if (filter === "pending_purchases" || filter === "pending_payment" || filter === "purchase_requested") {
+        filtered = filtered.filter(u => u.membershipStatus === "PENDING_PAYMENT" || u.purchaseLead?.status === "PURCHASE_PENDING" || u.purchaseHistory?.some((p: any) => p.status === "PURCHASE_PENDING"));
+      }
+      // 4. Normal Members (सामान्य सदस्यता)
+      else if (filter === "normal_members" || filter === "normal_paid") {
+        filtered = filtered.filter(u => u.membershipStatus === "ACTIVE" && u.userCategory === "member" && u.role !== "SUPER_ADMIN");
+      }
+      // 5. Pro Members (पेशागत सदस्यता)
+      else if (filter === "pro_members" || filter === "professional") {
+        filtered = filtered.filter(u => u.userCategory === "professional" || u.role === "SUPER_ADMIN");
+      }
+      // 6. Active Trial (सक्रिय Trial)
+      else if (filter === "active_trial" || filter === "trial_active" || filter === "trial_user" || filter === "in_trial") {
         filtered = filtered.filter(u => u.trial?.isTrialActive && (u.remainingDays > 0 || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() > now)));
       }
-      // 3. Trial Expired (परीक्षण म्याद सकिएको)
-      else if (filter === "trial_expired") {
-        filtered = filtered.filter(u => (u.trial?.hasUsedTrial || u.trial?.trialExpiresAtISO) && (!u.trial?.isTrialActive || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() <= now)) && u.membershipStatus !== "ACTIVE");
-      }
-      // 4. Normal Paid (साधारण सशुल्क सदस्य)
-      else if (filter === "normal_paid") {
-        filtered = filtered.filter(u => u.membershipStatus === "ACTIVE" && u.userCategory !== "professional" && !String(u.purchasedPlan || "").toLowerCase().includes("pro") && u.role !== "SUPER_ADMIN");
-      }
-      // 5. Pro Members (पेशागत सदस्य - प्रो)
-      else if (filter === "pro_members" || filter === "professional") {
-        filtered = filtered.filter(u => u.userCategory === "professional" || String(u.purchasedPlan || "").toLowerCase().includes("pro") || u.role === "SUPER_ADMIN");
-      }
-      // 6. Purchase Pending (भुक्तानी रुजु बाँकी)
-      else if (filter === "pending_payment" || filter === "purchase_requested") {
-        filtered = filtered.filter(u => u.membershipStatus === "PENDING_PAYMENT" || u.purchaseLead?.status === "PURCHASE_PENDING");
-      }
-      // 7. Membership Expired (सदस्यता म्याद समाप्त)
-      else if (filter === "expired_member" || filter === "expired") {
+      // 7. Expired Membership (म्याद सकिएका सदस्यता)
+      else if (filter === "expired_membership" || filter === "expired_member" || filter === "expired") {
         filtered = filtered.filter(u => u.membershipStatus === "EXPIRED" && !u.trial?.isTrialActive);
       }
-      // 8. Suspended / Inactive (निलम्बित वा निष्क्रिय)
+      // 8. Payment History (भुक्तानी इतिहास)
+      else if (filter === "payments" || filter === "payment_verified") {
+        filtered = filtered.filter(u => u.paymentStatus === "VERIFIED" || (u.totalConfirmedAmountPaidNPR && u.totalConfirmedAmountPaidNPR > 0) || (u.paymentAmountNPR && u.paymentAmountNPR > 0) || u.purchaseHistory?.some((p: any) => p.paymentStatus === "paid" || p.status === "PURCHASE_APPROVED"));
+      }
+      // 9. Renewal Requests (नवीकरण अनुरोध)
+      else if (filter === "renewal_requests" || filter === "expiring_30_days") {
+        filtered = filtered.filter(u => (u.remainingDays > 0 && u.remainingDays <= 30) || u.purchaseHistory?.some((p: any) => p.status === "PURCHASE_PENDING" && (p.isRenewal || String(p.clientNotes || '').includes('नवीकरण'))));
+      }
+      // 10. Rejected Requests (अस्वीकृत अनुरोध)
+      else if (filter === "rejected_requests" || filter === "rejected") {
+        filtered = filtered.filter(u => u.purchaseHistory?.some((p: any) => p.status === "PURCHASE_REJECTED"));
+      }
+      // Suspended / Inactive
       else if (filter === "suspended_inactive" || filter === "suspended") {
         filtered = filtered.filter(u => u.status === "suspended" || u.status === "inactive");
       }
-      // Legacy compatibility:
+      // Trial Expired
+      else if (filter === "trial_expired") {
+        filtered = filtered.filter(u => (u.trial?.hasUsedTrial || u.trial?.trialExpiresAtISO) && (!u.trial?.isTrialActive || (u.trial?.trialExpiresAtISO && new Date(u.trial.trialExpiresAtISO).getTime() <= now)) && u.membershipStatus !== "ACTIVE");
+      }
+      // Legacy compatibility
       else if (filter === "regular_login") {
         filtered = filtered.filter(u => u.membershipStatus === "NONE" && u.status !== "suspended");
       }
       else if (filter === "contact_verified") {
         filtered = filtered.filter(u => u.mobileVerified && u.emailVerified);
       }
-      else if (filter === "payment_verified") {
-        filtered = filtered.filter(u => u.paymentStatus === "VERIFIED");
-      }
       else if (filter === "active_member") {
         filtered = filtered.filter(u => u.membershipStatus === "ACTIVE");
-      }
-      else if (filter === "today") {
-        filtered = filtered.filter(u => new Date(u.createdAtISO).getTime() >= oneDayAgo);
       }
 
       // Sort

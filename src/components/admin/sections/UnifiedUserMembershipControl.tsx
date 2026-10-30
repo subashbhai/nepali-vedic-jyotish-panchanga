@@ -41,7 +41,10 @@ import {
   Laptop,
   Key,
   LogOut,
-  RotateCcw
+  RotateCcw,
+  Bell,
+  Eye,
+  ArrowRight
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
 import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unifiedUserSyncService';
@@ -63,12 +66,31 @@ export interface UnifiedUserRecord {
   username?: string;
   userCategory?: 'visitor' | 'member' | 'professional';
   paymentAmountNPR?: number;
+  totalConfirmedAmountPaidNPR?: number;
   email: string;
   whatsapp: string;
   dobBS: string;
   dobAD: string;
   birthTime: string;
   gender: string;
+  gotra?: string;
+  jaatBarna?: string;
+  birthDetails?: {
+    dateBS?: string;
+    dateAD?: string;
+    time?: string;
+    gender?: string;
+    gotra?: string;
+    jaatBarna?: string;
+    location?: {
+      name?: string;
+      district?: string;
+      province?: string;
+      latitude?: number | null;
+      longitude?: number | null;
+      timezone?: string;
+    };
+  };
   role: string;
   roleNameNepali: string;
   status: 'active' | 'suspended' | 'inactive';
@@ -120,32 +142,39 @@ export interface UnifiedUserRecord {
 
 export interface UserStats {
   totalUsers: number;
-  active48hTrial?: number;
-  trialExpired?: number;
+  newUsers30Days?: number;
+  todaySignups: number;
+  pendingPurchases: number;
   normalPaid?: number;
   proMembers?: number;
-  regularLoginUsers: number;
-  contactVerifiedUsers: number;
-  pendingPurchases: number;
-  paymentVerifiedUsers: number;
-  activeMembers: number;
-  trialUsers: number;
+  active48hTrial?: number;
   expiredMembers: number;
+  pendingPayments?: number;
+  totalConfirmedRevenue?: number;
+  renewalRequests?: number;
+  rejectedRequests?: number;
+  trialExpired?: number;
   suspendedInactiveUsers: number;
-  expiringIn30Days: number;
-  todaySignups: number;
+  regularLoginUsers?: number;
+  contactVerifiedUsers?: number;
+  paymentVerifiedUsers?: number;
+  activeMembers?: number;
+  trialUsers?: number;
+  expiringIn30Days?: number;
 }
 
-// 8 Master Classification Filters
+// 10 Master Classification Filters
 export type MasterFilterKey =
   | 'all'
-  | 'trial_active'
-  | 'trial_expired'
-  | 'normal_paid'
+  | 'new_users'
+  | 'pending_purchases'
+  | 'normal_members'
   | 'pro_members'
-  | 'pending_payment'
-  | 'expired_member'
-  | 'suspended_inactive';
+  | 'active_trial'
+  | 'expired_membership'
+  | 'payments'
+  | 'renewal_requests'
+  | 'rejected_requests';
 
 interface UnifiedUserMembershipControlProps {
   initialSearchPhone?: string;
@@ -230,6 +259,21 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
   const [purchaseActionReason, setPurchaseActionReason] = useState('');
   const [processingPurchaseId, setProcessingPurchaseId] = useState<string | null>(null);
   const [cashApprovalChecked, setCashApprovalChecked] = useState<boolean>(false);
+
+  // Dedicated Purchase Request Review Modal State
+  const [reviewLead, setReviewLead] = useState<any | null>(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState<boolean>(false);
+  const [reviewCashVerified, setReviewCashVerified] = useState<boolean>(false);
+  const [reviewVerifiedAmount, setReviewVerifiedAmount] = useState<number>(100);
+  const [reviewAdminNotes, setReviewAdminNotes] = useState<string>('');
+  const [reviewRejectReason, setReviewRejectReason] = useState<string>('');
+  const [showRejectInput, setShowRejectInput] = useState<boolean>(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+
+  // Admin Purchase Notifications Drawer State
+  const [isNotifDrawerOpen, setIsNotifDrawerOpen] = useState<boolean>(false);
+  const [adminNotifs, setAdminNotifs] = useState<any[]>([]);
+  const [loadingNotifs, setLoadingNotifs] = useState<boolean>(false);
 
   // Notification Toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -361,6 +405,120 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     }
   };
 
+  // ── ADMIN PURCHASE NOTIFICATIONS & REVIEW WORKFLOW ──
+  const fetchAdminNotifications = useCallback(async () => {
+    setLoadingNotifs(true);
+    try {
+      const res = await fetch(apiClient.resolveUrl('/api/admin/notifications'), {
+        headers: getAdminHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAdminNotifs(data.notifications || []);
+      }
+    } catch (err) {
+      console.error('[Admin Notifications Fetch Error]:', err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  }, []);
+
+  const handleOpenReviewModal = (lead: any) => {
+    if (!lead) return;
+    setReviewLead(lead);
+    setReviewCashVerified(Boolean(lead.cashVerified));
+    setReviewVerifiedAmount(Number(lead.planAmountNPR || lead.amountNPR || 100));
+    setReviewAdminNotes(lead.adminNotes || '');
+    setReviewRejectReason('');
+    setShowRejectInput(false);
+    setIsReviewModalOpen(true);
+  };
+
+  const handleApproveLead = async () => {
+    if (!reviewLead) return;
+    if (reviewLead.paymentMethod === 'cash' && !reviewCashVerified) {
+      showToast('नगद भुक्तानी प्राप्त भएको रुजु (Cash Payment Verified) चेकबक्स अनिवार्य छ!', 'error');
+      return;
+    }
+    setIsSubmittingReview(true);
+    try {
+      const res = await fetch(apiClient.resolveUrl(`/api/client-leads/${reviewLead.id}/approve`), {
+        method: 'POST',
+        headers: {
+          ...getAdminHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          cashVerified: reviewCashVerified,
+          verifiedAmount: Number(reviewVerifiedAmount),
+          adminNotes: reviewAdminNotes.trim() || 'सुपरएडमिन द्वारा खरिद स्वीकृत',
+          serviceKey: 'both'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'खरिद अनुरोध सफलतापूर्वक स्वीकृत भयो र सेवा स्वतः सक्रिय गरियो!', 'success');
+        setIsReviewModalOpen(false);
+        setReviewLead(null);
+        fetchUsers(true);
+        fetchAdminNotifications();
+      } else {
+        showToast(data.error || 'स्वीकृत गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const handleRejectLead = async () => {
+    if (!reviewLead) return;
+    if (!reviewRejectReason.trim()) {
+      showToast('खरिद अनुरोध अस्वीकृत गर्न कारण अनिवार्य छ।', 'error');
+      return;
+    }
+    setIsSubmittingReview(true);
+    try {
+      const res = await fetch(apiClient.resolveUrl(`/api/client-leads/${reviewLead.id}/reject`), {
+        method: 'POST',
+        headers: {
+          ...getAdminHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          reason: reviewRejectReason.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('खरिद अनुरोध अस्वीकृत गरियो र प्रयोगकर्तालाई सूचना पठाइयो।', 'info');
+        setIsReviewModalOpen(false);
+        setReviewLead(null);
+        fetchUsers(true);
+        fetchAdminNotifications();
+      } else {
+        showToast(data.error || 'अस्वीकृत गर्न सकिएन।', 'error');
+      }
+    } catch {
+      showToast('सर्भर त्रुटि भयो।', 'error');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const handleMarkNotificationRead = async (notifId: string) => {
+    try {
+      await fetch(apiClient.resolveUrl(`/api/admin/notifications/${notifId}/mark-read`), {
+        method: 'POST',
+        headers: getAdminHeaders()
+      });
+      setAdminNotifs(prev => prev.map(n => n.id === notifId ? { ...n, status: 'read' } : n));
+    } catch (err) {
+      console.error('[Mark Notification Read Error]:', err);
+    }
+  };
+
   // 1. Fetch Users with Real Filters
   const fetchUsers = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -422,6 +580,11 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
+  // Initial load of admin notifications
+  useEffect(() => {
+    fetchAdminNotifications();
+  }, [fetchAdminNotifications]);
+
   // Real-time SSE / Broadcast listener
   useEffect(() => {
     let evtSource: EventSource | null = null;
@@ -439,16 +602,23 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
               'MEMBERSHIP_APPROVED',
               'MEMBERSHIP_REJECTED',
               'MEMBERSHIP_STATUS_MUTATED',
-              'USER_SERVICES_UPDATED'
+              'USER_SERVICES_UPDATED',
+              'PURCHASE_REQUEST',
+              'PURCHASE_APPROVED',
+              'PURCHASE_REJECTED'
             ].includes(parsed.type)) {
               fetchUsers(true);
+              fetchAdminNotifications();
             }
           } catch {}
         };
       } catch {}
     }
 
-    const handleSync = () => fetchUsers(true);
+    const handleSync = () => {
+      fetchUsers(true);
+      fetchAdminNotifications();
+    };
     if (typeof window !== 'undefined') {
       window.addEventListener('user-registered', handleSync);
       window.addEventListener('user-storage-updated', handleSync);
@@ -898,16 +1068,18 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     }
   };
 
-  // 8 Dynamic Filter Tabs Configuration
+  // 10 Master Classification Filters Configuration
   const filterTabs: Array<{ key: MasterFilterKey; label: string; count: number; badgeColor: string }> = [
     { key: 'all', label: '१. सबै प्रयोगकर्ता', count: stats.totalUsers, badgeColor: 'bg-stone-800 text-stone-200' },
-    { key: 'trial_active', label: '२. सक्रिय ४८ घण्टे परीक्षण', count: (stats as any).active48hTrial ?? stats.trialUsers, badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-800 animate-pulse' },
-    { key: 'trial_expired', label: '३. परीक्षण म्याद सकिएको', count: (stats as any).trialExpired ?? 0, badgeColor: 'bg-rose-900/50 text-rose-300 border border-rose-800' },
-    { key: 'normal_paid', label: '४. साधारण सशुल्क सदस्य', count: (stats as any).normalPaid ?? stats.activeMembers, badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-800' },
-    { key: 'pro_members', label: '५. पेशागत सदस्य (प्रो)', count: (stats as any).proMembers ?? 0, badgeColor: 'bg-amber-900/50 text-amber-300 border border-amber-800' },
-    { key: 'pending_payment', label: '६. भुक्तानी रुजु बाँकी', count: stats.pendingPurchases, badgeColor: 'bg-amber-900/50 text-amber-300 border border-amber-800/80 animate-pulse' },
-    { key: 'expired_member', label: '७. सदस्यता म्याद समाप्त', count: stats.expiredMembers, badgeColor: 'bg-red-900/50 text-red-300 border border-red-800' },
-    { key: 'suspended_inactive', label: '८. निलम्बित वा निष्क्रिय', count: stats.suspendedInactiveUsers, badgeColor: 'bg-stone-900 text-stone-400 border border-stone-800' }
+    { key: 'new_users', label: '२. नयाँ दर्ता (३० दिन)', count: stats.newUsers30Days ?? 0, badgeColor: 'bg-blue-900/50 text-blue-300 border border-blue-800' },
+    { key: 'pending_purchases', label: '३. खरिद अनुरोध पेन्डिङ', count: stats.pendingPurchases, badgeColor: 'bg-amber-900/50 text-amber-300 border border-amber-800/80 animate-pulse' },
+    { key: 'normal_members', label: '४. साधारण सदस्य', count: stats.normalPaid ?? stats.activeMembers, badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-800' },
+    { key: 'pro_members', label: '५. पेशागत प्रो सदस्य', count: stats.proMembers ?? 0, badgeColor: 'bg-amber-900/50 text-amber-300 border border-amber-800' },
+    { key: 'active_trial', label: '६. सक्रिय Trial', count: stats.active48hTrial ?? stats.trialUsers, badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-800' },
+    { key: 'expired_membership', label: '७. म्याद समाप्त', count: stats.expiredMembers, badgeColor: 'bg-rose-900/50 text-rose-300 border border-rose-800' },
+    { key: 'payments', label: '८. भुक्तानी प्रमाणीकरण', count: stats.pendingPayments ?? stats.paymentVerifiedUsers ?? 0, badgeColor: 'bg-cyan-900/50 text-cyan-300 border border-cyan-800' },
+    { key: 'renewal_requests', label: '९. नवीकरण अनुरोध', count: stats.renewalRequests ?? 0, badgeColor: 'bg-orange-900/50 text-orange-300 border border-orange-800' },
+    { key: 'rejected_requests', label: '१०. अस्वीकृत अनुरोध', count: stats.rejectedRequests ?? 0, badgeColor: 'bg-red-900/50 text-red-300 border border-red-800' }
   ];
 
   return (
@@ -955,7 +1127,25 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start lg:self-auto">
+          <div className="flex items-center gap-2.5 self-start lg:self-auto flex-wrap">
+            {/* Quick Purchase Request Notifications Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsNotifDrawerOpen(true);
+                fetchAdminNotifications();
+              }}
+              className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-400" />
+              <span>खरिद अनुरोधहरू</span>
+              {stats.pendingPurchases > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-stone-950 animate-pulse">
+                  {toDevanagariNumerals(stats.pendingPurchases)}
+                </span>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -965,7 +1155,7 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600/25 to-amber-700/25 hover:from-amber-600/35 hover:to-amber-700/35 text-amber-200 border border-amber-500/40 text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span>सत्र व्यवस्थापन (Sessions)</span>
+              <span>सत्र व्यवस्थापन</span>
             </button>
             <button
               type="button"
@@ -979,69 +1169,111 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
           </div>
         </div>
 
-        {/* ── TOP KPI SUMMARY CARDS ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-5">
-          <div className="bg-stone-950/60 border border-stone-800/80 rounded-2xl p-3.5">
+        {/* ── TOP 9 KPI SUMMARY CARDS (REAL DATABASE COUNTERS) ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3 pt-5">
+          {/* Card 1: Total Registered */}
+          <div className="bg-stone-950/60 border border-stone-800/80 rounded-2xl p-3">
             <div className="text-[11px] text-stone-400 font-medium">१. जम्मा दर्ता</div>
-            <div className="text-xl font-black text-stone-100 mt-1 font-mono">
+            <div className="text-lg font-black text-stone-100 mt-1 font-mono">
               {toDevanagariNumerals(stats.totalUsers)}
             </div>
-            <div className="text-[10px] text-stone-500 mt-0.5">आज दर्ता: {toDevanagariNumerals(stats.todaySignups)}</div>
+            <div className="text-[10px] text-stone-500 mt-0.5">आज: {toDevanagariNumerals(stats.todaySignups)}</div>
           </div>
 
-          <div className="bg-stone-950/60 border border-purple-900/40 rounded-2xl p-3.5">
-            <div className="text-[11px] text-purple-400 font-medium flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-purple-400" />
-              <span>२. सक्रिय ४८h परीक्षण</span>
+          {/* Card 2: New Users in 30 Days */}
+          <div className="bg-stone-950/60 border border-blue-900/40 rounded-2xl p-3">
+            <div className="text-[11px] text-blue-400 font-medium flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-blue-400" />
+              <span>२. नयाँ दर्ता</span>
             </div>
-            <div className="text-xl font-black text-purple-300 mt-1 font-mono">
-              {toDevanagariNumerals((stats as any).active48hTrial ?? stats.trialUsers)}
+            <div className="text-lg font-black text-blue-300 mt-1 font-mono">
+              {toDevanagariNumerals(stats.newUsers30Days ?? 0)}
             </div>
-            <div className="text-[10px] text-purple-500/80 mt-0.5">४८ घण्टे परीक्षण चालू</div>
+            <div className="text-[10px] text-blue-500/80 mt-0.5">३० दिनभित्र</div>
           </div>
 
-          <div className="bg-stone-950/60 border border-emerald-900/40 rounded-2xl p-3.5">
-            <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-emerald-400" />
-              <span>३. साधारण सदस्य</span>
+          {/* Card 3: Pending Purchases */}
+          <div className="bg-stone-950/60 border border-amber-900/50 rounded-2xl p-3">
+            <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
+              <CreditCard className="w-3 h-3 text-amber-400" />
+              <span>३. खरिद पेन्डिङ</span>
             </div>
-            <div className="text-xl font-black text-emerald-300 mt-1 font-mono">
-              {toDevanagariNumerals((stats as any).normalPaid ?? stats.activeMembers)}
-            </div>
-            <div className="text-[10px] text-emerald-500/80 mt-0.5">रु. १०० / ५०० योजना</div>
-          </div>
-
-          <div className="bg-stone-950/60 border border-amber-900/40 rounded-2xl p-3.5">
-            <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1.5">
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>४. पेशागत प्रो सदस्य</span>
-            </div>
-            <div className="text-xl font-black text-amber-300 mt-1 font-mono">
-              {toDevanagariNumerals((stats as any).proMembers ?? 0)}
-            </div>
-            <div className="text-[10px] text-amber-500/80 mt-0.5">रु. २,००० / ५,००० योजना</div>
-          </div>
-
-          <div className="bg-stone-950/60 border border-orange-900/40 rounded-2xl p-3.5">
-            <div className="text-[11px] text-orange-400 font-medium flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-orange-400" />
-              <span>५. खरिद पेन्डिङ</span>
-            </div>
-            <div className="text-xl font-black text-orange-300 mt-1 font-mono">
+            <div className="text-lg font-black text-amber-300 mt-1 font-mono">
               {toDevanagariNumerals(stats.pendingPurchases)}
             </div>
-            <div className="text-[10px] text-orange-500/80 mt-0.5">रुजु गर्न बाँकी</div>
+            <div className="text-[10px] text-amber-500/80 mt-0.5">रुजु बाँकी</div>
           </div>
 
-          <div className="bg-stone-950/60 border border-stone-800 rounded-2xl p-3.5">
-            <div className="text-[11px] text-stone-400 font-medium flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-stone-400" />
-              <span>६. निष्क्रिय/निलम्बित</span>
+          {/* Card 4: Normal Members */}
+          <div className="bg-stone-950/60 border border-emerald-900/40 rounded-2xl p-3">
+            <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+              <Users className="w-3 h-3 text-emerald-400" />
+              <span>४. साधारण सदस्य</span>
             </div>
-            <div className="text-xl font-black text-stone-300 mt-1 font-mono">
-              {toDevanagariNumerals(stats.suspendedInactiveUsers)}
+            <div className="text-lg font-black text-emerald-300 mt-1 font-mono">
+              {toDevanagariNumerals(stats.normalPaid ?? stats.activeMembers)}
             </div>
-            <div className="text-[10px] text-stone-500 mt-0.5">रोक्का गरिएका खाता</div>
+            <div className="text-[10px] text-emerald-500/80 mt-0.5">रु. १०० / ५००</div>
+          </div>
+
+          {/* Card 5: Pro Members */}
+          <div className="bg-stone-950/60 border border-amber-900/40 rounded-2xl p-3">
+            <div className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
+              <Crown className="w-3 h-3 text-amber-400" />
+              <span>५. पेशागत प्रो</span>
+            </div>
+            <div className="text-lg font-black text-amber-300 mt-1 font-mono">
+              {toDevanagariNumerals(stats.proMembers ?? 0)}
+            </div>
+            <div className="text-[10px] text-amber-500/80 mt-0.5">रु. २ हजार / ५ हजार</div>
+          </div>
+
+          {/* Card 6: Active Trial */}
+          <div className="bg-stone-950/60 border border-purple-900/40 rounded-2xl p-3">
+            <div className="text-[11px] text-purple-400 font-medium flex items-center gap-1">
+              <Clock className="w-3 h-3 text-purple-400" />
+              <span>६. सक्रिय Trial</span>
+            </div>
+            <div className="text-lg font-black text-purple-300 mt-1 font-mono">
+              {toDevanagariNumerals((stats as any).active48hTrial ?? stats.trialUsers)}
+            </div>
+            <div className="text-[10px] text-purple-500/80 mt-0.5">४८ घण्टा चालू</div>
+          </div>
+
+          {/* Card 7: Expired Members */}
+          <div className="bg-stone-950/60 border border-rose-900/40 rounded-2xl p-3">
+            <div className="text-[11px] text-rose-400 font-medium flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 text-rose-400" />
+              <span>७. म्याद सकिएको</span>
+            </div>
+            <div className="text-lg font-black text-rose-300 mt-1 font-mono">
+              {toDevanagariNumerals(stats.expiredMembers)}
+            </div>
+            <div className="text-[10px] text-rose-500/80 mt-0.5">नवीकरण आवश्यक</div>
+          </div>
+
+          {/* Card 8: Pending Payment Verification */}
+          <div className="bg-stone-950/60 border border-orange-900/40 rounded-2xl p-3">
+            <div className="text-[11px] text-orange-400 font-medium flex items-center gap-1">
+              <CreditCard className="w-3 h-3 text-orange-400" />
+              <span>८. भुक्तानी रुजु</span>
+            </div>
+            <div className="text-lg font-black text-orange-300 mt-1 font-mono">
+              {toDevanagariNumerals(stats.pendingPayments ?? stats.pendingPurchases)}
+            </div>
+            <div className="text-[10px] text-orange-500/80 mt-0.5">प्रमाणीकरण पर्खाइ</div>
+          </div>
+
+          {/* Card 9: Total Confirmed Revenue (NPR) */}
+          <div className="bg-stone-950/60 border border-emerald-900/50 rounded-2xl p-3">
+            <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+              <DollarSign className="w-3 h-3 text-emerald-400" />
+              <span>९. कुल भुक्तानी</span>
+            </div>
+            <div className="text-base font-black text-emerald-300 mt-1 font-mono truncate" title={`रु. ${toDevanagariNumerals(stats.totalConfirmedRevenue || 0)}`}>
+              रु. {toDevanagariNumerals(stats.totalConfirmedRevenue || 0)}
+            </div>
+            <div className="text-[10px] text-emerald-500/80 mt-0.5">प्रमाणित संकलन</div>
           </div>
         </div>
       </div>
@@ -1210,33 +1442,25 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[1700px]">
+            <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-stone-950/90 border-b border-stone-800 text-[11px] text-stone-400 uppercase tracking-wider select-none">
                   <th className="py-3 px-3 font-bold text-center w-12">१. क्र.सं.</th>
-                  <th className="py-3 px-3 font-bold min-w-[160px]">२. पूरा नाम</th>
-                  <th className="py-3 px-3 font-bold min-w-[130px]">३. ठेगाना</th>
-                  <th className="py-3 px-3 font-bold min-w-[120px]">४. मोबाइल नं.</th>
-                  <th className="py-3 px-3 font-bold min-w-[110px]">५. युजरनेम</th>
-                  <th className="py-3 px-3 font-bold min-w-[100px]">६. दर्ता मिति</th>
-                  <th className="py-3 px-3 font-bold min-w-[90px]">७. खाता स्थिति</th>
-                  <th className="py-3 px-3 font-bold min-w-[160px]">८. प्रयोगकर्ता वर्ग</th>
-                  <th className="py-3 px-3 font-bold min-w-[140px]">९. सदस्यता योजना</th>
-                  <th className="py-3 px-3 font-bold min-w-[150px]">१०. भुक्तानी रकम (रु.)</th>
-                  <th className="py-3 px-3 font-bold min-w-[100px]">११. भुक्तानी स्थिति</th>
-                  <th className="py-3 px-3 font-bold min-w-[100px]">१२. सुरु मिति</th>
-                  <th className="py-3 px-3 font-bold min-w-[100px]">१३. समाप्ति मिति</th>
-                  <th className="py-3 px-3 font-bold min-w-[100px]">१४. बाँकी दिन</th>
-                  <th className="py-3 px-3 font-bold min-w-[100px]">१५. अद्यावधिक</th>
-                  <th className="py-3 px-3 font-bold text-right min-w-[120px]">१६. कार्य (Action)</th>
+                  <th className="py-3 px-3 font-bold min-w-[150px]">२. पूरा नाम</th>
+                  <th className="py-3 px-3 font-bold min-w-[110px]">३. युजरनेम</th>
+                  <th className="py-3 px-3 font-bold min-w-[110px]">४. मोबाइल नं.</th>
+                  <th className="py-3 px-3 font-bold min-w-[95px]">५. दर्ता मिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[85px]">६. खाता स्थिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[130px]">७. सदस्यता योजना</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">८. भुक्तानी स्थिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[100px]">९. समाप्ति मिति</th>
+                  <th className="py-3 px-3 font-bold min-w-[125px]">१०. खरिद अनुरोध</th>
+                  <th className="py-3 px-3 font-bold text-right min-w-[140px]">११. कार्य (Actions)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-800/60 font-sans">
                 {users.map((u, idx) => {
                   const isSuspended = u.status === 'suspended' || u.status === 'inactive';
-                  const isActiveMember = u.membershipStatus === 'ACTIVE';
-                  const isPendingPayment = u.membershipStatus === 'PENDING_PAYMENT' || u.purchaseHistory?.some(p => p.status === 'PURCHASE_PENDING');
-                  const isExpired = u.membershipStatus === 'EXPIRED';
                   const serialNum = (currentPage - 1) * pageSize + idx + 1;
                   const canonical = resolveCanonicalUserState({
                     user: u,
@@ -1245,9 +1469,14 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                     licenses: u.licenses,
                     trial: u.trial
                   });
-                  const currentCategory = canonical.userCategory;
                   const isPro = canonical.isProfessional;
-                  const currentPaymentAmt = editingPaymentAmounts[u.id] !== undefined ? editingPaymentAmounts[u.id] : (canonical.confirmedPaymentAmountNPR || u.paymentAmountNPR || 0);
+                  const confirmedAmount = canonical.confirmedPaymentAmountNPR || u.paymentAmountNPR || 0;
+
+                  // Resolve any pending or rejected purchase lead
+                  const pendingLead = u.purchaseLead?.status === 'PURCHASE_PENDING'
+                    ? u.purchaseLead
+                    : u.purchaseHistory?.find((p: any) => p.status === 'PURCHASE_PENDING');
+                  const rejectedLead = u.purchaseHistory?.find((p: any) => p.status === 'PURCHASE_REJECTED');
 
                   return (
                     <tr
@@ -1261,21 +1490,48 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         {toDevanagariNumerals(serialNum)}
                       </td>
 
-                      {/* Column 2: Full Name */}
-                      <td className="py-3 px-3 font-bold text-stone-100">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-stone-800 border border-stone-700 flex items-center justify-center font-bold text-amber-400 shrink-0 text-xs">
+                      {/* Column 2: Full Name (Clickable to Full Profile Modal) */}
+                      <td className="py-3 px-3">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenUserModal(u, 'info')}
+                          className="flex items-center gap-2 text-left group cursor-pointer focus:outline-none"
+                          title="पूर्ण प्रोफाइल विवरण हेर्न थिच्नुहोस्"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-stone-800 border border-stone-700 flex items-center justify-center font-bold text-amber-400 shrink-0 text-xs group-hover:border-amber-500/80 transition-colors">
                             {u.fullName ? u.fullName.slice(0, 1) : 'U'}
                           </div>
-                          <span className="truncate max-w-[140px]" title={u.fullName}>
-                            {u.fullName || 'अज्ञात'}
-                          </span>
-                        </div>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-stone-100 group-hover:text-amber-400 transition-colors truncate max-w-[150px]">
+                              {u.fullName || 'अज्ञात'}
+                            </span>
+                            <span className="text-[9.5px] font-mono text-stone-500">
+                              {u.customerId || u.id.slice(-6)}
+                            </span>
+                          </div>
+                        </button>
                       </td>
 
-                      {/* Column 3: Address */}
-                      <td className="py-3 px-3 text-stone-300 text-[11px] truncate max-w-[130px]" title={u.address}>
-                        {u.address || 'नेपाल'}
+                      {/* Column 3: Username */}
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-mono text-[11px] font-bold text-amber-300/90 truncate max-w-[110px]" title={u.username || u.phone}>
+                            {u.username ? `@${u.username}` : (u.phone || '-')}
+                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {isPro && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 text-[8px] font-black bg-amber-500/20 text-amber-300 border border-amber-600/40 rounded">
+                                <Crown className="w-2.5 h-2.5" /> प्रो
+                              </span>
+                            )}
+                            {u.hasActiveSession && (
+                              <span className="inline-flex items-center gap-1 text-[8px] font-semibold text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                सक्रिय
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Column 4: Mobile Number */}
@@ -1283,43 +1539,19 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         <div className="flex items-center gap-1">
                           <span>{u.phone || '-'}</span>
                           {u.mobileVerified && (
-                            <span title="प्रमाणित">
+                            <span title="मोबाइल प्रमाणित">
                               <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
                             </span>
                           )}
                         </div>
                       </td>
 
-                      {/* Column 5: Username */}
-                      <td className="py-3 px-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-mono text-[11px] font-bold text-amber-300/90 truncate max-w-[120px]" title={u.username || u.phone}>
-                            {u.username ? (
-                              <span>@{u.username}{isPro ? '-pro' : ''}</span>
-                            ) : (
-                              u.phone || '-'
-                            )}
-                          </span>
-                          {isPro && (
-                            <span className="inline-flex items-center gap-1 w-fit px-1.5 py-0.2 text-[8.5px] font-black bg-amber-500/20 text-amber-300 border border-amber-600/40 rounded">
-                              <Crown className="w-2.5 h-2.5" /> प्रो
-                            </span>
-                          )}
-                          {u.hasActiveSession && (
-                            <span className="inline-flex items-center gap-1 text-[8px] font-semibold text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                              सक्रिय सत्र
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Column 6: Registration Date */}
+                      {/* Column 5: Registration Date */}
                       <td className="py-3 px-3 font-mono text-[10.5px] text-stone-400">
                         {u.createdAtBS || u.createdAtISO?.split('T')[0] || '-'}
                       </td>
 
-                      {/* Column 7: Account Status */}
+                      {/* Column 6: Account Status */}
                       <td className="py-3 px-3">
                         {u.status === 'active' ? (
                           <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
@@ -1332,130 +1564,125 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         )}
                       </td>
 
-                      {/* Column 8: User Category (Direct Selection Dropdown) */}
-                      <td className="py-3 px-3">
-                        <select
-                          value={currentCategory}
-                          disabled={savingCategoryId === u.id}
-                          onChange={(e) => handleChangeCategoryDirect(u.id, e.target.value as any)}
-                          className="px-2 py-1 bg-stone-900 border border-stone-700 rounded-lg text-[10.5px] font-bold text-amber-300 focus:border-amber-500 outline-none cursor-pointer"
-                        >
-                          <option value="visitor">साधारण (Visitor)</option>
-                          <option value="member">सदस्य (Member)</option>
-                          <option value="professional">व्यावसायिक (Professional)</option>
-                        </select>
-                      </td>
-
-                      {/* Column 9: Subscription Plan */}
+                      {/* Column 7: Membership Plan */}
                       <td className="py-3 px-3 text-[11px] font-semibold text-stone-200">
-                        {u.purchasedPlan || 'निःशुल्क'}
-                      </td>
-
-                      {/* Column 10: Payment Amount (NPR) [Editable Field with Save Button] */}
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-stone-400 font-mono">रु.</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="50"
-                            value={currentPaymentAmt}
-                            onChange={(e) => setEditingPaymentAmounts(prev => ({ ...prev, [u.id]: e.target.value }))}
-                            className="w-20 px-2 py-1 bg-stone-950 border border-stone-700 focus:border-amber-400 rounded-lg text-[11px] font-mono text-stone-100 outline-none text-right"
-                          />
-                          <button
-                            type="button"
-                            disabled={savingPaymentId === u.id}
-                            onClick={() => handleUpdatePaymentAmount(u.id, currentPaymentAmt)}
-                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg cursor-pointer transition-colors"
-                            title="रकम बचत गर्नुहोस्"
-                          >
-                            {savingPaymentId === u.id ? '...' : 'बचत'}
-                          </button>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="truncate max-w-[130px]" title={u.purchasedPlan || 'निःशुल्क'}>
+                            {u.purchasedPlan || 'निःशुल्क'}
+                          </span>
+                          {u.membershipStatus === 'ACTIVE' && (
+                            <span className="text-[9px] text-emerald-400 font-mono font-medium">सक्रिय सदस्यता</span>
+                          )}
                         </div>
                       </td>
 
-                      {/* Column 11: Payment Status */}
+                      {/* Column 8: Payment Status */}
                       <td className="py-3 px-3">
                         {u.paymentStatus === 'VERIFIED' ? (
-                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
-                            प्रमाणित
-                          </span>
-                        ) : u.paymentStatus === 'PENDING' ? (
-                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
+                          <div className="flex flex-col">
+                            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-950 text-blue-300 border border-blue-800 w-fit">
+                              प्रमाणित
+                            </span>
+                            {confirmedAmount > 0 && (
+                              <span className="text-[9.5px] font-mono text-stone-400 mt-0.5">
+                                रु. {toDevanagariNumerals(confirmedAmount)}
+                              </span>
+                            )}
+                          </div>
+                        ) : u.paymentStatus === 'PENDING' || pendingLead ? (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
                             पर्खिरहेको
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[9.5px] font-medium bg-stone-800 text-stone-400">
+                          <span className="px-2 py-0.5 rounded text-[9px] font-medium bg-stone-800 text-stone-400">
                             निःशुल्क
                           </span>
                         )}
                       </td>
 
-                      {/* Column 12: Start Date */}
-                      <td className="py-3 px-3 font-mono text-[10px]">
-                        {u.activationDateBS ? (
-                          <span className="text-stone-300">{u.activationDateBS}</span>
-                        ) : (
-                          <span className="text-stone-500 italic">सक्रिय भएको छैन</span>
-                        )}
-                      </td>
-
-                      {/* Column 13: Expiry Date */}
+                      {/* Column 9: Expiry Date */}
                       <td className="py-3 px-3 font-mono text-[10px]">
                         {u.expiryDateBS === 'आजीवन' || u.purchasedPlan?.includes('आजीवन') || u.remainingDays >= 9999 ? (
                           <span className="text-emerald-400 font-bold">आजीवन</span>
                         ) : u.expiryDateBS ? (
-                          <span className={u.showWarning30Days ? 'text-amber-400 font-bold' : 'text-stone-300'}>
-                            {u.expiryDateBS}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className={u.showWarning30Days ? 'text-amber-400 font-bold' : 'text-stone-300'}>
+                              {u.expiryDateBS}
+                            </span>
+                            {u.remainingDays > 0 ? (
+                              <span className="text-[9px] text-stone-500 font-sans">
+                                ({toDevanagariNumerals(u.remainingDays)} दिन बाँकी)
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-rose-400 font-sans">म्याद सकियो</span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-stone-500 italic">लागू हुँदैन</span>
                         )}
                       </td>
 
-                      {/* Column 14: Remaining Days */}
+                      {/* Column 10: Pending Purchase Request Status Badge */}
                       <td className="py-3 px-3">
-                        {u.expiryDateBS === 'आजीवन' || u.purchasedPlan?.includes('आजीवन') || u.remainingDays >= 9999 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
-                            आजीवन
-                          </span>
-                        ) : u.membershipStatus === 'ACTIVE' && u.remainingDays > 0 ? (
-                          <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold font-mono ${
-                            u.showWarning30Days
-                              ? 'bg-amber-950 text-amber-300 border border-amber-700 animate-pulse'
-                              : 'bg-stone-800 text-stone-200'
-                          }`}>
-                            {toDevanagariNumerals(u.remainingDays)} दिन
-                          </span>
-                        ) : u.membershipStatus === 'EXPIRED' || (u.activationDateBS && u.remainingDays === 0) ? (
-                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-rose-950 text-rose-300 border border-rose-800">
-                            म्याद सकियो
+                        {pendingLead ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReviewModal(pendingLead)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/60 text-[10px] font-black animate-pulse cursor-pointer transition-all shadow-sm"
+                            title="खरिद अनुरोध समीक्षा तथा स्वीकृत गर्न थिच्नुहोस्"
+                          >
+                            <Bell className="w-3 h-3 text-amber-400" />
+                            <span>रुजु बाँकी (रु. {toDevanagariNumerals(pendingLead.planAmountNPR || pendingLead.amountNPR || 100)})</span>
+                          </button>
+                        ) : rejectedLead ? (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-red-950/60 text-red-300 border border-red-800/60">
+                            अस्वीकृत
                           </span>
                         ) : (
-                          <span className="text-[9.5px] text-stone-500 font-medium">-</span>
+                          <span className="text-stone-500 text-[11px] font-mono">-</span>
                         )}
                       </td>
 
-                      {/* Column 15: Last Updated */}
-                      <td className="py-3 px-3 font-mono text-[10px] text-stone-400">
-                        {u.statusUpdatedAtISO ? u.statusUpdatedAtISO.split('T')[0] : (u.createdAtBS || '-')}
-                      </td>
-
-                      {/* Column 16: Actions */}
+                      {/* Column 11: Actions */}
                       <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {/* Full Profile Details Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenUserModal(u, 'info')}
+                            className="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-[10px] font-bold border border-stone-700 transition-colors cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                            title="प्रयोगकर्ताको सम्पूर्ण गैर-गोप्य दर्ता विवरण हेर्नुहोस्"
+                          >
+                            <Eye className="w-3 h-3 text-amber-400" />
+                            <span>पूर्ण विवरण</span>
+                          </button>
+
+                          {/* Review & Approve Button (if pending lead exists) */}
+                          {pendingLead && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReviewModal(pendingLead)}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-stone-950 text-[10px] font-black shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
+                              title="खरिद अनुरोध समीक्षा र Approve गर्नुहोस्"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>समीक्षा / Approve</span>
+                            </button>
+                          )}
+
+                          {/* Password Reset Link Generator */}
                           <button
                             type="button"
                             onClick={() => handleGeneratePasswordResetLink(u)}
                             disabled={generatingResetLinkUserId === u.id}
-                            className="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-[10px] font-bold border border-stone-700 transition-colors cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                            className="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-[10px] font-semibold border border-stone-700 transition-colors cursor-pointer inline-flex items-center gap-1 shadow-xs"
                             title="एकपटक मात्र प्रयोग हुने पासवर्ड रिसेट लिङ्क सिर्जना गरी क्लिपबोर्डमा कपी गर्नुहोस्"
                           >
                             <Key className="w-3 h-3 text-amber-400" />
                             <span>{generatingResetLinkUserId === u.id ? '...' : 'पासवर्ड'}</span>
                           </button>
 
+                          {/* Session Reset (Pro or active session users) */}
                           {(isPro || u.hasActiveSession) && (
                             <button
                               type="button"
@@ -1468,16 +1695,6 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                               <span>{resettingSessionUserId === u.id ? '...' : 'सत्र'}</span>
                             </button>
                           )}
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenUserModal(u, 'info')}
-                            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-[10.5px] font-black shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
-                            title="पूर्ण विवरण र नियन्त्रण खोल्नुहोस्"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                            <span>नियन्त्रण</span>
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1738,6 +1955,77 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         placeholder="०४:३० PM वा 16:30"
                         className="w-full px-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-amber-500"
                       />
+                    </div>
+                  </div>
+
+                  {/* ── ADDITIONAL REGISTRATION & BIRTH DETAILS (NON-SENSITIVE) ── */}
+                  <div className="pt-4 border-t border-stone-800 space-y-3">
+                    <h4 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-amber-400" />
+                      <span>दर्ता तथा जन्म कुण्डली विवरण (Registration & Astro Birth Details)</span>
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="bg-stone-900/60 p-3 rounded-2xl border border-stone-800">
+                        <span className="text-[10px] text-stone-500">गोत्र (Gotra)</span>
+                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.gotra || selectedUser.birthDetails?.gotra || 'विवरण बाँकी'}</div>
+                      </div>
+                      <div className="bg-stone-900/60 p-3 rounded-2xl border border-stone-800">
+                        <span className="text-[10px] text-stone-500">जात / वर्ण (Jaat/Barna)</span>
+                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.jaatBarna || selectedUser.birthDetails?.jaatBarna || 'विवरण बाँकी'}</div>
+                      </div>
+                      <div className="bg-stone-900/60 p-3 rounded-2xl border border-stone-800">
+                        <span className="text-[10px] text-stone-500">लिङ्ग (Gender)</span>
+                        <div className="font-bold text-stone-200 mt-0.5 capitalize">
+                          {selectedUser.gender === 'male' ? 'पुरुष (Male)' : selectedUser.gender === 'female' ? 'महिला (Female)' : (selectedUser.gender || 'नखुलेको')}
+                        </div>
+                      </div>
+                      <div className="bg-stone-900/60 p-3 rounded-2xl border border-stone-800">
+                        <span className="text-[10px] text-stone-500">जिल्ला (District)</span>
+                        <div className="font-bold text-stone-200 mt-0.5">{selectedUser.birthDetails?.location?.district || selectedUser.address || 'विवरण बाँकी'}</div>
+                      </div>
+                    </div>
+
+                    {/* Geolocation & Timezone coordinates */}
+                    <div className="bg-stone-900/40 p-3 rounded-2xl border border-stone-800/80 text-xs space-y-1.5">
+                      <div className="text-[10.5px] font-semibold text-stone-400 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-amber-400" />
+                        <span>जन्म स्थान तथा भौगोलिक निर्देशाङ्क (Coordinates)</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-mono text-stone-300">
+                        <div>स्थान: <span className="text-stone-100">{selectedUser.birthDetails?.location?.name || selectedUser.address || 'नेपाल'}</span></div>
+                        <div>अक्षांश/देशान्तर: <span className="text-stone-100">{selectedUser.birthDetails?.location?.latitude ? `${selectedUser.birthDetails.location.latitude}, ${selectedUser.birthDetails.location.longitude}` : '27.7172° N, 85.3240° E'}</span></div>
+                        <div>समय क्षेत्र: <span className="text-stone-100">{selectedUser.birthDetails?.location?.timezone || '+05:45 (नेपाल मानक समय)'}</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── SECURITY & PASSWORD CREDENTIALS (SAFE VIEW) ── */}
+                  <div className="pt-4 border-t border-stone-800 space-y-2">
+                    <h4 className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-stone-400" />
+                      <span>सुरक्षा तथा प्रमाणीकरण (Credentials & Security)</span>
+                    </h4>
+                    <div className="p-3.5 rounded-2xl bg-stone-900/60 border border-stone-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                      <div>
+                        <div className="font-semibold text-stone-200 flex items-center gap-2">
+                          <span>पासवर्ड स्थिति:</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            सुरक्षित तथा इन्क्रिप्टेड (Bcrypt Hashed)
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 mt-1">
+                          सुरक्षा मापदण्ड अनुसार वास्तविक पासवर्ड कसैलाई पनि देखाइँदैन। प्रयोगकर्ताले पासवर्ड बिर्सेमा नयाँ रिसेट लिङ्क पठाउनुहोस्।
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleGeneratePasswordResetLink(selectedUser)}
+                        disabled={generatingResetLinkUserId === selectedUser.id}
+                        className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm shrink-0"
+                      >
+                        <Key className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{generatingResetLinkUserId === selectedUser.id ? 'लिङ्क बन्दैछ...' : 'पासवर्ड रिसेट लिङ्क सिर्जना'}</span>
+                      </button>
                     </div>
                   </div>
 
@@ -2597,6 +2885,322 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
               >
                 {sessionConfirmModal.action === 'revoke' ? 'हो, बन्द गर्नुहोस्' : 'हो, सफा गर्नुहोस्'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DEDICATED PURCHASE REQUEST REVIEW & APPROVAL MODAL ── */}
+      {isReviewModalOpen && reviewLead && (
+        <div className="fixed inset-0 z-55 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="bg-stone-950 border border-stone-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden text-stone-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4.5 bg-stone-900/90 border-b border-stone-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-sm">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-stone-100 font-serif">
+                    खरिद अनुरोध समीक्षा तथा स्वीकृति
+                  </h3>
+                  <p className="text-xs text-stone-400">
+                    ग्राहकले पेश गरेको योजना तथा भुक्तानी रुजु गरी सदस्यता सक्रिय गर्नुहोस्
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsReviewModalOpen(false);
+                  setReviewLead(null);
+                }}
+                className="w-8 h-8 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 text-xs">
+              {/* Applicant Summary Card */}
+              <div className="p-4 rounded-2xl bg-stone-900/70 border border-stone-800 space-y-2.5">
+                <div className="flex items-center justify-between pb-2 border-b border-stone-800">
+                  <span className="font-bold text-stone-200 text-sm">{reviewLead.fullName || 'ग्राहक'}</span>
+                  <span className="px-2.5 py-0.5 rounded-full font-mono text-[10.5px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    {reviewLead.status || 'PURCHASE_PENDING'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-[11px] text-stone-300">
+                  <div>
+                    <span className="text-stone-500">📱 मोबाइल:</span>{' '}
+                    <span className="font-mono font-bold text-stone-100">{reviewLead.mobile || reviewLead.phone || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">👑 अनुरोध योजना:</span>{' '}
+                    <span className="font-bold text-amber-300">{reviewLead.planNameNepali || reviewLead.planId || 'सदस्यता'}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">💰 रकम:</span>{' '}
+                    <span className="font-mono font-bold text-emerald-400">रु. {toDevanagariNumerals(reviewLead.planAmountNPR || reviewLead.amountNPR || 100)}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">💳 भुक्तानी माध्यम:</span>{' '}
+                    <span className="font-bold uppercase text-stone-200">{reviewLead.paymentMethod || 'नगद'}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">🔢 कारोबार/रसिद नं.:</span>{' '}
+                    <span className="font-mono text-stone-300">{reviewLead.transactionId || 'उपलब्ध छैन'}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">📅 मिति:</span>{' '}
+                    <span className="font-mono text-stone-400">{reviewLead.submittedAtBS || reviewLead.createdAtBS || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Controls: Verified Amount & Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-400 mb-1">
+                    प्रमाणित रकम (Verified Amount NPR)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={reviewVerifiedAmount}
+                    onChange={(e) => setReviewVerifiedAmount(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-400 mb-1">
+                    प्रशासकीय टिप्पणी (Admin Notes / Remarks)
+                  </label>
+                  <input
+                    type="text"
+                    value={reviewAdminNotes}
+                    onChange={(e) => setReviewAdminNotes(e.target.value)}
+                    placeholder="उदा: बैंक भौचर प्रमाणित, काउन्टर रसिद नं. १०५"
+                    className="w-full px-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Mandatory Cash Verification Checkbox */}
+              {reviewLead.paymentMethod === 'cash' && (
+                <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-600/70 space-y-1.5">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reviewCashVerified}
+                      onChange={(e) => setReviewCashVerified(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-500 bg-stone-900 border-stone-700 mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                      <div className="font-bold text-amber-300 text-xs">
+                        [✓] मैले ग्राहकबाट नगद रकम रु. {toDevanagariNumerals(reviewVerifiedAmount)} प्राप्त गरें र रुजु गरें (Cash Payment Received & Verified)*
+                      </div>
+                      <p className="text-[11px] text-amber-400/80 mt-0.5">
+                        नगद भुक्तानी प्रणालीमा स्वीकृति दिन यो चेकबक्स अनिवार्य गरिएको छ।
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {/* Rejection Form Drawer (Toggleable) */}
+              {showRejectInput && (
+                <div className="p-4 rounded-2xl bg-red-950/30 border border-red-800/80 space-y-2.5">
+                  <div className="font-bold text-red-300 text-xs">
+                    अस्वीकृत गर्नुको स्पष्ट कारण लेख्नुहोस् (Mandatory Reason)*
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={reviewRejectReason}
+                    onChange={(e) => setReviewRejectReason(e.target.value)}
+                    placeholder="उदा: भुक्तानी रसिद अस्पष्ट, रकम बैंक खातामा जम्मा नभएको..."
+                    className="w-full px-3.5 py-2 bg-stone-900 border border-red-900/60 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-red-500"
+                  />
+                  <p className="text-[10.5px] text-stone-400">
+                    * यो कारण प्रयोगकर्ताको खातामा तत्काल इन-एप सूचनाको रूपमा पठाइनेछ। प्रयोगकर्ताको साविकको कुनै सक्रिय सदस्यता भएमा सुरक्षित रहनेछ।
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-3 border-t border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsReviewModalOpen(false);
+                    setReviewLead(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold cursor-pointer"
+                >
+                  रद्द गर्नुहोस्
+                </button>
+
+                <div className="flex items-center gap-2">
+                  {!showRejectInput ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectInput(true)}
+                        className="px-4 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800/80 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        अस्वीकृत गर्नुहोस्
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApproveLead}
+                        disabled={isSubmittingReview || (reviewLead.paymentMethod === 'cash' && !reviewCashVerified)}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-450 text-stone-950 font-black text-xs shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{isSubmittingReview ? 'स्वीकृत हुँदैछ...' : 'स्वीकृत तथा सेवा सक्रिय गर्नुहोस्'}</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectInput(false)}
+                        className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold cursor-pointer"
+                      >
+                        पछाडि फर्कनुहोस्
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRejectLead}
+                        disabled={isSubmittingReview || !reviewRejectReason.trim()}
+                        className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold text-xs transition-all cursor-pointer disabled:opacity-40"
+                      >
+                        {isSubmittingReview ? 'अस्वीकृत हुँदैछ...' : 'अस्वीकृत पुष्टि गर्नुहोस्'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADMIN PURCHASE NOTIFICATIONS SLIDE-OVER DRAWER ── */}
+      {isNotifDrawerOpen && (
+        <div className="fixed inset-0 z-55 flex items-center justify-end bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-stone-950 border-l border-stone-800 w-full max-w-lg h-full shadow-2xl flex flex-col overflow-hidden text-stone-100">
+            {/* Drawer Header */}
+            <div className="px-6 py-4.5 bg-stone-900/90 border-b border-stone-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-stone-100 font-serif">
+                    खरिद अनुरोध सूचनाहरू
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    डेटाबेस-आधारित खरिद तथा सदस्यता सूचनाहरू
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchAdminNotifications}
+                  disabled={loadingNotifs}
+                  className="w-8 h-8 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 flex items-center justify-center cursor-pointer"
+                  title="ताजा गर्नुहोस्"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loadingNotifs ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsNotifDrawerOpen(false)}
+                  className="w-8 h-8 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Drawer Body: Notifications List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {loadingNotifs ? (
+                <div className="p-12 text-center text-stone-400 space-y-2">
+                  <RefreshCw className="w-6 h-6 text-amber-400 animate-spin mx-auto" />
+                  <div className="text-xs">सूचना लोड हुँदैछ...</div>
+                </div>
+              ) : adminNotifs.length === 0 ? (
+                <div className="p-12 text-center text-stone-500 space-y-2">
+                  <Bell className="w-8 h-8 text-stone-700 mx-auto" />
+                  <div className="text-sm font-bold text-stone-300">हाल कुनै सूचना छैन</div>
+                  <p className="text-xs text-stone-500">
+                    नयाँ सदस्यता खरिद वा नवीकरण अनुरोध आउँदा यहाँ तत्काल देखिनेछ।
+                  </p>
+                </div>
+              ) : (
+                adminNotifs.map((n: any) => {
+                  const isUnread = n.status === 'unread';
+                  const leadData = n.rawData || {};
+                  return (
+                    <div
+                      key={n.id}
+                      className={`p-3.5 rounded-2xl border transition-all ${
+                        isUnread
+                          ? 'bg-amber-950/25 border-amber-600/60 shadow-md'
+                          : 'bg-stone-900/50 border-stone-800'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs text-stone-100">{n.title}</span>
+                            {isUnread && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500 text-stone-950 animate-pulse">
+                                नयाँ
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-stone-300 leading-relaxed">{n.message}</p>
+                          <div className="text-[10px] text-stone-500 font-mono pt-1">
+                            {n.createdAtISO ? new Date(n.createdAtISO).toLocaleString('ne-NP') : (n.scheduledAt ? new Date(n.scheduledAt).toLocaleString('ne-NP') : '-')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2.5 mt-2.5 border-t border-stone-800/80">
+                        {isUnread && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkNotificationRead(n.id)}
+                            className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-[10px] font-semibold cursor-pointer"
+                          >
+                            पढिसकियो
+                          </button>
+                        )}
+                        {(leadData.leadId || n.subscriptionId) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const targetLead = users.flatMap(u => u.purchaseHistory || []).find((p: any) => p.id === n.subscriptionId || p.id === leadData.leadId) || leadData;
+                              handleOpenReviewModal(targetLead);
+                            }}
+                            className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-[10.5px] font-black cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>समीक्षा / Approve</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

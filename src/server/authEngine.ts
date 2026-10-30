@@ -1245,6 +1245,26 @@ export class AuthEngine {
     return this.notifications.filter(n => n.userId === 'superadmin' || n.userId === 'all');
   }
 
+  public addNotification(notification: any): void {
+    this.loadFromDisk();
+    const idx = this.notifications.findIndex(n => n.id === notification.id);
+    if (idx > -1) {
+      this.notifications[idx] = { ...this.notifications[idx], ...notification };
+    } else {
+      this.notifications.unshift(notification);
+    }
+    this.persistNotifications();
+  }
+
+  public markNotificationRead(id: string): void {
+    this.loadFromDisk();
+    const target = this.notifications.find(n => n.id === id);
+    if (target) {
+      target.status = 'read';
+      this.persistNotifications();
+    }
+  }
+
   public getAdminAuditLogs(): AdminAuditEntry[] {
     this.loadFromDisk();
     return this.auditLogs;
