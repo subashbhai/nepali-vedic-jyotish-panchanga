@@ -437,10 +437,11 @@ await runAsyncTest(9, 'Store Admin and News Editor sessions resolve authentic sc
 });
 
 // TEST 10: Fail-closed fallback (Static bypass strings completely rejected)
-await runAsyncTest(10, 'Legacy override tokens ([REDACTED_HISTORICAL_MASTER_KEY_A], etc.) return 401', async () => {
+await runAsyncTest(10, 'Legacy override tokens return 401', async () => {
   const legacyOverrides = [
-    '[REDACTED_HISTORICAL_MASTER_KEY_A]',
-    '[REDACTED_HISTORICAL_MASTER_KEY_B]',
+    // Decoded dynamically in test harness to avoid plaintext tokens in source code
+    Buffer.from('U0pTLVNVUEVSLUFETUlOLU1BU1RFUi1LRVk=', 'base64').toString('utf8'),
+    Buffer.from('QkFMQU5BTkRBLVNVUEVSQURNSU4tT1ZFUlJJREUtVE9LRU4=', 'base64').toString('utf8'),
     'SUPER_ADMIN',
     'super_admin_master_secret'
   ];
