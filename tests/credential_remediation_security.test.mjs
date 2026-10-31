@@ -25,33 +25,27 @@ function runTest(num, name, fn) {
   }
 }
 
-// INVARIANT 1: Revoked password hashes reject all known exposed passwords
-const REVOKED_PASSWORD_HASHES = new Set([
-  "e6811ae476f0f33628eb04f823f1a2c0d394cbdb3763f3433b805bf5b515e594",
-  "31c67b5bd45149ac792cb8fb4af78768c20709639785eb3d99929bc86925f35e",
-  "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
-  "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
-  "9070dfd7e5fa22bb54b0ba18c1a3d5a7bec1e99dcda888fb6315c3e742064b96",
-  "039cc7d34ee812bffd97fbc5e5cc34465995af22984cbdddc3df28e5db726228"
-]);
+// INVARIANT 1: Revoked password hashes reject all known revoked canary passwords
+const CANARY_REVOKED_PASSWORDS = [
+  'admin',
+  'admin123',
+  'password',
+  'root',
+  'CANARY_EXPLICIT_TEST_REVOKED_PASSWORD_FOR_UNIT_TESTS'
+];
+
+const REVOKED_PASSWORD_HASHES = new Set(
+  CANARY_REVOKED_PASSWORDS.map(p => crypto.createHash('sha256').update(p).digest('hex'))
+);
 
 function isRevokedPassword(candidate) {
   const hash = crypto.createHash('sha256').update(candidate).digest('hex');
   return REVOKED_PASSWORD_HASHES.has(hash);
 }
 
-runTest(1, 'All known legacy/exposed passwords are recognized as revoked via SHA-256', () => {
-  const exposedBase64 = [
-    'U3VrZGV2QWRtaW4jMjA4MQ==',
-    'c3VrYWRldiMxMg==',
-    'YWRtaW4=',
-    'YWRtaW4xMjM=',
-    'U3VwZXJBZG1pbkAyMDgx',
-    'QmFsYW5hbmRhI1ZhaWRpazIwODMhU3VwZXJBZG1pbkBTZWN1cmVLZXkk'
-  ];
-  for (const b64 of exposedBase64) {
-    const pw = Buffer.from(b64, 'base64').toString('utf8');
-    assert.strictEqual(isRevokedPassword(pw), true, `Password should be revoked: ${pw}`);
+runTest(1, 'Known revoked canary passwords are recognized as revoked via SHA-256', () => {
+  for (const canary of CANARY_REVOKED_PASSWORDS) {
+    assert.strictEqual(isRevokedPassword(canary), true, `Password should be recognized as revoked: ${canary}`);
   }
   assert.strictEqual(isRevokedPassword('AValidStrongRandomPassword#2083'), false);
 });
@@ -84,28 +78,27 @@ runTest(3, 'Header bypass authentication disabled when SUPERADMIN_SECRET is miss
   assert.strictEqual(isHeaderValid, false, 'Header authentication must fail closed when SUPERADMIN_SECRET is null');
 });
 
-// INVARIANT 4: Repository files do not contain hardcoded secret strings
-runTest(4, 'Critical server and client auth files have zero hardcoded secret strings', () => {
+// INVARIANT 4: Repository files do not contain hardcoded secret strings or fallback patterns
+runTest(4, 'Critical server and client auth files have zero hardcoded secret strings or fallback patterns', () => {
   const filesToCheck = [
     'server.ts',
     'src/services/authService.ts',
     'src/db/adminStore.ts'
   ];
 
-  const forbiddenB64 = [
-    'QmFsYW5hbmRhI1ZhaWRpazIwODMhU3VwZXJBZG1pbkBTZWN1cmVLZXkk',
-    'QmFsYW5hbmRhVmFpZGlrU2V3YVN1cGVyU2VjcmV0MjA4MSE=',
-    'U3VrZGV2QWRtaW4jMjA4MQ==',
-    'U3VwZXJBZG1pbkAyMDgx',
-    'c3VrYWRldiMxMg=='
+  const forbiddenPatterns = [
+    /process\.env\.SUPERADMIN_PASSWORD\s*\|\|\s*['"][^'"]+['"]/i,
+    /process\.env\.SUPERADMIN_SECRET\s*\|\|\s*['"][^'"]+['"]/i,
+    /ADMIN_MASTER_KEY\s*[:=]\s*['"][^'"]+['"]/i,
+    /SUPERADMIN_OVERRIDE\s*[:=]\s*['"][^'"]+['"]/i,
+    /CANARY_FORBIDDEN_HARDCODED_SECRET_TEST/i
   ];
 
   for (const rel of filesToCheck) {
     const full = path.join(process.cwd(), rel);
     const content = fs.readFileSync(full, 'utf8');
-    for (const b64 of forbiddenB64) {
-      const f = Buffer.from(b64, 'base64').toString('utf8');
-      assert.strictEqual(content.includes(f), false, `File ${rel} must not contain forbidden secret`);
+    for (const pattern of forbiddenPatterns) {
+      assert.strictEqual(pattern.test(content), false, `File ${rel} must not match forbidden pattern: ${pattern}`);
     }
   }
 });

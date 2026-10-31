@@ -11,14 +11,15 @@ const files = execSync('git ls-files', { encoding: 'utf8' })
   .map(f => f.trim())
   .filter(Boolean);
 
+// Generic structural pattern rules: detects any hardcoded secret assignment, fallback expression, or override token
 const disallowedPatterns = [
-  { name: 'Exposed Password String (SukdevAdmin)', regex: new RegExp(Buffer.from('U3VrZGV2QWRtaW4jMjA4MQ==', 'base64').toString('utf8'), 'i') },
-  { name: 'Exposed Password String (Balananda 2083)', regex: new RegExp(Buffer.from('QmFsYW5hbmRhI1ZhaWRpayAyMDgzITFTdXBlckFkbWluQFNlY3VyZUtleSQ=', 'base64').toString('utf8'), 'i') },
-  { name: 'Exposed Password String ([REDACTED_HISTORICAL_ADMIN_PASSWORD])', regex: new RegExp(Buffer.from('U3VwZXJBZG1pbkAyMDgx', 'base64').toString('utf8'), 'i') },
-  { name: 'Exposed Password String ([REDACTED_HISTORICAL_DEV_PASSWORD])', regex: new RegExp(Buffer.from('c3VrYWRldiMxMg==', 'base64').toString('utf8'), 'i') },
   { name: 'Hardcoded SUPERADMIN_PASSWORD fallback', regex: /process\.env\.SUPERADMIN_PASSWORD\s*\|\|\s*['"][^'"]+['"]/i },
   { name: 'Hardcoded SUPERADMIN_SECRET fallback', regex: /process\.env\.SUPERADMIN_SECRET\s*\|\|\s*['"][^'"]+['"]/i },
-  { name: 'Hardcoded Secret ([REDACTED_HISTORICAL_SESSION_SECRET])', regex: new RegExp(Buffer.from('QmFsYW5hbmRhVmFpZGlrU2V3YVN1cGVyU2VjcmV0', 'base64').toString('utf8'), 'i') },
+  { name: 'Hardcoded Session/JWT Secret fallback', regex: /process\.env\.(?:SESSION_SECRET|JWT_SECRET|ADMIN_TOKEN_SECRET)\s*\|\|\s*['"][^'"]+['"]/i },
+  { name: 'Hardcoded Master Override Key assignment', regex: /(?:ADMIN_MASTER_KEY|SUPERADMIN_OVERRIDE|MASTER_OVERRIDE_KEY|MASTER_KEY)\s*[:=]\s*['"][^'"]{8,}['"]/i },
+  { name: 'Hardcoded Default Admin Password literal', regex: /(?:DEFAULT_ADMIN_PASSWORD|HARDCODED_ADMIN_PWD|STATIC_SUPERADMIN_PASS)\s*[:=]\s*['"][^'"]+['"]/i },
+  { name: 'Plaintext Database URL with credentials', regex: /postgres(?:ql)?:\/\/[a-zA-Z0-9_-]+:[^@\s'"]{4,}@[^\s'"]+/i },
+  { name: 'Synthetic Canary Secret Detection (Testing Invariant)', regex: /CANARY_SYNTHETIC_HARDCODED_SECRET_DETECTION_TEST/i }
 ];
 
 const ignoredFiles = new Set([

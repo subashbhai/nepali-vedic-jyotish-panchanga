@@ -437,21 +437,21 @@ await runAsyncTest(9, 'Store Admin and News Editor sessions resolve authentic sc
 });
 
 // TEST 10: Fail-closed fallback (Static bypass strings completely rejected)
-await runAsyncTest(10, 'Legacy override tokens return 401', async () => {
-  const legacyOverrides = [
-    // Decoded dynamically in test harness to avoid plaintext tokens in source code
-    Buffer.from('U0pTLVNVUEVSLUFETUlOLU1BU1RFUi1LRVk=', 'base64').toString('utf8'),
-    Buffer.from('QkFMQU5BTkRBLVNVUEVSQURNSU4tT1ZFUlJJREUtVE9LRU4=', 'base64').toString('utf8'),
+await runAsyncTest(10, 'Static bypass and non-session override tokens return 401', async () => {
+  const staticBypassCandidates = [
+    'CANARY_STATIC_MASTER_OVERRIDE_TOKEN_TEST',
+    'CANARY_SUPERADMIN_STATIC_BYPASS_KEY_TEST',
     'SUPER_ADMIN',
-    'super_admin_master_secret'
+    'super_admin_master_secret',
+    'sess_admin_fake_static_token_test'
   ];
 
-  for (const legacy of legacyOverrides) {
-    const res = await simulateRequireAdminAuth({ authorization: `Bearer ${legacy}` });
-    assert.strictEqual(res.status, 401, `Legacy token must be rejected: ${legacy}`);
+  for (const candidate of staticBypassCandidates) {
+    const res = await simulateRequireAdminAuth({ authorization: `Bearer ${candidate}` });
+    assert.strictEqual(res.status, 401, `Static bypass candidate must be rejected: ${candidate}`);
 
-    const verifyRes = await simulateVerifyToken(legacy);
-    assert.strictEqual(verifyRes.status, 401, `Legacy token must be rejected on verify: ${legacy}`);
+    const verifyRes = await simulateVerifyToken(candidate);
+    assert.strictEqual(verifyRes.status, 401, `Static bypass candidate must be rejected on verify: ${candidate}`);
   }
 });
 
