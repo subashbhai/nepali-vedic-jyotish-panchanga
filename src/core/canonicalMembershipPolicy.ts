@@ -408,6 +408,35 @@ export function resolveCanonicalUserState(params: {
     };
   }
 
+  // B0. 48-Hour Free Trial Plan
+  if (canonicalPlan?.duration === 'trial') {
+    const isStillActive = !isExpired && (expiresAtTimestamp === null || (expiresAtTimestamp !== null && expiresAtTimestamp > now));
+    return {
+      userId,
+      userCategory: 'visitor',
+      roleNameNepali: 'परीक्षण प्रयोगकर्ता (Trial)',
+      isSuperAdmin: false,
+      isStoreAdmin: false,
+      isProfessional: false,
+      isPaidMember: false,
+      isTrialActive: isStillActive,
+      isMembershipExpired: isExpired,
+      isPendingPayment: false,
+      membershipStatus: isStillActive ? 'ACTIVE' : 'EXPIRED',
+      canonicalPlanId: canonicalPlan.id,
+      planNameNepali: canonicalPlan.nameNepali,
+      confirmedPaymentAmountNPR: 0,
+      totalConfirmedAmountPaidNPR,
+      isJyotishAllowed: hasJyotishLicense,
+      isVastuAllowed: hasVastuLicense,
+      isProfessionalToolsAllowed: false,
+      remainingDays: isStillActive ? remainingDays : 0,
+      expiresAtISO,
+      expiresAtTimestamp,
+      isLifetime: false
+    };
+  }
+
   // B. Normal Membership (Paid & Confirmed normal_yearly or normal_lifetime)
   if (hasConfirmedActiveMembership && canonicalPlan?.tier === 'normal') {
     return {
@@ -632,16 +661,18 @@ export function calculateCanonicalRenewalSchedule(
   newExpiryTimestamp: number | null;
   extendedByDays: number;
   feeNPR: number;
+  amountNPR: number;
 } {
   let currentExpiryTimestamp: number | null | undefined;
   let plan: CanonicalPlanConfig | null = null;
   let baseNowMs = baseNowMsParam;
 
   if (typeof currentExpiryOrOptions === 'object' && currentExpiryOrOptions !== null) {
-    currentExpiryTimestamp = currentExpiryOrOptions.currentExpiryTimestamp;
-    const planId = currentExpiryOrOptions.renewalPlanId || currentExpiryOrOptions.currentPlanId;
-    plan = currentExpiryOrOptions.plan || resolveCanonicalPlan(planId);
-    if (currentExpiryOrOptions.baseNowMs) baseNowMs = currentExpiryOrOptions.baseNowMs;
+    const opts = currentExpiryOrOptions as any;
+    currentExpiryTimestamp = opts.currentExpiryTimestamp ?? opts.currentExpiresAtTimestamp ?? (opts.currentExpiresAtISO ? new Date(opts.currentExpiresAtISO).getTime() : undefined);
+    const planId = opts.renewalPlanId || opts.targetPlanId || opts.currentPlanId;
+    plan = opts.plan || resolveCanonicalPlan(planId);
+    if (opts.baseNowMs) baseNowMs = opts.baseNowMs;
   } else {
     currentExpiryTimestamp = currentExpiryOrOptions as number | null | undefined;
     plan = planParam;
@@ -658,7 +689,8 @@ export function calculateCanonicalRenewalSchedule(
       extensionDays: 99999,
       newExpiryTimestamp: null,
       extendedByDays: 99999,
-      feeNPR: plan.priceNPR
+      feeNPR: plan.priceNPR,
+      amountNPR: plan.priceNPR
     };
   }
 
@@ -678,6 +710,7 @@ export function calculateCanonicalRenewalSchedule(
     extensionDays: days,
     newExpiryTimestamp: newExpiresAtTimestamp,
     extendedByDays: days,
-    feeNPR: plan.priceNPR
+    feeNPR: plan.priceNPR,
+    amountNPR: plan.priceNPR
   };
 }

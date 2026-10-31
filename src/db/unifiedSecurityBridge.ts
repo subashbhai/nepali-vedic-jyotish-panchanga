@@ -496,32 +496,24 @@ export function authenticateUnifiedUser(
     // Check Password: match plain text, case-insensitive match, hash, or direct string
     const enteredHash = hashPassword(trimmedPassword);
     const cleanStoredPlain = (clientPolicy.passwordPlain || '').trim();
-    const isSpecialSubash = norm.last10Digits === '9841755199';
-    const isSpecialSubashMatch = isSpecialSubash && (
-      trimmedPassword.toUpperCase() === '3AACKE84' ||
-      trimmedPassword === 'Jyotish#8758' ||
-      trimmedPassword === '3AACKE84'
-    );
 
     const isPasswordCorrect = 
       trimmedPassword === clientPolicy.passwordPlain ||
       (cleanStoredPlain && trimmedPassword.toUpperCase() === cleanStoredPlain.toUpperCase()) ||
       enteredHash === clientPolicy.passwordHash ||
       trimmedPassword === clientPolicy.passwordHash ||
-      (cleanStoredPlain && enteredHash === hashPassword(cleanStoredPlain)) ||
-      isSpecialSubashMatch;
+      (cleanStoredPlain && enteredHash === hashPassword(cleanStoredPlain));
 
     if (!isPasswordCorrect) {
       return {
         success: false,
-        message: 'गलत पासवर्ड! कृपया सुपरएडमिनले दिएको सही पासवर्ड राख्नुहोस्।'
+        message: 'गलत पासवर्ड! कृपया सही पासवर्ड राख्नुहोस्।'
       };
     }
 
     // Auto-repair password & hash if needed
     if (clientPolicy.passwordPlain !== trimmedPassword && (
       (cleanStoredPlain && trimmedPassword.toUpperCase() === cleanStoredPlain.toUpperCase()) || 
-      isSpecialSubashMatch ||
       trimmedPassword === clientPolicy.passwordHash ||
       enteredHash === clientPolicy.passwordHash
     )) {
@@ -660,19 +652,13 @@ export function authenticateUnifiedUser(
 
   // Verify password for RBAC user
   const enteredHash = hashPassword(trimmedPassword);
-  const isSpecialSubash = norm.last10Digits === '9841755199' && (
-    trimmedPassword.toUpperCase() === '3AACKE84' ||
-    trimmedPassword === 'Jyotish#8758' ||
-    trimmedPassword === '3AACKE84'
-  );
 
   const isPassValid = 
     enteredHash === foundUser.passwordHash || 
     trimmedPassword === foundUser.passwordHash ||
     trimmedPassword === (foundUser as any).passwordPlain ||
     (foundUser.passwordHash && trimmedPassword.toUpperCase() === foundUser.passwordHash.toUpperCase()) ||
-    ((foundUser as any).passwordPlain && trimmedPassword.toUpperCase() === (foundUser as any).passwordPlain.toUpperCase()) ||
-    isSpecialSubash;
+    ((foundUser as any).passwordPlain && trimmedPassword.toUpperCase() === (foundUser as any).passwordPlain.toUpperCase());
 
   if (!isPassValid) {
     return {
