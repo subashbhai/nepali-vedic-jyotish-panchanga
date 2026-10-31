@@ -423,11 +423,28 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     }
   }, []);
 
-  const handleOpenReviewModal = (lead: any) => {
+  const handleOpenReviewModal = (lead: any, fallbackUser?: any) => {
     if (!lead) return;
-    setReviewLead(lead);
+    const resolvedMobile = lead.mobile || lead.phone || fallbackUser?.phone || fallbackUser?.username || selectedUser?.phone || selectedUser?.username || '';
+    const resolvedFullName = lead.fullName || fallbackUser?.fullName || selectedUser?.fullName || 'ग्राहक';
+    const resolvedEmail = lead.email || fallbackUser?.email || selectedUser?.email || '';
+    const resolvedUserId = lead.userId || fallbackUser?.id || selectedUser?.id || '';
+    const resolvedAmount = Number(lead.planAmountNPR || lead.amountNPR || 100);
+
+    const enrichedLead = {
+      ...lead,
+      mobile: resolvedMobile,
+      phone: resolvedMobile,
+      fullName: resolvedFullName,
+      email: resolvedEmail,
+      userId: resolvedUserId,
+      planAmountNPR: resolvedAmount,
+      amountNPR: resolvedAmount
+    };
+
+    setReviewLead(enrichedLead);
     setReviewCashVerified(Boolean(lead.cashVerified));
-    setReviewVerifiedAmount(Number(lead.planAmountNPR || lead.amountNPR || 100));
+    setReviewVerifiedAmount(resolvedAmount);
     setReviewAdminNotes(lead.adminNotes || '');
     setReviewRejectReason('');
     setShowRejectInput(false);
@@ -462,6 +479,13 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
         setReviewLead(null);
         fetchUsers(true);
         fetchAdminNotifications();
+        if (selectedUser) {
+          fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}`), {
+            headers: getAdminHeaders()
+          }).then(r => r.json()).then(d => {
+            if (d.success && d.user) setSelectedUser(d.user);
+          }).catch(() => {});
+        }
       } else {
         showToast(data.error || 'स्वीकृत गर्न सकिएन।', 'error');
       }
@@ -497,6 +521,13 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
         setReviewLead(null);
         fetchUsers(true);
         fetchAdminNotifications();
+        if (selectedUser) {
+          fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}`), {
+            headers: getAdminHeaders()
+          }).then(r => r.json()).then(d => {
+            if (d.success && d.user) setSelectedUser(d.user);
+          }).catch(() => {});
+        }
       } else {
         showToast(data.error || 'अस्वीकृत गर्न सकिएन।', 'error');
       }
@@ -1026,6 +1057,13 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
         fetchUsers(true);
         setCashApprovalChecked(false);
         setPurchaseActionReason('');
+        if (selectedUser) {
+          fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}`), {
+            headers: getAdminHeaders()
+          }).then(r => r.json()).then(d => {
+            if (d.success && d.user) setSelectedUser(d.user);
+          }).catch(() => {});
+        }
       } else {
         showToast(data.message || 'खरिद स्वीकृत गर्न सकिएन।', 'error');
       }
@@ -1058,6 +1096,13 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
         showToast('खरिद अनुरोध अस्वीकृत गरियो।', 'info');
         fetchUsers(true);
         setPurchaseActionReason('');
+        if (selectedUser) {
+          fetch(apiClient.resolveUrl(`/api/superadmin/users/${selectedUser.id}`), {
+            headers: getAdminHeaders()
+          }).then(r => r.json()).then(d => {
+            if (d.success && d.user) setSelectedUser(d.user);
+          }).catch(() => {});
+        }
       } else {
         showToast(data.message || 'अस्वीकृत गर्न सकिएन।', 'error');
       }
@@ -1067,6 +1112,48 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
       setProcessingPurchaseId(null);
     }
   };
+
+  // ── KEYBOARD SHORTCUT: CTRL+S / CMD+S FOR INSTANT SAVE IN USER MODAL ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        if (selectedUser) {
+          e.preventDefault();
+          if (activeModalTab === 'info') {
+            handleSaveProfile();
+          } else if (activeModalTab === 'status') {
+            handleSaveStatus();
+          } else if (activeModalTab === 'membership') {
+            handleSaveServices();
+          } else if (activeModalTab === 'activation') {
+            handleActivateMembership();
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    selectedUser,
+    activeModalTab,
+    editFullName,
+    editPhone,
+    editEmail,
+    editWhatsapp,
+    editAddress,
+    editDobBS,
+    editDobAD,
+    editBirthTime,
+    targetStatus,
+    statusReason,
+    selectedServices,
+    mutationReason,
+    actPlanId,
+    actPaymentMethod,
+    actCashVerified,
+    actAmount,
+    actAdminNotes
+  ]);
 
   // 10 Master Classification Filters Configuration
   const filterTabs: Array<{ key: MasterFilterKey; label: string; count: number; badgeColor: string }> = [
@@ -1627,7 +1714,7 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                         {pendingLead ? (
                           <button
                             type="button"
-                            onClick={() => handleOpenReviewModal(pendingLead)}
+                            onClick={() => handleOpenReviewModal(pendingLead, u)}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/60 text-[10px] font-black animate-pulse cursor-pointer transition-all shadow-sm"
                             title="खरिद अनुरोध समीक्षा तथा स्वीकृत गर्न थिच्नुहोस्"
                           >
@@ -1661,7 +1748,7 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                           {pendingLead && (
                             <button
                               type="button"
-                              onClick={() => handleOpenReviewModal(pendingLead)}
+                              onClick={() => handleOpenReviewModal(pendingLead, u)}
                               className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-stone-950 text-[10px] font-black shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
                               title="खरिद अनुरोध समीक्षा र Approve गर्नुहोस्"
                             >
@@ -1854,6 +1941,15 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveProfile}
+                        disabled={savingProfile}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-450 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{savingProfile ? 'सुरक्षित हुँदैछ...' : 'तुरुन्त सुरक्षित गर्नुहोस्'}</span>
+                      </button>
                       {selectedUser.mobileVerified ? (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -2029,14 +2125,18 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end pt-4 border-t border-stone-800">
+                  <div className="flex items-center justify-between pt-4 border-t border-stone-800">
+                    <span className="text-[11px] text-stone-500">
+                      * नाम, फोन वा ठेगाना परिवर्तन गरेपछि तुरुन्त सुरक्षित गर्नुहोस् (किबोर्ड सर्टकट: Ctrl+S)।
+                    </span>
                     <button
                       type="button"
                       onClick={handleSaveProfile}
                       disabled={savingProfile}
-                      className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-450 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-450 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                     >
-                      {savingProfile ? 'सुरक्षित हुँदैछ...' : 'परिवर्तन सुरक्षित गर्नुहोस्'}
+                      <Check className="w-4 h-4" />
+                      <span>{savingProfile ? 'सुरक्षित हुँदैछ...' : 'परिवर्तन तुरुन्त सुरक्षित गर्नुहोस्'}</span>
                     </button>
                   </div>
                 </div>
@@ -2115,14 +2215,24 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between pt-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
                     <button
                       type="button"
                       onClick={handleSaveStatus}
                       disabled={savingStatus}
-                      className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-450 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-450 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                     >
-                      {savingStatus ? 'परिवर्तन हुँदैछ...' : 'खाता स्थिति अद्यावधिक गर्नुहोस्'}
+                      <Check className="w-4 h-4" />
+                      <span>{savingStatus ? 'परिवर्तन हुँदैछ...' : 'खाता स्थिति तुरुन्त सुरक्षित गर्नुहोस् (Save Status)'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleResetUserSessions(selectedUser)}
+                      disabled={resettingSessionUserId === selectedUser.id}
+                      className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-rose-950/70 text-rose-300 border border-rose-900/40 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-400" />
+                      <span>{resettingSessionUserId === selectedUser.id ? 'सत्र बन्द हुँदैछ...' : 'प्रयोगकर्ताका सबै सत्रहरू बन्द गर्नुहोस् (Force Logout)'}</span>
                     </button>
                   </div>
 
@@ -2283,9 +2393,10 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                       type="button"
                       onClick={handleSaveServices}
                       disabled={savingMutation}
-                      className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 text-xs font-bold transition-all cursor-pointer"
+                      className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-450 text-stone-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                     >
-                      सेवा संशोधन सुरक्षित गर्नुहोस्
+                      <Check className="w-4 h-4" />
+                      <span>{savingMutation ? 'सुरक्षित हुँदैछ...' : 'सेवा संशोधन तुरुन्त सुरक्षित गर्नुहोस् (Save Services)'}</span>
                     </button>
                   </div>
 
@@ -2309,9 +2420,10 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                           type="button"
                           onClick={() => handleMutateMembership('renew')}
                           disabled={savingMutation}
-                          className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-stone-950 font-bold text-xs transition-all cursor-pointer"
+                          className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-450 text-stone-950 font-black text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          नवीकरण गर्नुहोस्
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>{savingMutation ? 'नवीकरण हुँदैछ...' : 'नवीकरण तुरुन्त सुरक्षित गर्नुहोस्'}</span>
                         </button>
                       </div>
 
@@ -2331,9 +2443,10 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                           type="button"
                           onClick={() => handleMutateMembership('extend')}
                           disabled={savingMutation}
-                          className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-stone-950 font-bold text-xs transition-all cursor-pointer"
+                          className="w-full py-2.5 rounded-xl bg-blue-500 hover:bg-blue-450 text-stone-950 font-black text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          म्याद थप गर्नुहोस्
+                          <Clock className="w-4 h-4" />
+                          <span>{savingMutation ? 'म्याद थपिँदैछ...' : 'म्याद थप तुरुन्त सुरक्षित गर्नुहोस्'}</span>
                         </button>
                       </div>
                     </div>
@@ -2591,15 +2704,26 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                                   <div className="flex items-center gap-2">
                                     <button
                                       type="button"
+                                      onClick={() => handleOpenReviewModal(lead, selectedUser)}
+                                      className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>समीक्षा / रुजु</span>
+                                    </button>
+                                    <button
+                                      type="button"
                                       onClick={() => handleApprovePurchaseRequest(lead)}
                                       disabled={processingPurchaseId === lead.id || (lead.paymentMethod === 'cash' && !cashApprovalChecked)}
                                       className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-stone-950 font-bold text-xs transition-all cursor-pointer disabled:opacity-40"
                                     >
-                                      स्वीकृत गर्नुहोस्
+                                      स्वीकृत
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleRejectPurchaseRequest(lead)}
+                                      onClick={() => {
+                                        handleOpenReviewModal(lead, selectedUser);
+                                        setShowRejectInput(true);
+                                      }}
                                       disabled={processingPurchaseId === lead.id}
                                       className="px-3 py-1.5 rounded-xl bg-red-950 text-red-300 border border-red-800 hover:bg-red-900 font-bold text-xs transition-all cursor-pointer"
                                     >
@@ -2943,7 +3067,7 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-[11px] text-stone-300">
                   <div>
                     <span className="text-stone-500">📱 मोबाइल:</span>{' '}
-                    <span className="font-mono font-bold text-stone-100">{reviewLead.mobile || reviewLead.phone || '-'}</span>
+                    <span className="font-mono font-bold text-stone-100">{reviewLead.mobile || reviewLead.phone || (selectedUser?.phone) || (selectedUser?.username) || '-'}</span>
                   </div>
                   <div>
                     <span className="text-stone-500">👑 अनुरोध योजना:</span>{' '}
@@ -3196,8 +3320,9 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                           <button
                             type="button"
                             onClick={() => {
+                              const matchingUser = users.find(u => (u.purchaseHistory || []).some((p: any) => p.id === n.subscriptionId || p.id === leadData.leadId) || u.phone === leadData.mobile || u.id === leadData.userId);
                               const targetLead = users.flatMap(u => u.purchaseHistory || []).find((p: any) => p.id === n.subscriptionId || p.id === leadData.leadId) || leadData;
-                              handleOpenReviewModal(targetLead);
+                              handleOpenReviewModal(targetLead, matchingUser);
                             }}
                             className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-[10.5px] font-black cursor-pointer inline-flex items-center gap-1 shadow-xs"
                           >

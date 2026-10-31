@@ -74,30 +74,18 @@ export const isLocalhostEnvironment = () => {
 };
 
 export const getRealtimeSSEUrl = () => {
-  if (!isLocalhostEnvironment()) {
-    return `https://ntfy.sh/${REALTIME_SECURITY_TOPIC}/sse?since=12h`;
-  }
   return apiClient.resolveUrl('/api/realtime/events');
 };
 
 export const getRealtimePollUrl = () => {
-  if (!isLocalhostEnvironment()) {
-    return `https://ntfy.sh/${REALTIME_REGISTRY_TOPIC}/json?poll=1&since=all`;
-  }
   return apiClient.resolveUrl('/api/realtime/poll');
 };
 
-export const REALTIME_SSE_URL = typeof window !== 'undefined'
-  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_SECURITY_TOPIC}/sse?since=12h` : `${window.location.origin}/api/realtime/events`)
-  : '/api/realtime/events';
+export const REALTIME_SSE_URL = apiClient.resolveUrl('/api/realtime/events');
 
-export const REALTIME_PUB_URL = typeof window !== 'undefined'
-  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_REGISTRY_TOPIC}` : `${window.location.origin}/api/realtime/events`)
-  : '/api/realtime/events';
+export const REALTIME_PUB_URL = apiClient.resolveUrl('/api/realtime/events');
 
-export const REALTIME_POLL_URL = typeof window !== 'undefined'
-  ? (!isLocalhostEnvironment() ? `https://ntfy.sh/${REALTIME_REGISTRY_TOPIC}/json?poll=1&since=all` : `${window.location.origin}/api/realtime/poll`)
-  : '/api/realtime/poll';
+export const REALTIME_POLL_URL = apiClient.resolveUrl('/api/realtime/poll');
 
 
 class UnifiedUserSyncService {
@@ -571,29 +559,46 @@ class UnifiedUserSyncService {
         try {
           const raw = JSON.parse(event.data);
           const messageText = raw.message || raw;
-          const parsed = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
+          const root = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
 
-          if (!parsed || !parsed.type) return;
+          if (!root || !root.type) return;
 
-          if (parsed.type === 'USER_HEARTBEAT') {
-            this.recordPresence(parsed.phone || parsed.userId, parsed.timestamp || Date.now());
+          const payload = root.payload || {};
+          const eventType = root.type;
+          const mobile = root.mobile || payload.mobile || payload.membership?.phone || payload.lead?.mobile || payload.user?.phone || payload.user?.username || '';
+          const leadId = root.leadId || payload.leadId || payload.lead?.id || payload.membership?.id || '';
+          const userId = root.userId || payload.userId || payload.user?.id || payload.membership?.userId || '';
+          const lead = root.lead || payload.lead;
+          const user = root.user || payload.user;
+
+          if (eventType === 'USER_HEARTBEAT') {
+            this.recordPresence(mobile || userId, root.timestamp || Date.now());
           } else if (
-            (parsed.type === 'LICENSE_APPROVED' || parsed.type === 'PURCHASE_APPROVED' || parsed.type === 'MEMBERSHIP_ACTIVATED' || parsed.type === 'MEMBERSHIP_APPROVED') &&
-            (parsed.mobile || parsed.leadId || parsed.membership?.phone || parsed.lead?.mobile)
+            eventType === 'LICENSE_APPROVED' ||
+            eventType === 'PURCHASE_APPROVED' ||
+            eventType === 'MEMBERSHIP_ACTIVATED' ||
+            eventType === 'MEMBERSHIP_APPROVED' ||
+            eventType === 'USER_SERVICES_UPDATED' ||
+            eventType === 'SERVICE_LICENSE_UPDATED' ||
+            eventType === 'MEMBERSHIP_STATUS_MUTATED' ||
+            eventType === 'USER_UPDATED' ||
+            eventType === 'USER_PROFILE_UPDATED'
           ) {
-            const mobile = parsed.mobile || parsed.membership?.phone || parsed.lead?.mobile || '';
             const norm = this.normalizePhoneOrId(mobile);
             const activeSessionRaw = localStorage.getItem('balananda_rbac_session_v2') || localStorage.getItem('balananda_rbac_active_session_v1');
             let isCurrent = false;
             if (activeSessionRaw) {
               const sess = JSON.parse(activeSessionRaw);
               const sessMob = this.normalizePhoneOrId(sess?.phone || sess?.username);
-              if (sessMob && sessMob === norm) isCurrent = true;
+              const sessId = (sess?.userId || sess?.id || '').toLowerCase();
+              if (sessMob && (sessMob === norm || (userId && sessId === userId.toLowerCase()))) {
+                isCurrent = true;
+              }
             }
 
             // Check if this device has leads matching the approved mobile or leadId
             const storedLeads = getStoredClientLeads();
-            const matchedLead = storedLeads.find(l => (norm && this.normalizePhoneOrId(l.mobile) === norm) || l.id === parsed.leadId);
+            const matchedLead = storedLeads.find(l => (norm && this.normalizePhoneOrId(l.mobile) === norm) || (leadId && l.id === leadId));
             if (matchedLead) isCurrent = true;
 
             // Check device trial record
@@ -606,9 +611,21 @@ class UnifiedUserSyncService {
             } catch {}
 
             if (isCurrent || !activeSessionRaw) {
-              this.checkAndApplyClientApproval(mobile || parsed.leadId);
+              this.checkAndApplyClientApproval(mobile || leadId);
+              // Trigger authoritative session sync to instantly reflect unlock in UI
+              import('./authService').then(({ authService }) => {
+                authService.syncUserSessionFromServer().catch(() => {});
+              }).catch(() => {});
             }
-          } else if (parsed.type === 'PURCHASE_REQUEST' && parsed.lead) {
+
+            // Instant UI events dispatch
+            this.notifyListeners();
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: true } }));
+              window.dispatchEvent(new CustomEvent('service-license-updated', { detail: { mobile, leadId, userId, payload } }));
+              window.dispatchEvent(new CustomEvent('subscription-status-updated', { detail: { mobile, leadId, userId, payload } }));
+            }
+          } else if (eventType === 'PURCHASE_REQUEST' && lead) {
             // Instant real-time delivery to SuperAdmin (< 1 sec)
             const lead = parsed.lead;
             if (!isPermanentlyDeleted(lead.mobile) && !isPermanentlyDeleted(lead.id)) {
@@ -768,11 +785,9 @@ class UnifiedUserSyncService {
       console.warn('[RealtimeSync] Broadcast failed:', e);
     }
 
-    // 2. Node/Express backend if on localhost
+    // 2. Authoritative backend event bus (both local and deployed Render)
     try {
-      if (isLocalhostEnvironment()) {
-        apiClient.post('/api/realtime/events', payloadObj).catch(() => {});
-      }
+      apiClient.post('/api/realtime/events', payloadObj).catch(() => {});
     } catch {}
 
     // 3. Resilient Sharded Cloud Relay (ntfy.sh with mirror fallback)

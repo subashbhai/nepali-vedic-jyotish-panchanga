@@ -71,6 +71,7 @@ export interface RBACSession {
   lifecycleState?: string;
   jyotishAccess?: boolean | { unlocked?: boolean; expiresAtTimestamp?: number | null; expiresAtBS?: string | null };
   vastuAccess?: boolean | { unlocked?: boolean; expiresAtTimestamp?: number | null; expiresAtBS?: string | null };
+  karmakandaAccess?: boolean | { unlocked?: boolean; expiresAtTimestamp?: number | null; expiresAtBS?: string | null };
   trial?: {
     hasUsedTrial?: boolean;
     isTrialActive?: boolean;

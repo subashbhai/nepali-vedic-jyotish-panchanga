@@ -468,6 +468,20 @@ async function startServer() {
     return res.json({ success: true, events: filtered, serverTime: Date.now(), clientsConnected: sseClients.size });
   });
 
+  // POST /api/realtime/events (Ingest and Broadcast Realtime Events across all connected clients)
+  app.post("/api/realtime/events", (req, res) => {
+    try {
+      const { type, ...payload } = req.body || {};
+      if (type) {
+        broadcastRealtimeEvent(type, payload);
+        return res.json({ success: true, broadcasted: true, type, clientsCount: sseClients.size });
+      }
+      return res.status(400).json({ success: false, message: "Event type is required" });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   const getServiceLicenses = (): any[] => {
     try {
       if (!fs.existsSync(SERVICE_LICENSES_FILE)) {
@@ -1946,8 +1960,31 @@ async function startServer() {
       const effectiveAdmin = approvedBy || adminSession?.username || "SuperAdmin";
 
       const leads = getClientLeads();
-      const target = leads.find((l: any) => l.id === id);
+      const cleanId = String(id || '').replace(/\D/g, '').slice(-10);
+      let target = leads.find((l: any) =>
+        l.id === id ||
+        l.transactionId === id ||
+        (cleanId.length >= 7 && l.mobile && l.mobile.replace(/\D/g, '').slice(-10) === cleanId) ||
+        l.userId === id
+      );
+
       if (!target) {
+        // Fallback: check membershipEngine if id belongs to a membership
+        const mem = membershipEngine.getMembershipByPhoneOrId(id) || (cleanId.length >= 7 ? membershipEngine.getMembershipByPhoneOrId(cleanId) : undefined);
+        if (mem) {
+          const mResult = membershipEngine.approveMembership(mem.id, effectiveAdmin, {
+            cashVerified: Boolean(cashVerified),
+            verifiedAmount,
+            adminNotes,
+            customDuration: planDuration,
+            approvedAtBS
+          });
+          if (mResult.success) {
+            broadcastRealtimeEvent("PURCHASE_APPROVED", { membership: mResult.membership, status: "PURCHASE_APPROVED" });
+            broadcastRealtimeEvent("MEMBERSHIP_ACTIVATED", { membership: mResult.membership, status: "ACTIVE" });
+            return res.json({ success: true, message: mResult.message, membership: mResult.membership });
+          }
+        }
         return res.status(404).json({ success: false, error: "आवेदन फेला परेन।" });
       }
 
@@ -2059,8 +2096,22 @@ async function startServer() {
       const { id } = req.params;
       const { reason } = req.body;
       const leads = getClientLeads();
-      const target = leads.find((l: any) => l.id === id);
+      const cleanId = String(id || '').replace(/\D/g, '').slice(-10);
+      let target = leads.find((l: any) =>
+        l.id === id ||
+        l.transactionId === id ||
+        (cleanId.length >= 7 && l.mobile && l.mobile.replace(/\D/g, '').slice(-10) === cleanId) ||
+        l.userId === id
+      );
       if (!target) {
+        const mem = membershipEngine.getMembershipByPhoneOrId(id) || (cleanId.length >= 7 ? membershipEngine.getMembershipByPhoneOrId(cleanId) : undefined);
+        if (mem) {
+          const mResult = membershipEngine.rejectMembership(mem.id, (req as any).superAdmin?.username || "SuperAdmin", reason || "अस्वीकृत");
+          if (mResult.success) {
+            broadcastRealtimeEvent("PURCHASE_REJECTED", { membership: mResult.membership, status: "PURCHASE_REJECTED", reason });
+            return res.json({ success: true, message: mResult.message, membership: mResult.membership });
+          }
+        }
         return res.status(404).json({ success: false, error: "आवेदन फेला परेन।" });
       }
 
@@ -3403,7 +3454,7 @@ async function startServer() {
       const adminSession = (req as any).superAdmin;
       const adminId = adminSession?.username || "SuperAdmin";
 
-      const result = membershipEngine.approveMembership(id, adminId, {
+      let result = membershipEngine.approveMembership(id, adminId, {
         cashVerified: Boolean(cashVerified),
         verifiedAmount,
         adminNotes,
@@ -3412,6 +3463,26 @@ async function startServer() {
       });
 
       if (!result.success) {
+        const leads = getClientLeads();
+        const cleanId = String(id || '').replace(/\D/g, '').slice(-10);
+        const matchedLead = leads.find((l: any) =>
+          l.id === id ||
+          l.transactionId === id ||
+          (cleanId.length >= 7 && l.mobile && l.mobile.replace(/\D/g, '').slice(-10) === cleanId) ||
+          l.userId === id
+        );
+        if (matchedLead) {
+          await applyLeadApproval(matchedLead, adminId, approvedAtBS, "both", {
+            cashVerified: Boolean(cashVerified),
+            verifiedAmount: verifiedAmount || matchedLead.planAmountNPR,
+            adminNotes: adminNotes || "सुपरएडमिन द्वारा खरिद स्वीकृत",
+            planDuration: customDuration || matchedLead.duration
+          });
+          saveClientLeads(leads);
+          broadcastRealtimeEvent("PURCHASE_APPROVED", { lead: matchedLead, leadId: matchedLead.id, mobile: matchedLead.mobile, status: "PURCHASE_APPROVED" });
+          broadcastRealtimeEvent("MEMBERSHIP_ACTIVATED", { lead: matchedLead, mobile: matchedLead.mobile, status: "ACTIVE" });
+          return res.json({ success: true, message: `${matchedLead.fullName} को खरिद अनुरोध स्वीकृत भयो र सेवा सक्रिय गरियो!`, lead: matchedLead });
+        }
         return res.status(400).json(result);
       }
 
@@ -3464,8 +3535,24 @@ async function startServer() {
       const adminSession = (req as any).superAdmin;
       const adminId = adminSession?.username || "SuperAdmin";
 
-      const result = membershipEngine.rejectMembership(id, adminId, reason || "अस्वीकृत");
+      let result = membershipEngine.rejectMembership(id, adminId, reason || "अस्वीकृत");
       if (!result.success) {
+        const leads = getClientLeads();
+        const cleanId = String(id || '').replace(/\D/g, '').slice(-10);
+        const matchedLead = leads.find((l: any) =>
+          l.id === id ||
+          l.transactionId === id ||
+          (cleanId.length >= 7 && l.mobile && l.mobile.replace(/\D/g, '').slice(-10) === cleanId) ||
+          l.userId === id
+        );
+        if (matchedLead) {
+          matchedLead.status = "PURCHASE_REJECTED";
+          matchedLead.paymentVerificationStatus = "REJECTED";
+          matchedLead.adminNotes = reason || "अस्वीकृत";
+          saveClientLeads(leads);
+          broadcastRealtimeEvent("PURCHASE_REJECTED", { lead: matchedLead, leadId: matchedLead.id, mobile: matchedLead.mobile, status: "PURCHASE_REJECTED", reason });
+          return res.json({ success: true, message: `${matchedLead.fullName} को खरिद अनुरोध अस्वीकृत गरियो।`, lead: matchedLead });
+        }
         return res.status(400).json(result);
       }
 
@@ -3787,6 +3874,11 @@ async function startServer() {
 
     const formattedPayments = userPayments.map((p: any) => ({
       id: p.id,
+      userId: u.id,
+      fullName: u.fullName || matchingLead?.fullName || 'सदस्य',
+      mobile: u.phone || u.username || matchingLead?.mobile || '',
+      phone: u.phone || u.username || matchingLead?.mobile || '',
+      email: u.email || matchingLead?.email || '',
       type: 'PAYMENT_RECORD',
       planNameNepali: p.notes || (p.amountNPR === 100 ? 'साधारण सदस्यता (१ वर्ष)' : 'सदस्यता भुक्तानी'),
       status: p.paymentStatus === 'paid' ? 'PURCHASE_APPROVED' : (p.paymentStatus === 'DUPLICATE_ADMIN_ACTIVATION' ? 'DUPLICATE_ADMIN_ACTIVATION' : p.paymentStatus),
@@ -3859,10 +3951,15 @@ async function startServer() {
       hasActiveSession: activeSessionUserIds ? activeSessionUserIds.has(u.id) : false,
       purchaseLead: matchingLead ? {
         id: matchingLead.id,
+        fullName: matchingLead.fullName || u.fullName,
+        mobile: matchingLead.mobile || u.phone,
+        phone: matchingLead.mobile || u.phone,
+        email: matchingLead.email || u.email || "",
         status: matchingLead.status,
         planId: matchingLead.planId,
         planNameNepali: matchingLead.planNameNepali,
-        planAmountNPR: matchingLead.planAmountNPR,
+        planAmountNPR: matchingLead.planAmountNPR || matchingLead.amountNPR || 100,
+        amountNPR: matchingLead.planAmountNPR || matchingLead.amountNPR || 100,
         paymentMethod: matchingLead.paymentMethod,
         transactionId: matchingLead.transactionId,
         submittedAtISO: matchingLead.submittedAtISO,
@@ -4763,6 +4860,7 @@ async function startServer() {
 
       const isJyotish = services.includes("jyotish");
       const isVastu = services.includes("vastu");
+      const isKarmakanda = services.includes("karmakanda");
       const now = new Date();
       const schedule = calculateMembershipDateSchedule(now, "1_year");
 
@@ -4782,11 +4880,19 @@ async function startServer() {
         approvedAtISO: isVastu ? now.toISOString() : null
       };
 
+      user.karmakandaAccess = {
+        unlocked: isKarmakanda,
+        period: isKarmakanda ? "1_year" : null,
+        expiresAtTimestamp: isKarmakanda ? schedule.expiresAtTimestamp : null,
+        expiresAtBS: isKarmakanda ? schedule.expiresAtBS : null,
+        approvedAtISO: isKarmakanda ? now.toISOString() : null
+      };
+
       saveUsers(users);
 
       // Upsert into service_licenses
       const licenses = getServiceLicenses();
-      const targetServices: Array<"jyotish" | "vastu"> = ["jyotish", "vastu"];
+      const targetServices: Array<"jyotish" | "vastu" | "karmakanda"> = ["jyotish", "vastu", "karmakanda"];
       for (const sKey of targetServices) {
         const isUnlock = services.includes(sKey);
         const licId = `${cleanPhone || user.id}_${sKey}`;
@@ -4802,7 +4908,7 @@ async function startServer() {
           phone: user.phone,
           email: user.email || "",
           serviceKey: sKey,
-          serviceNameNepali: sKey === "jyotish" ? "वैदिक ज्योतिष सफ्टवेयर" : "वास्तुशास्त्र सफ्टवेयर",
+          serviceNameNepali: sKey === "jyotish" ? "वैदिक ज्योतिष सफ्टवेयर" : sKey === "vastu" ? "वास्तुशास्त्र सफ्टवेयर" : "कर्मकाण्ड विधि सफ्टवेयर",
           softwareName: "नेपाली वैदिक ज्योतिष तथा वास्तु सफ्टवेयर",
           planNameNepali: "प्रशासक सेवा अनुमति",
           amountNPR: 0,
@@ -4842,7 +4948,8 @@ async function startServer() {
         try {
           await dbAdapter.updateUser(user.id, {
             jyotishAccess: user.jyotishAccess,
-            vastuAccess: user.vastuAccess
+            vastuAccess: user.vastuAccess,
+            karmakandaAccess: user.karmakandaAccess
           });
         } catch (dbErr: any) {
           console.warn("[toggle-service User DB Notice]:", dbErr.message);

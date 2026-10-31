@@ -403,6 +403,7 @@ class AuthService {
             lifecycleState: user.lifecycleState || local.lifecycleState,
             jyotishAccess: user.jyotishAccess !== undefined ? user.jyotishAccess : local.jyotishAccess,
             vastuAccess: user.vastuAccess !== undefined ? user.vastuAccess : local.vastuAccess,
+            karmakandaAccess: user.karmakandaAccess !== undefined ? user.karmakandaAccess : (local as any).karmakandaAccess,
             trial: user.trial || local.trial
           };
           setRBACSession(updatedSession);

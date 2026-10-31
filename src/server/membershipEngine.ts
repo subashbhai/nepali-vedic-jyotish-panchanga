@@ -371,7 +371,13 @@ export class MembershipEngine {
       approvedAtBS?: string;
     }
   ): { success: boolean; membership?: MembershipRecord; message: string } {
-    const membership = this.memberships.find(m => m.id === membershipId);
+    const cleanId = String(membershipId || '').replace(/\D/g, '').slice(-10);
+    const membership = this.memberships.find(m =>
+      m.id === membershipId ||
+      m.userId === membershipId ||
+      m.transactionId === membershipId ||
+      (cleanId.length >= 7 && m.phone && m.phone.replace(/\D/g, '').slice(-10) === cleanId)
+    );
     if (!membership) {
       return { success: false, message: 'सदस्यता आवेदन फेला परेन।' };
     }
@@ -430,7 +436,13 @@ export class MembershipEngine {
    * SuperAdmin rejects membership purchase
    */
   public rejectMembership(membershipId: string, adminId: string, reason: string): { success: boolean; membership?: MembershipRecord; message: string } {
-    const membership = this.memberships.find(m => m.id === membershipId);
+    const cleanId = String(membershipId || '').replace(/\D/g, '').slice(-10);
+    const membership = this.memberships.find(m =>
+      m.id === membershipId ||
+      m.userId === membershipId ||
+      m.transactionId === membershipId ||
+      (cleanId.length >= 7 && m.phone && m.phone.replace(/\D/g, '').slice(-10) === cleanId)
+    );
     if (!membership) {
       return { success: false, message: 'सदस्यता आवेदन फेला परेन।' };
     }
@@ -778,12 +790,39 @@ export class MembershipEngine {
       options = maybeOptions || {};
     }
 
-    const membership =
+    let membership =
       this.memberships.find(m => m.id === membershipIdOrUserId || m.userId === membershipIdOrUserId) ||
       this.getMembershipByPhoneOrId(membershipIdOrUserId);
 
     if (!membership) {
-      return { success: false, message: 'सदस्यता रेकर्ड फेला परेन।' };
+      const cleanPhone = String(membershipIdOrUserId).replace(/\D/g, '').slice(-10);
+      const nowInit = new Date();
+      const plan = MEMBERSHIP_PLANS.yearly_both || MEMBERSHIP_PLANS.normal_yearly;
+      const schedule = calculateMembershipDateSchedule(nowInit, options.duration || '1_year');
+      membership = {
+        id: `mem_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+        userId: membershipIdOrUserId,
+        phone: cleanPhone || '',
+        fullName: options.fullName || 'सदस्य',
+        planId: plan.planId,
+        planNameNepali: plan.nameNepali,
+        duration: options.duration || '1_year',
+        devices: plan.devices,
+        amountNPR: plan.priceNPR,
+        paymentMethod: 'admin_grant',
+        paymentStatus: 'VERIFIED',
+        membershipStatus: 'ACTIVE',
+        activatedAtISO: schedule.activatedAtISO,
+        activatedAtBS: schedule.activatedAtBS,
+        expiresAtTimestamp: schedule.expiresAtTimestamp,
+        expiresAtISO: schedule.expiresAtISO,
+        expiresAtBS: schedule.expiresAtBS,
+        includedServices: options.services || plan.services,
+        adminNotes: options.reason || 'प्रशासक सेवा अनुमति',
+        renewalCount: 0,
+        history: []
+      };
+      this.memberships.unshift(membership);
     }
 
     if (!membership.history) {
