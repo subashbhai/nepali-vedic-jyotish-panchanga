@@ -38,9 +38,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.0.3' }}
-          name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.0.3' }}
-          body: "नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग आधिकारिक रिलिज - Windows, Android, macOS (संस्करण १.०.३)"
+          tag_name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.3.0' }}
+          name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.3.0' }}
           files: |
             dist_electron/*.exe
             dist_electron/latest.yml
@@ -96,9 +95,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.0.3' }}
-          name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.0.3' }}
-          body: "नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग आधिकारिक रिलिज - Windows, Android, macOS (संस्करण १.०.३)"
+          tag_name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.3.0' }}
+          name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.3.0' }}
           files: |
             nepali-vedic-jyotish-panchanga.apk
         env:
@@ -133,9 +131,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.0.3' }}
-          name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.0.3' }}
-          body: "नेपाली वैदिक ज्योतिष तथा पञ्चाङ्ग आधिकारिक रिलिज - Windows, Android, macOS (संस्करण १.०.३)"
+          tag_name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.3.0' }}
+          name: ${{ github.ref_name != 'main' && github.ref_name || 'v1.3.0' }}
           files: |
             dist_electron/*.dmg
             dist_electron/*.zip
