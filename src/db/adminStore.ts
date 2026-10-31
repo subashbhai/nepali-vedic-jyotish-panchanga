@@ -75,7 +75,7 @@ export const DEFAULT_ADMIN_ACCOUNTS: AdminAccount[] = [
   {
     id: 'admin_super_01',
     username: 'admin',
-    passwordHash: '[REDACTED_HISTORICAL_DEV_PASSWORD]', // Development default password
+    passwordHash: '$REVOKED_LOCAL_ADMIN_AUTH_VIA_BACKEND$', // Production credentials managed via backend
     fullName: 'मुख्य प्रशासक (Super Admin)',
     email: 'admin@balanandajyotish.com.np',
     phone: '+९७७-९७६४४००५३३',
@@ -101,7 +101,7 @@ export const DEFAULT_ADMIN_ACCOUNTS: AdminAccount[] = [
   {
     id: 'admin_payment_01',
     username: 'payment_admin',
-    passwordHash: 'Payment#2081',
+    passwordHash: '$REVOKED_LOCAL_PAYMENT_ADMIN_AUTH$',
     fullName: 'रामप्रसाद शर्मा (भुक्तानी व्यवस्थापक)',
     email: 'payment@sukdevjyotish.np',
     phone: '+९७७-९८४१२३४५६७',
@@ -114,7 +114,7 @@ export const DEFAULT_ADMIN_ACCOUNTS: AdminAccount[] = [
   {
     id: 'admin_expert_01',
     username: 'expert_admin',
-    passwordHash: 'Expert#2081',
+    passwordHash: '$REVOKED_LOCAL_EXPERT_ADMIN_AUTH$',
     fullName: 'शिवनाथ शास्त्री (विशेषज्ञ व्यवस्थापक)',
     email: 'expert@sukdevjyotish.np',
     phone: '+९७७-९८५१०९८७६५',

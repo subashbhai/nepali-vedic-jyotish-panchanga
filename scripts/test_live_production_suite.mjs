@@ -1,7 +1,7 @@
 // Comprehensive Live Production Verification Suite
 const API_URL = 'https://balananda-api.onrender.com';
 const ADMIN_USER = 'admin';
-const ADMIN_PASS = 'Balananda#Vaidik2083!SuperAdmin@SecureKey$';
+const ADMIN_PASS = process.env.SUPERADMIN_PASSWORD;
 
 const testUsername = `testuser_${Date.now()}`;
 const testPhone = `98${Math.floor(10000000 + Math.random() * 90000000)}`;

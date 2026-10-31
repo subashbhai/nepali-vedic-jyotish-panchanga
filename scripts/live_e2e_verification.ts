@@ -41,7 +41,7 @@ async function runLiveVerification() {
     method: 'POST',
     body: JSON.stringify({
       username: 'admin',
-      password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
+      password: process.env.SUPERADMIN_PASSWORD
     })
   });
   if (!adminLogin.ok || !adminLogin.data?.token) {

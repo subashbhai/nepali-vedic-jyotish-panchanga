@@ -94,7 +94,7 @@ async function run() {
   const loginRes = await request('/api/superadmin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: { username: 'admin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' }
+    body: { username: 'admin', password: process.env.SUPERADMIN_PASSWORD }
   });
 
   if (!loginRes.data?.success || !loginRes.data?.token) {

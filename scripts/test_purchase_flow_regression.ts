@@ -147,7 +147,7 @@ async function runRegressionSuite() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       username: process.env.SUPERADMIN_USERNAME || 'admin',
-      password: process.env.SUPERADMIN_PASSWORD || 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
+      password: process.env.SUPERADMIN_PASSWORD
     })
   });
   assert('Super Admin login succeeds', adminLogin.status === 200 && !!adminLogin.json?.token);

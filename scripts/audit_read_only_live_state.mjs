@@ -16,7 +16,7 @@ const TEST_USER = {
 };
 
 const SUPER_ADMIN = {
-  password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
+  password: process.env.SUPERADMIN_PASSWORD
 };
 
 async function runReadOnlyAudit() {

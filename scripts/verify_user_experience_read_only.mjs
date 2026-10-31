@@ -96,7 +96,7 @@ async function verifyUserExperience() {
   const adminLoginRes = await fetch(`${baseUrl}/api/superadmin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'admin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' })
+    body: JSON.stringify({ username: 'admin', password: process.env.SUPERADMIN_PASSWORD })
   });
   const adminLoginData = await adminLoginRes.json();
   const adminToken = adminLoginData.token;

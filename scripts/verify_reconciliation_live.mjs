@@ -3,7 +3,7 @@ import assert from 'node:assert';
 const API_BASE = 'https://balananda-api.onrender.com';
 const ADMIN_CREDENTIALS = {
   username: 'admin',
-  password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
+  password: process.env.SUPERADMIN_PASSWORD
 };
 const TEST_USER = {
   phone: '9801234567',

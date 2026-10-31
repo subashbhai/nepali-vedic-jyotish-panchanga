@@ -3,7 +3,7 @@ import https from 'https';
 
 const API_BASE = 'https://balananda-api.onrender.com';
 const ADMIN_USER = 'admin';
-const ADMIN_PASS = 'Balananda#Vaidik2083!SuperAdmin@SecureKey$';
+const ADMIN_PASS = process.env.SUPERADMIN_PASSWORD;
 
 function request(method: string, path: string, body?: any, token?: string): Promise<{ status: number; data: any; raw: string }> {
   return new Promise((resolve, reject) => {

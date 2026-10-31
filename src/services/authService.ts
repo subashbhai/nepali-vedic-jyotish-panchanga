@@ -259,38 +259,6 @@ class AuthService {
     const cleanDigits = cleanId.replace(/\D/g, '').slice(-10);
     const cleanUser = cleanId.toLowerCase();
 
-    // Check for super admin credentials
-    if ((cleanUser === 'superadmin' || cleanUser === 'admin') && (cleanPass === '[REDACTED_HISTORICAL_ADMIN_PASSWORD]' || cleanPass === '[REDACTED_HISTORICAL_DEV_PASSWORD]' || cleanPass === 'admin123')) {
-      const superSession: RBACSession = {
-        token: `super_token_${Date.now()}`,
-        userId: 'usr_super_admin',
-        username: 'superadmin',
-        fullName: 'सुपर एडमिनिस्ट्रेटर',
-        role: 'SUPER_ADMIN',
-        roleNameNepali: 'केन्द्रीय सुपर एडमिन',
-        status: 'active',
-        permissions: ['*'],
-        customerId: 'ADM-2081-0001',
-        createdAtISO: new Date().toISOString(),
-        lastActivityISO: new Date().toISOString()
-      };
-      setRBACSession(superSession);
-      try {
-        localStorage.setItem('balananda_user_session_token', superSession.token);
-        localStorage.setItem('balananda_user_category', 'professional');
-        localStorage.setItem('balananda_superadmin_auth_token', superSession.token);
-        localStorage.setItem('balananda_superadmin_jwt_v2', superSession.token);
-        localStorage.setItem('superadmin_token', superSession.token);
-      } catch {}
-      return {
-        success: true,
-        message: 'सुपरएडमिन लगइन सफल भयो!',
-        user: { ...superSession, userCategory: 'professional' },
-        token: superSession.token,
-        session: superSession
-      };
-    }
-
     // Check against registered users
     const matchedUser = storedUsers.find(u => {
       const uDigits = (u.phone || '').replace(/\D/g, '').slice(-10);

@@ -46,7 +46,7 @@ async function testLifecycle() {
   const loginRes = await fetchJson('/api/superadmin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: { username: 'admin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' }
+    body: { username: 'admin', password: process.env.SUPERADMIN_PASSWORD }
   });
   const token = loginRes.data?.token;
   console.log('1. Super Admin logged in with new session token.');
@@ -77,7 +77,7 @@ async function testLifecycle() {
   const loginRes2 = await fetchJson('/api/superadmin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: { username: 'admin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' }
+    body: { username: 'admin', password: process.env.SUPERADMIN_PASSWORD }
   });
   const token2 = loginRes2.data?.token;
 

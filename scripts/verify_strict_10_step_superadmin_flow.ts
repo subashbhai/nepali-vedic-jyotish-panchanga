@@ -126,7 +126,7 @@ async function runStrictVerification() {
   const adminLoginRes = await fetch(`${API_BASE}/api/superadmin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'superadmin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' })
+    body: JSON.stringify({ username: 'superadmin', password: process.env.SUPERADMIN_PASSWORD })
   });
   assert(adminLoginRes.status === 200, `4.1 SuperAdmin login status is 200 (Got ${adminLoginRes.status})`);
   const adminLoginBody = await adminLoginRes.json();

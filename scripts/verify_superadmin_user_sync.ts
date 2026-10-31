@@ -57,7 +57,7 @@ async function runSuperAdminVerification() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       username: 'admin',
-      password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
+      password: process.env.SUPERADMIN_PASSWORD
     })
   });
   const adminLoginData: any = await adminLoginRes.json();
