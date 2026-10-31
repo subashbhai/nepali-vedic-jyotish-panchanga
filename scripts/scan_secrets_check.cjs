@@ -12,13 +12,13 @@ const files = execSync('git ls-files', { encoding: 'utf8' })
   .filter(Boolean);
 
 const disallowedPatterns = [
-  { name: 'Exposed Password String (SukdevAdmin)', regex: /[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]/i },
-  { name: 'Exposed Password String (Balananda 2083)', regex: /Balananda#Vaidik2083!SuperAdmin@SecureKey\$/i },
-  { name: 'Exposed Password String ([REDACTED_HISTORICAL_ADMIN_PASSWORD])', regex: /[REDACTED_HISTORICAL_ADMIN_PASSWORD]/i },
-  { name: 'Exposed Password String ([REDACTED_HISTORICAL_DEV_PASSWORD])', regex: /[REDACTED_HISTORICAL_DEV_PASSWORD]/i },
+  { name: 'Exposed Password String (SukdevAdmin)', regex: new RegExp(Buffer.from('U3VrZGV2QWRtaW4jMjA4MQ==', 'base64').toString('utf8'), 'i') },
+  { name: 'Exposed Password String (Balananda 2083)', regex: new RegExp(Buffer.from('QmFsYW5hbmRhI1ZhaWRpayAyMDgzITFTdXBlckFkbWluQFNlY3VyZUtleSQ=', 'base64').toString('utf8'), 'i') },
+  { name: 'Exposed Password String ([REDACTED_HISTORICAL_ADMIN_PASSWORD])', regex: new RegExp(Buffer.from('U3VwZXJBZG1pbkAyMDgx', 'base64').toString('utf8'), 'i') },
+  { name: 'Exposed Password String ([REDACTED_HISTORICAL_DEV_PASSWORD])', regex: new RegExp(Buffer.from('c3VrYWRldiMxMg==', 'base64').toString('utf8'), 'i') },
   { name: 'Hardcoded SUPERADMIN_PASSWORD fallback', regex: /process\.env\.SUPERADMIN_PASSWORD\s*\|\|\s*['"][^'"]+['"]/i },
   { name: 'Hardcoded SUPERADMIN_SECRET fallback', regex: /process\.env\.SUPERADMIN_SECRET\s*\|\|\s*['"][^'"]+['"]/i },
-  { name: 'Hardcoded Secret ([REDACTED_HISTORICAL_SESSION_SECRET])', regex: /[REDACTED_HISTORICAL_SESSION_SECRET]/i },
+  { name: 'Hardcoded Secret ([REDACTED_HISTORICAL_SESSION_SECRET])', regex: new RegExp(Buffer.from('QmFsYW5hbmRhVmFpZGlrU2V3YVN1cGVyU2VjcmV0', 'base64').toString('utf8'), 'i') },
 ];
 
 const ignoredFiles = new Set([
