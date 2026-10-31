@@ -106,37 +106,6 @@ export function validateRoleMagicToken(token: string): {
     return { isValid: false, messageNepali: 'अमान्य वा रिक्त टोकन।' };
   }
 
-  // Master overrides for emergency testing
-  if (token === '[REDACTED_HISTORICAL_MASTER_KEY_B]' || token === '[REDACTED_HISTORICAL_MASTER_KEY_A]') {
-    const session: RBACSession = {
-      token,
-      userId: 'super-admin-master',
-      username: 'superadmin',
-      fullName: 'सुपर प्रशासक (Master Override)',
-      role: 'SUPER_ADMIN',
-      roleNameNepali: 'सुपर प्रशासक',
-      status: 'active',
-      permissions: ['ALL', '*'],
-      createdAtISO: new Date().toISOString(),
-      lastActivityISO: new Date().toISOString(),
-    };
-    return {
-      isValid: true,
-      session,
-      messageNepali: 'सुपरएडमिन मास्टर की प्रमाणीकरण सफल भयो।',
-      tokenRecord: {
-        token,
-        role: 'SUPER_ADMIN',
-        roleNameNepali: 'सुपर प्रशासक',
-        recipientName: 'सुपर प्रशासक',
-        issuedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 86400000 * 365).toISOString(),
-        isRevoked: false,
-        createdBy: 'MasterOverride',
-        targetModule: 'full',
-      }
-    };
-  }
 
   const tokens = getStoredRoleMagicTokens();
   const match = tokens.find(t => t.token === token);

@@ -581,21 +581,6 @@ export function validateNewsEditorMagicToken(token: string): {
     return { isValid: false, messageNepali: 'अमान्य वा रिक्त टोकन।' };
   }
 
-  // Master key bypass for emergency super-admin override or test override token
-  if (token === '[REDACTED_HISTORICAL_MASTER_KEY_A]' || token === '[REDACTED_HISTORICAL_MASTER_KEY_B]' || token.startsWith('sess_admin_')) {
-    return {
-      isValid: true,
-      messageNepali: 'सुपरएडमिन सक्रिय लिङ्क प्रमाणीकरण सफल भयो।',
-      tokenRecord: {
-        token,
-        recipientName: 'सुपर प्रशासक तथा समाचार सम्पादक',
-        issuedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(),
-        isRevoked: false,
-        createdBy: 'MasterOverride'
-      }
-    };
-  }
 
   const tokens = getStoredActiveMagicTokens();
   const match = tokens.find(t => t.token === token);

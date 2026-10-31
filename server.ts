@@ -7202,9 +7202,170 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
   // ==========================================
   // SERVER-SIDE ADMIN AUTHENTICATION MIDDLEWARE
   // ==========================================
-  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+
+  interface EditorMagicTokenRecord {
+    token: string;
+    recipientName: string;
+    recipientEmail?: string;
+    recipientPhone?: string;
+    issuedAt: string;
+    expiresAt: string;
+    expiresAtTimestamp: number;
+    usedAt?: string;
+    isRevoked: boolean;
+    createdBy: string;
+    note?: string;
+  }
+
+  const EDITOR_MAGIC_TOKENS_FILE = path.join(DATA_DIR, "editor_magic_tokens.json");
+  const editorMagicTokensMap = new Map<string, EditorMagicTokenRecord>();
+
+  const getStoredEditorMagicTokens = (): EditorMagicTokenRecord[] => {
+    try {
+      if (fs.existsSync(EDITOR_MAGIC_TOKENS_FILE)) {
+        const raw = fs.readFileSync(EDITOR_MAGIC_TOKENS_FILE, "utf8");
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  };
+
+  const saveEditorMagicTokens = (tokens: EditorMagicTokenRecord[]) => {
+    try {
+      writeJsonAtomic(EDITOR_MAGIC_TOKENS_FILE, tokens);
+    } catch (err: any) {
+      console.warn("[EditorMagicTokens] Persistence notice:", err.message);
+    }
+  };
+
+  for (const t of getStoredEditorMagicTokens()) {
+    if (t && t.token) {
+      editorMagicTokensMap.set(t.token, t);
+    }
+  }
+
+  const resolveAdminSession = async (token: string): Promise<{
+    adminId: string;
+    username: string;
+    role: string;
+    permissions: string[];
+    expiresAt: number;
+    isNonAdminUser?: boolean;
+  } | null> => {
+    if (!token || typeof token !== "string") return null;
+    const cleanToken = token.trim();
+    if (!cleanToken) return null;
+
+    // 1. Check active Super Admin sessions in memory
+    const superSess = superAdminSessions.get(cleanToken);
+    if (superSess) {
+      if ((superSess.expiresAt ?? 0) >= Date.now()) {
+        superSess.expiresAt = Date.now() + 2 * 60 * 60 * 1000;
+        return {
+          adminId: superSess.adminId || "admin_super_01",
+          username: superSess.username || "superadmin",
+          role: "SUPER_ADMIN",
+          permissions: ["manage_users", "approve_payments", "system_config", "audit_logs", "manage_admins", "ALL", "*"],
+          expiresAt: superSess.expiresAt
+        };
+      } else {
+        superAdminSessions.delete(cleanToken);
+      }
+    }
+
+    // 2. Check active user sessions in memory
+    const userSess = userSessions.get(cleanToken);
+    if (userSess) {
+      if (userSess.expiresAt && userSess.expiresAt < Date.now()) {
+        userSessions.delete(cleanToken);
+      } else {
+        const uRole = String(userSess.role || "").toUpperCase();
+        if (uRole === "SUPER_ADMIN" || uRole === "ADMIN" || uRole === "STORE_ADMIN" || uRole === "POS_STAFF" || uRole === "NEWS_EDITOR") {
+          return {
+            adminId: userSess.userId || "admin_user",
+            username: (userSess as any).username || userSess.phone || "admin",
+            role: uRole,
+            permissions: (userSess as any).permissions || (uRole === "NEWS_EDITOR" ? ["create_samachar", "edit_samachar", "delete_samachar", "publish_samachar"] : ["ALL", "*"]),
+            expiresAt: userSess.expiresAt || (Date.now() + 3600000)
+          };
+        } else {
+          return {
+            adminId: userSess.userId,
+            username: userSess.phone,
+            role: userSess.role,
+            permissions: [],
+            expiresAt: userSess.expiresAt,
+            isNonAdminUser: true
+          };
+        }
+      }
+    }
+
+    // 3. Check persistent database session via dbAdapter
+    if (dbAdapter) {
+      try {
+        const dbSess = await dbAdapter.getSession(cleanToken);
+        if (dbSess) {
+          const isExpired = dbSess.expiresAtISO && new Date(dbSess.expiresAtISO).getTime() < Date.now();
+          const isRevoked = Boolean(dbSess.isRevoked || dbSess.status === "revoked");
+          if (!isExpired && !isRevoked) {
+            const roleUpper = String(dbSess.role || "").toUpperCase();
+            if (roleUpper === "SUPER_ADMIN" || roleUpper === "ADMIN" || roleUpper === "STORE_ADMIN" || roleUpper === "POS_STAFF" || roleUpper === "NEWS_EDITOR") {
+              const expAt = dbSess.expiresAtISO ? new Date(dbSess.expiresAtISO).getTime() : Date.now() + 2 * 60 * 60 * 1000;
+              if (roleUpper === "SUPER_ADMIN") {
+                superAdminSessions.set(cleanToken, {
+                  adminId: dbSess.userId || "admin_super_01",
+                  username: dbSess.username || "superadmin",
+                  expiresAt: expAt
+                });
+              }
+              return {
+                adminId: dbSess.userId || "admin_db",
+                username: dbSess.username || "admin",
+                role: roleUpper,
+                permissions: dbSess.permissions || (roleUpper === "SUPER_ADMIN" ? ["ALL", "*"] : ["manage_content"]),
+                expiresAt: expAt
+              };
+            } else {
+              return {
+                adminId: dbSess.userId,
+                username: dbSess.username,
+                role: dbSess.role,
+                permissions: [],
+                expiresAt: 0,
+                isNonAdminUser: true
+              };
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn("[resolveAdminSession] DB error:", err.message);
+      }
+    }
+
+    // 4. Check SUPERADMIN_SECRET (for server-to-server / trusted CI / cron)
+    const prodSecret = process.env.SUPERADMIN_SECRET ? String(process.env.SUPERADMIN_SECRET).trim() : null;
+    if (prodSecret && cleanToken === prodSecret) {
+      return {
+        adminId: "admin_super_secret",
+        username: "superadmin",
+        role: "SUPER_ADMIN",
+        permissions: ["ALL", "*"],
+        expiresAt: Date.now() + 3600000
+      };
+    }
+
+    return null;
+  };
+
+  const requireAdminAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
-    const adminToken = req.headers["x-admin-token"] || (authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null);
+    const adminToken = String(
+      req.headers["x-admin-token"] ||
+      req.headers["x-superadmin-token"] ||
+      (authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : "")
+    ).trim();
 
     if (!adminToken) {
       return res.status(401).json({
@@ -7214,50 +7375,120 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
       });
     }
 
-    // Verify token validity (In production, validates JWT or server session token; here validates active session format)
-    if (typeof adminToken === "string" && (adminToken.startsWith("sess_admin_") || adminToken === "[REDACTED_HISTORICAL_MASTER_KEY_A]")) {
-      (req as any).adminSession = {
-        token: adminToken,
-        validatedAt: new Date().toISOString(),
-      };
-      return next();
+    const resolved = await resolveAdminSession(adminToken);
+    if (!resolved) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        messageNepali: "सर्भर-पक्ष सुरक्षा अस्वीकार: अमान्य वा म्याद सकिएको प्रशासकीय टोकन। अधिकार जाँच असफल भयो।",
+      });
     }
 
-    return res.status(403).json({
-      success: false,
-      error: "Forbidden",
-      messageNepali: "सर्भर-पक्ष सुरक्षा अस्वीकार: अमान्य वा म्याद सकिएको प्रशासकीय टोकन। अधिकार जाँच असफल भयो।",
-    });
+    if (resolved.isNonAdminUser) {
+      return res.status(403).json({
+        success: false,
+        error: "Forbidden",
+        messageNepali: "निषेध (403 Forbidden): साधारण प्रयोगकर्तालाई प्रशासनिक कार्य गर्ने अधिकार छैन।",
+      });
+    }
+
+    (req as any).adminSession = resolved;
+    (req as any).currentAdminToken = adminToken;
+    return next();
   };
 
   // Server-side Admin Auth Verify Endpoint
-  app.post("/api/admin/verify-token", (req, res) => {
-    const { token } = req.body;
-    if (token && (token.startsWith("sess_admin_") || token === "[REDACTED_HISTORICAL_MASTER_KEY_A]")) {
-      return res.json({
-        valid: true,
-        authenticatedAt: new Date().toISOString(),
-        role: "super_admin",
-        permissions: ["manage_users", "approve_payments", "system_config", "audit_logs"],
+  app.post("/api/admin/verify-token", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    const token = String(
+      req.body.token ||
+      req.headers["x-admin-token"] ||
+      req.headers["x-superadmin-token"] ||
+      (authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : "")
+    ).trim();
+
+    if (!token) {
+      return res.status(401).json({
+        valid: false,
+        error: "Token is required",
+        messageNepali: "प्रशासकीय टोकन अनिवार्य छ।",
       });
     }
-    return res.status(401).json({
-      valid: false,
-      error: "Invalid or expired admin authorization token",
+
+    const resolved = await resolveAdminSession(token);
+    if (!resolved) {
+      return res.status(401).json({
+        valid: false,
+        error: "Invalid or expired admin authorization token",
+        messageNepali: "अमान्य वा म्याद सकिएको प्रशासकीय टोकन।",
+      });
+    }
+
+    if (resolved.isNonAdminUser) {
+      return res.status(403).json({
+        valid: false,
+        error: "Forbidden: Session lacks administrative role",
+        messageNepali: "निषेध: यो खातामा प्रशासनिक अधिकार छैन।",
+      });
+    }
+
+    const isSuper = resolved.role === "SUPER_ADMIN" || resolved.role === "super_admin";
+    return res.json({
+      valid: true,
+      authenticatedAt: new Date().toISOString(),
+      role: isSuper ? "super_admin" : resolved.role.toLowerCase(),
+      adminId: resolved.adminId,
+      username: resolved.username,
+      permissions: isSuper
+        ? ["manage_users", "approve_payments", "system_config", "audit_logs", "manage_admins", "ALL", "*"]
+        : resolved.permissions,
+      messageNepali: "प्रशासक सत्र सफलतापूर्वक प्रमाणित भयो।",
     });
   });
 
   // Server-side Protected Admin Action Endpoint
-  app.post("/api/admin/execute-protected-action", requireAdminAuth, (req, res) => {
-    const { actionType, details } = req.body;
-    console.log(`[AdminAuth Server Security] Action '${actionType}' authorized and processed by server for session:`, (req as any).adminSession);
+  app.post("/api/admin/execute-protected-action", requireAdminAuth, async (req, res) => {
+    try {
+      const { actionType, details } = req.body;
+      const admin = (req as any).adminSession;
 
-    return res.json({
-      success: true,
-      actionType,
-      processedByServerAt: new Date().toISOString(),
-      securityVerification: "Passed AdminAuth Server Middleware Check",
-    });
+      if (!actionType) {
+        return res.status(400).json({ success: false, error: "Missing actionType" });
+      }
+
+      // High-privilege actions require SUPER_ADMIN role
+      const superAdminActions = ["SYSTEM_RESET", "PURGE_USERS", "DATA_RESET", "ROTATE_KEYS", "UPDATE_CONFIG", "MUTATE_ADMINS"];
+      if (superAdminActions.includes(String(actionType).toUpperCase())) {
+        const isSuper = admin.role === "SUPER_ADMIN" || admin.role === "super_admin";
+        if (!isSuper) {
+          return res.status(403).json({
+            success: false,
+            error: "यो उच्च-स्तरीय कार्यका लागि Super Admin अनुमति आवश्यक छ।"
+          });
+        }
+      }
+
+      console.log(`[AdminAuth Server Security] Action '${actionType}' authorized and processed by server for session:`, admin);
+
+      if (dbAdapter && typeof dbAdapter.createAuditLog === 'function') {
+        dbAdapter.createAuditLog({
+          action: `ADMIN_ACTION_${String(actionType).toUpperCase()}`,
+          performedBy: admin.username || admin.adminId || 'admin',
+          targetId: details?.targetId || 'system',
+          details: `प्रशासक कार्य: ${actionType} सफलतापूर्वक सम्पन्न भयो।`
+        }).catch((e: any) => console.warn('[AdminAction] Audit error:', e.message));
+      }
+
+      return res.json({
+        success: true,
+        actionType,
+        performedBy: admin.username || admin.adminId,
+        processedByServerAt: new Date().toISOString(),
+        securityVerification: "Passed AdminAuth Server Middleware Check",
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Server-side News Editor Magic Link Generator Endpoint
@@ -7265,14 +7496,45 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
     try {
       const { recipientName, recipientEmail, recipientPhone, validityDays = 7, note } = req.body;
 
-      if (!recipientName) {
+      if (!recipientName || !String(recipientName).trim()) {
         return res.status(400).json({ error: "Missing recipientName" });
       }
 
-      // Generate random secure hex token
-      const randomBytes = Array.from({ length: 32 }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join('');
-      const token = `edtok_${Date.now()}_${randomBytes}`;
-      const expiresAt = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000).toISOString();
+      const days = Math.max(1, Math.min(30, Number(validityDays) || 7));
+      const randomBytesHex = crypto.randomBytes(32).toString('hex');
+      const token = `edtok_${Date.now()}_${randomBytesHex}`;
+      const now = new Date();
+      const expiresAtTimestamp = Date.now() + days * 24 * 60 * 60 * 1000;
+      const expiresAt = new Date(expiresAtTimestamp).toISOString();
+
+      const admin = (req as any).adminSession;
+      const createdBy = admin?.username || admin?.adminId || "admin";
+
+      const tokenRecord: EditorMagicTokenRecord = {
+        token,
+        recipientName: String(recipientName).trim(),
+        recipientEmail: recipientEmail ? String(recipientEmail).trim() : undefined,
+        recipientPhone: recipientPhone ? String(recipientPhone).trim() : undefined,
+        issuedAt: now.toISOString(),
+        expiresAt,
+        expiresAtTimestamp,
+        isRevoked: false,
+        createdBy,
+        note: note ? String(note).trim() : undefined,
+      };
+
+      editorMagicTokensMap.set(token, tokenRecord);
+      saveEditorMagicTokens(Array.from(editorMagicTokensMap.values()));
+
+      if (dbAdapter && typeof dbAdapter.createAuditLog === 'function') {
+        dbAdapter.createAuditLog({
+          action: "MAGIC_LINK_GENERATED",
+          performedBy: createdBy,
+          targetId: tokenRecord.recipientName,
+          details: `समाचार सम्पादक म्याजिक लिङ्क सिर्जना गरियो: ${tokenRecord.recipientName} (म्याद: ${days} दिन)`
+        }).catch((e: any) => console.warn('[MagicLink] Audit error:', e.message));
+      }
+
       const host = req.get('host') || 'localhost:3000';
       const protocol = req.protocol || 'http';
       const activeLinkUrl = `${protocol}://${host}/?admin_token=${token}&section=samachar_editor`;
@@ -7281,12 +7543,12 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
         success: true,
         token,
         activeLinkUrl,
-        recipientName,
-        recipientEmail,
-        recipientPhone,
+        recipientName: tokenRecord.recipientName,
+        recipientEmail: tokenRecord.recipientEmail,
+        recipientPhone: tokenRecord.recipientPhone,
         expiresAt,
-        note,
-        messageNepali: `समाचार सम्पादक सक्रिय लिङ्क सफलतापूर्वक सिर्जना गरियो। म्याद: ${validityDays} दिन`,
+        note: tokenRecord.note,
+        messageNepali: `समाचार सम्पादक सक्रिय लिङ्क सफलतापूर्वक सिर्जना गरियो। म्याद: ${days} दिन`,
       });
     } catch (err: any) {
       console.error("Magic link generation error:", err);
@@ -7301,20 +7563,51 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
       return res.status(400).json({ valid: false, error: "Token is required" });
     }
 
-    if (token.startsWith("edtok_") || token === "[REDACTED_HISTORICAL_MASTER_KEY_B]") {
-      return res.json({
-        valid: true,
-        role: "NEWS_EDITOR",
-        permissions: ["create_samachar", "edit_samachar", "delete_samachar", "publish_samachar"],
-        verifiedAt: new Date().toISOString(),
-        messageNepali: "सक्रिय लिङ्क सफलतापूर्वक प्रमाणीकरण भयो।",
+    const cleanToken = token.trim();
+    const tokenRecord = editorMagicTokensMap.get(cleanToken);
+
+    if (!tokenRecord) {
+      return res.status(401).json({
+        valid: false,
+        error: "Invalid news editor token",
+        messageNepali: "यो सक्रिय लिङ्क प्रणालीमा फेला परेन वा अमान्य छ।",
       });
     }
 
-    return res.status(401).json({
-      valid: false,
-      error: "Invalid or expired news editor token",
-      messageNepali: "यो सक्रिय लिङ्क अमान्य वा म्याद सकिएको छ।",
+    if (tokenRecord.isRevoked) {
+      return res.status(401).json({
+        valid: false,
+        error: "Revoked news editor token",
+        messageNepali: "यो सक्रिय लिङ्क रद्द गरिएको छ।",
+      });
+    }
+
+    if (Date.now() > tokenRecord.expiresAtTimestamp) {
+      return res.status(401).json({
+        valid: false,
+        error: "Expired news editor token",
+        messageNepali: "यो सक्रिय लिङ्कको म्याद समाप्त भइसकेको छ।",
+      });
+    }
+
+    if (tokenRecord.usedAt) {
+      return res.status(401).json({
+        valid: false,
+        error: "Token already activated",
+        messageNepali: "यो सक्रिय लिङ्क पहिल्यै प्रयोग भइसकेको छ। म्याजिक लिङ्क एक पटक मात्र प्रयोग गर्न सकिन्छ।",
+      });
+    }
+
+    tokenRecord.usedAt = new Date().toISOString();
+    saveEditorMagicTokens(Array.from(editorMagicTokensMap.values()));
+
+    return res.json({
+      valid: true,
+      role: "NEWS_EDITOR",
+      recipientName: tokenRecord.recipientName,
+      permissions: ["create_samachar", "edit_samachar", "delete_samachar", "publish_samachar"],
+      verifiedAt: new Date().toISOString(),
+      messageNepali: "सक्रिय लिङ्क सफलतापूर्वक प्रमाणीकरण भयो।",
     });
   });
 

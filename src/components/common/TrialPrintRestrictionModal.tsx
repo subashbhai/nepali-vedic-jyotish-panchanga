@@ -39,16 +39,12 @@ export const TrialPrintRestrictionModal: React.FC<TrialPrintRestrictionModalProp
     }
 
     const validKeys = [
-      'balananda',
-      'admin',
-      '[REDACTED_HISTORICAL_MASTER_KEY_B]',
-      '[REDACTED_HISTORICAL_MASTER_KEY_A]',
       'BALANANDA-FULL-ACCESS-2081',
       'VEDIC-JYOTISH-PREMIUM-UNLIMITED',
       'JYOTISH-VASTU-LIFETIME-PRO'
     ];
 
-    if (validKeys.includes(clean) || clean.toLowerCase().startsWith('balananda-') || clean.length >= 10) {
+    if (validKeys.includes(clean)) {
       localStorage.setItem(SOFTWARE_FULL_ACCESS_KEY, 'true');
       localStorage.setItem('balananda_software_license_key', clean);
       window.dispatchEvent(new CustomEvent('software-full-access-updated', { detail: { hasFullAccess: true } }));
