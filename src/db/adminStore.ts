@@ -68,7 +68,7 @@ const STORAGE_KEY_ADMIN_AUDIT_LOGS = 'sukdev_admin_audit_logs_v1';
 const STORAGE_KEY_ADMIN_NOTIFICATIONS = 'sukdev_admin_notifications_v1';
 const STORAGE_KEY_FAILED_LOGIN = 'sukdev_admin_failed_logins_v1';
 
-// Initial Default Super Admin Credentials (username: admin, secret: [REDACTED_HISTORICAL_SUPERADMIN_PASSWORD])
+// Initial Default Super Admin Configuration
 import { verifyPassword, hashPasswordSync } from '../utils/cryptoUtils';
 
 export const DEFAULT_ADMIN_ACCOUNTS: AdminAccount[] = [

@@ -1,7 +1,7 @@
 // Production live verification script
 const API_URL = 'https://balananda-api.onrender.com';
 const ADMIN_USER = 'admin';
-const ADMIN_PASS = '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]';
+const ADMIN_PASS = 'Balananda#Vaidik2083!SuperAdmin@SecureKey$';
 
 async function main() {
   console.log(`Checking live health at ${API_URL}/api/health ...`);

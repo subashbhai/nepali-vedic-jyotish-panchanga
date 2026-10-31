@@ -30,6 +30,58 @@ async function startServer() {
     console.log('[Database] Central persistence engine initialized successfully.');
     await authEngine.syncWithDatabase(dbAdapter);
     console.log('[Database] Synchronized auth engine with authoritative database.');
+
+    // Production Security Hardening: Purge legacy Super Admin sessions from active_sessions table on startup
+    try {
+      if ((dbAdapter as any).pool) {
+        await (dbAdapter as any).pool.query(
+          "DELETE FROM active_sessions WHERE role = 'SUPER_ADMIN' OR role = 'super_admin' OR user_id = 'admin_super_01';"
+        );
+        console.log('[Security] Purged legacy Super Admin sessions from active_sessions table on startup.');
+      }
+    } catch (purgeErr: any) {
+      console.warn('[Security] Super admin session purge notice:', purgeErr.message);
+    }
+
+    // Provision / synchronize admin_super_01 in PostgreSQL users table with rotated strong password hash
+    try {
+      const ROTATED_SECURE_ADMIN_PASS = "Balananda#Vaidik2083!SuperAdmin@SecureKey$";
+      const adminPass = process.env.SUPERADMIN_PASSWORD ? String(process.env.SUPERADMIN_PASSWORD).trim() : ROTATED_SECURE_ADMIN_PASS;
+      const { hashUserPassword } = await import("./src/server/authEngine");
+      const hashedPass = hashUserPassword(adminPass);
+      const existingAdmin = await dbAdapter.getUserById("admin_super_01");
+      if (!existingAdmin) {
+        await dbAdapter.createUser({
+          id: "admin_super_01",
+          customerId: "प्रशासक-२०८३-०००१",
+          username: "admin",
+          phone: "9800000000",
+          fullName: "मुख्य प्रशासक (Super Admin)",
+          address: "काठमाडौँ, नेपाल",
+          email: "admin@balanandajyotish.com.np",
+          passwordHash: hashedPass,
+          role: "SUPER_ADMIN",
+          roleNameNepali: "मुख्य प्रशासक (Super Admin)",
+          userCategory: "professional",
+          accountStatus: "active",
+          mobileVerified: true,
+          emailVerified: true,
+          createdAtISO: new Date().toISOString(),
+          createdAtBS: "२०८३",
+          permissions: ["all"]
+        });
+        console.log('[Security] Provisioned authoritative admin_super_01 in database with rotated password hash.');
+      } else {
+        await dbAdapter.updateUser("admin_super_01", {
+          passwordHash: hashedPass,
+          role: "SUPER_ADMIN",
+          userCategory: "professional"
+        });
+        console.log('[Security] Synchronized admin_super_01 in database with rotated password hash.');
+      }
+    } catch (adminSyncErr: any) {
+      console.warn('[Security] Admin user database sync notice:', adminSyncErr.message);
+    }
   } catch (err: any) {
     console.error('[Database Fatal] Persistence engine initialization failed:', err.message);
     if (process.env.NODE_ENV === 'production') {
@@ -181,10 +233,48 @@ async function startServer() {
       const cleanUser = String(username || "").trim().toLowerCase();
       const cleanPass = String(password || "").trim();
 
-      // Check valid superadmin credentials
-      const isValid =
-        (cleanUser === "admin" && (cleanPass === "[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]" || cleanPass === "[REDACTED_HISTORICAL_DEV_PASSWORD]" || cleanPass === "admin")) ||
-        (cleanUser === "superadmin" && (cleanPass === "[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]" || cleanPass === "[REDACTED_HISTORICAL_DEV_PASSWORD]"));
+      // 1. Explicitly reject all known exposed/insecure legacy passwords
+      const REVOKED_EXPOSED_PASSWORDS = new Set([
+        "[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]",
+        "[REDACTED_HISTORICAL_DEV_PASSWORD]",
+        "admin",
+        "admin123"
+      ]);
+      if (REVOKED_EXPOSED_PASSWORDS.has(cleanPass)) {
+        const currentCount = (failed?.count || 0) + 1;
+        const lockedUntil = currentCount >= 5 ? Date.now() + 10 * 60 * 1000 : 0;
+        superAdminFailedAttempts.set(clientIp, { count: currentCount, lockedUntil });
+        return res.status(401).json({
+          success: false,
+          error: "अवैध प्रमाणिकरण: पुरानो पासवर्ड सुरक्षा जोखिमका कारण खारेज (revoked) गरिएको छ। कृपया नयाँ अधिकृत पासवर्ड प्रयोग गर्नुहोस्।"
+        });
+      }
+
+      // 2. Authoritative check: environment variables + rotated strong password
+      const configuredUser = (process.env.SUPERADMIN_USERNAME || "admin").trim().toLowerCase();
+      const isAllowedUser = cleanUser === configuredUser || cleanUser === "superadmin" || cleanUser === "admin";
+
+      const ROTATED_SECURE_ADMIN_PASS = "Balananda#Vaidik2083!SuperAdmin@SecureKey$";
+      const validPass = process.env.SUPERADMIN_PASSWORD ? String(process.env.SUPERADMIN_PASSWORD).trim() : ROTATED_SECURE_ADMIN_PASS;
+
+      // 3. Check against authoritative database user (Scrypt salted hash)
+      let dbSuperAdminMatch = false;
+      try {
+        let dbAdmin = await dbAdapter.getUserByUsername("admin");
+        if (!dbAdmin) {
+          dbAdmin = await dbAdapter.getUserById("admin_super_01");
+        }
+        if (dbAdmin && dbAdmin.passwordHash && (dbAdmin.role === 'SUPER_ADMIN' || dbAdmin.role === 'super_admin')) {
+          const { verifyUserPassword } = await import("./src/server/authEngine");
+          if (verifyUserPassword(cleanPass, dbAdmin.passwordHash)) {
+            dbSuperAdminMatch = true;
+          }
+        }
+      } catch (dbErr: any) {
+        // Continue to env check
+      }
+
+      const isValid = isAllowedUser && (cleanPass === validPass || dbSuperAdminMatch);
 
       if (!isValid) {
         const currentCount = (failed?.count || 0) + 1;
@@ -375,6 +465,113 @@ async function startServer() {
       }
 
       return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/superadmin/change-password (Super Admin: Rotate Password in Database)
+  app.post("/api/superadmin/change-password", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const { newPassword, confirmPassword } = req.body;
+      if (!newPassword || newPassword.length < 10) {
+        return res.status(400).json({
+          success: false,
+          error: "नयाँ पासवर्ड कम्तीमा १० अक्षरको हुनुपर्छ।"
+        });
+      }
+      if (confirmPassword && newPassword !== confirmPassword) {
+        return res.status(400).json({
+          success: false,
+          error: "पासवर्ड र पुष्टि पासवर्ड मिलेन।"
+        });
+      }
+      const REVOKED_EXPOSED_PASSWORDS = new Set([
+        "[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]",
+        "[REDACTED_HISTORICAL_DEV_PASSWORD]",
+        "admin",
+        "admin123"
+      ]);
+      if (REVOKED_EXPOSED_PASSWORDS.has(newPassword)) {
+        return res.status(400).json({
+          success: false,
+          error: "यो पासवर्ड सुरक्षा जोखिमका कारण प्रयोग गर्न मिल्दैन।"
+        });
+      }
+
+      const { hashUserPassword } = await import("./src/server/authEngine");
+      const hashed = hashUserPassword(newPassword);
+
+      const existingAdmin = await dbAdapter.getUserById("admin_super_01");
+      if (existingAdmin) {
+        await dbAdapter.updateUser("admin_super_01", { passwordHash: hashed });
+      } else {
+        await dbAdapter.createUser({
+          id: "admin_super_01",
+          customerId: "प्रशासक-२०८३-०००१",
+          username: "admin",
+          phone: "9800000000",
+          fullName: "मुख्य प्रशासक (Super Admin)",
+          address: "काठमाडौँ, नेपाल",
+          email: "admin@balanandajyotish.com.np",
+          passwordHash: hashed,
+          role: "SUPER_ADMIN",
+          roleNameNepali: "मुख्य प्रशासक (Super Admin)",
+          userCategory: "professional",
+          accountStatus: "active",
+          mobileVerified: true,
+          emailVerified: true,
+          createdAtISO: new Date().toISOString(),
+          createdAtBS: "२०८३",
+          permissions: ["all"]
+        });
+      }
+
+      await dbAdapter.createAuditLog({
+        action: "SUPERADMIN_PASSWORD_ROTATED",
+        performedBy: (req as any).superAdmin?.username || "admin",
+        targetId: "admin_super_01",
+        details: "सुपरएडमिन पासवर्ड सुरक्षित रूपमा परिवर्तन (rotate) गरियो।"
+      });
+
+      return res.json({
+        success: true,
+        message: "सुपरएडमिन पासवर्ड सफलतापूर्वक परिवर्तन गरियो।"
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/superadmin/sessions/revoke-all (Super Admin: Invalidate all Super Admin sessions)
+  app.post("/api/superadmin/sessions/revoke-all", requireSuperAdminAuth, async (req, res) => {
+    try {
+      const currentToken = (req as any).currentAdminToken;
+      const preserveCurrent = req.body?.preserveCurrent !== false;
+
+      for (const [tok] of superAdminSessions.entries()) {
+        if (!preserveCurrent || tok !== currentToken) {
+          superAdminSessions.delete(tok);
+        }
+      }
+
+      if (dbAdapter && (dbAdapter as any).pool) {
+        if (preserveCurrent && currentToken) {
+          await (dbAdapter as any).pool.query(
+            "DELETE FROM active_sessions WHERE (role = 'SUPER_ADMIN' OR role = 'super_admin' OR user_id = 'admin_super_01') AND token != $1;",
+            [currentToken]
+          );
+        } else {
+          await (dbAdapter as any).pool.query(
+            "DELETE FROM active_sessions WHERE role = 'SUPER_ADMIN' OR role = 'super_admin' OR user_id = 'admin_super_01';"
+          );
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: "सबै अन्य सुपरएडमिन सत्रहरू सफलतापूर्वक खारेज गरियो।"
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -1005,9 +1202,9 @@ async function startServer() {
           }
           if (!authenticatedUser && dbAdapter) {
             try {
-              const dbSess = await dbAdapter.findSessionByToken(token);
-              if (dbSess) {
-                authenticatedUser = await dbAdapter.findUserById(dbSess.userId);
+              const dbSess = await dbAdapter.getSession(token);
+              if (dbSess && dbSess.userId) {
+                authenticatedUser = await dbAdapter.getUserById(dbSess.userId);
               }
             } catch {}
           }
@@ -1099,9 +1296,9 @@ async function startServer() {
           }
           if (!authenticatedUser && dbAdapter) {
             try {
-              const dbSess = await dbAdapter.findSessionByToken(token);
-              if (dbSess) {
-                authenticatedUser = await dbAdapter.findUserById(dbSess.userId);
+              const dbSess = await dbAdapter.getSession(token);
+              if (dbSess && dbSess.userId) {
+                authenticatedUser = await dbAdapter.getUserById(dbSess.userId);
               }
             } catch {}
           }
@@ -3743,7 +3940,7 @@ async function startServer() {
 
   // Helper to sanitize & enrich user details for Super Admin (ensuring no passwords leaked)
   function sanitizeAndEnrichUser(u: any, leads: any[], licenses: any[], memberships: any[] = [], activeSessionUserIds?: Set<string>, payments: any[] = []) {
-    const effectiveMemberships = (memberships && memberships.length > 0) ? memberships : membershipEngine.getMemberships();
+    const effectiveMemberships = (memberships && memberships.length > 0) ? memberships : membershipEngine.listMemberships();
     const cleanPhone = String(u.phone || u.username || "").replace(/\D/g, "").slice(-10);
     const matchingLead = leads.find(l => {
       const leadPhone = String(l.mobile || "").replace(/\D/g, "").slice(-10);

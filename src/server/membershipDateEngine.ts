@@ -1,4 +1,4 @@
-import { convertADToBSFull } from '../utils/bsCalendarData';
+import { convertADToBSFull } from '../utils/bsCalendarData.ts';
 
 export type PlanDurationType =
   | '1_year'

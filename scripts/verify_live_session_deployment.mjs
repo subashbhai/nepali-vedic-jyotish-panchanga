@@ -69,7 +69,7 @@ try {
 }
 
 // STEP 3: Authenticate Super Admin
-console.log('\n3. Authenticating Super Admin (admin / [REDACTED_HISTORICAL_SUPERADMIN_PASSWORD])...');
+console.log('\n3. Authenticating Super Admin (admin / Balananda#Vaidik2083!SuperAdmin@SecureKey$)...');
 let adminToken = '';
 try {
   const loginRes = await fetchUncached('/api/superadmin/login', {
@@ -77,7 +77,7 @@ try {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       username: 'admin',
-      password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]'
+      password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
     })
   });
   const loginData = await loginRes.json();

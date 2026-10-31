@@ -268,7 +268,7 @@ async function runTests() {
       path: '/api/superadmin/login',
       body: {
         username: 'admin',
-        password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]'
+        password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
       }
     });
 

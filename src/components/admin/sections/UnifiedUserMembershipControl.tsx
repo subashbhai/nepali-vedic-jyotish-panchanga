@@ -1560,8 +1560,8 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
                   const confirmedAmount = canonical.confirmedPaymentAmountNPR || u.paymentAmountNPR || 0;
 
                   // Resolve any pending or rejected purchase lead
-                  const pendingLead = u.purchaseLead?.status === 'PURCHASE_PENDING'
-                    ? u.purchaseLead
+                  const pendingLead = (u as any).purchaseLead?.status === 'PURCHASE_PENDING'
+                    ? (u as any).purchaseLead
                     : u.purchaseHistory?.find((p: any) => p.status === 'PURCHASE_PENDING');
                   const rejectedLead = u.purchaseHistory?.find((p: any) => p.status === 'PURCHASE_REJECTED');
 

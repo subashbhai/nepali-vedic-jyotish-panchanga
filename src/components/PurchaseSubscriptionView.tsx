@@ -18,8 +18,10 @@ import {
   ESEWA_RECIPIENT_NUMBER_EN,
   calculatePlatformPrice,
   getPlatformNameNepali,
+  formatNPRCurrency,
   toNepaliDigits,
-  formatNPRCurrency
+  generateTxnNumber,
+  generateReceiptNumber
 } from '../db/subscriptionStore';
 import { ReceiptPrintModal } from './ReceiptPrintModal';
 import { OrganizationProfile } from '../types/astrology';
@@ -162,6 +164,10 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
           phone: cleanPhone || phone,
           unlocked: true,
           grantedPeriod: 'lifetime' as const,
+          duration: 'lifetime',
+          startsAtISO: nowISO,
+          startsAtBS: todayBS,
+          updatedAtISO: nowISO,
           grantedAtISO: nowISO,
           grantedAtBS: todayBS,
           expiresAtTimestamp: undefined,
@@ -170,8 +176,8 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
           status: 'unlocked' as const,
           amountNPR: 10000
         };
-        if (idx >= 0) existingLicenses[idx] = lic;
-        else existingLicenses.unshift(lic);
+        if (idx >= 0) existingLicenses[idx] = lic as any;
+        else existingLicenses.unshift(lic as any);
       });
       saveLocalLicenses(existingLicenses);
 
@@ -185,7 +191,7 @@ export const PurchaseSubscriptionView: React.FC<PurchaseSubscriptionViewProps> =
         fullName,
         address: esewaUserAddress.trim() || 'काठमाडौँ',
         mobile: cleanPhone || phone,
-        email: session?.email || '',
+        email: (session as any)?.email || '',
         whatsapp: esewaUserWhatsapp.trim() || cleanPhone || phone,
         deviceFingerprint: getDeviceFingerprint(),
         status: 'PURCHASE_APPROVED',

@@ -16,7 +16,7 @@ const TEST_USER = {
 };
 
 const SUPER_ADMIN = {
-  password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]'
+  password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
 };
 
 async function runReadOnlyAudit() {

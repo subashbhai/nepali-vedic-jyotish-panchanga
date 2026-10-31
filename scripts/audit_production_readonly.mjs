@@ -6,7 +6,7 @@
 const API_BASE = 'https://balananda-api.onrender.com';
 const ADMIN_CREDENTIALS = {
   username: 'admin',
-  password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]'
+  password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
 };
 
 async function readOnlyAudit() {

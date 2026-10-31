@@ -10,7 +10,7 @@ const TIMEOUT_MS = 10000;
 
 // Read credentials securely from environment variables, with project fallbacks
 const ADMIN_USER = process.env.SUPERADMIN_USERNAME || 'admin';
-const ADMIN_PASS = process.env.SUPERADMIN_PASSWORD || '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]';
+const ADMIN_PASS = process.env.SUPERADMIN_PASSWORD || 'Balananda#Vaidik2083!SuperAdmin@SecureKey$';
 
 // Fresh, uniquely identifiable test user credentials for this verified diagnostic run
 const TEST_PHONE = '9841' + Math.floor(100000 + Math.random() * 900000);

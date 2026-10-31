@@ -73,38 +73,7 @@ export const SuperAdminLoginView: React.FC<SuperAdminLoginViewProps> = ({
       onLoginSuccess(session);
     } catch (err: any) {
       console.error('Superadmin login error:', err);
-      // Fallback local verification if server is unreachable
-      if (
-        (cleanUser.toLowerCase() === 'admin' && (cleanPass === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || cleanPass === '[REDACTED_HISTORICAL_DEV_PASSWORD]' || cleanPass === 'admin'))
-      ) {
-        const fallbackSession: SuperAdminSessionState = {
-          token: `superadmin_local_token_${Date.now()}`,
-          adminId: 'admin_super_01',
-          username: cleanUser,
-          fullName: 'मुख्य प्रशासक (Super Admin)',
-          role: 'super_admin',
-          roleNameNepali: 'मुख्य प्रशासक (Super Admin)',
-          permissions: ['all'],
-          loginTimeISO: new Date().toISOString(),
-          lastActivityISO: new Date().toISOString()
-        };
-        setSuperAdminSession(fallbackSession);
-        try {
-          setAdminSession({
-            adminId: fallbackSession.adminId,
-            username: fallbackSession.username,
-            fullName: fallbackSession.fullName,
-            role: 'super_admin',
-            roleNameNepali: fallbackSession.roleNameNepali,
-            permissions: ['*'],
-            loginTimeISO: fallbackSession.loginTimeISO,
-            lastActivityISO: fallbackSession.lastActivityISO
-          });
-        } catch {}
-        onLoginSuccess(fallbackSession);
-      } else {
-        setErrorMsg(err.message || 'लगइन प्रमाणिकरण असफल भयो। सही पासवर्ड राख्नुहोस्।');
-      }
+      setErrorMsg(err.message || 'लगइन प्रमाणिकरण असफल भयो। कृपया अधिकृत प्रमाणिकरण विवरण प्रयोग गर्नुहोस्।');
     } finally {
       setIsLoading(false);
     }

@@ -48,7 +48,7 @@ async function runUnifiedControlSuite() {
     path: '/api/superadmin/login',
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
-  }, { username: 'admin', password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' });
+  }, { username: 'admin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' });
 
   assert(loginRes.status === 200 && loginRes.data.success, 'SuperAdmin login successful');
   const token = loginRes.data.token || loginRes.data.session?.token || 'superadmin-session-active';

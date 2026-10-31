@@ -62,6 +62,7 @@ import {
   OrganizationProfile
 } from '../../types/astrology';
 import { calculatePanchanga } from '../../utils/panchangaEngine';
+import { toDevanagariNumerals } from '../../utils/nepaliCalendar';
 import { DailyWhatsAppDispatchManager } from './DailyWhatsAppDispatchManager';
 
 import {
@@ -593,14 +594,13 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       console.warn('[SuperAdmin Login] Remote server offline or unreachable, checking local credentials:', netErr);
     }
 
-    // 2. Offline / Local fallback check
-    const isMasterAdmin = cleanUser === 'admin' && (cleanPass === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || cleanPass === '[REDACTED_HISTORICAL_DEV_PASSWORD]' || cleanPass === 'admin');
+    // 2. Offline / Local fallback check (Strict verification against stored accounts, no hardcoded secrets)
     const accounts = getStoredAdminAccounts();
     const found = accounts.find(
       a => a.username.toLowerCase() === cleanUser && a.isActive
     );
 
-    if (isMasterAdmin || (found && (cleanPass === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || cleanPass === 'admin' || cleanPass === found.passwordHash))) {
+    if (found && (cleanPass === found.passwordHash || (found.passwordHash && cleanPass === found.passwordHash))) {
       const fallbackToken = `superadmin_offline_token_${Date.now()}`;
       localStorage.setItem('balananda_superadmin_jwt_v2', fallbackToken);
       localStorage.setItem('balananda_superadmin_auth_token', fallbackToken);
@@ -608,12 +608,12 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       sessionStorage.setItem('superadmin_token', fallbackToken);
 
       const newSession: AdminSession = {
-        adminId: found ? found.id : 'admin_super_01',
-        username: found ? found.username : 'admin',
-        fullName: found ? found.fullName : 'मुख्य प्रशासक (Super Admin)',
-        role: (found ? found.role : 'super_admin') as any,
-        roleNameNepali: found ? found.roleNameNepali : 'मुख्य प्रशासक (Super Admin)',
-        permissions: found ? found.permissions : ['*'],
+        adminId: found.id || 'admin_super_01',
+        username: found.username || 'admin',
+        fullName: found.fullName || 'मुख्य प्रशासक (Super Admin)',
+        role: (found.role || 'super_admin') as any,
+        roleNameNepali: found.roleNameNepali || 'मुख्य प्रशासक (Super Admin)',
+        permissions: found.permissions || ['*'],
         loginTimeISO: new Date().toISOString(),
         lastActivityISO: new Date().toISOString()
       };
@@ -631,7 +631,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
       );
       loadAllData();
     } else {
-      setLoginError('अवैध प्रयोगकर्ता नाम वा पासवर्ड! (Default: admin / [REDACTED_HISTORICAL_SUPERADMIN_PASSWORD])');
+      setLoginError('अवैध प्रयोगकर्ता नाम वा पासवर्ड! कृपया अधिकृत प्रमाणिकरण विवरण प्रयोग गर्नुहोस्।');
     }
   };
 
@@ -950,7 +950,7 @@ export const SuperAdminControlCenter: React.FC<SuperAdminControlCenterProps> = (
 
           <div className="text-center pt-2 border-t border-stone-800 space-y-2">
             <p className="text-[10px] text-stone-500">
-              विकासकर्ता डिफल्ट साँचो: <code className="text-amber-400 font-mono">admin</code> / <code className="text-amber-400 font-mono">[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]</code>
+              🔒 सुरक्षित अधिकृत सुपरएडमिन प्रमाणिकरण आवश्यक छ।
             </p>
             {onClose && (
               <div>

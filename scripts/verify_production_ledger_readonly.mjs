@@ -50,16 +50,26 @@ async function runReadOnlyInspection() {
   console.log('Timestamp:', new Date().toISOString());
   console.log('========================================================================\n');
 
-  // Step 1: Authenticate Super Admin
+  // Validate environment variables strictly (never fall back to hardcoded production credentials)
+  const superAdminUser = process.env.SUPERADMIN_USERNAME?.trim();
+  const superAdminPass = process.env.SUPERADMIN_PASSWORD?.trim();
+
+  if (!superAdminUser || !superAdminPass) {
+    console.error('ERROR: Missing SUPERADMIN_USERNAME / SUPERADMIN_PASSWORD environment variables.');
+    console.error('Super Admin credentials must be supplied via environment variables for security.');
+    process.exit(1);
+  }
+
+  // Step 1: Authenticate Super Admin (Credentials provided strictly via environment variables)
   const loginRes = await fetchJson('/api/superadmin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: { username: 'admin', password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' }
+    body: { username: superAdminUser, password: superAdminPass }
   });
 
   const token = loginRes.data?.token;
   if (!token) {
-    console.error('Super Admin authentication failed:', loginRes.data);
+    console.error('Super Admin authentication failed:', loginRes.data?.error || loginRes.status);
     process.exit(1);
   }
   console.log('✓ Super Admin authenticated successfully (Read-Only Session).\n');

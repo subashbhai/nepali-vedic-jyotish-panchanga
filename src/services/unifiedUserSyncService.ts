@@ -562,6 +562,7 @@ class UnifiedUserSyncService {
           const root = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
 
           if (!root || !root.type) return;
+          const parsed = root;
 
           const payload = root.payload || {};
           const eventType = root.type;

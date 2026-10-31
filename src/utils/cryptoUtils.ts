@@ -57,10 +57,5 @@ export function verifyPassword(plainTextPassword: string, storedHash: string): b
   // Fallback sync hash match
   if (simpleHash(cleanInput) === cleanStored) return true;
 
-  // Specific development credentials override check for safety
-  if (cleanInput === '[REDACTED_HISTORICAL_DEV_PASSWORD]' && (cleanStored === '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' || cleanStored === '[REDACTED_HISTORICAL_DEV_PASSWORD]')) {
-    return true;
-  }
-
   return false;
 }

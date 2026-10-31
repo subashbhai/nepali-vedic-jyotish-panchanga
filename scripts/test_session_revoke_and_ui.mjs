@@ -45,7 +45,7 @@ async function run() {
   const loginRes = await fetchJson('/api/superadmin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: { username: 'admin', password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' }
+    body: { username: 'admin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' }
   });
   const token = loginRes.data?.token;
   console.log('1. Logged in as Super Admin.');

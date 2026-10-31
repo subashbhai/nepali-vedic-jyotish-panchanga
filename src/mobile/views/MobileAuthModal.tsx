@@ -83,6 +83,7 @@ export const MobileAuthModal: React.FC<MobileAuthModalProps> = ({
       if (res.success && res.user) {
         setSuccessMessage(res.message || 'लगइन सफल भयो!');
         const mobileProfile: MobileUserProfile = {
+          id: res.user.id,
           userId: res.user.id,
           username: res.user.username,
           phone: res.user.phone,
@@ -147,6 +148,7 @@ export const MobileAuthModal: React.FC<MobileAuthModalProps> = ({
       if (res.success && res.user) {
         setSuccessMessage(res.message || 'दर्ता सफल भयो!');
         const mobileProfile: MobileUserProfile = {
+          id: res.user.id,
           userId: res.user.id,
           username: res.user.username,
           phone: res.user.phone,

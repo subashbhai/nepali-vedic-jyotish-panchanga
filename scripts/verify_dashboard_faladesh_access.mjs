@@ -196,7 +196,7 @@ async function runVerification() {
     const adminLoginRes = await fetch(`${baseUrl}/api/superadmin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]' })
+      body: JSON.stringify({ username: 'admin', password: 'Balananda#Vaidik2083!SuperAdmin@SecureKey$' })
     });
     const adminLoginData = await adminLoginRes.json();
     if (!adminLoginData.success) throw new Error('Super Admin authentication failed');

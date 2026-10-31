@@ -26,5 +26,18 @@
       "vite/client",
       "vite-plugin-pwa/client"
     ]
-  }
+  },
+  "include": [
+    "src",
+    "server.ts",
+    "vite.config.ts",
+    "electron"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist_electron",
+    "data",
+    "scripts"
+  ]
 }

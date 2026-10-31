@@ -18,13 +18,17 @@ export type MobileTab =
 
 export interface MobileUserProfile {
   id: string;
+  userId?: string;
+  username?: string;
   fullName: string;
-  email: string;
+  email?: string;
   phone: string;
-  isPhoneVerified: boolean;
-  isEmailVerified: boolean;
-  role: 'USER' | 'ASTROLOGER' | 'ADMIN';
-  createdAtISO: string;
+  isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
+  role: string;
+  status?: string;
+  token?: string;
+  createdAtISO?: string;
   activeProfileId?: string;
   avatarUrl?: string;
 }
