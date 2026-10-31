@@ -15,7 +15,7 @@ import { culturalMasterStore } from "./src/server/culturalMasterStore";
 import { passwordResetEngine } from "./src/server/passwordResetEngine";
 import { resolveUserEntitlement } from "./src/server/entitlementEngine";
 import { normalizeBirthDateBS, normalizeBirthTime, buildCanonicalBirthProfile } from "./src/utils/birthProfileCanonical";
-import { resolveCanonicalUserState, resolveCanonicalPlan, calculateCanonicalRenewalSchedule, calculateVerifiedLedgerRevenue } from "./src/core/canonicalMembershipPolicy";
+import { resolveCanonicalUserState, resolveCanonicalPlan, calculateCanonicalRenewalSchedule, calculateVerifiedLedgerRevenue, CANONICAL_MEMBERSHIP_PLANS } from "./src/core/canonicalMembershipPolicy";
 
 dotenv.config();
 
@@ -186,7 +186,7 @@ async function startServer() {
     }
 
     // Check trusted custom header for authorized SuperAdmin API calls (CI / cron / backend-to-backend)
-    const customHeader = String(req.headers["x-superadmin-token"] || req.headers["x-admin-role"] || "").trim();
+    const customHeader = String(req.headers["x-superadmin-token"] || "").trim();
     const prodSecret = process.env.SUPERADMIN_SECRET ? String(process.env.SUPERADMIN_SECRET).trim() : null;
 
     if (customHeader) {
@@ -606,18 +606,172 @@ async function startServer() {
   // NATIVE HIGH-SPEED REALTIME SSE (Server-Sent Events) HUB
   // Sub-300ms direct notification delivery across Web, Android, Desktop
   // ==============================================================
-  const sseClients = new Set<express.Response>();
-  const recentEventsLog: Array<{ type: string; payload: any; timestamp: number }> = [];
+  interface SSEClientRegistration {
+    res: express.Response;
+    role: 'SUPER_ADMIN' | 'USER' | 'GUEST';
+    userId?: string;
+    phone?: string;
+    connectedAt: number;
+  }
+
+  const sseClients = new Set<SSEClientRegistration>();
+  const recentEventsLog: Array<{
+    type: string;
+    payload: any;
+    timestamp: number;
+    targetRole?: 'SUPER_ADMIN' | 'USER' | 'PUBLIC';
+    targetUserId?: string;
+    targetPhone?: string;
+  }> = [];
+
+  // Ephemeral single-use tickets for secure EventSource connections without persistent tokens in URLs
+  const realtimeTickets = new Map<string, {
+    role: 'SUPER_ADMIN' | 'USER';
+    userId?: string;
+    phone?: string;
+    expiresAt: number;
+  }>();
+
+  // Helper to resolve client identity from request
+  const resolveRealtimeClientIdentity = async (req: express.Request): Promise<{
+    role: 'SUPER_ADMIN' | 'USER' | 'GUEST';
+    userId?: string;
+    phone?: string;
+  }> => {
+    // 1. Check ticket parameter
+    const ticketParam = req.query.ticket ? String(req.query.ticket).trim() : null;
+    if (ticketParam && realtimeTickets.has(ticketParam)) {
+      const ticketData = realtimeTickets.get(ticketParam)!;
+      realtimeTickets.delete(ticketParam); // Single use
+      if (ticketData.expiresAt >= Date.now()) {
+        return { role: ticketData.role, userId: ticketData.userId, phone: ticketData.phone };
+      }
+    }
+
+    // 2. Check Authorization header or query token
+    const authHeader = req.headers.authorization;
+    const queryToken = req.query.token ? String(req.query.token).trim() : null;
+    const token = (authHeader && authHeader.startsWith("Bearer ")) ? authHeader.split(" ")[1] : queryToken;
+
+    if (!token) {
+      return { role: 'GUEST' };
+    }
+
+    // 3. SuperAdmin session check (memory or DB)
+    if (superAdminSessions.has(token) && (superAdminSessions.get(token)?.expiresAt ?? 0) >= Date.now()) {
+      return { role: 'SUPER_ADMIN', userId: 'admin_super_01' };
+    }
+    if (dbAdapter) {
+      try {
+        const dbSess = await dbAdapter.getSession(token);
+        if (dbSess && (dbSess.role === 'SUPER_ADMIN' || dbSess.role === 'super_admin' || dbSess.userId === 'admin_super_01')) {
+          if (new Date(dbSess.expiresAtISO).getTime() >= Date.now()) {
+            return { role: 'SUPER_ADMIN', userId: dbSess.userId };
+          }
+        }
+      } catch {}
+    }
+
+    // 4. Normal user session check
+    const userSess = userSessions.get(token) || authEngine.validateSession(token);
+    if (userSess) {
+      const cleanPhone = userSess.phone ? String(userSess.phone).replace(/\D/g, "").slice(-10) : undefined;
+      return { role: 'USER', userId: userSess.userId, phone: cleanPhone };
+    }
+    if (dbAdapter) {
+      try {
+        const dbSess = await dbAdapter.getSession(token);
+        if (dbSess && dbSess.userId) {
+          const cleanPhone = dbSess.phone ? String(dbSess.phone).replace(/\D/g, "").slice(-10) : undefined;
+          return { role: 'USER', userId: dbSess.userId, phone: cleanPhone };
+        }
+      } catch {}
+    }
+
+    return { role: 'GUEST' };
+  };
+
+  // Event category classification
+  const ADMIN_ONLY_EVENT_TYPES = new Set([
+    "PURCHASE_REQUEST",
+    "MEMBERSHIP_PURCHASE_REQUESTED",
+    "PAYMENT_RECORDED",
+    "USER_SIGNUP",
+    "USER_LOGIN",
+    "USER_DELETED",
+    "LEAD_DELETED",
+    "SYNTHETIC_PURCHASE_RECONCILED",
+    "PAYMENT_LEDGER_RECONCILED",
+    "SYSTEM_RESET",
+    "ADMIN_ANNOUNCEMENT"
+  ]);
+
+  const USER_SCOPED_EVENT_TYPES = new Set([
+    "PURCHASE_APPROVED",
+    "PURCHASE_REJECTED",
+    "MEMBERSHIP_ACTIVATED",
+    "MEMBERSHIP_APPROVED",
+    "MEMBERSHIP_REJECTED",
+    "USER_PROFILE_UPDATED",
+    "USER_STATUS_CHANGED",
+    "SERVICE_LICENSE_UPDATED",
+    "USER_FORCE_SIGNOUT"
+  ]);
 
   const broadcastRealtimeEvent = (type: string, payload: any = {}) => {
-    const eventObj = { type, payload, timestamp: Date.now() };
+    // 1. Sanitize payload: NEVER broadcast tokens, hashes, or secrets!
+    const sanitizedPayload = { ...payload };
+    delete sanitizedPayload.token;
+    delete sanitizedPayload.passwordHash;
+    delete sanitizedPayload.password;
+    delete sanitizedPayload.secret;
+
+    // 2. Extract targets if user-scoped
+    const targetUserId = String(sanitizedPayload.userId || sanitizedPayload.user?.id || sanitizedPayload.membership?.userId || "").trim() || undefined;
+    const rawPhone = String(sanitizedPayload.phone || sanitizedPayload.mobile || sanitizedPayload.user?.phone || sanitizedPayload.lead?.mobile || sanitizedPayload.membership?.phone || "").replace(/\D/g, "").slice(-10);
+    const targetPhone = rawPhone.length === 10 ? rawPhone : undefined;
+
+    let targetRole: 'SUPER_ADMIN' | 'USER' | 'PUBLIC' = 'PUBLIC';
+    if (ADMIN_ONLY_EVENT_TYPES.has(type)) {
+      targetRole = 'SUPER_ADMIN';
+    } else if (USER_SCOPED_EVENT_TYPES.has(type)) {
+      targetRole = 'USER';
+    }
+
+    const eventObj = {
+      type,
+      payload: sanitizedPayload,
+      timestamp: Date.now(),
+      targetRole,
+      targetUserId,
+      targetPhone
+    };
+
     recentEventsLog.unshift(eventObj);
     if (recentEventsLog.length > 200) recentEventsLog.pop();
 
-    const dataString = `data: ${JSON.stringify(eventObj)}\n\n`;
+    const dataString = `data: ${JSON.stringify({ type, payload: sanitizedPayload, timestamp: eventObj.timestamp })}\n\n`;
+
     for (const client of sseClients) {
       try {
-        client.write(dataString);
+        let shouldDeliver = false;
+        if (targetRole === 'PUBLIC') {
+          shouldDeliver = true;
+        } else if (targetRole === 'SUPER_ADMIN') {
+          shouldDeliver = client.role === 'SUPER_ADMIN';
+        } else if (targetRole === 'USER') {
+          if (client.role === 'SUPER_ADMIN') {
+            shouldDeliver = true;
+          } else if (client.role === 'USER') {
+            const matchesId = targetUserId && client.userId && client.userId === targetUserId;
+            const matchesPhone = targetPhone && client.phone && client.phone === targetPhone;
+            shouldDeliver = Boolean(matchesId || matchesPhone);
+          }
+        }
+
+        if (shouldDeliver) {
+          client.res.write(dataString);
+        }
       } catch {
         sseClients.delete(client);
       }
@@ -628,45 +782,133 @@ async function startServer() {
   setInterval(() => {
     for (const client of sseClients) {
       try {
-        client.write(`:ping ${Date.now()}\n\n`);
+        client.res.write(`:ping ${Date.now()}\n\n`);
       } catch {
         sseClients.delete(client);
       }
     }
   }, 15000);
 
-  // GET /api/realtime/events (Native Server-Sent Events Endpoint)
-  app.get("/api/realtime/events", (req, res) => {
+  // POST /api/realtime/ticket (Exchange authenticated session for a single-use 60s SSE ticket)
+  app.post("/api/realtime/ticket", async (req, res) => {
+    try {
+      const identity = await resolveRealtimeClientIdentity(req);
+      if (identity.role === 'GUEST') {
+        return res.status(401).json({ success: false, error: "Authentication required to generate realtime ticket." });
+      }
+      const ticket = `ticket_${crypto.randomBytes(24).toString("hex")}`;
+      realtimeTickets.set(ticket, {
+        role: identity.role,
+        userId: identity.userId,
+        phone: identity.phone,
+        expiresAt: Date.now() + 60000 // 60s expiry
+      });
+      return res.json({ success: true, ticket, role: identity.role });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/realtime/events (Native Server-Sent Events Endpoint with Role Scoping)
+  app.get("/api/realtime/events", async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.flushHeaders?.();
 
-    res.write(`data: ${JSON.stringify({ type: "CONNECTED", timestamp: Date.now(), clientsCount: sseClients.size + 1 })}\n\n`);
-    sseClients.add(res);
+    const identity = await resolveRealtimeClientIdentity(req);
+
+    const clientReg: SSEClientRegistration = {
+      res,
+      role: identity.role,
+      userId: identity.userId,
+      phone: identity.phone,
+      connectedAt: Date.now()
+    };
+
+    sseClients.add(clientReg);
+
+    res.write(`data: ${JSON.stringify({ type: "CONNECTED", role: identity.role, timestamp: Date.now(), clientsCount: sseClients.size })}\n\n`);
 
     req.on("close", () => {
-      sseClients.delete(res);
+      sseClients.delete(clientReg);
     });
   });
 
-  // GET /api/realtime/poll (Fallback polling for environments without SSE)
-  app.get("/api/realtime/poll", (req, res) => {
-    const since = Number(req.query.since) || 0;
-    const filtered = recentEventsLog.filter(e => e.timestamp > since);
-    return res.json({ success: true, events: filtered, serverTime: Date.now(), clientsConnected: sseClients.size });
+  // GET /api/realtime/poll (Scoped fallback polling for environments without SSE)
+  app.get("/api/realtime/poll", async (req, res) => {
+    try {
+      const identity = await resolveRealtimeClientIdentity(req);
+      const since = Number(req.query.since) || 0;
+
+      const filtered = recentEventsLog
+        .filter(e => e.timestamp > since)
+        .filter(e => {
+          if (e.targetRole === 'PUBLIC' || !e.targetRole) return true;
+          if (e.targetRole === 'SUPER_ADMIN') return identity.role === 'SUPER_ADMIN';
+          if (e.targetRole === 'USER') {
+            if (identity.role === 'SUPER_ADMIN') return true;
+            if (identity.role === 'USER') {
+              const matchesId = e.targetUserId && identity.userId && e.targetUserId === identity.userId;
+              const matchesPhone = e.targetPhone && identity.phone && e.targetPhone === identity.phone;
+              return Boolean(matchesId || matchesPhone);
+            }
+            return false;
+          }
+          return false;
+        })
+        .map(e => ({
+          type: e.type,
+          payload: e.payload,
+          timestamp: e.timestamp
+        }));
+
+      return res.json({ success: true, events: filtered, serverTime: Date.now(), clientsConnected: sseClients.size });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
-  // POST /api/realtime/events (Ingest and Broadcast Realtime Events across all connected clients)
-  app.post("/api/realtime/events", (req, res) => {
+  // POST /api/realtime/events (Ingest and Broadcast Realtime Events - Super Admin ONLY with strict validation)
+  app.post("/api/realtime/events", requireSuperAdminAuth, (req, res) => {
     try {
-      const { type, ...payload } = req.body || {};
-      if (type) {
-        broadcastRealtimeEvent(type, payload);
-        return res.json({ success: true, broadcasted: true, type, clientsCount: sseClients.size });
+      // 1. Validate payload size (max 16KB)
+      const rawBody = JSON.stringify(req.body || {});
+      if (rawBody.length > 16384) {
+        return res.status(413).json({ success: false, error: "Event payload exceeds maximum 16KB limit." });
       }
-      return res.status(400).json({ success: false, message: "Event type is required" });
+
+      const { type, ...payload } = req.body || {};
+      if (!type || typeof type !== "string") {
+        return res.status(400).json({ success: false, message: "Valid event type string is required." });
+      }
+
+      // 2. Strict whitelist of events allowed to be broadcast externally by Admin
+      const ALLOWED_ADMIN_BROADCAST_EVENT_TYPES = new Set([
+        "ADMIN_ANNOUNCEMENT",
+        "SERVICE_MAINTENANCE",
+        "REFRESH_CATALOG",
+        "PING",
+        "USER_FORCE_SIGNOUT",
+        "SERVICE_LICENSE_UPDATED"
+      ]);
+
+      if (!ALLOWED_ADMIN_BROADCAST_EVENT_TYPES.has(type.trim())) {
+        return res.status(403).json({
+          success: false,
+          error: `Event type '${type}' is reserved for trusted backend actions and cannot be broadcast externally.`
+        });
+      }
+
+      // 3. Prevent arbitrary mutation of membership/payment from broadcast payload
+      const safePayload = { ...payload };
+      delete safePayload.token;
+      delete safePayload.passwordHash;
+      delete safePayload.password;
+
+      broadcastRealtimeEvent(type.trim(), safePayload);
+      return res.json({ success: true, broadcasted: true, type: type.trim(), clientsCount: sseClients.size });
     } catch (e: any) {
       return res.status(500).json({ success: false, error: e.message });
     }
@@ -1203,9 +1445,12 @@ async function startServer() {
           }
         }
       }
-      const customHeader = req.headers["x-superadmin-token"] || req.headers["x-admin-role"];
-      if (customHeader === "SUPER_ADMIN" || customHeader === "super_admin_master_secret") {
-        isSuperAdmin = true;
+      const customHeader = String(req.headers["x-superadmin-token"] || "").trim();
+      const prodSecret = process.env.SUPERADMIN_SECRET ? String(process.env.SUPERADMIN_SECRET).trim() : null;
+      if (customHeader) {
+        if ((prodSecret && customHeader === prodSecret) || (superAdminSessions.has(customHeader) && (superAdminSessions.get(customHeader)?.expiresAt ?? 0) >= Date.now())) {
+          isSuperAdmin = true;
+        }
       }
 
       // Security check: non-superadmin users can ONLY query their own access status!
@@ -1297,9 +1542,12 @@ async function startServer() {
           }
         }
       }
-      const customHeader = req.headers["x-superadmin-token"] || req.headers["x-admin-role"];
-      if (customHeader === "SUPER_ADMIN" || customHeader === "super_admin_master_secret") {
-        isSuperAdmin = true;
+      const customHeader = String(req.headers["x-superadmin-token"] || "").trim();
+      const prodSecret = process.env.SUPERADMIN_SECRET ? String(process.env.SUPERADMIN_SECRET).trim() : null;
+      if (customHeader) {
+        if ((prodSecret && customHeader === prodSecret) || (superAdminSessions.has(customHeader) && (superAdminSessions.get(customHeader)?.expiresAt ?? 0) >= Date.now())) {
+          isSuperAdmin = true;
+        }
       }
 
       if (!isSuperAdmin) {
@@ -1502,6 +1750,17 @@ async function startServer() {
         });
       }
 
+      const cleanServiceKey = String(serviceKey).trim().toLowerCase();
+      if (cleanServiceKey !== "jyotish" && cleanServiceKey !== "vastu") {
+        return res.status(400).json({
+          success: false,
+          error: "अवैध सेवा कुञ्जी (serviceKey must be 'jyotish' or 'vastu')."
+        });
+      }
+
+      const duration = (planDuration === "lifetime" || planDuration === "आजीवन") ? "lifetime" : "1_year";
+      const authoritativePrice = duration === "lifetime" ? 5000 : 2000;
+
       const requests = getPurchaseRequests();
       const newReq = {
         id: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1510,12 +1769,12 @@ async function startServer() {
         fullName: fullName.trim(),
         phone: phone.trim(),
         email: (email || "").trim(),
-        serviceKey: serviceKey === "vastu" ? "vastu" : "jyotish",
-        serviceTitleNepali: serviceKey === "vastu" ? "वास्तु सेवा (Vastu Sewa)" : "ज्योतिष सेवा (Jyotish Sewa)",
-        planDuration: planDuration || "1_year",
-        amountNPR: amountNPR || (planDuration === "lifetime" ? 15000 : 3500),
+        serviceKey: cleanServiceKey as ("jyotish" | "vastu"),
+        serviceTitleNepali: cleanServiceKey === "vastu" ? "वास्तु सेवा (Vastu Sewa)" : "ज्योतिष सेवा (Jyotish Sewa)",
+        planDuration: duration,
+        amountNPR: authoritativePrice,
         paymentMethod: paymentMethod || "pending",
-        requestStatus: "pending",
+        requestStatus: "pending" as const,
         userMessage: (userMessage || "").trim(),
         createdAtISO: new Date().toISOString(),
         createdAtBS: createdAtBS || getNepaliBSDate(new Date())
@@ -1523,6 +1782,23 @@ async function startServer() {
 
       requests.unshift(newReq);
       savePurchaseRequests(requests);
+
+      if (dbAdapter && typeof dbAdapter.createNotification === "function") {
+        dbAdapter.createNotification({
+          userId: userId || "system",
+          title: `नयाँ सफ्टवेयर खरिद आवेदन: ${fullName.trim()} (${phone.trim()})`,
+          message: `${cleanServiceKey === "vastu" ? "वास्तु" : "ज्योतिष"} सेवा (${duration === "lifetime" ? "आजीवन" : "१ वर्ष"}) का लागि खरिद आवेदन दर्ता भयो। रकम: रु. ${authoritativePrice}`,
+          type: "PURCHASE_REQUEST",
+          metadata: { requestId: newReq.id, serviceKey: cleanServiceKey, planDuration: duration, amountNPR: authoritativePrice }
+        }).catch((e: any) => console.warn("[PurchaseRequest] Notification error:", e.message));
+      }
+
+      broadcastRealtimeEvent("PURCHASE_REQUEST", {
+        request: newReq,
+        userId: newReq.userId,
+        phone: newReq.phone,
+        type: "SERVICE_LICENSE_PURCHASE_REQUEST"
+      });
 
       return res.json({
         success: true,
@@ -2007,11 +2283,23 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "पूरा नाम र मोबाइल नम्बर अनिवार्य छन्।" });
       }
 
+      let isSuperAdmin = false;
       let authUser: any = null;
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
-        authUser = userSessions.get(token) || authEngine.validateSession(token);
+        if (superAdminSessions.has(token) && (superAdminSessions.get(token)?.expiresAt ?? 0) >= Date.now()) {
+          isSuperAdmin = true;
+        } else {
+          authUser = userSessions.get(token) || authEngine.validateSession(token);
+        }
+      }
+      const customHeader = String(req.headers["x-superadmin-token"] || "").trim();
+      const prodSecret = process.env.SUPERADMIN_SECRET ? String(process.env.SUPERADMIN_SECRET).trim() : null;
+      if (customHeader) {
+        if ((prodSecret && customHeader === prodSecret) || (superAdminSessions.has(customHeader) && (superAdminSessions.get(customHeader)?.expiresAt ?? 0) >= Date.now())) {
+          isSuperAdmin = true;
+        }
       }
 
       const cleanMob = String(leadData.mobile || "").replace(/\D/g, "").slice(-10);
@@ -2019,10 +2307,34 @@ async function startServer() {
       const matchedUser = users.find(u => (u.phone && String(u.phone).replace(/\D/g, "").slice(-10) === cleanMob) || (leadData.userId && u.id === leadData.userId));
       const resolvedUserId = (authUser && authUser.userId) || leadData.userId || (matchedUser ? matchedUser.id : null);
 
+      const requestedPlanId = String(leadData.planId || "").trim();
+      const canonical = resolveCanonicalPlan(requestedPlanId) || resolveCanonicalPlan(leadData.planNameNepali) || CANONICAL_MEMBERSHIP_PLANS.normal_yearly;
+      const authoritativePrice = canonical ? canonical.priceNPR : (MEMBERSHIP_PLANS[requestedPlanId]?.priceNPR || 100);
+      const planNameNepali = canonical ? canonical.nameNepali : (MEMBERSHIP_PLANS[requestedPlanId]?.nameNepali || "साधारण सदस्यता (१ वर्ष)");
+      const effectivePlanId = canonical ? canonical.id : (requestedPlanId || "normal_yearly");
+
+      let effectiveStatus = "PURCHASE_PENDING";
+      let approvedAtISO = undefined;
+      let approvedAtBS = undefined;
+      let approvedBy = undefined;
+      let rejectionReason = undefined;
+
+      if (isSuperAdmin) {
+        effectiveStatus = leadData.status || "PURCHASE_PENDING";
+        approvedAtISO = leadData.approvedAtISO;
+        approvedAtBS = leadData.approvedAtBS;
+        approvedBy = leadData.approvedBy;
+        rejectionReason = leadData.rejectionReason;
+      } else {
+        if (leadData.status === "TRIAL_ACTIVE") {
+          effectiveStatus = "TRIAL_ACTIVE";
+        }
+      }
+
       const leads = getClientLeads();
       const existingIdx = leads.findIndex((l: any) => 
         (leadData.id && l.id === leadData.id) ||
-        (leadData.mobile && l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === cleanMob && l.status === leadData.status)
+        (leadData.mobile && l.mobile && l.mobile.replace(/\D/g, "").slice(-10) === cleanMob && l.status === effectiveStatus)
       );
 
       const record = {
@@ -2034,20 +2346,20 @@ async function startServer() {
         email: String(leadData.email || "").trim(),
         whatsapp: String(leadData.whatsapp || leadData.mobile || "").trim(),
         deviceFingerprint: leadData.deviceFingerprint || "unknown-device",
-        status: leadData.status || "PURCHASE_PENDING",
-        planId: leadData.planId || "yearly_both",
-        planNameNepali: leadData.planNameNepali || "१ वर्ष मोबाइल + कम्प्युटर",
-        planAmountNPR: Number(leadData.planAmountNPR) || 1200,
+        status: effectiveStatus,
+        planId: effectivePlanId,
+        planNameNepali: planNameNepali,
+        planAmountNPR: isSuperAdmin && leadData.planAmountNPR !== undefined ? Number(leadData.planAmountNPR) : authoritativePrice,
         paymentMethod: leadData.paymentMethod || "esewa",
         transactionId: String(leadData.transactionId || "").trim(),
         submittedAtISO: leadData.submittedAtISO || new Date().toISOString(),
         submittedAtBS: leadData.submittedAtBS || getNepaliBSDate(new Date()),
         trialStartedAtISO: leadData.trialStartedAtISO,
         trialExpiresAtISO: leadData.trialExpiresAtISO,
-        approvedAtISO: leadData.approvedAtISO,
-        approvedAtBS: leadData.approvedAtBS,
-        approvedBy: leadData.approvedBy,
-        rejectionReason: leadData.rejectionReason,
+        approvedAtISO,
+        approvedAtBS,
+        approvedBy,
+        rejectionReason,
         clientNotes: leadData.clientNotes || (leadData.gotra || leadData.jaatBarna ? `गोत्र: ${leadData.gotra || '-'}, समुदाय: ${leadData.jaatBarna || '-'}` : "")
       };
 
@@ -2539,7 +2851,7 @@ async function startServer() {
           userCategory: result.user.userCategory || 'visitor',
           expiresAtISO: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }).catch(e => console.warn('[Register Session DB Notice]:', e.message));
-        broadcastRealtimeEvent("USER_SIGNUP", { user: result.user, token: result.token });
+        broadcastRealtimeEvent("USER_SIGNUP", { user: result.user });
         (result as any).session = sessionPayload;
       }
 
@@ -2650,7 +2962,7 @@ async function startServer() {
           userCategory: canonical.userCategory,
           expiresAtISO: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }).catch(e => console.warn('[Session DB Notice]:', e.message));
-        broadcastRealtimeEvent("USER_LOGIN", { user: result.user, token: result.token });
+        broadcastRealtimeEvent("USER_LOGIN", { user: result.user });
         result.session = sessionPayload;
       }
 
@@ -3456,9 +3768,12 @@ async function startServer() {
           }
         }
       }
-      const customHeader = req.headers["x-superadmin-token"] || req.headers["x-admin-role"];
-      if (customHeader === "SUPER_ADMIN" || customHeader === "super_admin_master_secret") {
-        isSuperAdmin = true;
+      const customHeader = String(req.headers["x-superadmin-token"] || "").trim();
+      const prodSecret = process.env.SUPERADMIN_SECRET ? String(process.env.SUPERADMIN_SECRET).trim() : null;
+      if (customHeader) {
+        if ((prodSecret && customHeader === prodSecret) || (superAdminSessions.has(customHeader) && (superAdminSessions.get(customHeader)?.expiresAt ?? 0) >= Date.now())) {
+          isSuperAdmin = true;
+        }
       }
 
       if (!isSuperAdmin) {
@@ -7165,14 +7480,26 @@ ${JSON.stringify(transitPlanets || [], null, 2)}
   // Dedicated Cron endpoint for Production Expiry Reminders (Phase 10)
   app.all("/api/cron/check-expiry", (req, res) => {
     try {
-      const cronSecret = process.env.CRON_SECRET;
+      const cronSecret = process.env.CRON_SECRET ? String(process.env.CRON_SECRET).trim() : null;
+      const prodSecret = process.env.SUPERADMIN_SECRET ? String(process.env.SUPERADMIN_SECRET).trim() : null;
+      let authorized = false;
+
       const authHeader = req.headers.authorization;
-      if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-        // Also allow superadmin
-        const customHeader = String(req.headers["x-superadmin-token"] || "").trim().toUpperCase();
-        if (customHeader !== "SUPERADMIN" && customHeader !== "SUPER_ADMIN") {
-          return res.status(401).json({ success: false, error: "Unauthorized cron trigger." });
-        }
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        if (cronSecret && token === cronSecret) authorized = true;
+        if (prodSecret && token === prodSecret) authorized = true;
+        if (superAdminSessions.has(token) && (superAdminSessions.get(token)?.expiresAt ?? 0) >= Date.now()) authorized = true;
+      }
+      const customToken = String(req.headers["x-superadmin-token"] || "").trim();
+      if (customToken) {
+        if (prodSecret && customToken === prodSecret) authorized = true;
+        if (cronSecret && customToken === cronSecret) authorized = true;
+        if (superAdminSessions.has(customToken) && (superAdminSessions.get(customToken)?.expiresAt ?? 0) >= Date.now()) authorized = true;
+      }
+
+      if (!authorized) {
+        return res.status(401).json({ success: false, error: "Unauthorized cron trigger." });
       }
 
       const sweepResult = authEngine.runExpiryAndNotificationCheck();

@@ -58,12 +58,8 @@ function getSuperAdminAuthHeaders(): Record<string, string> {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      headers['x-superadmin-token'] = 'SUPER_ADMIN';
-      headers['x-admin-role'] = 'SUPER_ADMIN';
     }
-  } catch {
-    headers['x-superadmin-token'] = 'SUPER_ADMIN';
-  }
+  } catch {}
   return headers;
 }
 

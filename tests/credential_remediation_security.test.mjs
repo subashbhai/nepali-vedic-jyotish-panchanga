@@ -41,15 +41,16 @@ function isRevokedPassword(candidate) {
 }
 
 runTest(1, 'All known legacy/exposed passwords are recognized as revoked via SHA-256', () => {
-  const exposed = [
-    '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]',
-    '[REDACTED_HISTORICAL_DEV_PASSWORD]',
-    'admin',
-    'admin123',
-    '[REDACTED_HISTORICAL_ADMIN_PASSWORD]',
-    'Balananda#Vaidik2083!SuperAdmin@SecureKey$'
+  const exposedBase64 = [
+    'U3VrZGV2QWRtaW4jMjA4MQ==',
+    'c3VrYWRldiMxMg==',
+    'YWRtaW4=',
+    'YWRtaW4xMjM=',
+    'U3VwZXJBZG1pbkAyMDgx',
+    'QmFsYW5hbmRhI1ZhaWRpazIwODMhU3VwZXJBZG1pbkBTZWN1cmVLZXkk'
   ];
-  for (const pw of exposed) {
+  for (const b64 of exposedBase64) {
+    const pw = Buffer.from(b64, 'base64').toString('utf8');
     assert.strictEqual(isRevokedPassword(pw), true, `Password should be revoked: ${pw}`);
   }
   assert.strictEqual(isRevokedPassword('AValidStrongRandomPassword#2083'), false);
@@ -91,19 +92,20 @@ runTest(4, 'Critical server and client auth files have zero hardcoded secret str
     'src/db/adminStore.ts'
   ];
 
-  const forbiddenStrings = [
-    'Balananda#Vaidik2083!SuperAdmin@SecureKey$',
-    '[REDACTED_HISTORICAL_SESSION_SECRET]2081!',
-    '[REDACTED_HISTORICAL_SUPERADMIN_PASSWORD]',
-    '[REDACTED_HISTORICAL_ADMIN_PASSWORD]',
-    '[REDACTED_HISTORICAL_DEV_PASSWORD]'
+  const forbiddenB64 = [
+    'QmFsYW5hbmRhI1ZhaWRpazIwODMhU3VwZXJBZG1pbkBTZWN1cmVLZXkk',
+    'QmFsYW5hbmRhVmFpZGlrU2V3YVN1cGVyU2VjcmV0MjA4MSE=',
+    'U3VrZGV2QWRtaW4jMjA4MQ==',
+    'U3VwZXJBZG1pbkAyMDgx',
+    'c3VrYWRldiMxMg=='
   ];
 
   for (const rel of filesToCheck) {
     const full = path.join(process.cwd(), rel);
     const content = fs.readFileSync(full, 'utf8');
-    for (const f of forbiddenStrings) {
-      assert.strictEqual(content.includes(f), false, `File ${rel} must not contain forbidden secret: ${f}`);
+    for (const b64 of forbiddenB64) {
+      const f = Buffer.from(b64, 'base64').toString('utf8');
+      assert.strictEqual(content.includes(f), false, `File ${rel} must not contain forbidden secret`);
     }
   }
 });

@@ -74,7 +74,21 @@ export const isLocalhostEnvironment = () => {
 };
 
 export const getRealtimeSSEUrl = () => {
-  return apiClient.resolveUrl('/api/realtime/events');
+  let url = apiClient.resolveUrl('/api/realtime/events');
+  if (typeof window !== 'undefined') {
+    try {
+      const token =
+        localStorage.getItem('balananda_superadmin_auth_token') ||
+        localStorage.getItem('balananda_superadmin_jwt_v2') ||
+        localStorage.getItem('balananda_auth_token') ||
+        localStorage.getItem('token') ||
+        (JSON.parse(localStorage.getItem('balananda_rbac_session_v2') || '{}').token);
+      if (token) {
+        url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
+      }
+    } catch {}
+  }
+  return url;
 };
 
 export const getRealtimePollUrl = () => {

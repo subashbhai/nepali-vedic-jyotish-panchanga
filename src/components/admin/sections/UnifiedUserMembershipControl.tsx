@@ -47,7 +47,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { toDevanagariNumerals } from '../../../utils/nepaliCalendar';
-import { unifiedUserSyncService, REALTIME_SSE_URL } from '../../../services/unifiedUserSyncService';
+import { unifiedUserSyncService, getRealtimeSSEUrl } from '../../../services/unifiedUserSyncService';
 import { authService } from '../../../services/authService';
 import { apiClient } from '../../../services/apiClient';
 import { normalizeBirthDateBS, normalizeBirthTime } from '../../../utils/birthProfileCanonical';
@@ -621,7 +621,7 @@ export const UnifiedUserMembershipControl: React.FC<UnifiedUserMembershipControl
     let evtSource: EventSource | null = null;
     if (typeof window !== 'undefined' && 'EventSource' in window) {
       try {
-        evtSource = new EventSource(REALTIME_SSE_URL);
+        evtSource = new EventSource(getRealtimeSSEUrl());
         evtSource.onmessage = (e) => {
           try {
             const parsed = JSON.parse(e.data);
